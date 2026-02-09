@@ -23,34 +23,33 @@ function useIsMobile(breakpoint = 640) {
 }
 
 // ─── Shared styles ───
-const btnBase: React.CSSProperties = {
-  borderRadius: 6,
-  fontWeight: 600,
-  fontSize: '0.82rem',
-  cursor: 'pointer',
-  whiteSpace: 'nowrap',
-  transition: 'opacity 0.15s',
+const controlBox: React.CSSProperties = {
+  border: '1.5px solid var(--sl-color-gray-5)',
+  borderRadius: 10,
+  marginBottom: '1rem',
+  background: 'var(--sl-color-gray-6)',
+  padding: '1rem',
+  boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
 };
 
-const btnPrimary = (bg: string, mobile = false): React.CSSProperties => ({
-  ...btnBase,
-  background: bg,
-  color: '#fff',
-  border: 'none',
-  padding: mobile ? '0.6rem 0.75rem' : '0.5rem 1rem',
-  ...(mobile ? { flex: 1, minWidth: 0 } : {}),
-});
+const sectionLabel: React.CSSProperties = {
+  fontSize: '0.7rem',
+  fontWeight: 700,
+  color: 'var(--sl-color-gray-3)',
+  textTransform: 'uppercase',
+  letterSpacing: '0.05em',
+  marginBottom: '0.4rem',
+};
 
-const btnOutlined = (color: string, mobile = false): React.CSSProperties => ({
-  ...btnBase,
-  background: 'transparent',
-  color: color,
-  border: `1.5px solid ${color}`,
-  padding: mobile ? '0.6rem 0.75rem' : '0.5rem 1rem',
-  ...(mobile ? { flex: 1, minWidth: 0 } : {}),
-});
+const fieldLabel: React.CSSProperties = {
+  fontSize: '0.75rem',
+  fontWeight: 500,
+  color: 'var(--sl-color-gray-3)',
+  marginBottom: '0.2rem',
+  display: 'block',
+};
 
-const inputBase: React.CSSProperties = {
+const inputField: React.CSSProperties = {
   padding: '0.5rem 0.75rem',
   borderRadius: 6,
   border: '1.5px solid var(--sl-color-gray-4)',
@@ -59,18 +58,34 @@ const inputBase: React.CSSProperties = {
   fontSize: '0.85rem',
   fontWeight: 500,
   outline: 'none',
+  width: '100%',
+  boxSizing: 'border-box',
 };
 
-const inputDesktop = (w = 100): React.CSSProperties => ({
-  ...inputBase,
-  width: w,
+const btnBase: React.CSSProperties = {
+  borderRadius: 6,
+  fontWeight: 600,
+  fontSize: '0.82rem',
+  cursor: 'pointer',
+  whiteSpace: 'nowrap',
+  transition: 'opacity 0.15s',
+  padding: '0.5rem 1rem',
+  minHeight: 38,
+};
+
+const btn = (bg: string): React.CSSProperties => ({
+  ...btnBase,
+  background: bg,
+  color: '#fff',
+  border: 'none',
 });
 
-const inputMobile: React.CSSProperties = {
-  ...inputBase,
-  flex: 1,
-  minWidth: 0,
-};
+const btnOut = (color: string): React.CSSProperties => ({
+  ...btnBase,
+  background: 'transparent',
+  color,
+  border: `1.5px solid ${color}`,
+});
 
 const msgStyle: React.CSSProperties = {
   fontSize: '0.85rem',
@@ -78,6 +93,7 @@ const msgStyle: React.CSSProperties = {
   padding: '0.5rem 1rem',
   borderRadius: 6,
   background: 'var(--sl-color-gray-6)',
+  border: '1px solid var(--sl-color-gray-5)',
   color: 'var(--sl-color-text)',
 };
 
@@ -96,29 +112,11 @@ const statusText: React.CSSProperties = {
   padding: '0 0.25rem',
 };
 
-const controlPanelBase: React.CSSProperties = {
-  background: 'var(--sl-color-gray-6)',
-  borderRadius: 8,
-  padding: '1rem',
-  marginBottom: '1rem',
+const hrSep: React.CSSProperties = {
+  height: 1,
+  background: 'var(--sl-color-gray-5)',
+  margin: '0.25rem 0',
 };
-
-const mobileGroupLabel: React.CSSProperties = {
-  fontSize: '0.7rem',
-  color: 'var(--sl-color-gray-3)',
-  fontWeight: 600,
-  letterSpacing: '0.05em',
-  textTransform: 'uppercase' as const,
-  marginBottom: 4,
-};
-
-const mobileSeparator = (): JSX.Element => (
-  <div style={{ height: 1, background: 'var(--sl-color-gray-5)', margin: '0.25rem 0' }} />
-);
-
-const desktopSeparator = (): JSX.Element => (
-  <div style={{ width: 1, height: 28, background: 'var(--sl-color-gray-4)' }} />
-);
 
 // ─── Stack Component ───
 function StackViz() {
@@ -155,78 +153,52 @@ function StackViz() {
 
   return (
     <div>
-      {isMobile ? (
-        <div style={{ ...controlPanelBase, display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-          <div>
-            <div style={mobileGroupLabel}>Push value</div>
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-              <input
-                type="number"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
+      <div style={controlBox}>
+        {isMobile ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            <div>
+              <div style={sectionLabel}>Push Value</div>
+              <input type="number" value={input} onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && push()}
-                placeholder="Value"
-                style={inputMobile}
-              />
-              <button onClick={push} style={btnPrimary('#10b981', true)}>Push</button>
+                placeholder="Enter a number" style={inputField} />
             </div>
-          </div>
-          {mobileSeparator()}
-          <div>
-            <div style={mobileGroupLabel}>Operations</div>
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-              <button onClick={pop} style={btnOutlined('#ef4444', true)}>Pop</button>
-              <button onClick={peek} style={btnPrimary('#0066cc', true)}>Peek</button>
-              <button onClick={clear} style={btnOutlined('#6b7280', true)}>Clear</button>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button onClick={push} style={{ ...btn('#10b981'), flex: 1 }}>Push</button>
+              <button onClick={pop} style={{ ...btnOut('#ef4444'), flex: 1 }}>Pop</button>
+              <button onClick={peek} style={{ ...btn('#0066cc'), flex: 1 }}>Peek</button>
             </div>
+            <button onClick={clear} style={{ ...btnOut('#6b7280'), width: '100%' }}>Clear</button>
           </div>
-        </div>
-      ) : (
-        <div style={{ ...controlPanelBase, display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-            <input
-              type="number"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && push()}
-              placeholder="Value"
-              style={inputDesktop(100)}
-            />
-            <button onClick={push} style={btnPrimary('#10b981')}>Push</button>
-            <button onClick={pop} style={btnOutlined('#ef4444')}>Pop</button>
-            <button onClick={peek} style={btnPrimary('#0066cc')}>Peek</button>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '0.75rem' }}>
+            <div style={{ minWidth: 160 }}>
+              <div style={fieldLabel}>Value</div>
+              <input type="number" value={input} onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && push()}
+                placeholder="Enter a number" style={{ ...inputField, width: 160 }} />
+            </div>
+            <button onClick={push} style={btn('#10b981')}>Push</button>
+            <button onClick={pop} style={btnOut('#ef4444')}>Pop</button>
+            <button onClick={peek} style={btn('#0066cc')}>Peek</button>
+            <div style={{ flex: 1 }} />
+            <button onClick={clear} style={btnOut('#6b7280')}>Clear</button>
           </div>
-          {desktopSeparator()}
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-            <button onClick={clear} style={btnOutlined('#6b7280')}>Clear</button>
-          </div>
-        </div>
-      )}
+        )}
+      </div>
       {message && <div style={msgStyle}>{message}</div>}
       <div style={{
-        display: 'flex',
-        flexDirection: 'column-reverse',
-        alignItems: 'center',
-        gap: 3,
-        minHeight: 240,
-        padding: '1rem',
-        border: '1px dashed var(--sl-color-gray-5)',
-        borderRadius: '0.5rem',
+        display: 'flex', flexDirection: 'column-reverse', alignItems: 'center',
+        gap: 3, minHeight: 240, padding: '1rem',
+        border: '1px dashed var(--sl-color-gray-5)', borderRadius: '0.5rem',
         position: 'relative',
       }}>
-        {/* Stack container walls */}
         <div style={{
-          position: 'absolute',
-          bottom: 0,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          width: 160,
-          height: '100%',
+          position: 'absolute', bottom: 0, left: '50%', transform: 'translateX(-50%)',
+          width: 160, height: '100%',
           borderLeft: '3px solid var(--sl-color-gray-4)',
           borderRight: '3px solid var(--sl-color-gray-4)',
           borderBottom: '3px solid var(--sl-color-gray-4)',
-          borderRadius: '0 0 0.5rem 0.5rem',
-          pointerEvents: 'none',
+          borderRadius: '0 0 0.5rem 0.5rem', pointerEvents: 'none',
         }} />
         <AnimatePresence>
           {stack.map((val, i) => (
@@ -236,16 +208,11 @@ function StackViz() {
               exit={{ opacity: 0, scale: 0.8, y: -30 }}
               transition={{ type: 'spring', stiffness: 300, damping: 25 }}
               style={{
-                width: 140,
-                padding: '0.65rem 1rem',
-                textAlign: 'center',
+                width: 140, padding: '0.65rem 1rem', textAlign: 'center',
                 background: i === stack.length - 1 ? '#0066cc' : 'var(--sl-color-gray-5)',
                 color: i === stack.length - 1 ? '#fff' : 'var(--sl-color-text)',
-                borderRadius: '0.4rem',
-                fontWeight: 700,
-                fontSize: '1rem',
-                position: 'relative',
-                zIndex: 1,
+                borderRadius: '0.4rem', fontWeight: 700, fontSize: '1rem',
+                position: 'relative', zIndex: 1,
               }}>
               {val}
               {i === stack.length - 1 && (
@@ -292,62 +259,42 @@ function QueueViz() {
 
   return (
     <div>
-      {isMobile ? (
-        <div style={{ ...controlPanelBase, display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-          <div>
-            <div style={mobileGroupLabel}>Enqueue value</div>
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-              <input
-                type="number"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
+      <div style={controlBox}>
+        {isMobile ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            <div>
+              <div style={sectionLabel}>Enqueue Value</div>
+              <input type="number" value={input} onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && enqueue()}
-                placeholder="Value"
-                style={inputMobile}
-              />
-              <button onClick={enqueue} style={btnPrimary('#10b981', true)}>Enqueue</button>
+                placeholder="Enter a number" style={inputField} />
             </div>
-          </div>
-          {mobileSeparator()}
-          <div>
-            <div style={mobileGroupLabel}>Operations</div>
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-              <button onClick={dequeue} style={btnOutlined('#ef4444', true)}>Dequeue</button>
-              <button onClick={clear} style={btnOutlined('#6b7280', true)}>Clear</button>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button onClick={enqueue} style={{ ...btn('#10b981'), flex: 1 }}>Enqueue</button>
+              <button onClick={dequeue} style={{ ...btnOut('#ef4444'), flex: 1 }}>Dequeue</button>
             </div>
+            <button onClick={clear} style={{ ...btnOut('#6b7280'), width: '100%' }}>Clear</button>
           </div>
-        </div>
-      ) : (
-        <div style={{ ...controlPanelBase, display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-            <input
-              type="number"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && enqueue()}
-              placeholder="Value"
-              style={inputDesktop(100)}
-            />
-            <button onClick={enqueue} style={btnPrimary('#10b981')}>Enqueue</button>
-            <button onClick={dequeue} style={btnOutlined('#ef4444')}>Dequeue</button>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '0.75rem' }}>
+            <div style={{ minWidth: 160 }}>
+              <div style={fieldLabel}>Value</div>
+              <input type="number" value={input} onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && enqueue()}
+                placeholder="Enter a number" style={{ ...inputField, width: 160 }} />
+            </div>
+            <button onClick={enqueue} style={btn('#10b981')}>Enqueue</button>
+            <button onClick={dequeue} style={btnOut('#ef4444')}>Dequeue</button>
+            <div style={{ flex: 1 }} />
+            <button onClick={clear} style={btnOut('#6b7280')}>Clear</button>
           </div>
-          {desktopSeparator()}
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-            <button onClick={clear} style={btnOutlined('#6b7280')}>Clear</button>
-          </div>
-        </div>
-      )}
+        )}
+      </div>
       {message && <div style={msgStyle}>{message}</div>}
       <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 0,
-        minHeight: 100,
-        overflowX: 'auto',
-        WebkitOverflowScrolling: 'touch',
+        display: 'flex', alignItems: 'center', gap: 0, minHeight: 100,
+        overflowX: 'auto', WebkitOverflowScrolling: 'touch',
         padding: '1.5rem 1rem',
-        border: '1px dashed var(--sl-color-gray-5)',
-        borderRadius: '0.5rem',
+        border: '1px dashed var(--sl-color-gray-5)', borderRadius: '0.5rem',
       }}>
         {queue.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginRight: 8, flexShrink: 0 }}>
@@ -370,15 +317,9 @@ function QueueViz() {
                 </svg>
               )}
               <div style={{
-                minWidth: 52,
-                padding: '0.65rem 0.8rem',
-                textAlign: 'center',
+                minWidth: 52, padding: '0.65rem 0.8rem', textAlign: 'center',
                 background: i === 0 ? '#ef4444' : i === queue.length - 1 ? '#10b981' : '#0066cc',
-                color: '#fff',
-                borderRadius: '0.5rem',
-                fontWeight: 700,
-                fontSize: '1rem',
-                flexShrink: 0,
+                color: '#fff', borderRadius: '0.5rem', fontWeight: 700, fontSize: '1rem', flexShrink: 0,
               }}>
                 {val}
               </div>
@@ -440,86 +381,63 @@ function LinkedListViz() {
 
   return (
     <div>
-      {isMobile ? (
-        <div style={{ ...controlPanelBase, display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-          <div>
-            <div style={mobileGroupLabel}>Add Node</div>
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-              <input
-                type="number"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
+      <div style={controlBox}>
+        {isMobile ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            <div>
+              <div style={sectionLabel}>Add Node</div>
+              <input type="number" value={input} onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && addTail()}
-                placeholder="Value"
-                style={inputMobile}
-              />
-              <button onClick={addHead} style={btnPrimary('#0066cc', true)}>Add Head</button>
-              <button onClick={addTail} style={btnPrimary('#10b981', true)}>Add Tail</button>
+                placeholder="Enter a value" style={{ ...inputField, marginBottom: '0.5rem' }} />
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button onClick={addHead} style={{ ...btn('#0066cc'), flex: 1 }}>Add Head</button>
+                <button onClick={addTail} style={{ ...btn('#10b981'), flex: 1 }}>Add Tail</button>
+              </div>
             </div>
+            <div style={hrSep} />
+            <div>
+              <div style={sectionLabel}>Remove Node</div>
+              <input type="number" value={posInput} onChange={(e) => setPosInput(e.target.value)}
+                placeholder="Enter index" style={{ ...inputField, marginBottom: '0.5rem' }} />
+              <button onClick={removeAt} style={{ ...btnOut('#ef4444'), width: '100%' }}>Remove at Index</button>
+            </div>
+            <div style={hrSep} />
+            <button onClick={clear} style={{ ...btnOut('#6b7280'), width: '100%' }}>Clear All</button>
           </div>
-          {mobileSeparator()}
+        ) : (
           <div>
-            <div style={mobileGroupLabel}>Remove</div>
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-              <input
-                type="number"
-                value={posInput}
-                onChange={(e) => setPosInput(e.target.value)}
-                placeholder="Index"
-                style={inputMobile}
-              />
-              <button onClick={removeAt} style={btnOutlined('#ef4444', true)}>Remove At</button>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '0.75rem' }}>
+              <div>
+                <div style={sectionLabel}>Add Node</div>
+                <div style={fieldLabel}>Value</div>
+                <input type="number" value={input} onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && addTail()}
+                  placeholder="Enter a value" style={{ ...inputField, marginBottom: '0.5rem' }} />
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button onClick={addHead} style={{ ...btn('#0066cc'), flex: 1 }}>Add Head</button>
+                  <button onClick={addTail} style={{ ...btn('#10b981'), flex: 1 }}>Add Tail</button>
+                </div>
+              </div>
+              <div>
+                <div style={sectionLabel}>Remove Node</div>
+                <div style={fieldLabel}>Index</div>
+                <input type="number" value={posInput} onChange={(e) => setPosInput(e.target.value)}
+                  placeholder="Enter index" style={{ ...inputField, marginBottom: '0.5rem' }} />
+                <button onClick={removeAt} style={{ ...btnOut('#ef4444'), width: '100%' }}>Remove at Index</button>
+              </div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+              <button onClick={clear} style={btnOut('#6b7280')}>Clear All</button>
             </div>
           </div>
-          {mobileSeparator()}
-          <div>
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-              <button onClick={clear} style={{ ...btnOutlined('#6b7280', true), width: '100%' }}>Clear</button>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div style={{ ...controlPanelBase, display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-            <input
-              type="number"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && addTail()}
-              placeholder="Value"
-              style={inputDesktop(100)}
-            />
-            <button onClick={addHead} style={btnPrimary('#0066cc')}>Add Head</button>
-            <button onClick={addTail} style={btnPrimary('#10b981')}>Add Tail</button>
-          </div>
-          {desktopSeparator()}
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-            <input
-              type="number"
-              value={posInput}
-              onChange={(e) => setPosInput(e.target.value)}
-              placeholder="Index"
-              style={inputDesktop(80)}
-            />
-            <button onClick={removeAt} style={btnOutlined('#ef4444')}>Remove At</button>
-          </div>
-          {desktopSeparator()}
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-            <button onClick={clear} style={btnOutlined('#6b7280')}>Clear</button>
-          </div>
-        </div>
-      )}
+        )}
+      </div>
       {message && <div style={msgStyle}>{message}</div>}
       <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 0,
-        overflowX: 'auto',
-        WebkitOverflowScrolling: 'touch',
-        padding: '1.5rem 1rem',
-        minHeight: 110,
-        border: '1px dashed var(--sl-color-gray-5)',
-        borderRadius: '0.5rem',
+        display: 'flex', alignItems: 'center', gap: 0,
+        overflowX: 'auto', WebkitOverflowScrolling: 'touch',
+        padding: '1.5rem 1rem', minHeight: 110,
+        border: '1px dashed var(--sl-color-gray-5)', borderRadius: '0.5rem',
       }}>
         {nodes.length > 0 && (
           <div style={{ fontSize: '0.75rem', color: '#0066cc', fontWeight: 700, marginRight: 10, whiteSpace: 'nowrap', flexShrink: 0 }}>HEAD</div>
@@ -532,45 +450,27 @@ function LinkedListViz() {
               exit={{ opacity: 0, scale: 0.5 }}
               transition={{ type: 'spring', stiffness: 300, damping: 25 }}
               style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-              {/* Arrow between nodes */}
               {i > 0 && (
                 <svg width="32" height="16" viewBox="0 0 32 16" style={{ flexShrink: 0, display: 'block' }}>
                   <line x1="0" y1="8" x2="24" y2="8" stroke="#0066cc" strokeWidth="2" />
                   <polygon points="24,3 32,8 24,13" fill="#0066cc" />
                 </svg>
               )}
-              {/* Node: [data | next] */}
               <div style={{
-                display: 'flex',
-                borderRadius: '0.5rem',
-                overflow: 'hidden',
-                border: '2px solid #0066cc',
-                flexShrink: 0,
-                boxShadow: '0 2px 6px rgba(0,0,0,0.08)',
+                display: 'flex', borderRadius: '0.5rem', overflow: 'hidden',
+                border: '2px solid #0066cc', flexShrink: 0, boxShadow: '0 2px 6px rgba(0,0,0,0.08)',
               }}>
-                {/* Data cell */}
                 <div style={{
-                  padding: '0.65rem 1.1rem',
-                  fontWeight: 700,
-                  fontSize: '1.05rem',
+                  padding: '0.65rem 1.1rem', fontWeight: 700, fontSize: '1.05rem',
                   background: i === 0 ? '#0066cc' : 'var(--sl-color-bg)',
                   color: i === 0 ? '#fff' : 'var(--sl-color-text)',
-                  minWidth: 52,
-                  textAlign: 'center',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
+                  minWidth: 52, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}>
                   {val}
                 </div>
-                {/* Pointer cell */}
                 <div style={{
-                  width: 40,
-                  borderLeft: '2px solid #0066cc',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  background: 'var(--sl-color-bg)',
+                  width: 40, borderLeft: '2px solid #0066cc',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--sl-color-bg)',
                 }}>
                   {i < nodes.length - 1 ? (
                     <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#0066cc' }} />
@@ -679,57 +579,57 @@ function BSTViz() {
 
   return (
     <div>
-      {isMobile ? (
-        <div style={{ ...controlPanelBase, display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-          <div>
-            <div style={mobileGroupLabel}>Insert</div>
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-              <input
-                type="number"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
+      <div style={controlBox}>
+        {isMobile ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            <div>
+              <div style={sectionLabel}>Insert</div>
+              <input type="number" value={input} onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleInsert()}
-                placeholder="Value"
-                style={inputMobile}
-              />
-              <button onClick={handleInsert} style={btnPrimary('#10b981', true)}>Insert</button>
-              <button onClick={clearTree} style={btnOutlined('#ef4444', true)}>Clear</button>
+                placeholder="Enter a value" style={{ ...inputField, marginBottom: '0.5rem' }} />
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button onClick={handleInsert} style={{ ...btn('#10b981'), flex: 1 }}>Insert</button>
+                <button onClick={clearTree} style={{ ...btnOut('#ef4444'), flex: 1 }}>Clear</button>
+              </div>
+            </div>
+            <div style={hrSep} />
+            <div>
+              <div style={sectionLabel}>Traversals</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem' }}>
+                <button onClick={() => { setTraversal(inorder(root)); setMessage(`In-order: ${inorder(root).join(' \u2192 ')}`); }} style={btn('#8b5cf6')}>In-order</button>
+                <button onClick={() => { setTraversal(preorder(root)); setMessage(`Pre-order: ${preorder(root).join(' \u2192 ')}`); }} style={btn('#8b5cf6')}>Pre-order</button>
+                <button onClick={() => { setTraversal(postorder(root)); setMessage(`Post-order: ${postorder(root).join(' \u2192 ')}`); }} style={btn('#8b5cf6')}>Post-order</button>
+                <button onClick={() => { setTraversal(levelOrder(root)); setMessage(`Level-order: ${levelOrder(root).join(' \u2192 ')}`); }} style={btn('#8b5cf6')}>Level-order</button>
+              </div>
             </div>
           </div>
-          {mobileSeparator()}
+        ) : (
           <div>
-            <div style={mobileGroupLabel}>Traversals</div>
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-              <button onClick={() => { setTraversal(inorder(root)); setMessage(`In-order: ${inorder(root).join(' \u2192 ')}`); }} style={{ ...btnPrimary('#8b5cf6', true), flex: '1 1 calc(50% - 0.25rem)', minWidth: 0 }}>In-order</button>
-              <button onClick={() => { setTraversal(preorder(root)); setMessage(`Pre-order: ${preorder(root).join(' \u2192 ')}`); }} style={{ ...btnPrimary('#8b5cf6', true), flex: '1 1 calc(50% - 0.25rem)', minWidth: 0 }}>Pre-order</button>
-              <button onClick={() => { setTraversal(postorder(root)); setMessage(`Post-order: ${postorder(root).join(' \u2192 ')}`); }} style={{ ...btnPrimary('#8b5cf6', true), flex: '1 1 calc(50% - 0.25rem)', minWidth: 0 }}>Post-order</button>
-              <button onClick={() => { setTraversal(levelOrder(root)); setMessage(`Level-order: ${levelOrder(root).join(' \u2192 ')}`); }} style={{ ...btnPrimary('#8b5cf6', true), flex: '1 1 calc(50% - 0.25rem)', minWidth: 0 }}>Level-order</button>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              <div>
+                <div style={sectionLabel}>Insert</div>
+                <div style={fieldLabel}>Value</div>
+                <input type="number" value={input} onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleInsert()}
+                  placeholder="Enter a value" style={{ ...inputField, marginBottom: '0.5rem' }} />
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button onClick={handleInsert} style={{ ...btn('#10b981'), flex: 1 }}>Insert</button>
+                  <button onClick={clearTree} style={{ ...btnOut('#ef4444'), flex: 1 }}>Clear</button>
+                </div>
+              </div>
+              <div>
+                <div style={sectionLabel}>Traversals</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem', marginTop: '1.35rem' }}>
+                  <button onClick={() => { setTraversal(inorder(root)); setMessage(`In-order: ${inorder(root).join(' \u2192 ')}`); }} style={btn('#8b5cf6')}>In-order</button>
+                  <button onClick={() => { setTraversal(preorder(root)); setMessage(`Pre-order: ${preorder(root).join(' \u2192 ')}`); }} style={btn('#8b5cf6')}>Pre-order</button>
+                  <button onClick={() => { setTraversal(postorder(root)); setMessage(`Post-order: ${postorder(root).join(' \u2192 ')}`); }} style={btn('#8b5cf6')}>Post-order</button>
+                  <button onClick={() => { setTraversal(levelOrder(root)); setMessage(`Level-order: ${levelOrder(root).join(' \u2192 ')}`); }} style={btn('#8b5cf6')}>Level-order</button>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      ) : (
-        <div style={{ ...controlPanelBase, display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-            <input
-              type="number"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleInsert()}
-              placeholder="Value"
-              style={inputDesktop(100)}
-            />
-            <button onClick={handleInsert} style={btnPrimary('#10b981')}>Insert</button>
-            <button onClick={clearTree} style={btnOutlined('#ef4444')}>Clear</button>
-          </div>
-          {desktopSeparator()}
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-            <button onClick={() => { setTraversal(inorder(root)); setMessage(`In-order: ${inorder(root).join(' \u2192 ')}`); }} style={btnPrimary('#8b5cf6')}>In-order</button>
-            <button onClick={() => { setTraversal(preorder(root)); setMessage(`Pre-order: ${preorder(root).join(' \u2192 ')}`); }} style={btnPrimary('#8b5cf6')}>Pre-order</button>
-            <button onClick={() => { setTraversal(postorder(root)); setMessage(`Post-order: ${postorder(root).join(' \u2192 ')}`); }} style={btnPrimary('#8b5cf6')}>Post-order</button>
-            <button onClick={() => { setTraversal(levelOrder(root)); setMessage(`Level-order: ${levelOrder(root).join(' \u2192 ')}`); }} style={btnPrimary('#8b5cf6')}>Level-order</button>
-          </div>
-        </div>
-      )}
+        )}
+      </div>
       {message && <div style={{ ...msgStyle, fontFamily: 'monospace' }}>{message}</div>}
       <div style={{ minHeight: 260, display: 'flex', justifyContent: 'center', alignItems: 'flex-start', border: '1px dashed var(--sl-color-gray-5)', borderRadius: '0.5rem', padding: '1rem' }}>
         {root ? (
@@ -761,15 +661,13 @@ export default function DataStructureVisualizer({ defaultDS = 'stack' }: { defau
 
   return (
     <div style={{ border: '1px solid var(--sl-color-gray-5)', borderRadius: 12, overflow: 'hidden', margin: '1.5rem 0' }}>
-      {/* Header */}
       <div style={{ padding: '0.75rem 1.25rem', borderBottom: '1px solid var(--sl-color-gray-5)', background: 'var(--sl-color-gray-6)' }}>
         <div style={{ marginBottom: '0.6rem' }}>
           <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700 }}>Data Structure Visualizer</h3>
           <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--sl-color-gray-3)' }}>{DS_TABS[activeDS].description}</p>
         </div>
         <div style={{
-          display: 'flex',
-          gap: '0.4rem',
+          display: 'flex', gap: '0.4rem',
           ...(isMobile
             ? { overflowX: 'auto' as const, WebkitOverflowScrolling: 'touch' as const, paddingBottom: 2 }
             : { flexWrap: 'wrap' as const }),
@@ -777,25 +675,18 @@ export default function DataStructureVisualizer({ defaultDS = 'stack' }: { defau
           {(Object.keys(DS_TABS) as DSType[]).map((ds) => (
             <button key={ds} onClick={() => setActiveDS(ds)}
               style={{
-                padding: '0.5rem 1rem',
-                borderRadius: 6,
+                padding: '0.5rem 1rem', borderRadius: 6,
                 border: activeDS === ds ? '2px solid #0066cc' : '1px solid var(--sl-color-gray-4)',
                 background: activeDS === ds ? '#0066cc' : 'transparent',
                 color: activeDS === ds ? '#fff' : 'var(--sl-color-text)',
-                cursor: 'pointer',
-                fontSize: '0.8rem',
-                fontWeight: 600,
-                transition: 'all 0.15s',
-                whiteSpace: 'nowrap',
-                minHeight: 44,
-                flexShrink: 0,
+                cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600,
+                transition: 'all 0.15s', whiteSpace: 'nowrap', minHeight: 44, flexShrink: 0,
               }}>
               {DS_TABS[ds].label}
             </button>
           ))}
         </div>
       </div>
-      {/* Content */}
       <div style={{ padding: '1.25rem' }}>
         {activeDS === 'stack' && <StackViz />}
         {activeDS === 'queue' && <QueueViz />}

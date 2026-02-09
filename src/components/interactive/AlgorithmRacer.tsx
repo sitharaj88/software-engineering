@@ -129,6 +129,15 @@ function useIsMobile(breakpoint = 640) {
   return mobile;
 }
 
+const sectionLabel: React.CSSProperties = {
+  fontSize: '0.7rem',
+  fontWeight: 700,
+  color: 'var(--sl-color-gray-3)',
+  textTransform: 'uppercase',
+  letterSpacing: '0.05em',
+  marginBottom: '0.5rem',
+};
+
 export default function AlgorithmRacer() {
   const [size, setSize] = useState(500);
   const [selected, setSelected] = useState<Set<SortAlgo>>(new Set(['bubble', 'merge', 'quick']));
@@ -246,26 +255,18 @@ export default function AlgorithmRacer() {
           /* ---- MOBILE Config ---- */
           <div style={{
             background: 'var(--sl-color-gray-6)',
-            borderRadius: 8,
+            border: '1.5px solid var(--sl-color-gray-5)',
+            borderRadius: 10,
             padding: '1rem',
             marginBottom: '1.25rem',
             display: 'flex',
             flexDirection: 'column',
             gap: '0.75rem',
+            boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
           }}>
             {/* Array Size */}
             <div>
-              <span style={{
-                fontSize: '0.7rem',
-                fontWeight: 700,
-                color: 'var(--sl-color-gray-3)',
-                textTransform: 'uppercase' as const,
-                letterSpacing: '0.05em',
-                display: 'block',
-                marginBottom: '0.35rem',
-              }}>
-                Array Size
-              </span>
+              <div style={sectionLabel}>Array Size</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <input
                   type="range" min={100} max={5000} step={100}
@@ -283,17 +284,7 @@ export default function AlgorithmRacer() {
 
             {/* Data Pattern */}
             <div>
-              <span style={{
-                fontSize: '0.7rem',
-                fontWeight: 700,
-                color: 'var(--sl-color-gray-3)',
-                textTransform: 'uppercase' as const,
-                letterSpacing: '0.05em',
-                display: 'block',
-                marginBottom: '0.35rem',
-              }}>
-                Data Pattern
-              </span>
+              <div style={sectionLabel}>Data Pattern</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.3rem' }}>
                 {(['random', 'sorted', 'reversed', 'nearly'] as const).map((type) => (
                   <button
@@ -344,30 +335,24 @@ export default function AlgorithmRacer() {
           /* ---- DESKTOP Config ---- */
           <div style={{
             background: 'var(--sl-color-gray-6)',
-            borderRadius: 8,
+            border: '1.5px solid var(--sl-color-gray-5)',
+            borderRadius: 10,
             padding: '1rem',
             marginBottom: '1.25rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '1rem',
-            flexWrap: 'wrap',
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr auto',
+            gap: '1.5rem',
+            alignItems: 'start',
+            boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
           }}>
-            {/* Array Size */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-              <span style={{
-                fontSize: '0.7rem',
-                fontWeight: 700,
-                color: 'var(--sl-color-gray-3)',
-                textTransform: 'uppercase' as const,
-                letterSpacing: '0.05em',
-              }}>
-                Array Size
-              </span>
+            {/* Column 1: Array Size */}
+            <div>
+              <div style={sectionLabel}>Array Size</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <input
                   type="range" min={100} max={5000} step={100}
                   value={size} onChange={(e) => setSize(+e.target.value)}
-                  style={{ width: 140 }}
+                  style={{ width: 160 }}
                 />
                 <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '0.85rem', minWidth: 45 }}>
                   {size}
@@ -375,27 +360,16 @@ export default function AlgorithmRacer() {
               </div>
             </div>
 
-            {/* Vertical separator */}
-            <div style={{ width: 1, height: 28, background: 'var(--sl-color-gray-4)', flexShrink: 0 }} />
-
-            {/* Data Pattern */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-              <span style={{
-                fontSize: '0.7rem',
-                fontWeight: 700,
-                color: 'var(--sl-color-gray-3)',
-                textTransform: 'uppercase' as const,
-                letterSpacing: '0.05em',
-              }}>
-                Data Pattern
-              </span>
-              <div style={{ display: 'flex', gap: '0.3rem' }}>
+            {/* Column 2: Data Pattern */}
+            <div>
+              <div style={sectionLabel}>Data Pattern</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.3rem' }}>
                 {(['random', 'sorted', 'reversed', 'nearly'] as const).map((type) => (
                   <button
                     key={type}
                     onClick={() => setInputType(type)}
                     style={{
-                      padding: '0.2rem 0.5rem',
+                      padding: '0.25rem 0.5rem',
                       borderRadius: 4,
                       border: inputType === type ? '2px solid #0066cc' : '1px solid var(--sl-color-gray-4)',
                       background: inputType === type ? '#0066cc' : 'transparent',
@@ -403,6 +377,7 @@ export default function AlgorithmRacer() {
                       cursor: 'pointer',
                       fontSize: '0.72rem',
                       fontWeight: 600,
+                      textAlign: 'center' as const,
                     }}
                   >
                     {type.charAt(0).toUpperCase() + type.slice(1)}
@@ -411,26 +386,25 @@ export default function AlgorithmRacer() {
               </div>
             </div>
 
-            {/* Vertical separator */}
-            <div style={{ width: 1, height: 28, background: 'var(--sl-color-gray-4)', flexShrink: 0 }} />
-
-            {/* Start Race button */}
-            <button
-              onClick={startRace}
-              disabled={racing}
-              style={{
-                padding: '0.5rem 1.5rem',
-                borderRadius: 8,
-                border: 'none',
-                background: racing ? '#6b7280' : '#10b981',
-                color: '#fff',
-                cursor: racing ? 'not-allowed' : 'pointer',
-                fontWeight: 700,
-                fontSize: '0.9rem',
-              }}
-            >
-              {racing ? 'Racing...' : 'Start Race!'}
-            </button>
+            {/* Column 3: Start Race button */}
+            <div style={{ display: 'flex', alignItems: 'center', height: '100%' }}>
+              <button
+                onClick={startRace}
+                disabled={racing}
+                style={{
+                  padding: '0.6rem 2rem',
+                  borderRadius: 8,
+                  border: 'none',
+                  background: racing ? '#6b7280' : '#10b981',
+                  color: '#fff',
+                  cursor: racing ? 'not-allowed' : 'pointer',
+                  fontWeight: 700,
+                  fontSize: '0.9rem',
+                }}
+              >
+                {racing ? 'Racing...' : 'Start Race!'}
+              </button>
+            </div>
           </div>
         )}
 

@@ -45,6 +45,15 @@ function useIsMobile(breakpoint = 640) {
   return mobile;
 }
 
+const sectionLabel: React.CSSProperties = {
+  fontSize: '0.7rem',
+  fontWeight: 700,
+  color: 'var(--sl-color-gray-3)',
+  textTransform: 'uppercase',
+  letterSpacing: '0.05em',
+  marginBottom: '0.5rem',
+};
+
 export default function SortingVisualizer() {
   const [size, setSize] = useState(30);
   const [speed, setSpeed] = useState(50);
@@ -319,14 +328,10 @@ export default function SortingVisualizer() {
         padding: '1rem 1.25rem',
         borderTop: '1px solid var(--sl-color-gray-5)',
         background: 'var(--sl-color-gray-6)',
-        ...(isMobile
-          ? { display: 'flex', flexDirection: 'column' as const, gap: '0.75rem' }
-          : { display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' as const }
-        ),
       }}>
         {isMobile ? (
-          <>
-            {/* Row 1: Actions */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            {/* Row 1: Action buttons */}
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               <button onClick={startSort} disabled={sorting} style={{
                 flex: 1, padding: '0.65rem', borderRadius: 6, border: 'none', minHeight: 44,
@@ -344,74 +349,80 @@ export default function SortingVisualizer() {
               </button>
             </div>
 
-            {/* Row 2: Sliders */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ fontSize: '0.75rem', color: 'var(--sl-color-gray-3)' }}>Size</span>
-                <input type="range" min={10} max={80} value={size}
-                  onChange={(e) => !sorting && setSize(+e.target.value)} disabled={sorting}
-                  style={{ flex: 1, height: 4 }} />
-                <span style={{ fontFamily: 'monospace', fontSize: '0.8rem', minWidth: 24 }}>{size}</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ fontSize: '0.75rem', color: 'var(--sl-color-gray-3)' }}>Speed</span>
-                <input type="range" min={1} max={100} value={speed}
-                  onChange={(e) => setSpeed(+e.target.value)}
-                  style={{ flex: 1, height: 4 }} />
-                <span style={{ fontFamily: 'monospace', fontSize: '0.8rem', minWidth: 24 }}>{speed}</span>
-              </div>
+            {/* Row 2: Size slider */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--sl-color-gray-3)' }}>Size</span>
+              <input type="range" min={10} max={80} value={size}
+                onChange={(e) => !sorting && setSize(+e.target.value)} disabled={sorting}
+                style={{ flex: 1, height: 4 }} />
+              <span style={{ fontFamily: 'monospace', fontSize: '0.8rem', minWidth: 24 }}>{size}</span>
             </div>
 
-            {/* Row 3: Stats */}
+            {/* Row 3: Speed slider */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--sl-color-gray-3)' }}>Speed</span>
+              <input type="range" min={1} max={100} value={speed}
+                onChange={(e) => setSpeed(+e.target.value)}
+                style={{ flex: 1, height: 4 }} />
+              <span style={{ fontFamily: 'monospace', fontSize: '0.8rem', minWidth: 24 }}>{speed}</span>
+            </div>
+
+            {/* Row 4: Stats */}
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem' }}>
               <span>Comparisons: <strong>{comparisons}</strong></span>
               <span>Swaps: <strong>{swaps}</strong></span>
               {done && <span style={{ color: '#10b981', fontWeight: 700 }}>Done!</span>}
             </div>
-          </>
+          </div>
         ) : (
           <>
-            {/* Group 1: Actions */}
-            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-              <button onClick={startSort} disabled={sorting} style={{
-                padding: '0.65rem 1.2rem', borderRadius: 6, border: 'none', minHeight: 44,
-                background: '#10b981', color: '#fff', cursor: sorting ? 'not-allowed' : 'pointer',
-                fontWeight: 700, fontSize: '0.85rem',
-              }}>
-                {sorting ? 'Sorting...' : 'Sort'}
-              </button>
-              <button onClick={reset} style={{
-                padding: '0.65rem 1rem', borderRadius: 6, minHeight: 44,
-                border: '1px solid var(--sl-color-gray-4)', background: 'transparent',
-                color: 'var(--sl-color-text)', cursor: 'pointer', fontSize: '0.85rem',
-              }}>
-                New Array
-              </button>
+            {/* Desktop: 2-column grid layout */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+              {/* Left column: ACTIONS */}
+              <div>
+                <div style={sectionLabel}>ACTIONS</div>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button onClick={startSort} disabled={sorting} style={{
+                    flex: 1, padding: '0.65rem 1.2rem', borderRadius: 6, border: 'none', minHeight: 44,
+                    background: '#10b981', color: '#fff', cursor: sorting ? 'not-allowed' : 'pointer',
+                    fontWeight: 700, fontSize: '0.85rem',
+                  }}>
+                    {sorting ? 'Sorting...' : 'Sort'}
+                  </button>
+                  <button onClick={reset} style={{
+                    flex: 1, padding: '0.65rem 1rem', borderRadius: 6, minHeight: 44,
+                    border: '1px solid var(--sl-color-gray-4)', background: 'transparent',
+                    color: 'var(--sl-color-text)', cursor: 'pointer', fontSize: '0.85rem',
+                  }}>
+                    New Array
+                  </button>
+                </div>
+              </div>
+
+              {/* Right column: SETTINGS */}
+              <div>
+                <div style={sectionLabel}>SETTINGS</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--sl-color-gray-3)', minWidth: 36 }}>Size</span>
+                    <input type="range" min={10} max={80} value={size}
+                      onChange={(e) => !sorting && setSize(+e.target.value)} disabled={sorting}
+                      style={{ flex: 1, width: '100%', boxSizing: 'border-box' as const }} />
+                    <span style={{ fontFamily: 'monospace', fontSize: '0.8rem', minWidth: 24 }}>{size}</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--sl-color-gray-3)', minWidth: 36 }}>Speed</span>
+                    <input type="range" min={1} max={100} value={speed}
+                      onChange={(e) => setSpeed(+e.target.value)}
+                      style={{ flex: 1, width: '100%', boxSizing: 'border-box' as const }} />
+                    <span style={{ fontFamily: 'monospace', fontSize: '0.8rem', minWidth: 24 }}>{speed}</span>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            {/* Vertical separator */}
-            <div style={{ width: 1, height: 28, background: 'var(--sl-color-gray-4)' }} />
-
-            {/* Group 2: Sliders */}
-            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', color: 'var(--sl-color-gray-3)' }}>
-                Size
-                <input type="range" min={10} max={80} value={size}
-                  onChange={(e) => !sorting && setSize(+e.target.value)} disabled={sorting}
-                  style={{ width: 100 }} />
-                <span style={{ minWidth: 24, fontFamily: 'monospace', fontSize: '0.8rem' }}>{size}</span>
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', color: 'var(--sl-color-gray-3)' }}>
-                Speed
-                <input type="range" min={1} max={100} value={speed}
-                  onChange={(e) => setSpeed(+e.target.value)}
-                  style={{ width: 100 }} />
-                <span style={{ minWidth: 24, fontFamily: 'monospace', fontSize: '0.8rem' }}>{speed}</span>
-              </label>
-            </div>
-
-            {/* Stats pushed right */}
-            <div style={{ display: 'flex', gap: '1rem', fontSize: '0.8rem', marginLeft: 'auto' }}>
+            {/* Stats row below grid */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.75rem', fontSize: '0.8rem' }}>
               <span>Comparisons: <strong>{comparisons}</strong></span>
               <span>Swaps: <strong>{swaps}</strong></span>
               {done && <span style={{ color: '#10b981', fontWeight: 700 }}>Done!</span>}
