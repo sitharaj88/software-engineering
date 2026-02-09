@@ -1,0 +1,572 @@
+---
+title: System Design Fundamentals
+description: Master the building blocks of distributed systems - networking, APIs, and core trade-offs
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+Before designing any system, you need a solid grasp of the fundamental building blocks. This page covers the networking concepts, communication protocols, API design patterns, and core trade-offs that appear in every system design discussion.
+
+---
+
+## Client-Server Model
+
+The client-server model is the foundation of virtually all modern networked applications. A **client** initiates requests, and a **server** processes those requests and returns responses.
+
+```
+┌──────────┐         Request          ┌──────────┐
+│          │ ──────────────────────►   │          │
+│  Client  │                          │  Server  │
+│ (Browser)│   ◄──────────────────── │ (Backend)│
+│          │         Response         │          │
+└──────────┘                          └──────────┘
+```
+
+### Key Characteristics
+
+| Property | Client | Server |
+|----------|--------|--------|
+| **Initiates** | Requests | Responses |
+| **Lifecycle** | Ephemeral (user session) | Long-running (always on) |
+| **Count** | Many (millions of users) | Few (server fleet) |
+| **Location** | Edge (user devices) | Data center |
+| **Trust** | Untrusted | Trusted |
+
+### Beyond Simple Client-Server
+
+In modern systems, a server often acts as a client to other servers:
+
+```
+┌────────┐     ┌─────────────┐     ┌──────────┐     ┌──────────┐
+│ Mobile │────►│ API Gateway │────►│ Auth     │────►│ User DB  │
+│  App   │     │             │     │ Service  │     │          │
+└────────┘     │             │────►│──────────│     └──────────┘
+               │             │     │ Product  │────►┌──────────┐
+┌────────┐     │             │     │ Service  │     │Product DB│
+│  Web   │────►│             │     └──────────┘     └──────────┘
+│  App   │     └─────────────┘
+└────────┘
+```
+
+---
+
+## Networking Basics
+
+### The OSI Model (Simplified)
+
+Understanding the network stack helps you reason about where things can go wrong.
+
+```
+Layer 7 - Application   │ HTTP, WebSocket, gRPC
+Layer 6 - Presentation  │ TLS/SSL encryption
+Layer 5 - Session       │ Session management
+Layer 4 - Transport     │ TCP, UDP
+Layer 3 - Network       │ IP, routing
+Layer 2 - Data Link     │ Ethernet, Wi-Fi
+Layer 1 - Physical      │ Cables, radio waves
+```
+
+For system design, the most relevant layers are **Transport (4)** and **Application (7)**.
+
+### IP Addresses and Ports
+
+Every machine on a network has an **IP address** (like a street address) and services listen on **ports** (like apartment numbers).
+
+```
+http://192.168.1.100:8080/api/users
+ │          │         │      │
+ │          │         │      └── Path (resource)
+ │          │         └── Port (which service)
+ │          └── IP Address (which machine)
+ └── Protocol (how to communicate)
+```
+
+- **Well-known ports**: HTTP (80), HTTPS (443), SSH (22), MySQL (3306), PostgreSQL (5432), Redis (6379)
+- **Ephemeral ports**: 49152-65535, used by clients for temporary connections
+
+---
+
+## DNS (Domain Name System)
+
+DNS translates human-readable domain names (like `www.example.com`) into IP addresses (like `93.184.216.34`).
+
+### DNS Resolution Flow
+
+```
+                     ┌──────────────┐
+              ┌─────►│  Root DNS    │ (knows .com, .org, etc.)
+              │      │  Server      │
+              │      └──────┬───────┘
+              │             │
+┌────────┐    │      ┌──────▼───────┐
+│ Client │────┼─────►│  TLD DNS     │ (knows .com domains)
+│        │    │      │  Server      │
+└────┬───┘    │      └──────┬───────┘
+     │        │             │
+     │   ┌────▼─────┐  ┌───▼──────────┐
+     │   │ Local DNS │  │ Authoritative│ (knows example.com IP)
+     └──►│ Resolver  │──► DNS Server   │
+         │ (ISP)     │  │              │
+         └───────────┘  └──────────────┘
+```
+
+### DNS Record Types
+
+| Record | Purpose | Example |
+|--------|---------|---------|
+| **A** | Maps domain to IPv4 address | `example.com → 93.184.216.34` |
+| **AAAA** | Maps domain to IPv6 address | `example.com → 2606:2800:...` |
+| **CNAME** | Alias to another domain | `www.example.com → example.com` |
+| **MX** | Mail server routing | `example.com → mail.example.com` |
+| **NS** | Authoritative name server | `example.com → ns1.example.com` |
+| **TXT** | Arbitrary text (SPF, DKIM) | `example.com → "v=spf1 ..."` |
+
+### DNS in System Design
+
+- **TTL (Time to Live)**: Controls how long DNS records are cached. Lower TTL enables faster failover but increases DNS traffic.
+- **DNS-based load balancing**: Return different IPs for the same domain (Round Robin DNS).
+- **GeoDNS**: Return different IPs based on the client's geographic location.
+
+---
+
+## TCP vs UDP
+
+The two primary transport-layer protocols have fundamentally different guarantees.
+
+### TCP (Transmission Control Protocol)
+
+- **Connection-oriented**: Establishes a connection via a 3-way handshake before data transfer
+- **Reliable**: Guarantees delivery and ordering of packets
+- **Flow control**: Adjusts transmission rate based on receiver capacity
+- **Congestion control**: Slows down when network is congested
+
+```
+TCP Three-Way Handshake:
+
+Client                    Server
+  │                         │
+  │──── SYN ───────────────►│
+  │                         │
+  │◄─── SYN-ACK ───────────│
+  │                         │
+  │──── ACK ───────────────►│
+  │                         │
+  │   Connection Established │
+  │◄════════════════════════►│
+```
+
+### UDP (User Datagram Protocol)
+
+- **Connectionless**: No handshake required
+- **Unreliable**: No guarantee of delivery or ordering
+- **Low overhead**: No connection state, smaller header
+- **Fast**: No waiting for acknowledgments
+
+### When to Use Each
+
+| Use Case | Protocol | Reason |
+|----------|----------|--------|
+| Web pages (HTTP) | TCP | Need reliable, ordered delivery |
+| File transfer | TCP | Cannot lose data |
+| Email (SMTP) | TCP | Messages must arrive intact |
+| Video streaming | UDP | Tolerates some packet loss, needs low latency |
+| Voice calls (VoIP) | UDP | Real-time, latency-sensitive |
+| DNS queries | UDP | Small, single request-response |
+| Online gaming | UDP | Low latency more important than reliability |
+| IoT sensor data | UDP | Lightweight, high-frequency updates |
+
+---
+
+## HTTP and HTTPS
+
+HTTP (HyperText Transfer Protocol) is the application-layer protocol that powers the web.
+
+### HTTP Request/Response Cycle
+
+```
+Client                           Server
+  │                                │
+  │──── GET /api/users HTTP/1.1 ──►│
+  │     Host: api.example.com      │
+  │     Authorization: Bearer ...  │
+  │                                │
+  │◄── HTTP/1.1 200 OK ───────────│
+  │    Content-Type: application/  │
+  │    json                        │
+  │    [{"id": 1, "name": "..."}]  │
+  │                                │
+```
+
+### HTTP Methods
+
+| Method | Purpose | Idempotent | Safe |
+|--------|---------|-----------|------|
+| **GET** | Retrieve a resource | Yes | Yes |
+| **POST** | Create a new resource | No | No |
+| **PUT** | Replace a resource entirely | Yes | No |
+| **PATCH** | Partially update a resource | Not guaranteed | No |
+| **DELETE** | Remove a resource | Yes | No |
+| **HEAD** | Same as GET but no body | Yes | Yes |
+| **OPTIONS** | Describe communication options | Yes | Yes |
+
+### HTTP Status Codes
+
+| Range | Category | Common Codes |
+|-------|----------|-------------|
+| **1xx** | Informational | 101 Switching Protocols |
+| **2xx** | Success | 200 OK, 201 Created, 204 No Content |
+| **3xx** | Redirection | 301 Moved Permanently, 304 Not Modified |
+| **4xx** | Client Error | 400 Bad Request, 401 Unauthorized, 403 Forbidden, 404 Not Found, 429 Too Many Requests |
+| **5xx** | Server Error | 500 Internal Server Error, 502 Bad Gateway, 503 Service Unavailable |
+
+### HTTPS and TLS
+
+HTTPS wraps HTTP in a TLS (Transport Layer Security) layer, providing:
+
+- **Encryption**: Data cannot be read in transit
+- **Authentication**: Server identity is verified via certificates
+- **Integrity**: Data cannot be tampered with
+
+```
+TLS Handshake (Simplified):
+
+Client                              Server
+  │                                    │
+  │── ClientHello (supported ciphers)─►│
+  │                                    │
+  │◄─ ServerHello + Certificate ───────│
+  │                                    │
+  │── Verify cert, key exchange ──────►│
+  │                                    │
+  │◄─ Finished ────────────────────────│
+  │                                    │
+  │══ Encrypted HTTP traffic ═════════►│
+  │◄═══════════════════════════════════│
+```
+
+### HTTP/1.1 vs HTTP/2 vs HTTP/3
+
+| Feature | HTTP/1.1 | HTTP/2 | HTTP/3 |
+|---------|----------|--------|--------|
+| **Multiplexing** | No (one request per connection) | Yes (multiple streams) | Yes |
+| **Header compression** | No | HPACK | QPACK |
+| **Server push** | No | Yes | Yes |
+| **Transport** | TCP | TCP | QUIC (UDP-based) |
+| **Head-of-line blocking** | Yes | At TCP level | No |
+
+---
+
+## API Design
+
+APIs define how clients and servers communicate. Choosing the right API style depends on your use case.
+
+### REST (Representational State Transfer)
+
+REST is the most widely used API style for web services. It maps CRUD operations to HTTP methods on resources.
+
+```
+# Resource-based URL design
+GET    /api/users          # List all users
+GET    /api/users/123      # Get user 123
+POST   /api/users          # Create a new user
+PUT    /api/users/123      # Replace user 123
+PATCH  /api/users/123      # Update user 123
+DELETE /api/users/123      # Delete user 123
+
+# Nested resources
+GET    /api/users/123/posts       # List user 123's posts
+POST   /api/users/123/posts       # Create a post for user 123
+
+# Filtering, sorting, pagination
+GET    /api/users?role=admin&sort=-created_at&page=2&limit=20
+```
+
+**REST Best Practices**:
+- Use nouns for resources, not verbs (`/users` not `/getUsers`)
+- Use plural nouns (`/users` not `/user`)
+- Version your API (`/api/v1/users`)
+- Use proper HTTP status codes
+- Support pagination for list endpoints
+- Use HATEOAS for discoverability (links to related resources)
+
+### GraphQL
+
+GraphQL lets clients request exactly the data they need, solving the over-fetching and under-fetching problems of REST.
+
+```graphql
+# Client specifies exactly what data it needs
+query {
+  user(id: "123") {
+    name
+    email
+    posts(last: 5) {
+      title
+      createdAt
+      comments {
+        text
+        author {
+          name
+        }
+      }
+    }
+  }
+}
+```
+
+| Aspect | REST | GraphQL |
+|--------|------|---------|
+| **Endpoints** | Multiple (one per resource) | Single `/graphql` endpoint |
+| **Data fetching** | Fixed response shape | Client specifies shape |
+| **Over-fetching** | Common problem | Solved |
+| **Under-fetching** | Requires multiple requests | Single request |
+| **Caching** | HTTP caching built-in | Requires custom caching |
+| **File uploads** | Native support | Needs workaround |
+| **Learning curve** | Low | Moderate |
+| **Best for** | Simple CRUD, public APIs | Complex, nested data; mobile apps |
+
+### gRPC (Google Remote Procedure Call)
+
+gRPC uses Protocol Buffers for serialization and HTTP/2 for transport. It is ideal for internal service-to-service communication.
+
+```protobuf
+// Define the service in a .proto file
+syntax = "proto3";
+
+service UserService {
+  rpc GetUser (GetUserRequest) returns (User);
+  rpc ListUsers (ListUsersRequest) returns (stream User);
+  rpc CreateUser (CreateUserRequest) returns (User);
+}
+
+message GetUserRequest {
+  string user_id = 1;
+}
+
+message User {
+  string id = 1;
+  string name = 2;
+  string email = 3;
+  int64 created_at = 4;
+}
+```
+
+| Feature | REST | gRPC |
+|---------|------|------|
+| **Serialization** | JSON (text) | Protocol Buffers (binary) |
+| **Performance** | Moderate | High (10x faster serialization) |
+| **Streaming** | Limited (SSE, WebSocket) | Native bidirectional streaming |
+| **Type safety** | No (relies on docs) | Yes (generated code from .proto) |
+| **Browser support** | Native | Requires gRPC-Web proxy |
+| **Best for** | Public APIs, web clients | Internal microservice communication |
+
+---
+
+## Latency vs Throughput
+
+These two metrics are often confused but measure different things.
+
+- **Latency**: The time it takes for a single request to complete (measured in milliseconds)
+- **Throughput**: The number of requests the system can handle per unit of time (measured in requests/second)
+
+```
+Analogy: A highway
+
+Latency   = How long it takes ONE car to travel from A to B
+Throughput = How many cars pass a point per hour
+
+A highway can have:
+- Low latency + High throughput  (fast, many lanes) ← ideal
+- Low latency + Low throughput   (fast, few lanes)
+- High latency + High throughput (slow, many lanes)
+- High latency + Low throughput  (slow, few lanes) ← worst
+```
+
+### Optimizing Each
+
+| Goal | Strategies |
+|------|-----------|
+| **Reduce latency** | Caching, CDNs, connection pooling, geographic proximity, async processing |
+| **Increase throughput** | Horizontal scaling, load balancing, batching, connection multiplexing, queue-based processing |
+
+In practice, optimizing for one can impact the other. **Batching** increases throughput but may increase latency for individual requests. **Caching** can improve both simultaneously.
+
+---
+
+## Availability vs Consistency
+
+In distributed systems, you must often choose between **strong consistency** and **high availability**.
+
+### Availability
+
+Availability is the percentage of time a system is operational and accessible.
+
+```
+Availability = Uptime / (Uptime + Downtime)
+```
+
+| Availability | Downtime/Year | Downtime/Month | Downtime/Week |
+|-------------|---------------|----------------|---------------|
+| 99% (two nines) | 3.65 days | 7.31 hours | 1.68 hours |
+| 99.9% (three nines) | 8.77 hours | 43.83 minutes | 10.08 minutes |
+| 99.99% (four nines) | 52.60 minutes | 4.38 minutes | 1.01 minutes |
+| 99.999% (five nines) | 5.26 minutes | 26.30 seconds | 6.05 seconds |
+
+### Consistency Models
+
+| Model | Guarantee | Use Case |
+|-------|-----------|----------|
+| **Strong consistency** | All reads see the most recent write | Banking, inventory |
+| **Eventual consistency** | Reads will eventually see the latest write | Social media feeds, DNS |
+| **Causal consistency** | Causally related operations are seen in order | Chat messages |
+| **Read-your-writes** | A user always sees their own writes | User profile updates |
+
+---
+
+## CAP Theorem
+
+The CAP theorem states that a distributed data store can provide at most **two of three** guarantees simultaneously:
+
+```
+                    Consistency
+                        /\
+                       /  \
+                      /    \
+                     / CP   \
+                    / Systems \
+                   /──────────\
+                  /            \
+                 / CA    AP     \
+                / Systems Systems\
+               /──────────────────\
+         Availability ──────── Partition
+                                Tolerance
+```
+
+- **Consistency (C)**: Every read receives the most recent write or an error
+- **Availability (A)**: Every request receives a non-error response (though it may not be the most recent write)
+- **Partition Tolerance (P)**: The system continues to operate despite network partitions between nodes
+
+### Why You Cannot Have All Three
+
+In any distributed system, **network partitions will happen** (cables fail, data centers lose connectivity). So partition tolerance is not optional — you must have P. This means you are choosing between:
+
+| Choice | Guarantees | Sacrifice | Examples |
+|--------|-----------|-----------|----------|
+| **CP** | Consistency + Partition Tolerance | Availability (may reject requests during partitions) | HBase, MongoDB (tunable), Redis Cluster |
+| **AP** | Availability + Partition Tolerance | Consistency (may serve stale data during partitions) | Cassandra, DynamoDB, CouchDB |
+| **CA** | Consistency + Availability | Partition Tolerance (only works on single node) | Traditional RDBMS (single node PostgreSQL, MySQL) |
+
+### PACELC Theorem (Extension of CAP)
+
+The PACELC theorem extends CAP: if there is a **P**artition, choose between **A**vailability and **C**onsistency; **E**lse (when running normally), choose between **L**atency and **C**onsistency.
+
+```
+If (Partition) → choose A or C
+Else           → choose L or C
+
+Examples:
+- DynamoDB:  PA/EL  (Available during partition, Low latency normally)
+- MongoDB:   PC/EC  (Consistent during partition, Consistent normally)
+- Cassandra: PA/EL  (Available during partition, Low latency normally)
+- PostgreSQL: PC/EC (Consistent always, single-node CA)
+```
+
+---
+
+## Proxies
+
+### Forward Proxy
+
+A forward proxy sits between clients and the internet, acting on behalf of the client.
+
+```
+┌────────┐     ┌─────────────┐     ┌──────────┐
+│ Client │────►│ Forward     │────►│ Server A │
+│   A    │     │ Proxy       │     └──────────┘
+└────────┘     │             │     ┌──────────┐
+┌────────┐     │ - Caching   │────►│ Server B │
+│ Client │────►│ - Filtering │     └──────────┘
+│   B    │     │ - Anonymity │
+└────────┘     └─────────────┘
+```
+
+**Use cases**: Corporate content filtering, caching, IP anonymization.
+
+### Reverse Proxy
+
+A reverse proxy sits between the internet and servers, acting on behalf of the servers.
+
+```
+               ┌─────────────┐     ┌──────────┐
+               │ Reverse     │────►│ Server A │
+┌────────┐     │ Proxy       │     └──────────┘
+│ Client │────►│             │     ┌──────────┐
+│        │     │ - Load bal. │────►│ Server B │
+└────────┘     │ - SSL term. │     └──────────┘
+               │ - Caching   │     ┌──────────┐
+               │ - Compress. │────►│ Server C │
+               └─────────────┘     └──────────┘
+```
+
+**Use cases**: Load balancing, SSL termination, caching, compression, DDoS protection.
+
+**Common reverse proxies**: Nginx, HAProxy, AWS ALB, Cloudflare.
+
+---
+
+## Hashing and Consistent Hashing
+
+### The Problem with Simple Hashing
+
+With simple modular hashing (`hash(key) % N`), adding or removing a server causes most keys to be remapped:
+
+```
+With 3 servers:  hash("user1") % 3 = 1 → Server 1
+With 4 servers:  hash("user1") % 4 = 2 → Server 2  (remapped!)
+```
+
+This causes a **cache stampede** — most cached data is invalidated when the fleet changes.
+
+### Consistent Hashing
+
+Consistent hashing maps both servers and keys onto a circular ring. Each key is assigned to the next server clockwise on the ring.
+
+```
+              Server A
+                 │
+        ─────────●─────────
+       /    key1 ↗          \
+      /         /            \
+     ●  Server D       Server B  ●
+      \                      /
+       \    key2 ↗          /
+        ─────────●─────────
+              Server C
+
+When Server B is removed:
+- Only keys between A and B are remapped to C
+- Keys assigned to A, C, D are unaffected
+```
+
+**Benefits**: When a server is added or removed, only `K/N` keys are remapped on average (where K = total keys, N = total servers), instead of nearly all keys.
+
+**Virtual nodes**: Each physical server is mapped to multiple points on the ring for better balance.
+
+---
+
+## Summary
+
+<CardGrid>
+  <Card title="Core Protocols" icon="open-book">
+    **TCP** for reliable delivery, **UDP** for low latency, **HTTP/HTTPS** for web communication, **DNS** for name resolution. Know when to use each.
+  </Card>
+  <Card title="API Design" icon="list-format">
+    **REST** for public APIs, **GraphQL** for flexible data fetching, **gRPC** for high-performance internal services. Match the API style to the use case.
+  </Card>
+  <Card title="Key Trade-offs" icon="setting">
+    Latency vs throughput, availability vs consistency, and the CAP theorem. Every design decision involves trade-offs — be explicit about which you are making.
+  </Card>
+  <Card title="Infrastructure" icon="puzzle">
+    Proxies, load balancers, and consistent hashing are the building blocks for scalable, resilient systems. Understand them deeply.
+  </Card>
+</CardGrid>

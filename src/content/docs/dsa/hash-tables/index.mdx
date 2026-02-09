@@ -1,0 +1,1622 @@
+---
+title: Hash Tables
+description: Master hash functions, collision handling, and O(1) average-case lookups
+difficulty: intermediate
+prerequisites: ["Arrays"]
+timeToRead: "22 min"
+topics: ["hash-tables", "data-structures", "hashing"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+A hash table (hash map) is a data structure that maps keys to values using a hash function. It provides **O(1) average-case** time complexity for insert, delete, and search operations.
+
+## How Hash Tables Work
+
+1. **Hash Function**: Converts a key into an array index
+2. **Array Storage**: Values are stored at the computed index
+3. **Collision Handling**: Multiple keys may hash to the same index
+
+```
+Key: "apple"  →  hash("apple") = 3
+Key: "banana" →  hash("banana") = 7
+
+Index:  0    1    2    3       4    5    6    7
+      ┌────┬────┬────┬───────┬────┬────┬────┬────────┐
+      │    │    │    │"apple"│    │    │    │"banana"│
+      └────┴────┴────┴───────┴────┴────┴────┴────────┘
+```
+
+## Time Complexity
+
+| Operation | Average | Worst |
+|-----------|---------|-------|
+| Insert | O(1) | O(n) |
+| Delete | O(1) | O(n) |
+| Search | O(1) | O(n) |
+| Space | O(n) | O(n) |
+
+*Worst case occurs with many collisions (poor hash function or high load factor)*
+
+## Basic Operations
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# Using built-in dict
+hash_map = {}
+
+# Insert / Update
+hash_map["apple"] = 5
+hash_map["banana"] = 3
+
+# Access
+count = hash_map["apple"]        # 5
+count = hash_map.get("grape", 0) # 0 (default if not found)
+
+# Check existence
+if "apple" in hash_map:
+    print("Found!")
+
+# Delete
+del hash_map["apple"]
+hash_map.pop("banana", None)  # Safe delete
+
+# Iterate
+for key, value in hash_map.items():
+    print(f"{key}: {value}")
+
+# Common methods
+keys = list(hash_map.keys())
+values = list(hash_map.values())
+items = list(hash_map.items())
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// Using Map (preferred) or Object
+const hashMap = new Map();
+
+// Insert / Update
+hashMap.set("apple", 5);
+hashMap.set("banana", 3);
+
+// Access
+const count = hashMap.get("apple");     // 5
+const grape = hashMap.get("grape");     // undefined
+
+// Check existence
+if (hashMap.has("apple")) {
+  console.log("Found!");
+}
+
+// Delete
+hashMap.delete("apple");
+
+// Iterate
+for (const [key, value] of hashMap) {
+  console.log(`${key}: ${value}`);
+}
+
+// Size
+console.log(hashMap.size);
+
+// Using Object (simpler but limited)
+const obj = {};
+obj["apple"] = 5;
+console.log(obj["apple"]);
+delete obj["apple"];
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+import java.util.HashMap;
+import java.util.Map;
+
+HashMap<String, Integer> hashMap = new HashMap<>();
+
+// Insert / Update
+hashMap.put("apple", 5);
+hashMap.put("banana", 3);
+
+// Access
+int count = hashMap.get("apple");        // 5
+int grape = hashMap.getOrDefault("grape", 0);  // 0
+
+// Check existence
+if (hashMap.containsKey("apple")) {
+    System.out.println("Found!");
+}
+
+// Delete
+hashMap.remove("apple");
+
+// Iterate
+for (Map.Entry<String, Integer> entry : hashMap.entrySet()) {
+    System.out.println(entry.getKey() + ": " + entry.getValue());
+}
+
+// Size
+System.out.println(hashMap.size());
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+#include <unordered_map>
+#include <string>
+using namespace std;
+
+unordered_map<string, int> hashMap;
+
+// Insert / Update
+hashMap["apple"] = 5;
+hashMap["banana"] = 3;
+hashMap.insert({"cherry", 7});
+
+// Access
+int count = hashMap["apple"];            // 5
+int grape = hashMap.count("grape") ? hashMap["grape"] : 0;
+
+// Check existence
+if (hashMap.find("apple") != hashMap.end()) {
+    cout << "Found!" << endl;
+}
+// Or
+if (hashMap.count("apple")) {
+    cout << "Found!" << endl;
+}
+
+// Delete
+hashMap.erase("apple");
+
+// Iterate
+for (const auto& [key, value] : hashMap) {
+    cout << key << ": " << value << endl;
+}
+
+// Size
+cout << hashMap.size() << endl;
+```
+  </TabItem>
+</Tabs>
+
+## Hash Function
+
+A good hash function should:
+- Be deterministic (same key → same hash)
+- Distribute keys uniformly
+- Be fast to compute
+
+```python
+def simple_hash(key: str, size: int) -> int:
+    """Simple hash function for strings"""
+    hash_value = 0
+    for char in key:
+        hash_value = (hash_value * 31 + ord(char)) % size
+    return hash_value
+
+# Example
+print(simple_hash("apple", 10))  # Some index 0-9
+```
+
+## Collision Handling
+
+### 1. Chaining (Separate Chaining)
+
+Store colliding elements in a linked list at each index.
+
+```python
+class HashTableChaining:
+    def __init__(self, size=10):
+        self.size = size
+        self.table = [[] for _ in range(size)]
+
+    def _hash(self, key):
+        return hash(key) % self.size
+
+    def put(self, key, value):
+        index = self._hash(key)
+        # Check if key exists
+        for i, (k, v) in enumerate(self.table[index]):
+            if k == key:
+                self.table[index][i] = (key, value)
+                return
+        self.table[index].append((key, value))
+
+    def get(self, key):
+        index = self._hash(key)
+        for k, v in self.table[index]:
+            if k == key:
+                return v
+        return None
+
+    def remove(self, key):
+        index = self._hash(key)
+        for i, (k, v) in enumerate(self.table[index]):
+            if k == key:
+                del self.table[index][i]
+                return True
+        return False
+```
+
+### 2. Open Addressing
+
+Find another empty slot when collision occurs.
+
+```python
+class HashTableOpenAddressing:
+    def __init__(self, size=10):
+        self.size = size
+        self.keys = [None] * size
+        self.values = [None] * size
+
+    def _hash(self, key):
+        return hash(key) % self.size
+
+    def _probe(self, index):
+        """Linear probing"""
+        return (index + 1) % self.size
+
+    def put(self, key, value):
+        index = self._hash(key)
+        while self.keys[index] is not None:
+            if self.keys[index] == key:
+                self.values[index] = value
+                return
+            index = self._probe(index)
+        self.keys[index] = key
+        self.values[index] = value
+
+    def get(self, key):
+        index = self._hash(key)
+        while self.keys[index] is not None:
+            if self.keys[index] == key:
+                return self.values[index]
+            index = self._probe(index)
+        return None
+```
+
+## Load Factor & Rehashing
+
+**Load Factor** = number of entries / table size
+
+When load factor exceeds threshold (typically 0.75), **rehash**:
+1. Create larger table (usually 2x)
+2. Reinsert all elements
+
+```python
+class DynamicHashTable:
+    def __init__(self):
+        self.size = 8
+        self.count = 0
+        self.load_threshold = 0.75
+        self.table = [[] for _ in range(self.size)]
+
+    def _rehash(self):
+        old_table = self.table
+        self.size *= 2
+        self.table = [[] for _ in range(self.size)]
+        self.count = 0
+
+        for bucket in old_table:
+            for key, value in bucket:
+                self.put(key, value)
+
+    def put(self, key, value):
+        if self.count / self.size >= self.load_threshold:
+            self._rehash()
+        # ... rest of put implementation
+```
+
+## Common Patterns
+
+### 1. Frequency Counter
+
+Count occurrences of elements.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+from collections import Counter
+
+def frequency_count(arr):
+    """
+    Count frequency of each element.
+    Time: O(n), Space: O(n)
+
+    Algorithm:
+    1. Create empty hash map
+    2. Iterate through array
+    3. For each element, increment its count
+    """
+    freq = {}
+    for num in arr:
+        freq[num] = freq.get(num, 0) + 1
+    return freq
+
+# Or use Counter (built-in)
+freq = Counter([1, 2, 2, 3, 3, 3])
+# Counter({3: 3, 2: 2, 1: 1})
+
+# Most common elements
+most_common = freq.most_common(2)  # [(3, 3), (2, 2)]
+
+# Example usage
+arr = [1, 2, 2, 3, 3, 3, 4]
+result = frequency_count(arr)
+# {1: 1, 2: 2, 3: 3, 4: 1}
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function frequencyCount(arr) {
+  /**
+   * Count frequency of each element.
+   * Time: O(n), Space: O(n)
+   */
+  const freq = new Map();
+
+  for (const num of arr) {
+    freq.set(num, (freq.get(num) || 0) + 1);
+  }
+
+  return freq;
+}
+
+// Using object
+function frequencyCountObj(arr) {
+  const freq = {};
+  for (const num of arr) {
+    freq[num] = (freq[num] || 0) + 1;
+  }
+  return freq;
+}
+
+// Get most common elements
+function mostCommon(freq, k) {
+  return [...freq.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, k);
+}
+
+// Example usage
+const arr = [1, 2, 2, 3, 3, 3, 4];
+const result = frequencyCount(arr);
+// Map { 1 => 1, 2 => 2, 3 => 3, 4 => 1 }
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+import java.util.*;
+
+public Map<Integer, Integer> frequencyCount(int[] arr) {
+    /**
+     * Count frequency of each element.
+     * Time: O(n), Space: O(n)
+     */
+    Map<Integer, Integer> freq = new HashMap<>();
+
+    for (int num : arr) {
+        freq.put(num, freq.getOrDefault(num, 0) + 1);
+    }
+
+    return freq;
+}
+
+// Get most common elements
+public List<int[]> mostCommon(Map<Integer, Integer> freq, int k) {
+    PriorityQueue<int[]> pq = new PriorityQueue<>(
+        (a, b) -> b[1] - a[1]  // Max heap by frequency
+    );
+
+    for (Map.Entry<Integer, Integer> entry : freq.entrySet()) {
+        pq.offer(new int[]{entry.getKey(), entry.getValue()});
+    }
+
+    List<int[]> result = new ArrayList<>();
+    for (int i = 0; i < k && !pq.isEmpty(); i++) {
+        result.add(pq.poll());
+    }
+    return result;
+}
+
+// Example usage
+// int[] arr = {1, 2, 2, 3, 3, 3, 4};
+// Map: {1=1, 2=2, 3=3, 4=1}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+#include <unordered_map>
+#include <vector>
+#include <queue>
+using namespace std;
+
+unordered_map<int, int> frequencyCount(vector<int>& arr) {
+    /**
+     * Count frequency of each element.
+     * Time: O(n), Space: O(n)
+     */
+    unordered_map<int, int> freq;
+
+    for (int num : arr) {
+        freq[num]++;
+    }
+
+    return freq;
+}
+
+// Get most common elements
+vector<pair<int, int>> mostCommon(unordered_map<int, int>& freq, int k) {
+    // Max heap: pair of (frequency, element)
+    priority_queue<pair<int, int>> pq;
+
+    for (auto& [num, count] : freq) {
+        pq.push({count, num});
+    }
+
+    vector<pair<int, int>> result;
+    for (int i = 0; i < k && !pq.empty(); i++) {
+        auto [count, num] = pq.top();
+        pq.pop();
+        result.push_back({num, count});
+    }
+    return result;
+}
+
+// Example usage
+// vector<int> arr = {1, 2, 2, 3, 3, 3, 4};
+// Result: {{1, 1}, {2, 2}, {3, 3}, {4, 1}}
+```
+  </TabItem>
+</Tabs>
+
+### 2. Two Sum
+
+Find two numbers that sum to target.
+
+```
+Algorithm Visualization:
+
+nums = [2, 7, 11, 15], target = 9
+
+Step 1: num = 2
+        complement = 9 - 2 = 7
+        seen = {} → 7 not found
+        seen = {2: 0}
+
+Step 2: num = 7
+        complement = 9 - 7 = 2
+        seen = {2: 0} → 2 FOUND at index 0!
+        Return [0, 1]
+```
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def two_sum(nums: list, target: int) -> list:
+    """
+    Find indices of two numbers summing to target.
+    Time: O(n), Space: O(n)
+
+    Algorithm:
+    1. Create hash map to store value -> index
+    2. For each number, calculate complement (target - num)
+    3. If complement exists in map, return both indices
+    4. Otherwise, store current number and index
+    """
+    seen = {}  # value -> index
+
+    for i, num in enumerate(nums):
+        complement = target - num
+        if complement in seen:
+            return [seen[complement], i]
+        seen[num] = i
+
+    return []
+
+# Example: nums = [2, 7, 11, 15], target = 9
+# Returns: [0, 1]  (2 + 7 = 9)
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function twoSum(nums, target) {
+  /**
+   * Find indices of two numbers summing to target.
+   * Time: O(n), Space: O(n)
+   */
+  const seen = new Map(); // value -> index
+
+  for (let i = 0; i < nums.length; i++) {
+    const complement = target - nums[i];
+
+    if (seen.has(complement)) {
+      return [seen.get(complement), i];
+    }
+
+    seen.set(nums[i], i);
+  }
+
+  return [];
+}
+
+// Example: nums = [2, 7, 11, 15], target = 9
+// Returns: [0, 1]  (2 + 7 = 9)
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+public int[] twoSum(int[] nums, int target) {
+    /**
+     * Find indices of two numbers summing to target.
+     * Time: O(n), Space: O(n)
+     */
+    Map<Integer, Integer> seen = new HashMap<>(); // value -> index
+
+    for (int i = 0; i < nums.length; i++) {
+        int complement = target - nums[i];
+
+        if (seen.containsKey(complement)) {
+            return new int[]{seen.get(complement), i};
+        }
+
+        seen.put(nums[i], i);
+    }
+
+    return new int[]{}; // No solution found
+}
+
+// Example: nums = [2, 7, 11, 15], target = 9
+// Returns: [0, 1]  (2 + 7 = 9)
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+vector<int> twoSum(vector<int>& nums, int target) {
+    /**
+     * Find indices of two numbers summing to target.
+     * Time: O(n), Space: O(n)
+     */
+    unordered_map<int, int> seen; // value -> index
+
+    for (int i = 0; i < nums.size(); i++) {
+        int complement = target - nums[i];
+
+        if (seen.count(complement)) {
+            return {seen[complement], i};
+        }
+
+        seen[nums[i]] = i;
+    }
+
+    return {}; // No solution found
+}
+
+// Example: nums = [2, 7, 11, 15], target = 9
+// Returns: [0, 1]  (2 + 7 = 9)
+```
+  </TabItem>
+</Tabs>
+
+### 3. Group Anagrams
+
+Group strings by their sorted characters.
+
+```
+Algorithm Visualization:
+
+Input: ["eat", "tea", "tan", "ate", "nat", "bat"]
+
+Step 1: "eat" → sorted = "aet" → groups["aet"] = ["eat"]
+Step 2: "tea" → sorted = "aet" → groups["aet"] = ["eat", "tea"]
+Step 3: "tan" → sorted = "ant" → groups["ant"] = ["tan"]
+Step 4: "ate" → sorted = "aet" → groups["aet"] = ["eat", "tea", "ate"]
+Step 5: "nat" → sorted = "ant" → groups["ant"] = ["tan", "nat"]
+Step 6: "bat" → sorted = "abt" → groups["abt"] = ["bat"]
+
+Output: [["eat", "tea", "ate"], ["tan", "nat"], ["bat"]]
+```
+
+<Tabs>
+  <TabItem label="Python">
+```python
+from collections import defaultdict
+
+def group_anagrams(strs: list) -> list:
+    """
+    Group anagrams together.
+    Time: O(n * k log k) where k is max string length
+    Space: O(n * k)
+
+    Algorithm:
+    1. Create hash map with sorted string as key
+    2. For each string, sort it to create key
+    3. Add original string to list at that key
+    4. Return all values (groups)
+    """
+    groups = defaultdict(list)
+
+    for s in strs:
+        # Sort characters to create canonical form
+        key = tuple(sorted(s))
+        groups[key].append(s)
+
+    return list(groups.values())
+
+# Alternative: O(n * k) using character count as key
+def group_anagrams_optimal(strs: list) -> list:
+    groups = defaultdict(list)
+
+    for s in strs:
+        # Count characters (26 lowercase letters)
+        count = [0] * 26
+        for c in s:
+            count[ord(c) - ord('a')] += 1
+        key = tuple(count)
+        groups[key].append(s)
+
+    return list(groups.values())
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function groupAnagrams(strs) {
+  /**
+   * Group anagrams together.
+   * Time: O(n * k log k), Space: O(n * k)
+   */
+  const groups = new Map();
+
+  for (const s of strs) {
+    // Sort characters to create key
+    const key = s.split('').sort().join('');
+
+    if (!groups.has(key)) {
+      groups.set(key, []);
+    }
+    groups.get(key).push(s);
+  }
+
+  return [...groups.values()];
+}
+
+// Alternative: O(n * k) using character count
+function groupAnagramsOptimal(strs) {
+  const groups = new Map();
+
+  for (const s of strs) {
+    // Count characters
+    const count = new Array(26).fill(0);
+    for (const c of s) {
+      count[c.charCodeAt(0) - 'a'.charCodeAt(0)]++;
+    }
+    const key = count.join('#');
+
+    if (!groups.has(key)) {
+      groups.set(key, []);
+    }
+    groups.get(key).push(s);
+  }
+
+  return [...groups.values()];
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+public List<List<String>> groupAnagrams(String[] strs) {
+    /**
+     * Group anagrams together.
+     * Time: O(n * k log k), Space: O(n * k)
+     */
+    Map<String, List<String>> groups = new HashMap<>();
+
+    for (String s : strs) {
+        // Sort characters to create key
+        char[] chars = s.toCharArray();
+        Arrays.sort(chars);
+        String key = new String(chars);
+
+        groups.computeIfAbsent(key, k -> new ArrayList<>()).add(s);
+    }
+
+    return new ArrayList<>(groups.values());
+}
+
+// Alternative: O(n * k) using character count
+public List<List<String>> groupAnagramsOptimal(String[] strs) {
+    Map<String, List<String>> groups = new HashMap<>();
+
+    for (String s : strs) {
+        // Count characters
+        int[] count = new int[26];
+        for (char c : s.toCharArray()) {
+            count[c - 'a']++;
+        }
+        // Create key from counts
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 26; i++) {
+            sb.append('#').append(count[i]);
+        }
+        String key = sb.toString();
+
+        groups.computeIfAbsent(key, k -> new ArrayList<>()).add(s);
+    }
+
+    return new ArrayList<>(groups.values());
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+vector<vector<string>> groupAnagrams(vector<string>& strs) {
+    /**
+     * Group anagrams together.
+     * Time: O(n * k log k), Space: O(n * k)
+     */
+    unordered_map<string, vector<string>> groups;
+
+    for (const string& s : strs) {
+        // Sort characters to create key
+        string key = s;
+        sort(key.begin(), key.end());
+        groups[key].push_back(s);
+    }
+
+    vector<vector<string>> result;
+    for (auto& [key, group] : groups) {
+        result.push_back(group);
+    }
+    return result;
+}
+
+// Alternative: O(n * k) using character count
+vector<vector<string>> groupAnagramsOptimal(vector<string>& strs) {
+    unordered_map<string, vector<string>> groups;
+
+    for (const string& s : strs) {
+        // Count characters
+        string key(26, '0');
+        for (char c : s) {
+            key[c - 'a']++;
+        }
+        groups[key].push_back(s);
+    }
+
+    vector<vector<string>> result;
+    for (auto& [key, group] : groups) {
+        result.push_back(group);
+    }
+    return result;
+}
+```
+  </TabItem>
+</Tabs>
+
+### 4. Subarray Sum Equals K
+
+Count subarrays with sum equal to k using prefix sum technique.
+
+```
+Algorithm Visualization:
+
+nums = [1, 1, 1], k = 2
+
+Index:    0    1    2
+nums:     1    1    1
+prefix:   1    2    3
+
+Step 1: prefix = 1, need prefix - k = -1
+        map = {0: 1} → -1 not found
+        map = {0: 1, 1: 1}
+        count = 0
+
+Step 2: prefix = 2, need prefix - k = 0
+        map = {0: 1, 1: 1} → 0 FOUND (1 time)
+        Subarray [0..1] sums to 2 ✓
+        map = {0: 1, 1: 1, 2: 1}
+        count = 1
+
+Step 3: prefix = 3, need prefix - k = 1
+        map has 1 (1 time)
+        Subarray [1..2] sums to 2 ✓
+        count = 2
+
+Answer: 2 subarrays sum to k
+```
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def subarray_sum(nums: list, k: int) -> int:
+    """
+    Count subarrays summing to k.
+    Time: O(n), Space: O(n)
+
+    Algorithm:
+    1. Use prefix sum: sum of subarray [i..j] = prefix[j] - prefix[i-1]
+    2. If prefix[j] - k = prefix[i-1], then subarray [i..j] sums to k
+    3. Use hash map to count prefix sums seen so far
+    4. For each prefix sum, check if (prefix - k) was seen before
+    """
+    count = 0
+    prefix_sum = 0
+    prefix_counts = {0: 1}  # Handle subarrays starting at index 0
+
+    for num in nums:
+        prefix_sum += num
+
+        # If (prefix_sum - k) exists, we found subarrays
+        count += prefix_counts.get(prefix_sum - k, 0)
+
+        # Store current prefix sum
+        prefix_counts[prefix_sum] = prefix_counts.get(prefix_sum, 0) + 1
+
+    return count
+
+# Example: nums = [1, 1, 1], k = 2
+# Returns: 2 (subarrays [0,1] and [1,2])
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function subarraySum(nums, k) {
+  /**
+   * Count subarrays summing to k.
+   * Time: O(n), Space: O(n)
+   */
+  let count = 0;
+  let prefixSum = 0;
+  const prefixCounts = new Map([[0, 1]]); // Handle subarrays from start
+
+  for (const num of nums) {
+    prefixSum += num;
+
+    // Check if (prefixSum - k) was seen before
+    if (prefixCounts.has(prefixSum - k)) {
+      count += prefixCounts.get(prefixSum - k);
+    }
+
+    // Store current prefix sum
+    prefixCounts.set(prefixSum, (prefixCounts.get(prefixSum) || 0) + 1);
+  }
+
+  return count;
+}
+
+// Example: nums = [1, 1, 1], k = 2
+// Returns: 2 (subarrays [0,1] and [1,2])
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+public int subarraySum(int[] nums, int k) {
+    /**
+     * Count subarrays summing to k.
+     * Time: O(n), Space: O(n)
+     */
+    int count = 0;
+    int prefixSum = 0;
+    Map<Integer, Integer> prefixCounts = new HashMap<>();
+    prefixCounts.put(0, 1); // Handle subarrays from start
+
+    for (int num : nums) {
+        prefixSum += num;
+
+        // Check if (prefixSum - k) was seen before
+        if (prefixCounts.containsKey(prefixSum - k)) {
+            count += prefixCounts.get(prefixSum - k);
+        }
+
+        // Store current prefix sum
+        prefixCounts.put(prefixSum,
+            prefixCounts.getOrDefault(prefixSum, 0) + 1);
+    }
+
+    return count;
+}
+
+// Example: nums = [1, 1, 1], k = 2
+// Returns: 2 (subarrays [0,1] and [1,2])
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+int subarraySum(vector<int>& nums, int k) {
+    /**
+     * Count subarrays summing to k.
+     * Time: O(n), Space: O(n)
+     */
+    int count = 0;
+    int prefixSum = 0;
+    unordered_map<int, int> prefixCounts;
+    prefixCounts[0] = 1; // Handle subarrays from start
+
+    for (int num : nums) {
+        prefixSum += num;
+
+        // Check if (prefixSum - k) was seen before
+        if (prefixCounts.count(prefixSum - k)) {
+            count += prefixCounts[prefixSum - k];
+        }
+
+        // Store current prefix sum
+        prefixCounts[prefixSum]++;
+    }
+
+    return count;
+}
+
+// Example: nums = [1, 1, 1], k = 2
+// Returns: 2 (subarrays [0,1] and [1,2])
+```
+  </TabItem>
+</Tabs>
+
+### 5. LRU Cache
+
+Least Recently Used cache with O(1) operations.
+
+```
+LRU Cache Structure (capacity = 3):
+
+Hash Map + Doubly Linked List:
+
+    HashMap                 Doubly Linked List
+    ┌─────────────┐         (Most Recent → Least Recent)
+    │ key1 → node1│
+    │ key2 → node2│────────→ [head] ↔ [node3] ↔ [node2] ↔ [node1] ↔ [tail]
+    │ key3 → node3│                   newest            oldest
+    └─────────────┘
+
+Operations:
+- get(key): O(1) - lookup in map, move to front
+- put(key,val): O(1) - add to front, evict from back if full
+```
+
+<Tabs>
+  <TabItem label="Python">
+```python
+from collections import OrderedDict
+
+class LRUCache:
+    """
+    LRU Cache using OrderedDict.
+    Time: O(1) for get and put
+    Space: O(capacity)
+    """
+    def __init__(self, capacity: int):
+        self.capacity = capacity
+        self.cache = OrderedDict()
+
+    def get(self, key: int) -> int:
+        if key not in self.cache:
+            return -1
+        # Move to end (most recently used)
+        self.cache.move_to_end(key)
+        return self.cache[key]
+
+    def put(self, key: int, value: int) -> None:
+        if key in self.cache:
+            self.cache.move_to_end(key)
+        self.cache[key] = value
+        if len(self.cache) > self.capacity:
+            # Remove least recently used (first item)
+            self.cache.popitem(last=False)
+
+# Implementation with manual doubly linked list
+class Node:
+    def __init__(self, key=0, val=0):
+        self.key = key
+        self.val = val
+        self.prev = None
+        self.next = None
+
+class LRUCacheManual:
+    def __init__(self, capacity: int):
+        self.capacity = capacity
+        self.cache = {}  # key -> Node
+        # Dummy head and tail
+        self.head = Node()
+        self.tail = Node()
+        self.head.next = self.tail
+        self.tail.prev = self.head
+
+    def _remove(self, node):
+        node.prev.next = node.next
+        node.next.prev = node.prev
+
+    def _add_to_front(self, node):
+        node.next = self.head.next
+        node.prev = self.head
+        self.head.next.prev = node
+        self.head.next = node
+
+    def get(self, key: int) -> int:
+        if key not in self.cache:
+            return -1
+        node = self.cache[key]
+        self._remove(node)
+        self._add_to_front(node)
+        return node.val
+
+    def put(self, key: int, value: int) -> None:
+        if key in self.cache:
+            self._remove(self.cache[key])
+        node = Node(key, value)
+        self.cache[key] = node
+        self._add_to_front(node)
+
+        if len(self.cache) > self.capacity:
+            lru = self.tail.prev
+            self._remove(lru)
+            del self.cache[lru.key]
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+class LRUCache {
+  /**
+   * LRU Cache using Map (maintains insertion order).
+   * Time: O(1) for get and put
+   * Space: O(capacity)
+   */
+  constructor(capacity) {
+    this.capacity = capacity;
+    this.cache = new Map();
+  }
+
+  get(key) {
+    if (!this.cache.has(key)) {
+      return -1;
+    }
+    // Move to end (most recently used)
+    const value = this.cache.get(key);
+    this.cache.delete(key);
+    this.cache.set(key, value);
+    return value;
+  }
+
+  put(key, value) {
+    // Remove if exists (to update position)
+    if (this.cache.has(key)) {
+      this.cache.delete(key);
+    }
+
+    this.cache.set(key, value);
+
+    // Evict oldest if over capacity
+    if (this.cache.size > this.capacity) {
+      // First key is oldest (least recently used)
+      const oldestKey = this.cache.keys().next().value;
+      this.cache.delete(oldestKey);
+    }
+  }
+}
+
+// Example usage:
+// const cache = new LRUCache(2);
+// cache.put(1, 1);
+// cache.put(2, 2);
+// cache.get(1);    // returns 1, moves 1 to front
+// cache.put(3, 3); // evicts key 2
+// cache.get(2);    // returns -1 (not found)
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+class LRUCache {
+    /**
+     * LRU Cache using LinkedHashMap.
+     * Time: O(1) for get and put
+     * Space: O(capacity)
+     */
+    private LinkedHashMap<Integer, Integer> cache;
+    private int capacity;
+
+    public LRUCache(int capacity) {
+        this.capacity = capacity;
+        // accessOrder=true makes it order by access time
+        this.cache = new LinkedHashMap<>(capacity, 0.75f, true) {
+            @Override
+            protected boolean removeEldestEntry(Map.Entry<Integer, Integer> eldest) {
+                return size() > capacity;
+            }
+        };
+    }
+
+    public int get(int key) {
+        return cache.getOrDefault(key, -1);
+    }
+
+    public void put(int key, int value) {
+        cache.put(key, value);
+    }
+}
+
+// Manual implementation with HashMap + Doubly Linked List
+class LRUCacheManual {
+    class Node {
+        int key, val;
+        Node prev, next;
+        Node(int k, int v) { key = k; val = v; }
+    }
+
+    private Map<Integer, Node> cache = new HashMap<>();
+    private Node head = new Node(0, 0);
+    private Node tail = new Node(0, 0);
+    private int capacity;
+
+    public LRUCacheManual(int capacity) {
+        this.capacity = capacity;
+        head.next = tail;
+        tail.prev = head;
+    }
+
+    private void remove(Node node) {
+        node.prev.next = node.next;
+        node.next.prev = node.prev;
+    }
+
+    private void addToFront(Node node) {
+        node.next = head.next;
+        node.prev = head;
+        head.next.prev = node;
+        head.next = node;
+    }
+
+    public int get(int key) {
+        if (!cache.containsKey(key)) return -1;
+        Node node = cache.get(key);
+        remove(node);
+        addToFront(node);
+        return node.val;
+    }
+
+    public void put(int key, int value) {
+        if (cache.containsKey(key)) {
+            remove(cache.get(key));
+        }
+        Node node = new Node(key, value);
+        cache.put(key, node);
+        addToFront(node);
+
+        if (cache.size() > capacity) {
+            Node lru = tail.prev;
+            remove(lru);
+            cache.remove(lru.key);
+        }
+    }
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+class LRUCache {
+    /**
+     * LRU Cache using unordered_map + list.
+     * Time: O(1) for get and put
+     * Space: O(capacity)
+     */
+private:
+    int capacity;
+    list<pair<int, int>> cache;  // front = most recent
+    unordered_map<int, list<pair<int, int>>::iterator> map;
+
+public:
+    LRUCache(int capacity) : capacity(capacity) {}
+
+    int get(int key) {
+        if (map.find(key) == map.end()) {
+            return -1;
+        }
+
+        // Move to front (most recently used)
+        auto it = map[key];
+        int value = it->second;
+        cache.erase(it);
+        cache.push_front({key, value});
+        map[key] = cache.begin();
+
+        return value;
+    }
+
+    void put(int key, int value) {
+        // Remove if exists
+        if (map.find(key) != map.end()) {
+            cache.erase(map[key]);
+        }
+
+        // Add to front
+        cache.push_front({key, value});
+        map[key] = cache.begin();
+
+        // Evict LRU if over capacity
+        if (cache.size() > capacity) {
+            auto lru = cache.back();
+            map.erase(lru.first);
+            cache.pop_back();
+        }
+    }
+};
+
+// Example usage:
+// LRUCache cache(2);
+// cache.put(1, 1);
+// cache.put(2, 2);
+// cache.get(1);    // returns 1, moves 1 to front
+// cache.put(3, 3); // evicts key 2
+// cache.get(2);    // returns -1 (not found)
+```
+  </TabItem>
+</Tabs>
+
+### 6. First Unique Character
+
+Find first non-repeating character.
+
+```
+Algorithm Visualization:
+
+s = "leetcode"
+
+Step 1: Count frequencies
+        l: 1, e: 3, t: 1, c: 1, o: 1, d: 1
+
+Step 2: Find first char with count = 1
+        Index 0: 'l' → count = 1 → FOUND!
+
+Return: 0
+
+s = "aabb"
+Frequencies: a: 2, b: 2
+No char with count = 1
+Return: -1
+```
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def first_unique_char(s: str) -> int:
+    """
+    Return index of first non-repeating character.
+    Time: O(n), Space: O(1) - limited alphabet (26 letters)
+
+    Algorithm:
+    1. First pass: count frequency of each character
+    2. Second pass: find first character with count = 1
+    """
+    freq = {}
+
+    # Count frequencies
+    for char in s:
+        freq[char] = freq.get(char, 0) + 1
+
+    # Find first unique
+    for i, char in enumerate(s):
+        if freq[char] == 1:
+            return i
+
+    return -1
+
+# Using Counter
+from collections import Counter
+
+def first_unique_char_v2(s: str) -> int:
+    freq = Counter(s)
+    for i, char in enumerate(s):
+        if freq[char] == 1:
+            return i
+    return -1
+
+# Example: "leetcode" → 0 (first 'l' is unique)
+# Example: "loveleetcode" → 2 (first 'v' is unique)
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function firstUniqueChar(s) {
+  /**
+   * Return index of first non-repeating character.
+   * Time: O(n), Space: O(1) - limited alphabet
+   */
+  const freq = new Map();
+
+  // Count frequencies
+  for (const char of s) {
+    freq.set(char, (freq.get(char) || 0) + 1);
+  }
+
+  // Find first unique
+  for (let i = 0; i < s.length; i++) {
+    if (freq.get(s[i]) === 1) {
+      return i;
+    }
+  }
+
+  return -1;
+}
+
+// Using array for lowercase letters (faster)
+function firstUniqueCharOptimized(s) {
+  const freq = new Array(26).fill(0);
+  const aCode = 'a'.charCodeAt(0);
+
+  for (const char of s) {
+    freq[char.charCodeAt(0) - aCode]++;
+  }
+
+  for (let i = 0; i < s.length; i++) {
+    if (freq[s.charCodeAt(i) - aCode] === 1) {
+      return i;
+    }
+  }
+
+  return -1;
+}
+
+// Example: "leetcode" → 0
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+public int firstUniqChar(String s) {
+    /**
+     * Return index of first non-repeating character.
+     * Time: O(n), Space: O(1) - limited alphabet
+     */
+    int[] freq = new int[26];
+
+    // Count frequencies
+    for (char c : s.toCharArray()) {
+        freq[c - 'a']++;
+    }
+
+    // Find first unique
+    for (int i = 0; i < s.length(); i++) {
+        if (freq[s.charAt(i) - 'a'] == 1) {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+// Alternative using HashMap
+public int firstUniqCharMap(String s) {
+    Map<Character, Integer> freq = new HashMap<>();
+
+    for (char c : s.toCharArray()) {
+        freq.put(c, freq.getOrDefault(c, 0) + 1);
+    }
+
+    for (int i = 0; i < s.length(); i++) {
+        if (freq.get(s.charAt(i)) == 1) {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+// Example: "leetcode" → 0
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+int firstUniqChar(string s) {
+    /**
+     * Return index of first non-repeating character.
+     * Time: O(n), Space: O(1) - limited alphabet
+     */
+    int freq[26] = {0};
+
+    // Count frequencies
+    for (char c : s) {
+        freq[c - 'a']++;
+    }
+
+    // Find first unique
+    for (int i = 0; i < s.length(); i++) {
+        if (freq[s[i] - 'a'] == 1) {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+// Alternative using unordered_map
+int firstUniqCharMap(string s) {
+    unordered_map<char, int> freq;
+
+    for (char c : s) {
+        freq[c]++;
+    }
+
+    for (int i = 0; i < s.length(); i++) {
+        if (freq[s[i]] == 1) {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+// Example: "leetcode" → 0
+```
+  </TabItem>
+</Tabs>
+
+## HashSet
+
+A set stores unique elements with O(1) lookup.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# Create set
+s = set()
+s = {1, 2, 3}
+
+# Add element
+s.add(4)
+
+# Remove element
+s.remove(4)    # Raises KeyError if not found
+s.discard(4)   # Silent if not found
+
+# Check membership
+if 2 in s:
+    print("Found!")
+
+# Set operations
+a = {1, 2, 3}
+b = {2, 3, 4}
+union = a | b           # {1, 2, 3, 4}
+intersection = a & b    # {2, 3}
+difference = a - b      # {1}
+symmetric_diff = a ^ b  # {1, 4}
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// Create set
+const s = new Set();
+const s2 = new Set([1, 2, 3]);
+
+// Add element
+s.add(4);
+
+// Remove element
+s.delete(4);
+
+// Check membership
+if (s2.has(2)) {
+  console.log("Found!");
+}
+
+// Set operations (manual)
+const a = new Set([1, 2, 3]);
+const b = new Set([2, 3, 4]);
+const union = new Set([...a, ...b]);
+const intersection = new Set([...a].filter(x => b.has(x)));
+const difference = new Set([...a].filter(x => !b.has(x)));
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+import java.util.HashSet;
+import java.util.Set;
+
+// Create set
+Set<Integer> s = new HashSet<>();
+Set<Integer> s2 = new HashSet<>(Arrays.asList(1, 2, 3));
+
+// Add element
+s.add(4);
+
+// Remove element
+s.remove(4);
+
+// Check membership
+if (s2.contains(2)) {
+    System.out.println("Found!");
+}
+
+// Set operations
+Set<Integer> a = new HashSet<>(Arrays.asList(1, 2, 3));
+Set<Integer> b = new HashSet<>(Arrays.asList(2, 3, 4));
+Set<Integer> union = new HashSet<>(a);
+union.addAll(b);
+Set<Integer> intersection = new HashSet<>(a);
+intersection.retainAll(b);
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+#include <unordered_set>
+using namespace std;
+
+// Create set
+unordered_set<int> s;
+unordered_set<int> s2 = {1, 2, 3};
+
+// Add element
+s.insert(4);
+
+// Remove element
+s.erase(4);
+
+// Check membership
+if (s2.count(2)) {
+    cout << "Found!" << endl;
+}
+
+// Set operations
+unordered_set<int> a = {1, 2, 3};
+unordered_set<int> b = {2, 3, 4};
+// Union (manual)
+unordered_set<int> unionSet = a;
+for (int x : b) unionSet.insert(x);
+```
+  </TabItem>
+</Tabs>
+
+## Applications
+
+1. **Caching** - LRU cache, memoization
+2. **Indexing** - Database indexing, search engines
+3. **Counting** - Frequency analysis, histograms
+4. **Deduplication** - Remove duplicates efficiently
+5. **Symbol Tables** - Compilers, interpreters
+6. **Routing Tables** - Network routing
+
+## Practice Problems
+
+### Easy
+| Problem | Pattern | Companies |
+|---------|---------|-----------|
+| Two Sum | Hash Map | Amazon, Google, Meta |
+| Valid Anagram | Frequency Count | Amazon, Microsoft |
+| Contains Duplicate | Hash Set | Amazon, Apple |
+| First Unique Character | Frequency Count | Amazon, Bloomberg |
+
+### Medium
+| Problem | Pattern | Companies |
+|---------|---------|-----------|
+| Group Anagrams | Hash by Sorted Key | Amazon, Meta |
+| Subarray Sum Equals K | Prefix Sum + Hash | Google, Meta |
+| Longest Consecutive Sequence | Hash Set | Google, Amazon |
+| LRU Cache | Hash + Doubly Linked List | Amazon, Google, Meta |
+
+### Hard
+| Problem | Pattern | Companies |
+|---------|---------|-----------|
+| LFU Cache | Hash + Frequency Buckets | Amazon, Google |
+| Substring with Concatenation | Sliding Window + Hash | Amazon |
+| Minimum Window Substring | Sliding Window + Hash | Meta, Google |
+
+## Key Takeaways
+
+1. **O(1) average case** - Hash tables excel at lookups
+2. **Good hash function** - Key to uniform distribution
+3. **Handle collisions** - Chaining or open addressing
+4. **Watch load factor** - Rehash when too full
+5. **HashSet for uniqueness** - O(1) membership testing
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="Trees"
+    href="/dsa/trees/"
+    description="Learn about hierarchical data structures and BST"
+  />
+  <LinkCard
+    title="Graphs"
+    href="/dsa/graphs/"
+    description="Explore networks and connectivity problems"
+  />
+</CardGrid>

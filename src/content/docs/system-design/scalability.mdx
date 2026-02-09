@@ -1,0 +1,866 @@
+---
+title: Scalability
+description: Horizontal scaling, load balancing, caching, message queues, rate limiting, and database scaling patterns
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+Scalability is a system's ability to handle increasing amounts of work by adding resources. A scalable system can grow from serving 100 users to 100 million users without a complete redesign. This page covers the core patterns and strategies that make this possible.
+
+---
+
+## Horizontal vs Vertical Scaling
+
+### Vertical Scaling (Scale Up)
+
+Add more resources (CPU, RAM, disk) to a single machine.
+
+```
+Before:                     After:
+┌────────────────┐          ┌────────────────────────┐
+│  Server         │          │  Server (upgraded)      │
+│  4 CPU cores    │          │  32 CPU cores           │
+│  16 GB RAM      │   ──►   │  256 GB RAM             │
+│  500 GB SSD     │          │  4 TB NVMe SSD          │
+│                 │          │                         │
+│  Handles 1K rps │          │  Handles 10K rps        │
+└────────────────┘          └────────────────────────┘
+```
+
+**Pros**: Simple (no code changes), no distributed system complexity, strong consistency
+**Cons**: Hardware limits (you cannot buy a server with 10,000 cores), single point of failure, expensive at high end, downtime during upgrades
+
+### Horizontal Scaling (Scale Out)
+
+Add more machines to distribute the load.
+
+```
+Before:                     After:
+┌────────────────┐          ┌────────────────┐
+│  Server         │          │  Server 1       │  ← 3K rps
+│  Handles 1K rps │          └────────────────┘
+└────────────────┘          ┌────────────────┐
+                     ──►    │  Server 2       │  ← 3K rps
+                            └────────────────┘
+                            ┌────────────────┐
+                            │  Server 3       │  ← 3K rps
+                            └────────────────┘
+                            Total: 9K rps
+                            (add more as needed)
+```
+
+**Pros**: Near-linear capacity growth, no single point of failure, cost-effective (commodity hardware), no downtime for scaling
+**Cons**: Application must be stateless or use shared state, distributed system complexity (consistency, coordination), operational overhead
+
+### When to Use Each
+
+| Scenario | Recommended | Reason |
+|----------|-------------|--------|
+| Early-stage startup | Vertical | Simpler, cheaper for small scale |
+| Database server | Vertical first, then replicas | Databases are harder to distribute |
+| Stateless API servers | Horizontal | Easy to add/remove instances |
+| Cache layer | Horizontal | Redis Cluster, Memcached pools |
+| Reaching hardware limits | Horizontal | Only option beyond largest machines |
+| Predictable, gradual growth | Vertical | Scale the single server incrementally |
+| Unpredictable traffic spikes | Horizontal (auto-scaling) | Add/remove instances dynamically |
+
+---
+
+## Load Balancing
+
+A load balancer distributes incoming requests across multiple servers to ensure no single server is overwhelmed.
+
+### Architecture
+
+```
+                          ┌─────────────┐
+                          │  Server 1   │
+                          │ (healthy)   │
+┌──────────┐   ┌─────────┤             │
+│          │   │         └─────────────┘
+│ Clients  │──►│  Load    ┌─────────────┐
+│          │   │ Balancer │  Server 2   │
+│          │   │         │ (healthy)   │
+└──────────┘   │  (L7)   │             │
+               │         └─────────────┘
+               │          ┌─────────────┐
+               │         │  Server 3   │
+               └─────────┤ (unhealthy) │ ← removed from pool
+                          │      ✗      │
+                          └─────────────┘
+```
+
+### Load Balancing Algorithms
+
+| Algorithm | How It Works | Best For |
+|-----------|-------------|----------|
+| **Round Robin** | Distribute requests sequentially (1→2→3→1→2→3) | Equal-capacity servers, uniform requests |
+| **Weighted Round Robin** | Like round robin but servers get proportional share | Servers with different capacities |
+| **Least Connections** | Send to server with fewest active connections | Varying request durations |
+| **Weighted Least Connections** | Least connections weighted by server capacity | Mixed server fleet |
+| **IP Hash** | Hash client IP to determine server | Session affinity without cookies |
+| **Least Response Time** | Send to server with fastest response + fewest connections | Performance-sensitive applications |
+| **Random** | Random server selection | Simple, surprisingly effective at scale |
+
+### Layer 4 vs Layer 7 Load Balancing
+
+| Feature | Layer 4 (Transport) | Layer 7 (Application) |
+|---------|--------------------|-----------------------|
+| **Operates on** | IP addresses, TCP/UDP ports | HTTP headers, URLs, cookies |
+| **Speed** | Very fast (no payload inspection) | Slower (inspects content) |
+| **Routing decisions** | Based on IP and port | Based on URL path, headers, content |
+| **SSL termination** | No (passes through) | Yes (decrypts and re-encrypts) |
+| **Use case** | Raw TCP/UDP traffic, gaming | HTTP APIs, microservices, A/B testing |
+| **Examples** | AWS NLB, HAProxy (TCP mode) | AWS ALB, Nginx, HAProxy (HTTP mode) |
+
+### Health Checks
+
+Load balancers must know which servers are healthy. Common health check patterns:
+
+```python
+# Simple HTTP health check endpoint
+@app.get("/health")
+def health_check():
+    checks = {
+        "database": check_db_connection(),
+        "cache": check_redis_connection(),
+        "disk_space": check_disk_space(),
+    }
+    all_healthy = all(checks.values())
+    status_code = 200 if all_healthy else 503
+    return JSONResponse(
+        content={"status": "healthy" if all_healthy else "unhealthy", "checks": checks},
+        status_code=status_code
+    )
+```
+
+### Real-World Example: Multi-Tier Load Balancing
+
+```
+Internet
+    │
+    ▼
+┌────────────┐
+│ DNS-based  │  Round-robin across geographic regions
+│ Load Bal.  │
+└─────┬──────┘
+      │
+  ┌───┴────┐
+  ▼        ▼
+┌────┐  ┌────┐
+│CDN │  │CDN │  Edge nodes serve static content
+│Edge│  │Edge│
+└──┬─┘  └──┬─┘
+   │       │
+   ▼       ▼
+┌──────────────┐
+│  L7 Load     │  Route by URL path (/api → API, /ws → WebSocket)
+│  Balancer    │
+│  (ALB/Nginx) │
+└──┬────┬──┬──┘
+   │    │  │
+   ▼    ▼  ▼
+┌────┐┌────┐┌────┐
+│API ││API ││API │  Stateless application servers
+│ 1  ││ 2  ││ 3  │
+└──┬─┘└──┬─┘└──┬─┘
+   │     │     │
+   ▼     ▼     ▼
+┌──────────────────┐
+│ Internal L4 LB   │  Route to database/cache cluster
+└──┬──────────┬────┘
+   ▼          ▼
+┌──────┐  ┌──────┐
+│  DB  │  │Redis │
+│Primary│ │Cluster│
+└──────┘  └──────┘
+```
+
+---
+
+## Caching
+
+Caching stores copies of frequently accessed data in faster storage to reduce latency and backend load. A well-implemented cache can reduce database queries by 90% or more.
+
+### Cache Hierarchy
+
+```
+Request Flow (fastest to slowest):
+
+┌───────────────────────────────────────────────────────┐
+│  1. Browser Cache      (~0ms)   - HTTP cache headers  │
+│  2. CDN Cache          (~10ms)  - Edge servers         │
+│  3. API Gateway Cache  (~1ms)   - Reverse proxy cache  │
+│  4. Application Cache  (~1ms)   - In-memory (Redis)    │
+│  5. Database Cache     (~5ms)   - Query result cache   │
+│  6. Database Disk      (~10ms)  - Actual data read     │
+└───────────────────────────────────────────────────────┘
+```
+
+### Caching Strategies
+
+#### Cache-Aside (Lazy Loading)
+
+The application manages the cache explicitly. Most common strategy.
+
+```
+Read Path:
+1. App checks cache
+2. Cache HIT → return cached data
+3. Cache MISS → query database → store in cache → return
+
+┌─────┐  1. GET key  ┌───────┐
+│ App │──────────────►│ Cache │
+│     │◄──────────────│(Redis)│
+│     │  2. HIT/MISS  └───────┘
+│     │
+│     │  3. (on MISS)  ┌────┐
+│     │───────────────►│ DB │
+│     │◄───────────────│    │
+│     │  4. Return data└────┘
+│     │
+│     │  5. SET key    ┌───────┐
+│     │───────────────►│ Cache │
+└─────┘                └───────┘
+```
+
+```python
+def get_user(user_id: str) -> dict:
+    # 1. Check cache
+    cached = redis.get(f"user:{user_id}")
+    if cached:
+        return json.loads(cached)
+
+    # 2. Cache miss — query database
+    user = db.query("SELECT * FROM users WHERE id = %s", user_id)
+
+    # 3. Store in cache with TTL
+    redis.setex(f"user:{user_id}", 3600, json.dumps(user))
+
+    return user
+```
+
+**Pros**: Only caches data that is actually requested, resilient to cache failures
+**Cons**: Cache miss penalty (three round trips), potential for stale data
+
+#### Write-Through
+
+Every write goes to the cache AND the database simultaneously.
+
+```
+Write Path:
+1. App writes to cache
+2. Cache writes to database
+3. Both are updated before returning
+
+┌─────┐  1. Write  ┌───────┐  2. Write  ┌────┐
+│ App │────────────►│ Cache │────────────►│ DB │
+│     │◄────────────│       │◄────────────│    │
+└─────┘  3. ACK     └───────┘  4. ACK     └────┘
+```
+
+**Pros**: Cache always has latest data, strong consistency
+**Cons**: Higher write latency (two writes), caches data that may never be read
+
+#### Write-Behind (Write-Back)
+
+Write to the cache immediately, then asynchronously write to the database.
+
+```
+Write Path:
+1. App writes to cache (returns immediately)
+2. Cache asynchronously flushes to database (batched)
+
+┌─────┐  1. Write  ┌───────┐        ┌────┐
+│ App │────────────►│ Cache │──(async)──►│ DB │
+│     │◄────────────│       │  batched  │    │
+└─────┘  2. ACK     └───────┘           └────┘
+         (fast!)
+```
+
+**Pros**: Very fast writes, can batch database writes for efficiency
+**Cons**: Risk of data loss if cache fails before flushing, complex implementation
+
+### Cache Eviction Policies
+
+When the cache is full, which entries should be removed?
+
+| Policy | How It Works | Best For |
+|--------|-------------|----------|
+| **LRU** (Least Recently Used) | Evict the entry accessed longest ago | General purpose, most common |
+| **LFU** (Least Frequently Used) | Evict the entry accessed least often | Data with varying popularity |
+| **FIFO** (First In, First Out) | Evict the oldest entry | Simple, predictable |
+| **TTL** (Time to Live) | Expire entries after a fixed time | Data with known staleness tolerance |
+| **Random** | Evict a random entry | Simple, good enough in many cases |
+
+### Cache Invalidation
+
+Cache invalidation is one of the hardest problems in computer science. Common approaches:
+
+| Strategy | How It Works | Trade-off |
+|----------|-------------|-----------|
+| **TTL-based** | Data expires after a set time | Simple, but stale data until expiry |
+| **Event-driven** | Invalidate on write events | Fresh data, but complex to implement |
+| **Version-based** | Each entry has a version number | Precise, but requires version tracking |
+| **Purge all** | Clear entire cache | Simple, but cache stampede risk |
+
+### CDN (Content Delivery Network)
+
+A CDN caches static content (images, CSS, JavaScript, videos) at edge servers distributed globally, serving content from the server closest to the user.
+
+```
+Without CDN:
+User (Tokyo) ───────── 200ms ───────── Origin (US East)
+
+With CDN:
+User (Tokyo) ──── 20ms ──── CDN Edge (Tokyo)
+                                  │
+                            (Cache MISS only)
+                                  │
+                            ── 200ms ──── Origin (US East)
+```
+
+**What to cache on CDN**:
+- Static assets (images, CSS, JS, fonts)
+- API responses that change infrequently
+- HTML pages (for static sites)
+- Video and audio streams
+
+**What NOT to cache on CDN**:
+- Personalized content (user-specific data)
+- Real-time data (stock prices, live scores)
+- POST/PUT/DELETE requests
+
+**Popular CDNs**: CloudFront (AWS), Cloudflare, Fastly, Akamai
+
+---
+
+## Message Queues
+
+Message queues enable **asynchronous communication** between services. A producer sends messages to a queue, and consumers process them independently.
+
+### Why Use Message Queues
+
+```
+Synchronous (without queue):
+┌────────┐   ┌────────────┐   ┌───────────┐   ┌────────────┐
+│ Client │──►│ API Server │──►│ Email Svc │──►│ Analytics  │
+│        │◄──│ (waits)    │◄──│ (slow)    │◄──│ (slow)     │
+└────────┘   └────────────┘   └───────────┘   └────────────┘
+Total latency: API + Email + Analytics = 500ms
+
+Asynchronous (with queue):
+┌────────┐   ┌────────────┐   ┌───────┐   ┌───────────┐
+│ Client │──►│ API Server │──►│ Queue │──►│ Email Svc │ (processes later)
+│        │◄──│ (returns)  │   │       │──►│ Analytics │ (processes later)
+└────────┘   └────────────┘   └───────┘   └───────────┘
+Total latency: API only = 50ms
+```
+
+### Message Queue Patterns
+
+#### Point-to-Point (Queue)
+
+Each message is consumed by exactly one consumer.
+
+```
+Producer ──► [MSG3][MSG2][MSG1] ──► Consumer A
+                                    (processes MSG1)
+                                   Consumer B
+                                    (processes MSG2)
+```
+
+**Use case**: Task distribution (email sending, image processing, order fulfillment).
+
+#### Publish-Subscribe (Topic)
+
+Each message is delivered to all subscribers.
+
+```
+Publisher ──► [Topic: "orders"] ──► Subscriber A (Inventory)
+                                ──► Subscriber B (Analytics)
+                                ──► Subscriber C (Notifications)
+```
+
+**Use case**: Event broadcasting (order placed, user signed up, payment processed).
+
+### Message Queue Technologies
+
+| Technology | Type | Ordering | Throughput | Best For |
+|-----------|------|----------|------------|----------|
+| **RabbitMQ** | Broker-based | Per-queue | Moderate (~50K msg/s) | Task queues, RPC, complex routing |
+| **Apache Kafka** | Log-based | Per-partition | Very high (~1M msg/s) | Event streaming, log aggregation, analytics |
+| **Amazon SQS** | Cloud queue | Best-effort (FIFO available) | High | Simple task queues, serverless |
+| **Redis Streams** | Log-based | Per-stream | High | Lightweight streaming, real-time |
+| **Apache Pulsar** | Log-based | Per-partition | Very high | Multi-tenancy, geo-replication |
+
+### Kafka Architecture Example
+
+```
+Producers                Kafka Cluster                    Consumers
+                    ┌──────────────────────┐
+┌──────────┐       │  Topic: "orders"      │         ┌──────────────┐
+│ Order    │──────►│  ┌──────────────────┐ │────────►│ Consumer     │
+│ Service  │       │  │ Partition 0      │ │         │ Group A      │
+└──────────┘       │  │ [5][4][3][2][1]  │ │         │ (Inventory)  │
+                   │  └──────────────────┘ │         └──────────────┘
+┌──────────┐       │  ┌──────────────────┐ │         ┌──────────────┐
+│ Payment  │──────►│  │ Partition 1      │ │────────►│ Consumer     │
+│ Service  │       │  │ [4][3][2][1]     │ │         │ Group B      │
+└──────────┘       │  └──────────────────┘ │         │ (Analytics)  │
+                   │  ┌──────────────────┐ │         └──────────────┘
+                   │  │ Partition 2      │ │
+                   │  │ [3][2][1]        │ │
+                   │  └──────────────────┘ │
+                   └──────────────────────┘
+```
+
+### Handling Failures in Message Processing
+
+```python
+# Retry with exponential backoff
+import time
+
+def process_message(message, max_retries=3):
+    for attempt in range(max_retries):
+        try:
+            result = handle(message)
+            acknowledge(message)
+            return result
+        except TransientError:
+            wait_time = (2 ** attempt) + random.uniform(0, 1)
+            time.sleep(wait_time)  # 1s, 2s, 4s + jitter
+        except PermanentError:
+            send_to_dead_letter_queue(message)
+            return
+
+    # All retries exhausted
+    send_to_dead_letter_queue(message)
+```
+
+**Dead Letter Queue (DLQ)**: A separate queue for messages that could not be processed after all retries. Engineers can inspect and reprocess them manually or with automated tooling.
+
+---
+
+## Rate Limiting
+
+Rate limiting controls the number of requests a client can make in a given time window, protecting systems from abuse, DDoS attacks, and cascading failures.
+
+### Common Algorithms
+
+#### 1. Token Bucket
+
+A bucket holds tokens. Each request consumes a token. Tokens are added at a fixed rate. If the bucket is empty, the request is rejected.
+
+```
+Bucket capacity: 10 tokens
+Refill rate: 2 tokens/second
+
+Time 0:  [●●●●●●●●●●]  10 tokens (full)
+         5 requests arrive → 5 tokens consumed
+Time 0:  [●●●●●○○○○○]  5 tokens remaining
+
+Time 1:  [●●●●●●●○○○]  7 tokens (5 + 2 refilled)
+         8 requests arrive → 7 allowed, 1 rejected
+Time 1:  [○○○○○○○○○○]  0 tokens
+
+Time 2:  [●●○○○○○○○○]  2 tokens (0 + 2 refilled)
+```
+
+**Pros**: Allows bursts up to bucket size, smooth rate limiting
+**Cons**: Requires per-user state
+
+#### 2. Sliding Window Log
+
+Track timestamps of all requests. Count requests in the current window.
+
+```
+Window: 1 minute, Limit: 5 requests
+
+Request log for User A:
+[10:00:15, 10:00:22, 10:00:45, 10:00:51, 10:00:58]
+
+10:01:05 → Window = [10:00:05, 10:01:05]
+           Requests in window: 4 (10:00:22, 10:00:45, 10:00:51, 10:00:58)
+           → ALLOWED (4 < 5)
+
+10:01:10 → Window = [10:00:10, 10:01:10]
+           Requests in window: 5
+           → REJECTED (5 >= 5)
+```
+
+**Pros**: Very accurate, no boundary issues
+**Cons**: Memory-intensive (stores all timestamps)
+
+#### 3. Fixed Window Counter
+
+Divide time into fixed windows and count requests per window.
+
+```
+Limit: 100 requests per minute
+
+Window [10:00 - 10:01]: 85 requests  → all allowed
+Window [10:01 - 10:02]: 100 requests → all allowed
+Window [10:01 - 10:02]: request 101  → REJECTED
+
+Problem: 85 requests at 10:00:59 + 100 at 10:01:01
+         = 185 requests in 2 seconds! (boundary issue)
+```
+
+**Pros**: Simple, low memory
+**Cons**: Boundary issue allows 2x burst at window edges
+
+### Rate Limiting Implementation with Redis
+
+```python
+import redis
+import time
+
+r = redis.Redis()
+
+def sliding_window_rate_limit(redis_client, user_id, limit=100, window=60):
+    """Rate limit using sliding window with atomic Lua script."""
+    key = f"rate_limit:{user_id}"
+    now = time.time()
+
+    # Lua script for atomic rate limiting
+    lua_script = """
+    local key = KEYS[1]
+    local now = tonumber(ARGV[1])
+    local window = tonumber(ARGV[2])
+    local limit = tonumber(ARGV[3])
+
+    redis.call('ZREMRANGEBYSCORE', key, 0, now - window)
+    local count = redis.call('ZCARD', key)
+
+    if count < limit then
+        redis.call('ZADD', key, now, now .. '-' .. math.random())
+        redis.call('EXPIRE', key, math.ceil(window))
+        return 1
+    else
+        return 0
+    end
+    """
+
+    allowed = redis_client.eval(lua_script, 1, key, now, window, limit)
+    return bool(allowed)
+
+# Usage
+if not sliding_window_rate_limit(r, "user_123"):
+    return HttpResponse(status=429, body="Too Many Requests")
+```
+
+### Rate Limiting Response Headers
+
+```http
+HTTP/1.1 429 Too Many Requests
+X-RateLimit-Limit: 100
+X-RateLimit-Remaining: 0
+X-RateLimit-Reset: 1700000060
+Retry-After: 30
+```
+
+---
+
+## Database Scaling Patterns
+
+### Pattern 1: Read Replicas with Write/Read Splitting
+
+```
+┌─────────────────────────────────────────────────────┐
+│                   Application                       │
+│                                                     │
+│   Write queries ──────►  Primary DB                 │
+│                          (single writer)            │
+│                              │                      │
+│                    ┌─────────┼──────────┐           │
+│                    ▼         ▼          ▼           │
+│   Read queries ──► Replica 1  Replica 2  Replica 3 │
+│                                                     │
+└─────────────────────────────────────────────────────┘
+```
+
+### Pattern 2: CQRS (Command Query Responsibility Segregation)
+
+Separate the read model from the write model entirely.
+
+```
+Commands (Writes)                 Queries (Reads)
+     │                                 │
+     ▼                                 ▼
+┌──────────┐                    ┌──────────────┐
+│ Command  │                    │  Query       │
+│ Handler  │                    │  Handler     │
+└────┬─────┘                    └──────┬───────┘
+     │                                 │
+     ▼                                 ▼
+┌──────────┐    Sync/Async      ┌──────────────┐
+│ Write DB │────────────────────► Read DB       │
+│ (Postgres)│   (event stream)  │ (Elasticsearch│
+│          │                    │  or Redis)    │
+└──────────┘                    └──────────────┘
+```
+
+**When to use CQRS**: When read and write patterns are very different (e.g., simple writes but complex search queries), or when you need to scale reads and writes independently.
+
+### Pattern 3: Database per Service (Microservices)
+
+```
+┌──────────────┐  ┌──────────────┐  ┌──────────────┐
+│  User Service │  │ Order Service│  │Product Service│
+│              │  │              │  │              │
+│  ┌─────────┐ │  │  ┌─────────┐ │  │  ┌─────────┐ │
+│  │PostgreSQL│ │  │  │  MySQL  │ │  │  │ MongoDB │ │
+│  │ (users)  │ │  │  │(orders) │ │  │  │(products)│ │
+│  └─────────┘ │  │  └─────────┘ │  │  └─────────┘ │
+└──────────────┘  └──────────────┘  └──────────────┘
+```
+
+Each microservice owns its own database. Services communicate through APIs or events, never by sharing databases directly.
+
+**Benefits**: Independent scaling, technology freedom, fault isolation
+**Challenges**: Distributed transactions, data consistency across services, join queries across services
+
+---
+
+## Microservices Patterns
+
+### API Gateway
+
+A single entry point that routes requests to the appropriate microservice.
+
+```
+                    ┌──────────────────┐
+                    │   API Gateway     │
+Mobile App ────────►│                  │
+                    │  - Authentication │
+Web App ───────────►│  - Rate Limiting  │
+                    │  - Routing        │
+3rd Party ─────────►│  - SSL Termination│
+                    │  - Request/Response│
+                    │    Transformation │
+                    └──┬───┬───┬───┬───┘
+                       │   │   │   │
+            ┌──────────┘   │   │   └──────────┐
+            ▼              ▼   ▼              ▼
+        ┌───────┐    ┌───────┐ ┌───────┐  ┌───────┐
+        │ User  │    │ Order │ │Product│  │Payment│
+        │  Svc  │    │  Svc  │ │  Svc  │  │  Svc  │
+        └───────┘    └───────┘ └───────┘  └───────┘
+```
+
+### Circuit Breaker
+
+Prevents cascading failures by stopping requests to a failing service.
+
+```
+States:
+  CLOSED ──(failures exceed threshold)──► OPEN
+     ▲                                       │
+     │                                  (timeout)
+     │                                       │
+     └──(success)──── HALF-OPEN ◄────────────┘
+                    (allow limited requests)
+
+CLOSED:    Requests flow normally. Failures are counted.
+OPEN:      All requests fail immediately. No calls to downstream.
+HALF-OPEN: Allow a few test requests. If they succeed, go to CLOSED.
+           If they fail, go back to OPEN.
+```
+
+```python
+import time
+from enum import Enum
+
+class CircuitState(Enum):
+    CLOSED = "closed"
+    OPEN = "open"
+    HALF_OPEN = "half_open"
+
+class CircuitBreaker:
+    def __init__(self, failure_threshold=5, recovery_timeout=30):
+        self.state = CircuitState.CLOSED
+        self.failure_count = 0
+        self.failure_threshold = failure_threshold
+        self.recovery_timeout = recovery_timeout
+        self.last_failure_time = None
+
+    def call(self, func, *args, **kwargs):
+        if self.state == CircuitState.OPEN:
+            if time.time() - self.last_failure_time > self.recovery_timeout:
+                self.state = CircuitState.HALF_OPEN
+            else:
+                raise CircuitOpenError("Circuit is OPEN, failing fast")
+
+        try:
+            result = func(*args, **kwargs)
+            self._on_success()
+            return result
+        except Exception as e:
+            self._on_failure()
+            raise e
+
+    def _on_success(self):
+        self.failure_count = 0
+        self.state = CircuitState.CLOSED
+
+    def _on_failure(self):
+        self.failure_count += 1
+        self.last_failure_time = time.time()
+        if self.failure_count >= self.failure_threshold:
+            self.state = CircuitState.OPEN
+```
+
+### Service Discovery
+
+How do services find each other in a dynamic environment?
+
+```
+Client-Side Discovery:
+
+┌─────────┐   1. Query   ┌──────────────┐
+│ Service │──────────────►│   Service    │
+│   A     │               │  Registry    │
+│         │◄──────────────│ (Consul/etcd)│
+│         │  2. Addresses └──────────────┘
+│         │
+│         │  3. Direct call to chosen instance
+│         │──────────────►┌──────────┐
+│         │               │Service B │
+└─────────┘               │Instance 2│
+                          └──────────┘
+
+Server-Side Discovery:
+
+┌─────────┐              ┌────────────┐         ┌──────────┐
+│ Service │─────────────►│   Load     │────────►│Service B │
+│   A     │              │  Balancer  │         │Instance 1│
+└─────────┘              │            │         └──────────┘
+                         │  (queries  │         ┌──────────┐
+                         │  registry  │────────►│Service B │
+                         │  internally)│        │Instance 2│
+                         └────────────┘         └──────────┘
+```
+
+---
+
+## Real-World Scaling Example: From 0 to Millions
+
+### Stage 1: Single Server (0-1K users)
+
+```
+┌──────────────────────┐
+│ Single Server         │
+│                      │
+│  ┌────────┐          │
+│  │  App   │          │
+│  └───┬────┘          │
+│      │               │
+│  ┌───▼────┐          │
+│  │   DB   │          │
+│  └────────┘          │
+└──────────────────────┘
+```
+
+### Stage 2: Separate DB (1K-10K users)
+
+```
+┌────────────┐      ┌────────────┐
+│ App Server │─────►│ Database   │
+│            │      │ Server     │
+└────────────┘      └────────────┘
+```
+
+### Stage 3: Add Cache and Load Balancer (10K-100K users)
+
+```
+              ┌────────────┐
+         ┌───►│ App Srv 1  │───┐
+┌────┐   │    └────────────┘   │    ┌───────┐
+│ LB │───┤    ┌────────────┐   ├───►│ Redis │
+│    │   ├───►│ App Srv 2  │───┤    └───────┘
+└────┘   │    └────────────┘   │    ┌───────┐
+         └───►┌────────────┐   └───►│  DB   │
+              │ App Srv 3  │────────│       │
+              └────────────┘        └───────┘
+```
+
+### Stage 4: Read Replicas, CDN, MQ (100K-1M users)
+
+```
+             ┌─────┐
+Users ──────►│ CDN │ (static content)
+             └──┬──┘
+                │ (dynamic requests)
+                ▼
+           ┌────────┐
+           │  L7 LB │
+           └───┬────┘
+         ┌─────┼──────┐
+         ▼     ▼      ▼
+      ┌────┐┌────┐┌────┐
+      │App ││App ││App │
+      │ 1  ││ 2  ││ 3  │
+      └─┬──┘└─┬──┘└─┬──┘
+        │     │     │
+   ┌────┴─────┴─────┴────┐
+   │                      │
+   ▼                      ▼
+┌───────┐          ┌──────────┐     ┌──────────────┐
+│ Redis │          │ DB Primary│────►│ DB Replica 1 │
+│Cluster│          │          │────►│ DB Replica 2 │
+└───────┘          └──────────┘     └──────────────┘
+                        │
+                   ┌────▼────┐
+                   │  Kafka  │──► Analytics
+                   │  Queue  │──► Notifications
+                   └─────────┘──► Search indexing
+```
+
+### Stage 5: Sharding, Multi-Region (1M+ users)
+
+```
+                    Global DNS (GeoDNS)
+                    ┌───────┴────────┐
+                    ▼                ▼
+            ┌──────────────┐  ┌──────────────┐
+            │  US Region   │  │  EU Region   │
+            │              │  │              │
+            │  ┌────────┐  │  │  ┌────────┐  │
+            │  │CDN Edge│  │  │  │CDN Edge│  │
+            │  └───┬────┘  │  │  └───┬────┘  │
+            │      ▼       │  │      ▼       │
+            │  ┌────────┐  │  │  ┌────────┐  │
+            │  │  LB    │  │  │  │  LB    │  │
+            │  └───┬────┘  │  │  └───┬────┘  │
+            │  ┌───┴───┐   │  │  ┌───┴───┐   │
+            │  │App x N│   │  │  │App x N│   │
+            │  └───┬───┘   │  │  └───┬───┘   │
+            │  ┌───┴───┐   │  │  ┌───┴───┐   │
+            │  │Shard 1│   │  │  │Shard 3│   │
+            │  │Shard 2│   │  │  │Shard 4│   │
+            │  └───────┘   │  │  └───────┘   │
+            └──────────────┘  └──────────────┘
+                    │                │
+                    └──── Cross-region
+                         replication
+```
+
+---
+
+## Summary
+
+<CardGrid>
+  <Card title="Scaling Strategy" icon="rocket">
+    Start with vertical scaling. Add a load balancer and horizontal scaling when you outgrow a single server. Use auto-scaling for unpredictable traffic. Scale your database with read replicas first, then sharding.
+  </Card>
+  <Card title="Caching" icon="star">
+    Cache at every layer: browser, CDN, application, database. Use cache-aside for most cases. Set appropriate TTLs. Plan for cache invalidation from day one. Monitor hit rates.
+  </Card>
+  <Card title="Message Queues" icon="setting">
+    Use queues to decouple services, handle traffic spikes, and enable async processing. Kafka for event streaming, RabbitMQ for task queues, SQS for simple cloud queues. Always implement dead letter queues.
+  </Card>
+  <Card title="Resilience" icon="approve-check">
+    Rate limiting protects your system from abuse. Circuit breakers prevent cascading failures. Health checks enable automatic recovery. Design for failure — it is not a question of if, but when.
+  </Card>
+</CardGrid>

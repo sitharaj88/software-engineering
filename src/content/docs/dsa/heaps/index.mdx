@@ -1,0 +1,1649 @@
+---
+title: Heaps
+description: Master heap data structure, priority queues, and heap-based algorithms
+difficulty: intermediate
+prerequisites: ["Arrays", "Trees"]
+timeToRead: "20 min"
+topics: ["heaps", "data-structures", "priority-queue"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+A heap is a complete binary tree that satisfies the heap property. It's the foundation for priority queues and enables efficient access to the minimum or maximum element.
+
+## Heap Property
+
+- **Min-Heap**: Parent ≤ Children (smallest at root)
+- **Max-Heap**: Parent ≥ Children (largest at root)
+
+```
+Min-Heap:            Max-Heap:
+     1                   9
+    / \                 / \
+   3   2               7   8
+  / \                 / \
+ 7   4               3   5
+
+Array representation (0-indexed):
+Min-Heap: [1, 3, 2, 7, 4]
+Max-Heap: [9, 7, 8, 3, 5]
+```
+
+## Array Representation
+
+For a node at index `i`:
+- **Parent**: `(i - 1) // 2`
+- **Left Child**: `2 * i + 1`
+- **Right Child**: `2 * i + 2`
+
+```
+Index:     0   1   2   3   4
+Array:   [ 1,  3,  2,  7,  4 ]
+            ↓
+Tree:        1       (index 0)
+           /   \
+          3     2    (indices 1, 2)
+         / \
+        7   4        (indices 3, 4)
+```
+
+## Time Complexity
+
+| Operation | Time |
+|-----------|------|
+| Insert | O(log n) |
+| Extract Min/Max | O(log n) |
+| Peek Min/Max | O(1) |
+| Build Heap | O(n) |
+| Heapify | O(log n) |
+
+## Basic Operations
+
+<Tabs>
+  <TabItem label="Python">
+```python
+import heapq
+
+# Python heapq implements MIN-HEAP
+
+# Create heap from list
+nums = [5, 3, 8, 1, 2]
+heapq.heapify(nums)  # [1, 2, 8, 5, 3]
+
+# Insert (push)
+heapq.heappush(nums, 0)
+
+# Extract minimum (pop)
+smallest = heapq.heappop(nums)  # 0
+
+# Peek minimum (without removing)
+smallest = nums[0]
+
+# Push and pop in one operation
+result = heapq.heappushpop(nums, 4)  # Push 4, pop smallest
+
+# Pop and push in one operation
+result = heapq.heapreplace(nums, 6)  # Pop smallest, push 6
+
+# Get n smallest/largest
+smallest_3 = heapq.nsmallest(3, nums)
+largest_3 = heapq.nlargest(3, nums)
+
+# MAX-HEAP: Negate values
+max_heap = []
+heapq.heappush(max_heap, -5)
+heapq.heappush(max_heap, -3)
+largest = -heapq.heappop(max_heap)  # 5
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// JavaScript has no built-in heap - implement manually
+class MinHeap {
+  constructor() {
+    this.heap = [];
+  }
+
+  parent(i) { return Math.floor((i - 1) / 2); }
+  leftChild(i) { return 2 * i + 1; }
+  rightChild(i) { return 2 * i + 2; }
+
+  swap(i, j) {
+    [this.heap[i], this.heap[j]] = [this.heap[j], this.heap[i]];
+  }
+
+  push(val) {
+    this.heap.push(val);
+    this.bubbleUp(this.heap.length - 1);
+  }
+
+  pop() {
+    if (this.heap.length === 0) return null;
+    if (this.heap.length === 1) return this.heap.pop();
+
+    const min = this.heap[0];
+    this.heap[0] = this.heap.pop();
+    this.sinkDown(0);
+    return min;
+  }
+
+  peek() {
+    return this.heap[0];
+  }
+
+  bubbleUp(idx) {
+    while (idx > 0 && this.heap[this.parent(idx)] > this.heap[idx]) {
+      this.swap(idx, this.parent(idx));
+      idx = this.parent(idx);
+    }
+  }
+
+  sinkDown(idx) {
+    const length = this.heap.length;
+    while (true) {
+      let smallest = idx;
+      const left = this.leftChild(idx);
+      const right = this.rightChild(idx);
+
+      if (left < length && this.heap[left] < this.heap[smallest]) {
+        smallest = left;
+      }
+      if (right < length && this.heap[right] < this.heap[smallest]) {
+        smallest = right;
+      }
+      if (smallest === idx) break;
+
+      this.swap(idx, smallest);
+      idx = smallest;
+    }
+  }
+
+  size() {
+    return this.heap.length;
+  }
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+import java.util.PriorityQueue;
+import java.util.Collections;
+
+// PriorityQueue is a MIN-HEAP by default
+PriorityQueue<Integer> minHeap = new PriorityQueue<>();
+
+// Insert
+minHeap.offer(5);
+minHeap.offer(3);
+minHeap.offer(8);
+
+// Extract minimum
+int smallest = minHeap.poll();  // 3
+
+// Peek minimum
+int min = minHeap.peek();
+
+// Size
+int size = minHeap.size();
+
+// MAX-HEAP: Use reverse order
+PriorityQueue<Integer> maxHeap = new PriorityQueue<>(
+    Collections.reverseOrder()
+);
+maxHeap.offer(5);
+maxHeap.offer(3);
+int largest = maxHeap.poll();  // 5
+
+// Custom comparator
+PriorityQueue<int[]> customHeap = new PriorityQueue<>(
+    (a, b) -> a[0] - b[0]  // Sort by first element
+);
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+#include <queue>
+#include <vector>
+#include <functional>
+using namespace std;
+
+// priority_queue is a MAX-HEAP by default
+priority_queue<int> maxHeap;
+
+// Insert
+maxHeap.push(5);
+maxHeap.push(3);
+maxHeap.push(8);
+
+// Extract maximum
+int largest = maxHeap.top();  // 8
+maxHeap.pop();
+
+// Peek maximum
+int max = maxHeap.top();
+
+// Size
+int size = maxHeap.size();
+
+// MIN-HEAP: Use greater<int>
+priority_queue<int, vector<int>, greater<int>> minHeap;
+minHeap.push(5);
+minHeap.push(3);
+int smallest = minHeap.top();  // 3
+
+// Custom comparator
+auto cmp = [](pair<int,int>& a, pair<int,int>& b) {
+    return a.first > b.first;  // Min by first element
+};
+priority_queue<pair<int,int>, vector<pair<int,int>>, decltype(cmp)> pq(cmp);
+```
+  </TabItem>
+</Tabs>
+
+## Heap Implementation
+
+```python
+class MinHeap:
+    def __init__(self):
+        self.heap = []
+
+    def parent(self, i):
+        return (i - 1) // 2
+
+    def left_child(self, i):
+        return 2 * i + 1
+
+    def right_child(self, i):
+        return 2 * i + 2
+
+    def swap(self, i, j):
+        self.heap[i], self.heap[j] = self.heap[j], self.heap[i]
+
+    def push(self, val):
+        """Add element and maintain heap property"""
+        self.heap.append(val)
+        self._bubble_up(len(self.heap) - 1)
+
+    def pop(self):
+        """Remove and return minimum element"""
+        if not self.heap:
+            raise IndexError("Pop from empty heap")
+        if len(self.heap) == 1:
+            return self.heap.pop()
+
+        min_val = self.heap[0]
+        self.heap[0] = self.heap.pop()
+        self._sink_down(0)
+        return min_val
+
+    def peek(self):
+        """Return minimum without removing"""
+        if not self.heap:
+            raise IndexError("Peek from empty heap")
+        return self.heap[0]
+
+    def _bubble_up(self, idx):
+        """Move element up to maintain heap property"""
+        while idx > 0 and self.heap[self.parent(idx)] > self.heap[idx]:
+            self.swap(idx, self.parent(idx))
+            idx = self.parent(idx)
+
+    def _sink_down(self, idx):
+        """Move element down to maintain heap property"""
+        size = len(self.heap)
+        while True:
+            smallest = idx
+            left = self.left_child(idx)
+            right = self.right_child(idx)
+
+            if left < size and self.heap[left] < self.heap[smallest]:
+                smallest = left
+            if right < size and self.heap[right] < self.heap[smallest]:
+                smallest = right
+
+            if smallest == idx:
+                break
+
+            self.swap(idx, smallest)
+            idx = smallest
+
+    def heapify(self, arr):
+        """Build heap from array in O(n)"""
+        self.heap = arr[:]
+        # Start from last non-leaf node
+        for i in range(len(arr) // 2 - 1, -1, -1):
+            self._sink_down(i)
+```
+
+## Common Patterns
+
+### 1. Kth Largest Element
+
+```
+Algorithm: Maintain min-heap of size k
+
+nums = [3, 2, 1, 5, 6, 4], k = 2
+
+Step 1: push 3 → heap = [3]
+Step 2: push 2 → heap = [2, 3]
+Step 3: push 1 → heap size > k → pop 1 → heap = [2, 3]
+Step 4: push 5 → heap size > k → pop 2 → heap = [3, 5]
+Step 5: push 6 → heap size > k → pop 3 → heap = [5, 6]
+Step 6: push 4 → heap size > k → pop 4 → heap = [5, 6]
+
+Answer: heap[0] = 5 (2nd largest)
+```
+
+<Tabs>
+  <TabItem label="Python">
+```python
+import heapq
+
+def find_kth_largest(nums: list, k: int) -> int:
+    """
+    Find kth largest using min-heap of size k.
+    Time: O(n log k), Space: O(k)
+
+    Algorithm:
+    1. Maintain a min-heap of size k
+    2. For each number, push to heap
+    3. If heap size > k, pop smallest
+    4. After all elements, heap[0] is kth largest
+    """
+    heap = []
+
+    for num in nums:
+        heapq.heappush(heap, num)
+        if len(heap) > k:
+            heapq.heappop(heap)
+
+    return heap[0]
+
+# Alternative using heapq.nlargest
+def find_kth_largest_v2(nums: list, k: int) -> int:
+    return heapq.nlargest(k, nums)[-1]
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function findKthLargest(nums, k) {
+  /**
+   * Find kth largest using min-heap of size k.
+   * Time: O(n log k), Space: O(k)
+   */
+  const heap = new MinHeap();
+
+  for (const num of nums) {
+    heap.push(num);
+    if (heap.size() > k) {
+      heap.pop();
+    }
+  }
+
+  return heap.peek();
+}
+
+// MinHeap implementation needed (from basic operations section)
+class MinHeap {
+  constructor() { this.heap = []; }
+
+  push(val) {
+    this.heap.push(val);
+    this.bubbleUp(this.heap.length - 1);
+  }
+
+  pop() {
+    if (this.heap.length === 0) return null;
+    if (this.heap.length === 1) return this.heap.pop();
+    const min = this.heap[0];
+    this.heap[0] = this.heap.pop();
+    this.sinkDown(0);
+    return min;
+  }
+
+  peek() { return this.heap[0]; }
+  size() { return this.heap.length; }
+
+  bubbleUp(idx) {
+    while (idx > 0) {
+      const parent = Math.floor((idx - 1) / 2);
+      if (this.heap[parent] <= this.heap[idx]) break;
+      [this.heap[parent], this.heap[idx]] = [this.heap[idx], this.heap[parent]];
+      idx = parent;
+    }
+  }
+
+  sinkDown(idx) {
+    while (true) {
+      let smallest = idx;
+      const left = 2 * idx + 1, right = 2 * idx + 2;
+      if (left < this.heap.length && this.heap[left] < this.heap[smallest]) smallest = left;
+      if (right < this.heap.length && this.heap[right] < this.heap[smallest]) smallest = right;
+      if (smallest === idx) break;
+      [this.heap[idx], this.heap[smallest]] = [this.heap[smallest], this.heap[idx]];
+      idx = smallest;
+    }
+  }
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+public int findKthLargest(int[] nums, int k) {
+    /**
+     * Find kth largest using min-heap of size k.
+     * Time: O(n log k), Space: O(k)
+     */
+    PriorityQueue<Integer> heap = new PriorityQueue<>();
+
+    for (int num : nums) {
+        heap.offer(num);
+        if (heap.size() > k) {
+            heap.poll();
+        }
+    }
+
+    return heap.peek();
+}
+
+// Alternative: Using max-heap to find directly
+public int findKthLargestMaxHeap(int[] nums, int k) {
+    PriorityQueue<Integer> maxHeap = new PriorityQueue<>(
+        Collections.reverseOrder()
+    );
+
+    for (int num : nums) {
+        maxHeap.offer(num);
+    }
+
+    for (int i = 0; i < k - 1; i++) {
+        maxHeap.poll();
+    }
+
+    return maxHeap.peek();
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+int findKthLargest(vector<int>& nums, int k) {
+    /**
+     * Find kth largest using min-heap of size k.
+     * Time: O(n log k), Space: O(k)
+     */
+    priority_queue<int, vector<int>, greater<int>> minHeap;
+
+    for (int num : nums) {
+        minHeap.push(num);
+        if (minHeap.size() > k) {
+            minHeap.pop();
+        }
+    }
+
+    return minHeap.top();
+}
+
+// Alternative: Using partial_sort
+int findKthLargestSort(vector<int>& nums, int k) {
+    partial_sort(nums.begin(), nums.begin() + k, nums.end(), greater<int>());
+    return nums[k - 1];
+}
+
+// Alternative: Using nth_element (O(n) average)
+int findKthLargestQuickSelect(vector<int>& nums, int k) {
+    nth_element(nums.begin(), nums.begin() + k - 1, nums.end(), greater<int>());
+    return nums[k - 1];
+}
+```
+  </TabItem>
+</Tabs>
+
+### 2. Top K Frequent Elements
+
+<Tabs>
+  <TabItem label="Python">
+```python
+from collections import Counter
+import heapq
+
+def top_k_frequent(nums: list, k: int) -> list:
+    """
+    Find k most frequent elements.
+    Time: O(n log k), Space: O(n)
+
+    Algorithm:
+    1. Count frequency of each element
+    2. Use min-heap of size k to track top frequencies
+    3. Return elements in the heap
+    """
+    count = Counter(nums)
+
+    # Use min-heap to keep top k
+    heap = []
+    for num, freq in count.items():
+        heapq.heappush(heap, (freq, num))
+        if len(heap) > k:
+            heapq.heappop(heap)
+
+    return [num for freq, num in heap]
+
+# Alternative: Bucket sort O(n)
+def top_k_frequent_bucket(nums: list, k: int) -> list:
+    count = Counter(nums)
+    # Buckets indexed by frequency
+    buckets = [[] for _ in range(len(nums) + 1)]
+
+    for num, freq in count.items():
+        buckets[freq].append(num)
+
+    result = []
+    for i in range(len(buckets) - 1, -1, -1):
+        for num in buckets[i]:
+            result.append(num)
+            if len(result) == k:
+                return result
+    return result
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function topKFrequent(nums, k) {
+  /**
+   * Find k most frequent elements.
+   * Time: O(n log k), Space: O(n)
+   */
+  // Count frequencies
+  const count = new Map();
+  for (const num of nums) {
+    count.set(num, (count.get(num) || 0) + 1);
+  }
+
+  // Min-heap by frequency
+  const heap = new MinHeapWithTuple();
+
+  for (const [num, freq] of count) {
+    heap.push([freq, num]);
+    if (heap.size() > k) {
+      heap.pop();
+    }
+  }
+
+  return heap.heap.map(([freq, num]) => num);
+}
+
+// Alternative: Bucket sort O(n)
+function topKFrequentBucket(nums, k) {
+  const count = new Map();
+  for (const num of nums) {
+    count.set(num, (count.get(num) || 0) + 1);
+  }
+
+  // Buckets indexed by frequency
+  const buckets = Array(nums.length + 1).fill(null).map(() => []);
+
+  for (const [num, freq] of count) {
+    buckets[freq].push(num);
+  }
+
+  const result = [];
+  for (let i = buckets.length - 1; i >= 0 && result.length < k; i--) {
+    result.push(...buckets[i]);
+  }
+
+  return result.slice(0, k);
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+public int[] topKFrequent(int[] nums, int k) {
+    /**
+     * Find k most frequent elements.
+     * Time: O(n log k), Space: O(n)
+     */
+    // Count frequencies
+    Map<Integer, Integer> count = new HashMap<>();
+    for (int num : nums) {
+        count.put(num, count.getOrDefault(num, 0) + 1);
+    }
+
+    // Min-heap by frequency
+    PriorityQueue<int[]> heap = new PriorityQueue<>(
+        (a, b) -> a[1] - b[1]  // Compare by frequency
+    );
+
+    for (Map.Entry<Integer, Integer> entry : count.entrySet()) {
+        heap.offer(new int[]{entry.getKey(), entry.getValue()});
+        if (heap.size() > k) {
+            heap.poll();
+        }
+    }
+
+    int[] result = new int[k];
+    for (int i = 0; i < k; i++) {
+        result[i] = heap.poll()[0];
+    }
+    return result;
+}
+
+// Alternative: Bucket sort O(n)
+public int[] topKFrequentBucket(int[] nums, int k) {
+    Map<Integer, Integer> count = new HashMap<>();
+    for (int num : nums) {
+        count.put(num, count.getOrDefault(num, 0) + 1);
+    }
+
+    List<Integer>[] buckets = new List[nums.length + 1];
+    for (int i = 0; i <= nums.length; i++) {
+        buckets[i] = new ArrayList<>();
+    }
+
+    for (Map.Entry<Integer, Integer> entry : count.entrySet()) {
+        buckets[entry.getValue()].add(entry.getKey());
+    }
+
+    int[] result = new int[k];
+    int idx = 0;
+    for (int i = nums.length; i >= 0 && idx < k; i--) {
+        for (int num : buckets[i]) {
+            result[idx++] = num;
+            if (idx == k) break;
+        }
+    }
+    return result;
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+vector<int> topKFrequent(vector<int>& nums, int k) {
+    /**
+     * Find k most frequent elements.
+     * Time: O(n log k), Space: O(n)
+     */
+    // Count frequencies
+    unordered_map<int, int> count;
+    for (int num : nums) {
+        count[num]++;
+    }
+
+    // Min-heap by frequency
+    auto cmp = [](pair<int,int>& a, pair<int,int>& b) {
+        return a.second > b.second;  // Min-heap
+    };
+    priority_queue<pair<int,int>, vector<pair<int,int>>, decltype(cmp)> heap(cmp);
+
+    for (auto& [num, freq] : count) {
+        heap.push({num, freq});
+        if (heap.size() > k) {
+            heap.pop();
+        }
+    }
+
+    vector<int> result;
+    while (!heap.empty()) {
+        result.push_back(heap.top().first);
+        heap.pop();
+    }
+    return result;
+}
+
+// Alternative: Bucket sort O(n)
+vector<int> topKFrequentBucket(vector<int>& nums, int k) {
+    unordered_map<int, int> count;
+    for (int num : nums) {
+        count[num]++;
+    }
+
+    vector<vector<int>> buckets(nums.size() + 1);
+    for (auto& [num, freq] : count) {
+        buckets[freq].push_back(num);
+    }
+
+    vector<int> result;
+    for (int i = buckets.size() - 1; i >= 0 && result.size() < k; i--) {
+        for (int num : buckets[i]) {
+            result.push_back(num);
+            if (result.size() == k) return result;
+        }
+    }
+    return result;
+}
+```
+  </TabItem>
+</Tabs>
+
+### 3. Merge K Sorted Lists
+
+```
+K-way Merge Algorithm:
+
+lists = [[1,4,5], [1,3,4], [2,6]]
+
+Initial heap: [(1, list0), (1, list1), (2, list2)]
+
+Step 1: pop (1, list0) → result = [1]
+        push (4, list0) → heap = [(1, list1), (2, list2), (4, list0)]
+
+Step 2: pop (1, list1) → result = [1,1]
+        push (3, list1) → heap = [(2, list2), (3, list1), (4, list0)]
+
+...continue until heap is empty
+
+Final: [1,1,2,3,4,4,5,6]
+```
+
+<Tabs>
+  <TabItem label="Python">
+```python
+import heapq
+
+def merge_k_lists(lists: list) -> list:
+    """
+    Merge k sorted lists into one.
+    Time: O(n log k), Space: O(k)
+
+    Algorithm:
+    1. Push first element from each list to heap
+    2. Pop smallest, add to result
+    3. Push next element from same list
+    4. Repeat until heap is empty
+    """
+    heap = []
+    result = []
+
+    # Initialize heap with first element from each list
+    for i, lst in enumerate(lists):
+        if lst:
+            heapq.heappush(heap, (lst[0], i, 0))
+
+    while heap:
+        val, list_idx, elem_idx = heapq.heappop(heap)
+        result.append(val)
+
+        # Add next element from same list
+        if elem_idx + 1 < len(lists[list_idx]):
+            next_val = lists[list_idx][elem_idx + 1]
+            heapq.heappush(heap, (next_val, list_idx, elem_idx + 1))
+
+    return result
+
+# For linked lists (LeetCode version)
+def merge_k_linked_lists(lists):
+    heap = []
+    for i, node in enumerate(lists):
+        if node:
+            heapq.heappush(heap, (node.val, i, node))
+
+    dummy = ListNode(0)
+    current = dummy
+
+    while heap:
+        val, idx, node = heapq.heappop(heap)
+        current.next = node
+        current = current.next
+
+        if node.next:
+            heapq.heappush(heap, (node.next.val, idx, node.next))
+
+    return dummy.next
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function mergeKLists(lists) {
+  /**
+   * Merge k sorted lists into one.
+   * Time: O(n log k), Space: O(k)
+   */
+  const heap = new MinHeapWithIndex();
+  const result = [];
+
+  // Initialize heap
+  for (let i = 0; i < lists.length; i++) {
+    if (lists[i] && lists[i].length > 0) {
+      heap.push([lists[i][0], i, 0]);
+    }
+  }
+
+  while (heap.size() > 0) {
+    const [val, listIdx, elemIdx] = heap.pop();
+    result.push(val);
+
+    if (elemIdx + 1 < lists[listIdx].length) {
+      heap.push([lists[listIdx][elemIdx + 1], listIdx, elemIdx + 1]);
+    }
+  }
+
+  return result;
+}
+
+// For linked lists
+function mergeKLinkedLists(lists) {
+  const heap = new MinHeapWithIndex();
+  const dummy = new ListNode(0);
+  let current = dummy;
+
+  for (let i = 0; i < lists.length; i++) {
+    if (lists[i]) {
+      heap.push([lists[i].val, i, lists[i]]);
+    }
+  }
+
+  while (heap.size() > 0) {
+    const [val, idx, node] = heap.pop();
+    current.next = node;
+    current = current.next;
+
+    if (node.next) {
+      heap.push([node.next.val, idx, node.next]);
+    }
+  }
+
+  return dummy.next;
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+public ListNode mergeKLists(ListNode[] lists) {
+    /**
+     * Merge k sorted linked lists.
+     * Time: O(n log k), Space: O(k)
+     */
+    PriorityQueue<ListNode> heap = new PriorityQueue<>(
+        (a, b) -> a.val - b.val
+    );
+
+    // Initialize heap
+    for (ListNode node : lists) {
+        if (node != null) {
+            heap.offer(node);
+        }
+    }
+
+    ListNode dummy = new ListNode(0);
+    ListNode current = dummy;
+
+    while (!heap.isEmpty()) {
+        ListNode node = heap.poll();
+        current.next = node;
+        current = current.next;
+
+        if (node.next != null) {
+            heap.offer(node.next);
+        }
+    }
+
+    return dummy.next;
+}
+
+// For arrays version
+public int[] mergeKArrays(int[][] lists) {
+    PriorityQueue<int[]> heap = new PriorityQueue<>(
+        (a, b) -> a[0] - b[0]  // value, listIdx, elemIdx
+    );
+
+    int total = 0;
+    for (int i = 0; i < lists.length; i++) {
+        if (lists[i].length > 0) {
+            heap.offer(new int[]{lists[i][0], i, 0});
+            total += lists[i].length;
+        }
+    }
+
+    int[] result = new int[total];
+    int idx = 0;
+
+    while (!heap.isEmpty()) {
+        int[] curr = heap.poll();
+        result[idx++] = curr[0];
+
+        if (curr[2] + 1 < lists[curr[1]].length) {
+            heap.offer(new int[]{lists[curr[1]][curr[2] + 1], curr[1], curr[2] + 1});
+        }
+    }
+
+    return result;
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+ListNode* mergeKLists(vector<ListNode*>& lists) {
+    /**
+     * Merge k sorted linked lists.
+     * Time: O(n log k), Space: O(k)
+     */
+    auto cmp = [](ListNode* a, ListNode* b) {
+        return a->val > b->val;  // Min-heap
+    };
+    priority_queue<ListNode*, vector<ListNode*>, decltype(cmp)> heap(cmp);
+
+    // Initialize heap
+    for (ListNode* node : lists) {
+        if (node) {
+            heap.push(node);
+        }
+    }
+
+    ListNode dummy(0);
+    ListNode* current = &dummy;
+
+    while (!heap.empty()) {
+        ListNode* node = heap.top();
+        heap.pop();
+
+        current->next = node;
+        current = current->next;
+
+        if (node->next) {
+            heap.push(node->next);
+        }
+    }
+
+    return dummy.next;
+}
+
+// For vectors version
+vector<int> mergeKArrays(vector<vector<int>>& lists) {
+    // tuple: (value, listIdx, elemIdx)
+    auto cmp = [](tuple<int,int,int>& a, tuple<int,int,int>& b) {
+        return get<0>(a) > get<0>(b);
+    };
+    priority_queue<tuple<int,int,int>, vector<tuple<int,int,int>>, decltype(cmp)> heap(cmp);
+
+    for (int i = 0; i < lists.size(); i++) {
+        if (!lists[i].empty()) {
+            heap.push({lists[i][0], i, 0});
+        }
+    }
+
+    vector<int> result;
+    while (!heap.empty()) {
+        auto [val, listIdx, elemIdx] = heap.top();
+        heap.pop();
+        result.push_back(val);
+
+        if (elemIdx + 1 < lists[listIdx].size()) {
+            heap.push({lists[listIdx][elemIdx + 1], listIdx, elemIdx + 1});
+        }
+    }
+
+    return result;
+}
+```
+  </TabItem>
+</Tabs>
+
+### 4. Find Median from Data Stream
+
+```
+Two Heaps Strategy:
+
+small (max-heap): stores smaller half
+large (min-heap): stores larger half
+
+Numbers: [5, 2, 3, 4, 1]
+
+After 5: small=[-5], large=[]     median=5
+After 2: small=[-2], large=[5]    median=(2+5)/2=3.5
+After 3: small=[-3,-2], large=[5] median=3
+After 4: small=[-3,-2], large=[4,5] median=(3+4)/2=3.5
+After 1: small=[-3,-2,-1], large=[4,5] median=3
+
+Invariant: |small| == |large| or |small| == |large| + 1
+```
+
+<Tabs>
+  <TabItem label="Python">
+```python
+import heapq
+
+class MedianFinder:
+    """
+    Maintain running median using two heaps.
+    Time: O(log n) per add, O(1) for median
+
+    Strategy:
+    - small: max-heap for smaller half (negate values)
+    - large: min-heap for larger half
+    - Keep small same size or one larger than large
+    """
+    def __init__(self):
+        self.small = []  # Max-heap (store negative)
+        self.large = []  # Min-heap
+
+    def add_num(self, num: int):
+        # Add to max-heap first
+        heapq.heappush(self.small, -num)
+
+        # Balance: move max of small to large
+        heapq.heappush(self.large, -heapq.heappop(self.small))
+
+        # Keep small same size or one larger
+        if len(self.large) > len(self.small):
+            heapq.heappush(self.small, -heapq.heappop(self.large))
+
+    def find_median(self) -> float:
+        if len(self.small) > len(self.large):
+            return -self.small[0]
+        return (-self.small[0] + self.large[0]) / 2.0
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+class MedianFinder {
+  /**
+   * Maintain running median using two heaps.
+   * Time: O(log n) per add, O(1) for median
+   */
+  constructor() {
+    this.small = new MaxHeap(); // Smaller half
+    this.large = new MinHeap(); // Larger half
+  }
+
+  addNum(num) {
+    // Add to max-heap first
+    this.small.push(num);
+
+    // Balance: move max of small to large
+    this.large.push(this.small.pop());
+
+    // Keep small same size or one larger
+    if (this.large.size() > this.small.size()) {
+      this.small.push(this.large.pop());
+    }
+  }
+
+  findMedian() {
+    if (this.small.size() > this.large.size()) {
+      return this.small.peek();
+    }
+    return (this.small.peek() + this.large.peek()) / 2;
+  }
+}
+
+// MaxHeap implementation
+class MaxHeap {
+  constructor() { this.heap = []; }
+  push(val) { /* bubble up with max comparison */ }
+  pop() { /* sink down with max comparison */ }
+  peek() { return this.heap[0]; }
+  size() { return this.heap.length; }
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+class MedianFinder {
+    /**
+     * Maintain running median using two heaps.
+     * Time: O(log n) per add, O(1) for median
+     */
+    private PriorityQueue<Integer> small; // Max-heap (smaller half)
+    private PriorityQueue<Integer> large; // Min-heap (larger half)
+
+    public MedianFinder() {
+        small = new PriorityQueue<>(Collections.reverseOrder());
+        large = new PriorityQueue<>();
+    }
+
+    public void addNum(int num) {
+        // Add to max-heap first
+        small.offer(num);
+
+        // Balance: move max of small to large
+        large.offer(small.poll());
+
+        // Keep small same size or one larger
+        if (large.size() > small.size()) {
+            small.offer(large.poll());
+        }
+    }
+
+    public double findMedian() {
+        if (small.size() > large.size()) {
+            return small.peek();
+        }
+        return (small.peek() + large.peek()) / 2.0;
+    }
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+class MedianFinder {
+    /**
+     * Maintain running median using two heaps.
+     * Time: O(log n) per add, O(1) for median
+     */
+private:
+    priority_queue<int> small;  // Max-heap (smaller half)
+    priority_queue<int, vector<int>, greater<int>> large;  // Min-heap
+
+public:
+    MedianFinder() {}
+
+    void addNum(int num) {
+        // Add to max-heap first
+        small.push(num);
+
+        // Balance: move max of small to large
+        large.push(small.top());
+        small.pop();
+
+        // Keep small same size or one larger
+        if (large.size() > small.size()) {
+            small.push(large.top());
+            large.pop();
+        }
+    }
+
+    double findMedian() {
+        if (small.size() > large.size()) {
+            return small.top();
+        }
+        return (small.top() + large.top()) / 2.0;
+    }
+};
+```
+  </TabItem>
+</Tabs>
+
+### 5. Task Scheduler
+
+<Tabs>
+  <TabItem label="Python">
+```python
+from collections import Counter, deque
+import heapq
+
+def least_interval(tasks: list, n: int) -> int:
+    """
+    Find minimum time to complete all tasks with cooldown.
+    Time: O(t * 26), Space: O(26)
+
+    Algorithm:
+    1. Count task frequencies
+    2. Use max-heap to always process most frequent task
+    3. Track cooldown times in queue
+    4. Idle if no tasks available
+    """
+    count = Counter(tasks)
+    max_heap = [-cnt for cnt in count.values()]
+    heapq.heapify(max_heap)
+
+    time = 0
+    cooldown = deque()  # (available_time, count)
+
+    while max_heap or cooldown:
+        time += 1
+
+        if max_heap:
+            cnt = 1 + heapq.heappop(max_heap)  # Decrement count
+            if cnt:  # More of this task remaining
+                cooldown.append((time + n, cnt))
+
+        # Check if any task is ready
+        if cooldown and cooldown[0][0] == time:
+            heapq.heappush(max_heap, cooldown.popleft()[1])
+
+    return time
+
+# Mathematical approach (optimal)
+def least_interval_math(tasks: list, n: int) -> int:
+    count = Counter(tasks)
+    max_freq = max(count.values())
+    max_count = sum(1 for freq in count.values() if freq == max_freq)
+
+    # Formula: (max_freq - 1) * (n + 1) + max_count
+    return max(len(tasks), (max_freq - 1) * (n + 1) + max_count)
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function leastInterval(tasks, n) {
+  /**
+   * Find minimum time to complete all tasks with cooldown.
+   * Time: O(t * 26), Space: O(26)
+   */
+  // Count frequencies
+  const count = new Map();
+  for (const task of tasks) {
+    count.set(task, (count.get(task) || 0) + 1);
+  }
+
+  // Max-heap of frequencies
+  const heap = new MaxHeap();
+  for (const freq of count.values()) {
+    heap.push(freq);
+  }
+
+  let time = 0;
+  const cooldown = []; // [availableTime, count]
+
+  while (heap.size() > 0 || cooldown.length > 0) {
+    time++;
+
+    if (heap.size() > 0) {
+      const cnt = heap.pop() - 1;
+      if (cnt > 0) {
+        cooldown.push([time + n, cnt]);
+      }
+    }
+
+    if (cooldown.length > 0 && cooldown[0][0] === time) {
+      heap.push(cooldown.shift()[1]);
+    }
+  }
+
+  return time;
+}
+
+// Mathematical approach
+function leastIntervalMath(tasks, n) {
+  const count = new Map();
+  for (const task of tasks) {
+    count.set(task, (count.get(task) || 0) + 1);
+  }
+
+  const maxFreq = Math.max(...count.values());
+  let maxCount = 0;
+  for (const freq of count.values()) {
+    if (freq === maxFreq) maxCount++;
+  }
+
+  return Math.max(tasks.length, (maxFreq - 1) * (n + 1) + maxCount);
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+public int leastInterval(char[] tasks, int n) {
+    /**
+     * Find minimum time to complete all tasks with cooldown.
+     * Time: O(t * 26), Space: O(26)
+     */
+    int[] count = new int[26];
+    for (char task : tasks) {
+        count[task - 'A']++;
+    }
+
+    // Max-heap of frequencies
+    PriorityQueue<Integer> heap = new PriorityQueue<>(Collections.reverseOrder());
+    for (int c : count) {
+        if (c > 0) heap.offer(c);
+    }
+
+    int time = 0;
+    Queue<int[]> cooldown = new LinkedList<>(); // [availableTime, count]
+
+    while (!heap.isEmpty() || !cooldown.isEmpty()) {
+        time++;
+
+        if (!heap.isEmpty()) {
+            int cnt = heap.poll() - 1;
+            if (cnt > 0) {
+                cooldown.offer(new int[]{time + n, cnt});
+            }
+        }
+
+        if (!cooldown.isEmpty() && cooldown.peek()[0] == time) {
+            heap.offer(cooldown.poll()[1]);
+        }
+    }
+
+    return time;
+}
+
+// Mathematical approach
+public int leastIntervalMath(char[] tasks, int n) {
+    int[] count = new int[26];
+    int maxFreq = 0, maxCount = 0;
+
+    for (char task : tasks) {
+        count[task - 'A']++;
+        if (count[task - 'A'] > maxFreq) {
+            maxFreq = count[task - 'A'];
+            maxCount = 1;
+        } else if (count[task - 'A'] == maxFreq) {
+            maxCount++;
+        }
+    }
+
+    return Math.max(tasks.length, (maxFreq - 1) * (n + 1) + maxCount);
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+int leastInterval(vector<char>& tasks, int n) {
+    /**
+     * Find minimum time to complete all tasks with cooldown.
+     * Time: O(t * 26), Space: O(26)
+     */
+    vector<int> count(26, 0);
+    for (char task : tasks) {
+        count[task - 'A']++;
+    }
+
+    // Max-heap of frequencies
+    priority_queue<int> heap;
+    for (int c : count) {
+        if (c > 0) heap.push(c);
+    }
+
+    int time = 0;
+    queue<pair<int, int>> cooldown; // {availableTime, count}
+
+    while (!heap.empty() || !cooldown.empty()) {
+        time++;
+
+        if (!heap.empty()) {
+            int cnt = heap.top() - 1;
+            heap.pop();
+            if (cnt > 0) {
+                cooldown.push({time + n, cnt});
+            }
+        }
+
+        if (!cooldown.empty() && cooldown.front().first == time) {
+            heap.push(cooldown.front().second);
+            cooldown.pop();
+        }
+    }
+
+    return time;
+}
+
+// Mathematical approach
+int leastIntervalMath(vector<char>& tasks, int n) {
+    vector<int> count(26, 0);
+    for (char task : tasks) {
+        count[task - 'A']++;
+    }
+
+    int maxFreq = *max_element(count.begin(), count.end());
+    int maxCount = count_if(count.begin(), count.end(),
+                           [maxFreq](int c) { return c == maxFreq; });
+
+    return max((int)tasks.size(), (maxFreq - 1) * (n + 1) + maxCount);
+}
+```
+  </TabItem>
+</Tabs>
+
+### 6. Heap Sort
+
+```
+Heap Sort Algorithm:
+
+1. Build max-heap from array
+2. Repeatedly extract max and place at end
+
+arr = [4, 10, 3, 5, 1]
+
+Build max-heap: [10, 5, 3, 4, 1]
+
+Extract phase:
+  Swap 10↔1: [1, 5, 3, 4, | 10] → heapify → [5, 4, 3, 1, | 10]
+  Swap 5↔1:  [1, 4, 3, | 5, 10] → heapify → [4, 1, 3, | 5, 10]
+  Swap 4↔3:  [3, 1, | 4, 5, 10] → heapify → [3, 1, | 4, 5, 10]
+  Swap 3↔1:  [1, | 3, 4, 5, 10]
+
+Sorted: [1, 3, 4, 5, 10]
+```
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def heap_sort(arr: list) -> list:
+    """
+    Sort using heap.
+    Time: O(n log n), Space: O(1) in-place
+
+    Algorithm:
+    1. Build max-heap in O(n)
+    2. Extract max n times in O(n log n)
+    """
+    n = len(arr)
+
+    # Build max-heap (start from last non-leaf)
+    for i in range(n // 2 - 1, -1, -1):
+        heapify(arr, n, i)
+
+    # Extract elements one by one
+    for i in range(n - 1, 0, -1):
+        # Move current root (max) to end
+        arr[0], arr[i] = arr[i], arr[0]
+        # Heapify reduced heap
+        heapify(arr, i, 0)
+
+    return arr
+
+def heapify(arr, size, root):
+    """Maintain max-heap property"""
+    largest = root
+    left = 2 * root + 1
+    right = 2 * root + 2
+
+    if left < size and arr[left] > arr[largest]:
+        largest = left
+    if right < size and arr[right] > arr[largest]:
+        largest = right
+
+    if largest != root:
+        arr[root], arr[largest] = arr[largest], arr[root]
+        heapify(arr, size, largest)
+
+# Example
+arr = [4, 10, 3, 5, 1]
+heap_sort(arr)  # [1, 3, 4, 5, 10]
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function heapSort(arr) {
+  /**
+   * Sort using heap.
+   * Time: O(n log n), Space: O(1) in-place
+   */
+  const n = arr.length;
+
+  // Build max-heap
+  for (let i = Math.floor(n / 2) - 1; i >= 0; i--) {
+    heapify(arr, n, i);
+  }
+
+  // Extract elements
+  for (let i = n - 1; i > 0; i--) {
+    [arr[0], arr[i]] = [arr[i], arr[0]];
+    heapify(arr, i, 0);
+  }
+
+  return arr;
+}
+
+function heapify(arr, size, root) {
+  let largest = root;
+  const left = 2 * root + 1;
+  const right = 2 * root + 2;
+
+  if (left < size && arr[left] > arr[largest]) {
+    largest = left;
+  }
+  if (right < size && arr[right] > arr[largest]) {
+    largest = right;
+  }
+
+  if (largest !== root) {
+    [arr[root], arr[largest]] = [arr[largest], arr[root]];
+    heapify(arr, size, largest);
+  }
+}
+
+// Example
+const arr = [4, 10, 3, 5, 1];
+heapSort(arr);  // [1, 3, 4, 5, 10]
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+public void heapSort(int[] arr) {
+    /**
+     * Sort using heap.
+     * Time: O(n log n), Space: O(1) in-place
+     */
+    int n = arr.length;
+
+    // Build max-heap
+    for (int i = n / 2 - 1; i >= 0; i--) {
+        heapify(arr, n, i);
+    }
+
+    // Extract elements
+    for (int i = n - 1; i > 0; i--) {
+        // Move root to end
+        int temp = arr[0];
+        arr[0] = arr[i];
+        arr[i] = temp;
+
+        heapify(arr, i, 0);
+    }
+}
+
+private void heapify(int[] arr, int size, int root) {
+    int largest = root;
+    int left = 2 * root + 1;
+    int right = 2 * root + 2;
+
+    if (left < size && arr[left] > arr[largest]) {
+        largest = left;
+    }
+    if (right < size && arr[right] > arr[largest]) {
+        largest = right;
+    }
+
+    if (largest != root) {
+        int temp = arr[root];
+        arr[root] = arr[largest];
+        arr[largest] = temp;
+
+        heapify(arr, size, largest);
+    }
+}
+
+// Example
+// int[] arr = {4, 10, 3, 5, 1};
+// heapSort(arr);  // [1, 3, 4, 5, 10]
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+void heapSort(vector<int>& arr) {
+    /**
+     * Sort using heap.
+     * Time: O(n log n), Space: O(1) in-place
+     */
+    int n = arr.size();
+
+    // Build max-heap
+    for (int i = n / 2 - 1; i >= 0; i--) {
+        heapify(arr, n, i);
+    }
+
+    // Extract elements
+    for (int i = n - 1; i > 0; i--) {
+        swap(arr[0], arr[i]);
+        heapify(arr, i, 0);
+    }
+}
+
+void heapify(vector<int>& arr, int size, int root) {
+    int largest = root;
+    int left = 2 * root + 1;
+    int right = 2 * root + 2;
+
+    if (left < size && arr[left] > arr[largest]) {
+        largest = left;
+    }
+    if (right < size && arr[right] > arr[largest]) {
+        largest = right;
+    }
+
+    if (largest != root) {
+        swap(arr[root], arr[largest]);
+        heapify(arr, size, largest);
+    }
+}
+
+// Can also use STL
+void heapSortSTL(vector<int>& arr) {
+    make_heap(arr.begin(), arr.end());
+    sort_heap(arr.begin(), arr.end());
+}
+
+// Example
+// vector<int> arr = {4, 10, 3, 5, 1};
+// heapSort(arr);  // [1, 3, 4, 5, 10]
+```
+  </TabItem>
+</Tabs>
+
+## Applications
+
+1. **Priority Scheduling** - OS task scheduling, job queues
+2. **Dijkstra's Algorithm** - Shortest path in weighted graphs
+3. **Huffman Coding** - Data compression
+4. **Event-Driven Simulation** - Process events by time
+5. **Median Maintenance** - Streaming statistics
+6. **Top-K Problems** - Find largest/smallest k elements
+
+## Practice Problems
+
+### Easy
+| Problem | Pattern | Companies |
+|---------|---------|-----------|
+| Kth Largest Element | Min-heap of size k | Amazon, Google |
+| Last Stone Weight | Max-heap simulation | Amazon |
+| Relative Ranks | Max-heap | Amazon |
+
+### Medium
+| Problem | Pattern | Companies |
+|---------|---------|-----------|
+| Top K Frequent Elements | Heap + Hash Map | Amazon, Meta |
+| Kth Smallest in Matrix | Min-heap | Google, Amazon |
+| Find K Pairs with Smallest Sums | Min-heap | Amazon |
+| Task Scheduler | Max-heap + Cooldown | Meta, Amazon |
+
+### Hard
+| Problem | Pattern | Companies |
+|---------|---------|-----------|
+| Merge K Sorted Lists | K-way merge | Amazon, Google, Meta |
+| Find Median from Data Stream | Two heaps | Amazon, Google |
+| Sliding Window Median | Two heaps + Lazy Delete | Google |
+| Trapping Rain Water II | Min-heap BFS | Google |
+
+## Key Takeaways
+
+1. **O(1) access to min/max** - Perfect for priority-based problems
+2. **O(log n) insert/delete** - Efficient modifications
+3. **Array-based** - Complete binary tree fits perfectly in array
+4. **Two heaps pattern** - Powerful for median and partition problems
+5. **K elements** - Use heap of size k for top-k problems
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="Graphs"
+    href="/dsa/graphs/"
+    description="Use heaps in Dijkstra's algorithm for shortest paths"
+  />
+  <LinkCard
+    title="Sorting"
+    href="/dsa/sorting/"
+    description="Learn about heap sort and comparison with other algorithms"
+  />
+</CardGrid>

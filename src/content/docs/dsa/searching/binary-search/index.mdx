@@ -1,0 +1,1127 @@
+---
+title: Binary Search
+description: Master binary search algorithm and its variations for efficient searching
+difficulty: intermediate
+prerequisites: ["Arrays", "Sorting"]
+timeToRead: "22 min"
+topics: ["binary-search", "algorithms", "searching"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+Binary search is a divide-and-conquer algorithm that finds a target value in a **sorted** array by repeatedly halving the search space. It's one of the most important algorithms with O(log n) time complexity.
+
+## How Binary Search Works
+
+```
+Target: 7
+Array: [1, 3, 5, 7, 9, 11, 13]
+
+Step 1: mid = 7, target = 7 → Found!
+
+Target: 3
+Array: [1, 3, 5, 7, 9, 11, 13]
+
+Step 1: mid = 7, 3 < 7 → search left half
+Step 2: [1, 3, 5], mid = 3 → Found!
+
+Target: 11
+Array: [1, 3, 5, 7, 9, 11, 13]
+
+Step 1: mid = 7, 11 > 7 → search right half
+Step 2: [9, 11, 13], mid = 11 → Found!
+```
+
+## Time Complexity
+
+| Operation | Time | Space |
+|-----------|------|-------|
+| Binary Search | O(log n) | O(1) |
+| Linear Search | O(n) | O(1) |
+
+With each comparison, binary search eliminates half of the remaining elements.
+
+## Basic Implementation
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def binary_search(arr, target):
+    """
+    Find target in sorted array.
+    Returns index if found, -1 otherwise.
+    Time: O(log n), Space: O(1)
+    """
+    left, right = 0, len(arr) - 1
+
+    while left <= right:
+        mid = left + (right - left) // 2  # Avoid overflow
+
+        if arr[mid] == target:
+            return mid
+        elif arr[mid] < target:
+            left = mid + 1
+        else:
+            right = mid - 1
+
+    return -1
+
+# Recursive version
+def binary_search_recursive(arr, target, left, right):
+    if left > right:
+        return -1
+
+    mid = left + (right - left) // 2
+
+    if arr[mid] == target:
+        return mid
+    elif arr[mid] < target:
+        return binary_search_recursive(arr, target, mid + 1, right)
+    else:
+        return binary_search_recursive(arr, target, left, mid - 1)
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function binarySearch(arr, target) {
+  let left = 0;
+  let right = arr.length - 1;
+
+  while (left <= right) {
+    const mid = left + Math.floor((right - left) / 2);
+
+    if (arr[mid] === target) {
+      return mid;
+    } else if (arr[mid] < target) {
+      left = mid + 1;
+    } else {
+      right = mid - 1;
+    }
+  }
+
+  return -1;
+}
+
+// Recursive version
+function binarySearchRecursive(arr, target, left = 0, right = arr.length - 1) {
+  if (left > right) return -1;
+
+  const mid = left + Math.floor((right - left) / 2);
+
+  if (arr[mid] === target) return mid;
+  if (arr[mid] < target) {
+    return binarySearchRecursive(arr, target, mid + 1, right);
+  }
+  return binarySearchRecursive(arr, target, left, mid - 1);
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+public static int binarySearch(int[] arr, int target) {
+    int left = 0;
+    int right = arr.length - 1;
+
+    while (left <= right) {
+        int mid = left + (right - left) / 2;
+
+        if (arr[mid] == target) {
+            return mid;
+        } else if (arr[mid] < target) {
+            left = mid + 1;
+        } else {
+            right = mid - 1;
+        }
+    }
+
+    return -1;
+}
+
+// Using built-in
+int index = Arrays.binarySearch(arr, target);
+// Returns negative if not found: -(insertion point) - 1
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+int binarySearch(vector<int>& arr, int target) {
+    int left = 0;
+    int right = arr.size() - 1;
+
+    while (left <= right) {
+        int mid = left + (right - left) / 2;
+
+        if (arr[mid] == target) {
+            return mid;
+        } else if (arr[mid] < target) {
+            left = mid + 1;
+        } else {
+            right = mid - 1;
+        }
+    }
+
+    return -1;
+}
+
+// Using STL
+auto it = lower_bound(arr.begin(), arr.end(), target);
+if (it != arr.end() && *it == target) {
+    int index = it - arr.begin();
+}
+```
+  </TabItem>
+</Tabs>
+
+## Common Variations
+
+### Find First/Last Occurrence
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def find_first_occurrence(arr, target):
+    """Find leftmost index of target"""
+    left, right = 0, len(arr) - 1
+    result = -1
+
+    while left <= right:
+        mid = left + (right - left) // 2
+
+        if arr[mid] == target:
+            result = mid
+            right = mid - 1  # Continue searching left
+        elif arr[mid] < target:
+            left = mid + 1
+        else:
+            right = mid - 1
+
+    return result
+
+def find_last_occurrence(arr, target):
+    """Find rightmost index of target"""
+    left, right = 0, len(arr) - 1
+    result = -1
+
+    while left <= right:
+        mid = left + (right - left) // 2
+
+        if arr[mid] == target:
+            result = mid
+            left = mid + 1  # Continue searching right
+        elif arr[mid] < target:
+            left = mid + 1
+        else:
+            right = mid - 1
+
+    return result
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function findFirstOccurrence(arr, target) {
+  let left = 0, right = arr.length - 1;
+  let result = -1;
+
+  while (left <= right) {
+    const mid = left + Math.floor((right - left) / 2);
+
+    if (arr[mid] === target) {
+      result = mid;
+      right = mid - 1; // Continue searching left
+    } else if (arr[mid] < target) {
+      left = mid + 1;
+    } else {
+      right = mid - 1;
+    }
+  }
+
+  return result;
+}
+
+function findLastOccurrence(arr, target) {
+  let left = 0, right = arr.length - 1;
+  let result = -1;
+
+  while (left <= right) {
+    const mid = left + Math.floor((right - left) / 2);
+
+    if (arr[mid] === target) {
+      result = mid;
+      left = mid + 1; // Continue searching right
+    } else if (arr[mid] < target) {
+      left = mid + 1;
+    } else {
+      right = mid - 1;
+    }
+  }
+
+  return result;
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+public int findFirstOccurrence(int[] arr, int target) {
+    int left = 0, right = arr.length - 1;
+    int result = -1;
+
+    while (left <= right) {
+        int mid = left + (right - left) / 2;
+
+        if (arr[mid] == target) {
+            result = mid;
+            right = mid - 1;
+        } else if (arr[mid] < target) {
+            left = mid + 1;
+        } else {
+            right = mid - 1;
+        }
+    }
+
+    return result;
+}
+
+public int findLastOccurrence(int[] arr, int target) {
+    int left = 0, right = arr.length - 1;
+    int result = -1;
+
+    while (left <= right) {
+        int mid = left + (right - left) / 2;
+
+        if (arr[mid] == target) {
+            result = mid;
+            left = mid + 1;
+        } else if (arr[mid] < target) {
+            left = mid + 1;
+        } else {
+            right = mid - 1;
+        }
+    }
+
+    return result;
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+int findFirstOccurrence(vector<int>& arr, int target) {
+    int left = 0, right = arr.size() - 1;
+    int result = -1;
+
+    while (left <= right) {
+        int mid = left + (right - left) / 2;
+
+        if (arr[mid] == target) {
+            result = mid;
+            right = mid - 1;
+        } else if (arr[mid] < target) {
+            left = mid + 1;
+        } else {
+            right = mid - 1;
+        }
+    }
+
+    return result;
+}
+
+int findLastOccurrence(vector<int>& arr, int target) {
+    int left = 0, right = arr.size() - 1;
+    int result = -1;
+
+    while (left <= right) {
+        int mid = left + (right - left) / 2;
+
+        if (arr[mid] == target) {
+            result = mid;
+            left = mid + 1;
+        } else if (arr[mid] < target) {
+            left = mid + 1;
+        } else {
+            right = mid - 1;
+        }
+    }
+
+    return result;
+}
+```
+  </TabItem>
+</Tabs>
+
+### Lower Bound / Upper Bound
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def lower_bound(arr, target):
+    """
+    Find first index where arr[i] >= target.
+    Returns len(arr) if all elements are smaller.
+    """
+    left, right = 0, len(arr)
+
+    while left < right:
+        mid = left + (right - left) // 2
+
+        if arr[mid] < target:
+            left = mid + 1
+        else:
+            right = mid
+
+    return left
+
+def upper_bound(arr, target):
+    """
+    Find first index where arr[i] > target.
+    Returns len(arr) if all elements are <= target.
+    """
+    left, right = 0, len(arr)
+
+    while left < right:
+        mid = left + (right - left) // 2
+
+        if arr[mid] <= target:
+            left = mid + 1
+        else:
+            right = mid
+
+    return left
+
+# Count occurrences of target
+def count_occurrences(arr, target):
+    return upper_bound(arr, target) - lower_bound(arr, target)
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function lowerBound(arr, target) {
+  let left = 0, right = arr.length;
+
+  while (left < right) {
+    const mid = left + Math.floor((right - left) / 2);
+
+    if (arr[mid] < target) {
+      left = mid + 1;
+    } else {
+      right = mid;
+    }
+  }
+
+  return left;
+}
+
+function upperBound(arr, target) {
+  let left = 0, right = arr.length;
+
+  while (left < right) {
+    const mid = left + Math.floor((right - left) / 2);
+
+    if (arr[mid] <= target) {
+      left = mid + 1;
+    } else {
+      right = mid;
+    }
+  }
+
+  return left;
+}
+
+function countOccurrences(arr, target) {
+  return upperBound(arr, target) - lowerBound(arr, target);
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+public int lowerBound(int[] arr, int target) {
+    int left = 0, right = arr.length;
+
+    while (left < right) {
+        int mid = left + (right - left) / 2;
+
+        if (arr[mid] < target) {
+            left = mid + 1;
+        } else {
+            right = mid;
+        }
+    }
+
+    return left;
+}
+
+public int upperBound(int[] arr, int target) {
+    int left = 0, right = arr.length;
+
+    while (left < right) {
+        int mid = left + (right - left) / 2;
+
+        if (arr[mid] <= target) {
+            left = mid + 1;
+        } else {
+            right = mid;
+        }
+    }
+
+    return left;
+}
+
+// Count occurrences
+public int countOccurrences(int[] arr, int target) {
+    return upperBound(arr, target) - lowerBound(arr, target);
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+// C++ STL provides lower_bound and upper_bound
+// Manual implementation:
+int lowerBound(vector<int>& arr, int target) {
+    int left = 0, right = arr.size();
+
+    while (left < right) {
+        int mid = left + (right - left) / 2;
+
+        if (arr[mid] < target) {
+            left = mid + 1;
+        } else {
+            right = mid;
+        }
+    }
+
+    return left;
+}
+
+int upperBound(vector<int>& arr, int target) {
+    int left = 0, right = arr.size();
+
+    while (left < right) {
+        int mid = left + (right - left) / 2;
+
+        if (arr[mid] <= target) {
+            left = mid + 1;
+        } else {
+            right = mid;
+        }
+    }
+
+    return left;
+}
+
+// Using STL:
+// auto lb = lower_bound(arr.begin(), arr.end(), target);
+// auto ub = upper_bound(arr.begin(), arr.end(), target);
+// int count = ub - lb;
+```
+  </TabItem>
+</Tabs>
+
+### Search Insert Position
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def search_insert(arr, target):
+    """
+    Find index to insert target to maintain sorted order.
+    If target exists, return its index.
+    """
+    left, right = 0, len(arr)
+
+    while left < right:
+        mid = left + (right - left) // 2
+
+        if arr[mid] < target:
+            left = mid + 1
+        else:
+            right = mid
+
+    return left
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function searchInsert(arr, target) {
+  let left = 0, right = arr.length;
+
+  while (left < right) {
+    const mid = left + Math.floor((right - left) / 2);
+
+    if (arr[mid] < target) {
+      left = mid + 1;
+    } else {
+      right = mid;
+    }
+  }
+
+  return left;
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+public int searchInsert(int[] arr, int target) {
+    int left = 0, right = arr.length;
+
+    while (left < right) {
+        int mid = left + (right - left) / 2;
+
+        if (arr[mid] < target) {
+            left = mid + 1;
+        } else {
+            right = mid;
+        }
+    }
+
+    return left;
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+int searchInsert(vector<int>& arr, int target) {
+    int left = 0, right = arr.size();
+
+    while (left < right) {
+        int mid = left + (right - left) / 2;
+
+        if (arr[mid] < target) {
+            left = mid + 1;
+        } else {
+            right = mid;
+        }
+    }
+
+    return left;
+}
+// Or: return lower_bound(arr.begin(), arr.end(), target) - arr.begin();
+```
+  </TabItem>
+</Tabs>
+
+## Common Patterns
+
+### 1. Search in Rotated Sorted Array
+
+```
+Rotated Array: [4, 5, 6, 7, 0, 1, 2] (originally [0,1,2,4,5,6,7])
+
+Key insight: One half is always sorted
+- If arr[left] <= arr[mid]: left half is sorted
+- Otherwise: right half is sorted
+
+Search for 0:
+mid=7, left half [4,5,6,7] sorted, 0 not in [4,7], go right
+mid=1, right half [1,2] sorted, 0 not in [1,2], go left
+mid=0, found!
+```
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def search_rotated(arr, target):
+    """
+    Search in rotated sorted array.
+    Time: O(log n)
+    """
+    left, right = 0, len(arr) - 1
+
+    while left <= right:
+        mid = left + (right - left) // 2
+
+        if arr[mid] == target:
+            return mid
+
+        # Left half is sorted
+        if arr[left] <= arr[mid]:
+            if arr[left] <= target < arr[mid]:
+                right = mid - 1
+            else:
+                left = mid + 1
+        # Right half is sorted
+        else:
+            if arr[mid] < target <= arr[right]:
+                left = mid + 1
+            else:
+                right = mid - 1
+
+    return -1
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function searchRotated(arr, target) {
+  let left = 0, right = arr.length - 1;
+
+  while (left <= right) {
+    const mid = left + Math.floor((right - left) / 2);
+
+    if (arr[mid] === target) return mid;
+
+    // Left half is sorted
+    if (arr[left] <= arr[mid]) {
+      if (arr[left] <= target && target < arr[mid]) {
+        right = mid - 1;
+      } else {
+        left = mid + 1;
+      }
+    }
+    // Right half is sorted
+    else {
+      if (arr[mid] < target && target <= arr[right]) {
+        left = mid + 1;
+      } else {
+        right = mid - 1;
+      }
+    }
+  }
+
+  return -1;
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+public int searchRotated(int[] arr, int target) {
+    int left = 0, right = arr.length - 1;
+
+    while (left <= right) {
+        int mid = left + (right - left) / 2;
+
+        if (arr[mid] == target) return mid;
+
+        // Left half is sorted
+        if (arr[left] <= arr[mid]) {
+            if (arr[left] <= target && target < arr[mid]) {
+                right = mid - 1;
+            } else {
+                left = mid + 1;
+            }
+        }
+        // Right half is sorted
+        else {
+            if (arr[mid] < target && target <= arr[right]) {
+                left = mid + 1;
+            } else {
+                right = mid - 1;
+            }
+        }
+    }
+
+    return -1;
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+int searchRotated(vector<int>& arr, int target) {
+    int left = 0, right = arr.size() - 1;
+
+    while (left <= right) {
+        int mid = left + (right - left) / 2;
+
+        if (arr[mid] == target) return mid;
+
+        // Left half is sorted
+        if (arr[left] <= arr[mid]) {
+            if (arr[left] <= target && target < arr[mid]) {
+                right = mid - 1;
+            } else {
+                left = mid + 1;
+            }
+        }
+        // Right half is sorted
+        else {
+            if (arr[mid] < target && target <= arr[right]) {
+                left = mid + 1;
+            } else {
+                right = mid - 1;
+            }
+        }
+    }
+
+    return -1;
+}
+```
+  </TabItem>
+</Tabs>
+
+### 2. Find Minimum in Rotated Sorted Array
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def find_min_rotated(arr):
+    """
+    Find minimum in rotated sorted array.
+    Time: O(log n)
+    """
+    left, right = 0, len(arr) - 1
+
+    while left < right:
+        mid = left + (right - left) // 2
+
+        if arr[mid] > arr[right]:
+            left = mid + 1  # Min is in right half
+        else:
+            right = mid  # Min could be mid or left
+
+    return arr[left]
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function findMinRotated(arr) {
+  let left = 0, right = arr.length - 1;
+
+  while (left < right) {
+    const mid = left + Math.floor((right - left) / 2);
+
+    if (arr[mid] > arr[right]) {
+      left = mid + 1;
+    } else {
+      right = mid;
+    }
+  }
+
+  return arr[left];
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+public int findMinRotated(int[] arr) {
+    int left = 0, right = arr.length - 1;
+
+    while (left < right) {
+        int mid = left + (right - left) / 2;
+
+        if (arr[mid] > arr[right]) {
+            left = mid + 1;
+        } else {
+            right = mid;
+        }
+    }
+
+    return arr[left];
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+int findMinRotated(vector<int>& arr) {
+    int left = 0, right = arr.size() - 1;
+
+    while (left < right) {
+        int mid = left + (right - left) / 2;
+
+        if (arr[mid] > arr[right]) {
+            left = mid + 1;
+        } else {
+            right = mid;
+        }
+    }
+
+    return arr[left];
+}
+```
+  </TabItem>
+</Tabs>
+
+### 3. Find Peak Element
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def find_peak(arr):
+    """
+    Find any peak element (greater than neighbors).
+    Time: O(log n)
+    """
+    left, right = 0, len(arr) - 1
+
+    while left < right:
+        mid = left + (right - left) // 2
+
+        if arr[mid] < arr[mid + 1]:
+            left = mid + 1  # Peak is on the right
+        else:
+            right = mid  # Peak is mid or on the left
+
+    return left
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function findPeak(arr) {
+  let left = 0, right = arr.length - 1;
+
+  while (left < right) {
+    const mid = left + Math.floor((right - left) / 2);
+
+    if (arr[mid] < arr[mid + 1]) {
+      left = mid + 1;
+    } else {
+      right = mid;
+    }
+  }
+
+  return left;
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+public int findPeak(int[] arr) {
+    int left = 0, right = arr.length - 1;
+
+    while (left < right) {
+        int mid = left + (right - left) / 2;
+
+        if (arr[mid] < arr[mid + 1]) {
+            left = mid + 1;
+        } else {
+            right = mid;
+        }
+    }
+
+    return left;
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+int findPeak(vector<int>& arr) {
+    int left = 0, right = arr.size() - 1;
+
+    while (left < right) {
+        int mid = left + (right - left) / 2;
+
+        if (arr[mid] < arr[mid + 1]) {
+            left = mid + 1;
+        } else {
+            right = mid;
+        }
+    }
+
+    return left;
+}
+```
+  </TabItem>
+</Tabs>
+
+### 4. Search in 2D Matrix
+
+```python
+def search_matrix(matrix, target):
+    """
+    Search in row-wise and column-wise sorted matrix.
+    Time: O(log(m*n)) for fully sorted matrix.
+    """
+    if not matrix or not matrix[0]:
+        return False
+
+    m, n = len(matrix), len(matrix[0])
+    left, right = 0, m * n - 1
+
+    while left <= right:
+        mid = left + (right - left) // 2
+        row, col = mid // n, mid % n
+        val = matrix[row][col]
+
+        if val == target:
+            return True
+        elif val < target:
+            left = mid + 1
+        else:
+            right = mid - 1
+
+    return False
+
+def search_matrix_240(matrix, target):
+    """
+    Search where each row and column is sorted.
+    Start from top-right or bottom-left.
+    Time: O(m + n)
+    """
+    if not matrix:
+        return False
+
+    row, col = 0, len(matrix[0]) - 1
+
+    while row < len(matrix) and col >= 0:
+        if matrix[row][col] == target:
+            return True
+        elif matrix[row][col] > target:
+            col -= 1
+        else:
+            row += 1
+
+    return False
+```
+
+### 5. Search on Answer (Binary Search on Value)
+
+```python
+def min_eating_speed(piles, h):
+    """
+    Koko eating bananas: Find minimum speed to eat all in h hours.
+    Binary search on the answer.
+    """
+    def can_finish(speed):
+        hours = sum((pile + speed - 1) // speed for pile in piles)
+        return hours <= h
+
+    left, right = 1, max(piles)
+
+    while left < right:
+        mid = left + (right - left) // 2
+
+        if can_finish(mid):
+            right = mid
+        else:
+            left = mid + 1
+
+    return left
+
+def split_array_min_largest_sum(nums, k):
+    """
+    Split array into k subarrays, minimize largest sum.
+    Binary search on the answer.
+    """
+    def can_split(max_sum):
+        count = 1
+        current_sum = 0
+        for num in nums:
+            if current_sum + num > max_sum:
+                count += 1
+                current_sum = num
+            else:
+                current_sum += num
+        return count <= k
+
+    left, right = max(nums), sum(nums)
+
+    while left < right:
+        mid = left + (right - left) // 2
+
+        if can_split(mid):
+            right = mid
+        else:
+            left = mid + 1
+
+    return left
+```
+
+### 6. Square Root
+
+```python
+def sqrt(x):
+    """
+    Find integer square root.
+    Time: O(log x)
+    """
+    if x < 2:
+        return x
+
+    left, right = 1, x // 2
+
+    while left <= right:
+        mid = left + (right - left) // 2
+        squared = mid * mid
+
+        if squared == x:
+            return mid
+        elif squared < x:
+            left = mid + 1
+        else:
+            right = mid - 1
+
+    return right  # Floor of sqrt
+```
+
+## Template Summary
+
+```python
+# Template 1: Find exact match
+# Condition: left <= right
+# Returns: index or -1
+while left <= right:
+    mid = left + (right - left) // 2
+    if arr[mid] == target:
+        return mid
+    elif arr[mid] < target:
+        left = mid + 1
+    else:
+        right = mid - 1
+return -1
+
+# Template 2: Find boundary (lower_bound)
+# Condition: left < right
+# Returns: first position where condition is true
+while left < right:
+    mid = left + (right - left) // 2
+    if condition(mid):
+        right = mid
+    else:
+        left = mid + 1
+return left
+
+# Template 3: Find boundary (upper_bound)
+# Condition: left < right
+# Returns: last position where condition is true
+while left < right:
+    mid = left + (right - left + 1) // 2  # Round up
+    if condition(mid):
+        left = mid
+    else:
+        right = mid - 1
+return left
+```
+
+## Practice Problems
+
+### Easy
+| Problem | Pattern | Companies |
+|---------|---------|-----------|
+| Binary Search | Basic | Amazon, Google |
+| Search Insert Position | Lower Bound | Amazon, Microsoft |
+| First Bad Version | Lower Bound | Google, Meta |
+| Sqrt(x) | Binary on Answer | Amazon, Apple |
+
+### Medium
+| Problem | Pattern | Companies |
+|---------|---------|-----------|
+| Search in Rotated Sorted Array | Modified BS | Amazon, Meta, Google |
+| Find First and Last Position | Boundaries | Amazon, Google |
+| Find Peak Element | Mountain Array | Google, Meta |
+| Search a 2D Matrix | Matrix BS | Amazon, Microsoft |
+| Koko Eating Bananas | BS on Answer | Google, Amazon |
+
+### Hard
+| Problem | Pattern | Companies |
+|---------|---------|-----------|
+| Median of Two Sorted Arrays | BS on Partition | Amazon, Google, Meta |
+| Find Minimum in Rotated Sorted Array II | Modified BS | Amazon |
+| Split Array Largest Sum | BS on Answer | Google, Amazon |
+
+## Key Takeaways
+
+1. **O(log n) efficiency** - Halves search space each step
+2. **Requires sorted data** - Or monotonic property
+3. **Avoid overflow** - Use `left + (right - left) // 2`
+4. **Watch boundaries** - `left <= right` vs `left < right`
+5. **Binary search on answer** - When searching for optimal value
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="Sorting"
+    href="/dsa/sorting/"
+    description="Understand sorting algorithms that enable binary search"
+  />
+  <LinkCard
+    title="Two Pointers"
+    href="/dsa/arrays/two-pointers/"
+    description="Learn another efficient searching technique"
+  />
+</CardGrid>

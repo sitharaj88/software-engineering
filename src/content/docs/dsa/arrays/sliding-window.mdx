@@ -1,0 +1,517 @@
+---
+title: Sliding Window Technique
+description: Master the sliding window pattern for solving subarray and substring problems efficiently
+difficulty: beginner
+prerequisites: ["Arrays", "Big O Notation"]
+timeToRead: "25 min"
+topics: ["arrays", "sliding-window", "techniques"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+The **Sliding Window** technique maintains a "window" of elements as you traverse an array or string. It's perfect for problems involving contiguous subarrays or substrings.
+
+## When to Use Sliding Window
+
+- **Fixed-size window** - Max/min sum of k consecutive elements
+- **Variable-size window** - Longest/shortest subarray with a condition
+- **Substring problems** - Find substrings matching criteria
+- **Anagrams and permutations** - Pattern matching in strings
+
+## Pattern 1: Fixed-Size Window
+
+Window size remains constant throughout traversal.
+
+```
+Array:  [1, 2, 3, 4, 5, 6, 7]
+        [-----]               k=3, window = [1,2,3]
+           [-----]            slide right
+              [-----]         window = [3,4,5]
+```
+
+### Example: Maximum Sum of K Consecutive Elements
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def max_sum_subarray(nums: list[int], k: int) -> int:
+    """
+    Find maximum sum of k consecutive elements.
+    Time: O(n), Space: O(1)
+    """
+    if len(nums) < k:
+        return 0
+
+    # Calculate initial window sum
+    window_sum = sum(nums[:k])
+    max_sum = window_sum
+
+    # Slide the window
+    for i in range(k, len(nums)):
+        window_sum += nums[i] - nums[i - k]  # Add new, remove old
+        max_sum = max(max_sum, window_sum)
+
+    return max_sum
+
+# Example
+nums = [2, 1, 5, 1, 3, 2]
+print(max_sum_subarray(nums, 3))  # 9 (subarray [5, 1, 3])
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function maxSumSubarray(nums, k) {
+    /**
+     * Find maximum sum of k consecutive elements.
+     * Time: O(n), Space: O(1)
+     */
+    if (nums.length < k) return 0;
+
+    // Calculate initial window sum
+    let windowSum = 0;
+    for (let i = 0; i < k; i++) {
+        windowSum += nums[i];
+    }
+    let maxSum = windowSum;
+
+    // Slide the window
+    for (let i = k; i < nums.length; i++) {
+        windowSum += nums[i] - nums[i - k];  // Add new, remove old
+        maxSum = Math.max(maxSum, windowSum);
+    }
+
+    return maxSum;
+}
+
+// Example
+const nums = [2, 1, 5, 1, 3, 2];
+console.log(maxSumSubarray(nums, 3));  // 9 (subarray [5, 1, 3])
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+public class SlidingWindow {
+    /**
+     * Find maximum sum of k consecutive elements.
+     * Time: O(n), Space: O(1)
+     */
+    public static int maxSumSubarray(int[] nums, int k) {
+        if (nums.length < k) return 0;
+
+        // Calculate initial window sum
+        int windowSum = 0;
+        for (int i = 0; i < k; i++) {
+            windowSum += nums[i];
+        }
+        int maxSum = windowSum;
+
+        // Slide the window
+        for (int i = k; i < nums.length; i++) {
+            windowSum += nums[i] - nums[i - k];
+            maxSum = Math.max(maxSum, windowSum);
+        }
+
+        return maxSum;
+    }
+
+    public static void main(String[] args) {
+        int[] nums = {2, 1, 5, 1, 3, 2};
+        System.out.println(maxSumSubarray(nums, 3));  // 9
+    }
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+#include <vector>
+#include <algorithm>
+using namespace std;
+
+/**
+ * Find maximum sum of k consecutive elements.
+ * Time: O(n), Space: O(1)
+ */
+int maxSumSubarray(vector<int>& nums, int k) {
+    if (nums.size() < k) return 0;
+
+    // Calculate initial window sum
+    int windowSum = 0;
+    for (int i = 0; i < k; i++) {
+        windowSum += nums[i];
+    }
+    int maxSum = windowSum;
+
+    // Slide the window
+    for (int i = k; i < nums.size(); i++) {
+        windowSum += nums[i] - nums[i - k];
+        maxSum = max(maxSum, windowSum);
+    }
+
+    return maxSum;
+}
+
+// Example: nums = {2, 1, 5, 1, 3, 2}, k = 3
+// Output: 9 (subarray [5, 1, 3])
+```
+  </TabItem>
+</Tabs>
+
+## Pattern 2: Variable-Size Window
+
+Window expands and contracts based on conditions.
+
+```
+Expand:  [1, 2, 3, 4, 5]    Contract: [1, 2, 3, 4, 5]
+         [---->            Condition   <--]
+         Add right         met?        Remove left
+```
+
+### Template for Variable Window
+
+```python
+def variable_window_template(arr):
+    left = 0
+    result = 0
+    # window state (sum, count, set, map, etc.)
+
+    for right in range(len(arr)):
+        # 1. Expand: Add arr[right] to window
+
+        # 2. Contract: While window is invalid
+        while window_is_invalid():
+            # Remove arr[left] from window
+            left += 1
+
+        # 3. Update result
+        result = max(result, right - left + 1)
+
+    return result
+```
+
+### Example: Longest Substring Without Repeating Characters
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def length_of_longest_substring(s: str) -> int:
+    """
+    Find length of longest substring without repeating characters.
+    Time: O(n), Space: O(min(n, alphabet_size))
+    """
+    char_set = set()
+    left = 0
+    max_length = 0
+
+    for right in range(len(s)):
+        # Contract: Remove characters until no duplicate
+        while s[right] in char_set:
+            char_set.remove(s[left])
+            left += 1
+
+        # Expand: Add current character
+        char_set.add(s[right])
+
+        # Update result
+        max_length = max(max_length, right - left + 1)
+
+    return max_length
+
+# Examples
+print(length_of_longest_substring("abcabcbb"))  # 3 ("abc")
+print(length_of_longest_substring("bbbbb"))     # 1 ("b")
+print(length_of_longest_substring("pwwkew"))    # 3 ("wke")
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function lengthOfLongestSubstring(s) {
+    /**
+     * Find length of longest substring without repeating characters.
+     * Time: O(n), Space: O(min(n, alphabet_size))
+     */
+    const charSet = new Set();
+    let left = 0;
+    let maxLength = 0;
+
+    for (let right = 0; right < s.length; right++) {
+        // Contract: Remove characters until no duplicate
+        while (charSet.has(s[right])) {
+            charSet.delete(s[left]);
+            left++;
+        }
+
+        // Expand: Add current character
+        charSet.add(s[right]);
+
+        // Update result
+        maxLength = Math.max(maxLength, right - left + 1);
+    }
+
+    return maxLength;
+}
+
+// Examples
+console.log(lengthOfLongestSubstring("abcabcbb"));  // 3 ("abc")
+console.log(lengthOfLongestSubstring("bbbbb"));     // 1 ("b")
+console.log(lengthOfLongestSubstring("pwwkew"));    // 3 ("wke")
+```
+  </TabItem>
+</Tabs>
+
+### Example: Minimum Window Substring
+
+Find the minimum window in `s` that contains all characters of `t`.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+from collections import Counter
+
+def min_window(s: str, t: str) -> str:
+    """
+    Find minimum window substring containing all chars of t.
+    Time: O(n + m), Space: O(n + m)
+    """
+    if not t or not s:
+        return ""
+
+    # Count characters needed
+    need = Counter(t)
+    have = {}
+    required = len(need)
+    formed = 0
+
+    left = 0
+    min_len = float('inf')
+    min_window_start = 0
+
+    for right in range(len(s)):
+        # Expand: Add character to window
+        char = s[right]
+        have[char] = have.get(char, 0) + 1
+
+        # Check if current char satisfies requirement
+        if char in need and have[char] == need[char]:
+            formed += 1
+
+        # Contract: Try to minimize window
+        while formed == required:
+            # Update result if smaller
+            if right - left + 1 < min_len:
+                min_len = right - left + 1
+                min_window_start = left
+
+            # Remove left character
+            left_char = s[left]
+            have[left_char] -= 1
+            if left_char in need and have[left_char] < need[left_char]:
+                formed -= 1
+            left += 1
+
+    return "" if min_len == float('inf') else s[min_window_start:min_window_start + min_len]
+
+# Examples
+print(min_window("ADOBECODEBANC", "ABC"))  # "BANC"
+print(min_window("a", "a"))                 # "a"
+print(min_window("a", "aa"))                # ""
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function minWindow(s, t) {
+    /**
+     * Find minimum window substring containing all chars of t.
+     * Time: O(n + m), Space: O(n + m)
+     */
+    if (!t || !s) return "";
+
+    // Count characters needed
+    const need = {};
+    for (const char of t) {
+        need[char] = (need[char] || 0) + 1;
+    }
+
+    const have = {};
+    const required = Object.keys(need).length;
+    let formed = 0;
+
+    let left = 0;
+    let minLen = Infinity;
+    let minStart = 0;
+
+    for (let right = 0; right < s.length; right++) {
+        // Expand: Add character to window
+        const char = s[right];
+        have[char] = (have[char] || 0) + 1;
+
+        // Check if current char satisfies requirement
+        if (char in need && have[char] === need[char]) {
+            formed++;
+        }
+
+        // Contract: Try to minimize window
+        while (formed === required) {
+            // Update result if smaller
+            if (right - left + 1 < minLen) {
+                minLen = right - left + 1;
+                minStart = left;
+            }
+
+            // Remove left character
+            const leftChar = s[left];
+            have[leftChar]--;
+            if (leftChar in need && have[leftChar] < need[leftChar]) {
+                formed--;
+            }
+            left++;
+        }
+    }
+
+    return minLen === Infinity ? "" : s.substring(minStart, minStart + minLen);
+}
+
+// Examples
+console.log(minWindow("ADOBECODEBANC", "ABC"));  // "BANC"
+console.log(minWindow("a", "a"));                 // "a"
+console.log(minWindow("a", "aa"));                // ""
+```
+  </TabItem>
+</Tabs>
+
+### Example: Longest Substring with At Most K Distinct Characters
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def longest_k_distinct(s: str, k: int) -> int:
+    """
+    Find longest substring with at most k distinct characters.
+    Time: O(n), Space: O(k)
+    """
+    if k == 0:
+        return 0
+
+    char_count = {}
+    left = 0
+    max_length = 0
+
+    for right in range(len(s)):
+        # Expand: Add character
+        char = s[right]
+        char_count[char] = char_count.get(char, 0) + 1
+
+        # Contract: More than k distinct characters
+        while len(char_count) > k:
+            left_char = s[left]
+            char_count[left_char] -= 1
+            if char_count[left_char] == 0:
+                del char_count[left_char]
+            left += 1
+
+        # Update result
+        max_length = max(max_length, right - left + 1)
+
+    return max_length
+
+# Examples
+print(longest_k_distinct("eceba", 2))      # 3 ("ece")
+print(longest_k_distinct("aa", 1))          # 2 ("aa")
+print(longest_k_distinct("abcadcacacaca", 3))  # 11
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function longestKDistinct(s, k) {
+    /**
+     * Find longest substring with at most k distinct characters.
+     * Time: O(n), Space: O(k)
+     */
+    if (k === 0) return 0;
+
+    const charCount = new Map();
+    let left = 0;
+    let maxLength = 0;
+
+    for (let right = 0; right < s.length; right++) {
+        // Expand: Add character
+        const char = s[right];
+        charCount.set(char, (charCount.get(char) || 0) + 1);
+
+        // Contract: More than k distinct characters
+        while (charCount.size > k) {
+            const leftChar = s[left];
+            charCount.set(leftChar, charCount.get(leftChar) - 1);
+            if (charCount.get(leftChar) === 0) {
+                charCount.delete(leftChar);
+            }
+            left++;
+        }
+
+        // Update result
+        maxLength = Math.max(maxLength, right - left + 1);
+    }
+
+    return maxLength;
+}
+
+// Examples
+console.log(longestKDistinct("eceba", 2));       // 3 ("ece")
+console.log(longestKDistinct("aa", 1));           // 2 ("aa")
+console.log(longestKDistinct("abcadcacacaca", 3));  // 11
+```
+  </TabItem>
+</Tabs>
+
+## Complexity Summary
+
+| Problem | Time | Space |
+|---------|------|-------|
+| Fixed Window Sum | O(n) | O(1) |
+| Longest Substring No Repeat | O(n) | O(min(n, alphabet)) |
+| Minimum Window Substring | O(n + m) | O(n + m) |
+| K Distinct Characters | O(n) | O(k) |
+
+## Common Patterns
+
+### Fixed Window Checklist
+1. Initialize window with first k elements
+2. Slide by adding one, removing one
+3. Update result at each step
+
+### Variable Window Checklist
+1. Expand window (add right element)
+2. Contract while invalid (remove left element)
+3. Update result when window is valid
+
+## Practice Problems
+
+| Problem | Difficulty | Type |
+|---------|------------|------|
+| Maximum Average Subarray | Easy | Fixed Window |
+| Longest Substring No Repeat | Medium | Variable Window |
+| Permutation in String | Medium | Fixed Window + Hash |
+| Minimum Window Substring | Hard | Variable Window |
+| Sliding Window Maximum | Hard | Monotonic Deque |
+
+## Key Takeaways
+
+1. **Fixed window** - Use when window size is known
+2. **Variable window** - Use for optimization problems (min/max length)
+3. **Hash maps** are essential for tracking window state
+4. **Expand first, then contract** is the general pattern
+5. Sliding window converts O(n²) brute force to O(n)
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="Prefix Sum"
+    href="/dsa/arrays/prefix-sum/"
+    description="Another technique for range queries"
+  />
+  <LinkCard
+    title="Two Pointers"
+    href="/dsa/arrays/two-pointers/"
+    description="Related pattern for array problems"
+  />
+</CardGrid>

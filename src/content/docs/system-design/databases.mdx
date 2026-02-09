@@ -1,0 +1,580 @@
+---
+title: Databases
+description: SQL vs NoSQL, ACID, sharding, replication, indexing, and choosing the right database for your system
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+Choosing the right database is one of the most consequential decisions in system design. It affects scalability, consistency, latency, and operational complexity. This page covers the core concepts you need to make informed database decisions.
+
+---
+
+## SQL vs NoSQL
+
+### Relational Databases (SQL)
+
+Relational databases store data in **tables** with predefined schemas. They use **Structured Query Language (SQL)** for querying and enforce relationships through foreign keys.
+
+```sql
+-- Schema definition
+CREATE TABLE users (
+    id         SERIAL PRIMARY KEY,
+    name       VARCHAR(100) NOT NULL,
+    email      VARCHAR(255) UNIQUE NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE posts (
+    id         SERIAL PRIMARY KEY,
+    user_id    INTEGER REFERENCES users(id),
+    title      VARCHAR(255) NOT NULL,
+    body       TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Query with JOIN
+SELECT u.name, p.title, p.created_at
+FROM users u
+JOIN posts p ON u.id = p.user_id
+WHERE u.id = 123
+ORDER BY p.created_at DESC
+LIMIT 10;
+```
+
+**Examples**: PostgreSQL, MySQL, Oracle, SQL Server, SQLite
+
+### Non-Relational Databases (NoSQL)
+
+NoSQL databases provide flexible schemas and are designed for specific access patterns. There are four main categories:
+
+#### Document Stores
+
+Store data as JSON-like documents. Each document can have a different structure.
+
+```json
+// MongoDB document
+{
+  "_id": "user_123",
+  "name": "Alice",
+  "email": "alice@example.com",
+  "posts": [
+    {
+      "title": "My First Post",
+      "body": "Hello world!",
+      "tags": ["intro", "personal"],
+      "created_at": "2024-01-15T10:30:00Z"
+    }
+  ],
+  "preferences": {
+    "theme": "dark",
+    "notifications": true
+  }
+}
+```
+
+**Examples**: MongoDB, CouchDB, Amazon DocumentDB
+
+#### Key-Value Stores
+
+Simplest NoSQL model. Optimized for fast lookups by key.
+
+```
+Key: "session:abc123"    → Value: {"user_id": 123, "expires": 1700000000}
+Key: "user:123:profile"  → Value: {"name": "Alice", "avatar": "..."}
+Key: "rate:ip:10.0.0.1"  → Value: 47  (request count)
+```
+
+**Examples**: Redis, Memcached, Amazon DynamoDB, etcd
+
+#### Wide-Column Stores
+
+Store data in column families. Each row can have different columns.
+
+```
+Row Key: "user_123"
+┌──────────────────────────────────────────────────────┐
+│ Column Family: "profile"                             │
+│   name: "Alice"  │  email: "alice@ex.com"  │ age: 30│
+├──────────────────────────────────────────────────────┤
+│ Column Family: "activity"                            │
+│   last_login: "2024-01-15"  │  post_count: 42       │
+└──────────────────────────────────────────────────────┘
+```
+
+**Examples**: Apache Cassandra, HBase, Google Bigtable
+
+#### Graph Databases
+
+Optimized for data with complex relationships. Nodes represent entities, edges represent relationships.
+
+```
+    (Alice)──FRIENDS_WITH──►(Bob)
+       │                      │
+    AUTHORED               LIKED
+       │                      │
+       ▼                      ▼
+    (Post1)◄──COMMENTED──(Comment1)
+```
+
+**Examples**: Neo4j, Amazon Neptune, ArangoDB
+
+### SQL vs NoSQL Comparison
+
+| Feature | SQL | NoSQL |
+|---------|-----|-------|
+| **Schema** | Fixed, predefined | Flexible, dynamic |
+| **Query language** | SQL (standardized) | Database-specific APIs |
+| **Scaling** | Primarily vertical | Primarily horizontal |
+| **Joins** | Native, efficient | Limited or none |
+| **Transactions** | Full ACID support | Varies (some support ACID) |
+| **Consistency** | Strong by default | Eventual by default (configurable) |
+| **Data model** | Tables with rows | Documents, key-value, columns, graphs |
+| **Best for** | Structured data, complex queries, transactions | Unstructured data, high write volume, flexible schema |
+
+---
+
+## ACID Properties
+
+ACID properties guarantee that database transactions are processed reliably.
+
+| Property | Definition | Example |
+|----------|-----------|---------|
+| **Atomicity** | All operations in a transaction succeed or all fail | A bank transfer debits one account AND credits another — both or neither |
+| **Consistency** | Transaction brings DB from one valid state to another | Account balance cannot go below zero if that constraint exists |
+| **Isolation** | Concurrent transactions do not interfere with each other | Two people buying the last item do not both succeed |
+| **Durability** | Once committed, data survives crashes | After "transfer complete," data persists even if server crashes |
+
+### Isolation Levels
+
+Higher isolation provides stronger guarantees but lower concurrency (throughput).
+
+| Level | Dirty Reads | Non-Repeatable Reads | Phantom Reads | Performance |
+|-------|-------------|---------------------|---------------|-------------|
+| **Read Uncommitted** | Possible | Possible | Possible | Fastest |
+| **Read Committed** | Prevented | Possible | Possible | Fast |
+| **Repeatable Read** | Prevented | Prevented | Possible | Moderate |
+| **Serializable** | Prevented | Prevented | Prevented | Slowest |
+
+```
+Dirty Read:
+  TX1: UPDATE balance SET amount = 0 WHERE user = 'Alice'
+  TX2: SELECT amount FROM balance WHERE user = 'Alice'  → reads 0
+  TX1: ROLLBACK  (amount goes back to 100)
+  TX2 read invalid data!
+
+Non-Repeatable Read:
+  TX1: SELECT amount FROM balance WHERE user = 'Alice'  → 100
+  TX2: UPDATE balance SET amount = 50 WHERE user = 'Alice'
+  TX2: COMMIT
+  TX1: SELECT amount FROM balance WHERE user = 'Alice'  → 50
+  TX1 got different results for the same query!
+
+Phantom Read:
+  TX1: SELECT * FROM orders WHERE amount > 100  → 5 rows
+  TX2: INSERT INTO orders (amount) VALUES (200)
+  TX2: COMMIT
+  TX1: SELECT * FROM orders WHERE amount > 100  → 6 rows
+  TX1 sees a new "phantom" row!
+```
+
+---
+
+## Indexing
+
+Indexes are data structures that speed up data retrieval at the cost of additional storage and slower writes.
+
+### How Indexes Work
+
+Without an index, the database performs a **full table scan** (O(n)). With an index, it can locate data in O(log n) or O(1).
+
+```
+Without Index (Full Table Scan):
+┌────┬────────┬──────────────┐
+│ id │ name   │ email        │  ← Scan every row
+├────┼────────┼──────────────┤     to find email =
+│  1 │ Alice  │ alice@ex.com │     "dave@ex.com"
+│  2 │ Bob    │ bob@ex.com   │
+│  3 │ Carol  │ carol@ex.com │     O(n) - slow!
+│  4 │ Dave   │ dave@ex.com  │  ← Found!
+│ .. │ ...    │ ...          │
+└────┴────────┴──────────────┘
+
+With B-Tree Index on email:
+                ┌─────────────┐
+                │  carol@     │
+                └──┬──────┬───┘
+                   │      │
+          ┌────────▼┐   ┌─▼────────┐
+          │ alice@  │   │  dave@   │
+          │ bob@    │   │  eve@    │
+          └─────────┘   └──────────┘
+
+          O(log n) - fast!
+```
+
+### Index Types
+
+| Index Type | Structure | Best For |
+|-----------|-----------|----------|
+| **B-Tree** | Balanced tree | Range queries, sorting, equality (`=`, `<`, `>`, `BETWEEN`) |
+| **Hash** | Hash table | Exact match only (`=`) — O(1) lookup |
+| **Composite** | Multi-column B-Tree | Queries filtering on multiple columns |
+| **Full-text** | Inverted index | Text search (`LIKE '%keyword%'`) |
+| **Spatial** | R-Tree | Geographic queries (nearby points) |
+| **Covering** | Includes all queried columns | Eliminates table lookup entirely |
+
+### Index Best Practices
+
+```sql
+-- Create an index on frequently queried columns
+CREATE INDEX idx_users_email ON users(email);
+
+-- Composite index for multi-column queries
+-- Column order matters! Follows leftmost prefix rule.
+CREATE INDEX idx_posts_user_date ON posts(user_id, created_at DESC);
+
+-- This index supports:
+--   WHERE user_id = 123                          ✓
+--   WHERE user_id = 123 AND created_at > '2024'  ✓
+--   WHERE created_at > '2024'                    ✗ (can't use index)
+
+-- Partial index (only index active users)
+CREATE INDEX idx_active_users ON users(email) WHERE active = true;
+
+-- Check which indexes exist
+SELECT indexname, tablename FROM pg_indexes WHERE schemaname = 'public';
+```
+
+**When NOT to index**:
+- Columns with very low cardinality (e.g., boolean `is_active`)
+- Tables with very few rows
+- Columns that are rarely queried
+- Write-heavy tables where index maintenance overhead is too high
+
+---
+
+## Normalization vs Denormalization
+
+### Normalization
+
+Normalization organizes data to **reduce redundancy** and **ensure data integrity**. Each fact is stored in exactly one place.
+
+```
+Normalized Design (3NF):
+
+users                     posts                   comments
+┌────┬────────┐           ┌────┬─────────┬────┐   ┌────┬─────────┬────┐
+│ id │ name   │           │ id │ title   │u_id│   │ id │ text    │p_id│
+├────┼────────┤           ├────┼─────────┼────┤   ├────┼─────────┼────┤
+│  1 │ Alice  │           │ 10 │ Post A  │  1 │   │100 │ Great!  │ 10 │
+│  2 │ Bob    │           │ 11 │ Post B  │  2 │   │101 │ Thanks  │ 10 │
+└────┴────────┘           └────┴─────────┴────┘   └────┴─────────┴────┘
+
+To get "Alice's posts with comments":
+  → JOIN users + posts + comments (3 tables)
+  → Data integrity guaranteed
+  → Updates only need to change one row
+```
+
+### Denormalization
+
+Denormalization intentionally introduces redundancy to **optimize read performance** by reducing the number of joins needed.
+
+```
+Denormalized Design:
+
+posts_with_details
+┌────┬─────────┬────────────┬─────────┬───────────────┐
+│ id │ title   │ author_name│ comment │ comment_count │
+├────┼─────────┼────────────┼─────────┼───────────────┤
+│ 10 │ Post A  │ Alice      │ Great!  │ 2             │
+│ 10 │ Post A  │ Alice      │ Thanks  │ 2             │
+│ 11 │ Post B  │ Bob        │ (null)  │ 0             │
+└────┴─────────┴────────────┴─────────┴───────────────┘
+
+To get "Alice's posts with comments":
+  → Single table read (no JOINs!)
+  → But if Alice changes her name, must update many rows
+  → comment_count might get out of sync
+```
+
+### When to Use Each
+
+| Aspect | Normalization | Denormalization |
+|--------|--------------|-----------------|
+| **Read speed** | Slower (requires JOINs) | Faster (pre-joined data) |
+| **Write speed** | Faster (update one place) | Slower (update many places) |
+| **Storage** | Less (no redundancy) | More (duplicated data) |
+| **Data integrity** | High (single source of truth) | Risk of inconsistency |
+| **Best for** | Write-heavy, transactional systems | Read-heavy, analytics systems |
+
+---
+
+## Replication
+
+Replication maintains copies of data across multiple nodes for **availability**, **fault tolerance**, and **read scalability**.
+
+### Leader-Follower (Master-Slave) Replication
+
+```
+                    Writes
+Client ──────────►┌────────┐
+                  │ Leader │──────────┐
+Client ──────────►│(Master)│          │ Replication
+                  └────────┘          │ (async or sync)
+                                      │
+              ┌───────────────────────┼───────────────┐
+              │                       │               │
+        ┌─────▼───┐            ┌─────▼───┐     ┌─────▼───┐
+        │Follower │            │Follower │     │Follower │
+Reads◄──│ (Slave) │   Reads◄──│ (Slave) │     │ (Slave) │
+        │  Node 1 │            │  Node 2 │     │  Node 3 │
+        └─────────┘            └─────────┘     └─────────┘
+```
+
+- **All writes** go to the leader
+- **Reads** can go to any follower (read scaling)
+- Replication can be **synchronous** (strong consistency, slower) or **asynchronous** (eventual consistency, faster)
+- If the leader fails, a follower is **promoted** (failover)
+
+### Leader-Leader (Multi-Master) Replication
+
+```
+Client ──────────►┌─────────┐◄────────── Client
+                  │ Leader  │
+                  │  Node 1 │
+                  └────┬────┘
+                       │ Bidirectional
+                       │ Replication
+                  ┌────▼────┐
+Client ──────────►│ Leader  │◄────────── Client
+                  │  Node 2 │
+                  └─────────┘
+```
+
+- Both nodes accept writes
+- Requires **conflict resolution** (last-write-wins, merge, custom logic)
+- Useful for **multi-region** deployments where each region needs write access
+
+### Replication Comparison
+
+| Strategy | Write Throughput | Read Throughput | Consistency | Complexity |
+|----------|-----------------|-----------------|-------------|------------|
+| Single leader, sync | Lower | High | Strong | Low |
+| Single leader, async | Moderate | High | Eventual | Low |
+| Multi-leader | High | High | Eventual | High |
+| Leaderless (quorum) | High | High | Tunable | Moderate |
+
+---
+
+## Sharding (Partitioning)
+
+Sharding splits data across multiple database instances so no single database holds all the data. This enables **horizontal scaling** of databases.
+
+### Sharding Strategies
+
+#### 1. Range-Based Sharding
+
+Partition data by ranges of a key (e.g., user IDs 1-1M on Shard 1, 1M-2M on Shard 2).
+
+```
+┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
+│    Shard 1       │  │    Shard 2       │  │    Shard 3       │
+│  Users A-H       │  │  Users I-P       │  │  Users Q-Z       │
+│  (30% of data)   │  │  (45% of data)   │  │  (25% of data)   │
+└─────────────────┘  └─────────────────┘  └─────────────────┘
+                          ↑ UNEVEN!
+```
+
+- **Pros**: Simple to implement, supports range queries
+- **Cons**: Can create **hot spots** (uneven distribution)
+
+#### 2. Hash-Based Sharding
+
+Apply a hash function to the shard key and use modular arithmetic.
+
+```
+shard_id = hash(user_id) % num_shards
+
+┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
+│    Shard 1       │  │    Shard 2       │  │    Shard 3       │
+│  hash % 3 == 0   │  │  hash % 3 == 1   │  │  hash % 3 == 2   │
+│  (~33% of data)  │  │  (~33% of data)  │  │  (~33% of data)  │
+└─────────────────┘  └─────────────────┘  └─────────────────┘
+                      Even distribution!
+```
+
+- **Pros**: Even distribution of data
+- **Cons**: Range queries require querying all shards, resharding is expensive (use consistent hashing to mitigate)
+
+#### 3. Directory-Based Sharding
+
+A lookup service maps each key to its shard.
+
+```
+┌──────────────────┐
+│  Shard Directory  │
+│  user_123 → S1    │
+│  user_456 → S2    │
+│  user_789 → S1    │
+└────────┬─────────┘
+         │
+    ┌────┼────┐
+    ▼    ▼    ▼
+  [S1] [S2] [S3]
+```
+
+- **Pros**: Flexible, can rebalance without changing logic
+- **Cons**: Directory is a single point of failure and bottleneck
+
+### Sharding Challenges
+
+| Challenge | Description | Mitigation |
+|-----------|-------------|------------|
+| **Cross-shard queries** | JOINs across shards are expensive | Denormalize, application-level joins |
+| **Resharding** | Adding shards requires data migration | Consistent hashing, virtual shards |
+| **Hotspots** | Uneven access patterns overload some shards | Better shard keys, splitting hot shards |
+| **Referential integrity** | Foreign keys do not span shards | Application-level enforcement |
+| **Unique constraints** | Global uniqueness is harder | Centralized ID generation (Snowflake) |
+
+---
+
+## Database Selection Guide
+
+### Decision Tree
+
+```
+Start: What kind of data do you have?
+
+├── Structured data with relationships?
+│   ├── Need ACID transactions?
+│   │   ├── Yes → PostgreSQL / MySQL
+│   │   └── No  → Consider NoSQL for performance
+│   ├── Complex queries and reporting?
+│   │   └── Yes → PostgreSQL (best query planner)
+│   └── Simple key-value access pattern?
+│       └── Consider DynamoDB or Redis
+│
+├── Semi-structured (JSON, varying fields)?
+│   ├── Need flexible schema?
+│   │   └── Yes → MongoDB / CouchDB
+│   └── Need full-text search?
+│       └── Yes → Elasticsearch
+│
+├── High write throughput, time-series?
+│   ├── IoT / metrics data?
+│   │   └── Yes → InfluxDB / TimescaleDB
+│   └── Event logging at scale?
+│       └── Yes → Cassandra / ScyllaDB
+│
+├── Graph/relationship-heavy data?
+│   ├── Social networks, recommendations?
+│   │   └── Yes → Neo4j / Amazon Neptune
+│   └── Knowledge graphs?
+│       └── Yes → Neo4j
+│
+├── Caching / session storage?
+│   └── Yes → Redis / Memcached
+│
+└── Search and analytics?
+    └── Yes → Elasticsearch / ClickHouse
+```
+
+### Database Comparison Matrix
+
+| Database | Type | Consistency | Scaling | Best For |
+|----------|------|-------------|---------|----------|
+| **PostgreSQL** | Relational | Strong (ACID) | Vertical + read replicas | General purpose, complex queries, GIS |
+| **MySQL** | Relational | Strong (ACID) | Vertical + read replicas | Web applications, WordPress, simple queries |
+| **MongoDB** | Document | Eventual (tunable) | Horizontal (sharding) | Flexible schema, rapid prototyping |
+| **Redis** | Key-Value | Strong (single node) | Cluster mode | Caching, sessions, leaderboards, pub/sub |
+| **Cassandra** | Wide-Column | Eventual (tunable) | Horizontal (peer-to-peer) | High write throughput, time-series, IoT |
+| **DynamoDB** | Key-Value/Document | Eventual (tunable) | Automatic | Serverless, predictable performance at scale |
+| **Elasticsearch** | Search engine | Eventual | Horizontal | Full-text search, log analytics |
+| **Neo4j** | Graph | Strong (ACID) | Limited horizontal | Social networks, fraud detection |
+| **ClickHouse** | Column-oriented | Eventual | Horizontal | Analytics, OLAP, aggregation queries |
+| **InfluxDB** | Time-series | Eventual | Horizontal | Metrics, monitoring, IoT |
+
+---
+
+## Database Scaling Patterns
+
+### Read Replicas
+
+Add follower databases that handle read queries, offloading the primary.
+
+```
+Application Server
+       │
+       ├── Writes ──► Primary DB
+       │
+       └── Reads ───► Read Replica 1
+                 ───► Read Replica 2
+                 ───► Read Replica 3
+```
+
+**Best for**: Read-heavy workloads (e.g., 90% reads, 10% writes).
+
+### Connection Pooling
+
+Reuse database connections instead of creating new ones for each request.
+
+```python
+# Without pooling: new connection per request (expensive)
+def handle_request():
+    conn = psycopg2.connect(...)  # ~50ms overhead
+    # ... execute query ...
+    conn.close()
+
+# With pooling: reuse connections (fast)
+pool = psycopg2.pool.ThreadedConnectionPool(minconn=5, maxconn=20, ...)
+
+def handle_request():
+    conn = pool.getconn()  # ~0ms, reused connection
+    # ... execute query ...
+    pool.putconn(conn)
+```
+
+### Query Optimization Checklist
+
+```sql
+-- 1. Use EXPLAIN ANALYZE to understand query plans
+EXPLAIN ANALYZE
+SELECT * FROM orders WHERE user_id = 123 AND status = 'active';
+
+-- 2. Add indexes for frequently filtered columns
+CREATE INDEX idx_orders_user_status ON orders(user_id, status);
+
+-- 3. Avoid SELECT * — fetch only needed columns
+SELECT id, total, created_at FROM orders WHERE user_id = 123;
+
+-- 4. Use pagination instead of fetching all rows
+SELECT * FROM orders WHERE user_id = 123
+ORDER BY created_at DESC
+LIMIT 20 OFFSET 40;
+
+-- 5. Use cursor-based pagination for large datasets
+SELECT * FROM orders
+WHERE user_id = 123 AND created_at < '2024-01-15'
+ORDER BY created_at DESC
+LIMIT 20;
+```
+
+---
+
+## Summary
+
+<CardGrid>
+  <Card title="SQL vs NoSQL" icon="open-book">
+    SQL for structured data, strong consistency, and complex queries. NoSQL for flexible schemas, horizontal scaling, and specific access patterns. Often the best approach is a **polyglot persistence** strategy — use the right database for each use case.
+  </Card>
+  <Card title="ACID and Isolation" icon="approve-check">
+    ACID guarantees reliability for transactions. Understand isolation levels to balance correctness and performance. Most production systems use **Read Committed** as a practical default.
+  </Card>
+  <Card title="Indexing" icon="rocket">
+    Indexes are the single most impactful optimization for read performance. B-Tree indexes cover most use cases. Always analyze query patterns before creating indexes — every index has a write cost.
+  </Card>
+  <Card title="Sharding and Replication" icon="setting">
+    Replication for read scaling and availability. Sharding for write scaling and storage. Both add operational complexity — scale vertically first, then add read replicas, then shard only when necessary.
+  </Card>
+</CardGrid>

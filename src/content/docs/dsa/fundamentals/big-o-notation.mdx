@@ -1,0 +1,617 @@
+---
+title: Big O Notation
+description: Learn to analyze and express algorithm efficiency using Big O notation
+difficulty: beginner
+prerequisites: []
+timeToRead: "15 min"
+topics: ["complexity", "fundamentals"]
+---
+
+import { Tabs, TabItem, LinkCard } from '@astrojs/starlight/components';
+import ComplexityAnalyzer from '../../../../components/interactive/ComplexityAnalyzer';
+
+Big O notation is a mathematical notation used to describe the **upper bound** of an algorithm's time or space complexity. It helps us understand how an algorithm's performance scales as the input size grows.
+
+## Interactive Complexity Analyzer
+
+Toggle different complexity classes to visualize and compare their growth rates. Adjust the input size to see how many operations each requires.
+
+<ComplexityAnalyzer client:load />
+
+## Why Big O Matters
+
+Consider two algorithms that both sort a list:
+- Algorithm A takes 0.001 seconds for 100 items
+- Algorithm B takes 0.01 seconds for 100 items
+
+Which is better? It depends! Algorithm A might be O(n²) while Algorithm B is O(n log n). As the list grows:
+
+| Items | Algorithm A (O(n²)) | Algorithm B (O(n log n)) |
+|-------|---------------------|--------------------------|
+| 100 | 0.001s | 0.01s |
+| 1,000 | 0.1s | 0.1s |
+| 10,000 | 10s | 1.3s |
+| 100,000 | 1000s (~17min) | 17s |
+
+Algorithm B wins at scale despite being slower initially!
+
+## Common Complexities
+
+From fastest to slowest:
+
+| Notation | Name | Example |
+|----------|------|---------|
+| O(1) | Constant | Array access by index |
+| O(log n) | Logarithmic | Binary search |
+| O(n) | Linear | Loop through array |
+| O(n log n) | Linearithmic | Merge sort |
+| O(n²) | Quadratic | Nested loops |
+| O(2ⁿ) | Exponential | Recursive fibonacci |
+| O(n!) | Factorial | Permutations |
+
+## O(1) - Constant Time
+
+The algorithm takes the same time regardless of input size.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def get_first_element(arr):
+    """O(1) - Always one operation"""
+    return arr[0]
+
+def get_element_at_index(arr, i):
+    """O(1) - Direct memory access"""
+    return arr[i]
+
+# Examples
+numbers = [10, 20, 30, 40, 50]
+print(get_first_element(numbers))  # 10
+print(get_element_at_index(numbers, 3))  # 40
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function getFirstElement(arr) {
+    // O(1) - Always one operation
+    return arr[0];
+}
+
+function getElementAtIndex(arr, i) {
+    // O(1) - Direct memory access
+    return arr[i];
+}
+
+// Examples
+const numbers = [10, 20, 30, 40, 50];
+console.log(getFirstElement(numbers));  // 10
+console.log(getElementAtIndex(numbers, 3));  // 40
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+public class ConstantTime {
+    // O(1) - Always one operation
+    public static int getFirstElement(int[] arr) {
+        return arr[0];
+    }
+
+    // O(1) - Direct memory access
+    public static int getElementAtIndex(int[] arr, int i) {
+        return arr[i];
+    }
+
+    public static void main(String[] args) {
+        int[] numbers = {10, 20, 30, 40, 50};
+        System.out.println(getFirstElement(numbers));  // 10
+        System.out.println(getElementAtIndex(numbers, 3));  // 40
+    }
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+#include <iostream>
+#include <vector>
+using namespace std;
+
+// O(1) - Always one operation
+int getFirstElement(vector<int>& arr) {
+    return arr[0];
+}
+
+// O(1) - Direct memory access
+int getElementAtIndex(vector<int>& arr, int i) {
+    return arr[i];
+}
+
+int main() {
+    vector<int> numbers = {10, 20, 30, 40, 50};
+    cout << getFirstElement(numbers) << endl;  // 10
+    cout << getElementAtIndex(numbers, 3) << endl;  // 40
+    return 0;
+}
+```
+  </TabItem>
+</Tabs>
+
+## O(log n) - Logarithmic Time
+
+The algorithm halves the problem space with each step.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def binary_search(arr, target):
+    """O(log n) - Halves search space each iteration"""
+    left, right = 0, len(arr) - 1
+
+    while left <= right:
+        mid = (left + right) // 2
+        if arr[mid] == target:
+            return mid
+        elif arr[mid] < target:
+            left = mid + 1
+        else:
+            right = mid - 1
+
+    return -1
+
+# Example
+sorted_arr = [1, 3, 5, 7, 9, 11, 13, 15]
+print(binary_search(sorted_arr, 7))  # 3
+print(binary_search(sorted_arr, 6))  # -1
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function binarySearch(arr, target) {
+    // O(log n) - Halves search space each iteration
+    let left = 0;
+    let right = arr.length - 1;
+
+    while (left <= right) {
+        const mid = Math.floor((left + right) / 2);
+        if (arr[mid] === target) {
+            return mid;
+        } else if (arr[mid] < target) {
+            left = mid + 1;
+        } else {
+            right = mid - 1;
+        }
+    }
+
+    return -1;
+}
+
+// Example
+const sortedArr = [1, 3, 5, 7, 9, 11, 13, 15];
+console.log(binarySearch(sortedArr, 7));  // 3
+console.log(binarySearch(sortedArr, 6));  // -1
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+public class LogarithmicTime {
+    // O(log n) - Halves search space each iteration
+    public static int binarySearch(int[] arr, int target) {
+        int left = 0;
+        int right = arr.length - 1;
+
+        while (left <= right) {
+            int mid = left + (right - left) / 2;
+            if (arr[mid] == target) {
+                return mid;
+            } else if (arr[mid] < target) {
+                left = mid + 1;
+            } else {
+                right = mid - 1;
+            }
+        }
+
+        return -1;
+    }
+
+    public static void main(String[] args) {
+        int[] sortedArr = {1, 3, 5, 7, 9, 11, 13, 15};
+        System.out.println(binarySearch(sortedArr, 7));  // 3
+        System.out.println(binarySearch(sortedArr, 6));  // -1
+    }
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+#include <iostream>
+#include <vector>
+using namespace std;
+
+// O(log n) - Halves search space each iteration
+int binarySearch(vector<int>& arr, int target) {
+    int left = 0;
+    int right = arr.size() - 1;
+
+    while (left <= right) {
+        int mid = left + (right - left) / 2;
+        if (arr[mid] == target) {
+            return mid;
+        } else if (arr[mid] < target) {
+            left = mid + 1;
+        } else {
+            right = mid - 1;
+        }
+    }
+
+    return -1;
+}
+
+int main() {
+    vector<int> sortedArr = {1, 3, 5, 7, 9, 11, 13, 15};
+    cout << binarySearch(sortedArr, 7) << endl;  // 3
+    cout << binarySearch(sortedArr, 6) << endl;  // -1
+    return 0;
+}
+```
+  </TabItem>
+</Tabs>
+
+## O(n) - Linear Time
+
+The algorithm examines each element once.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def find_max(arr):
+    """O(n) - Must check every element"""
+    max_val = arr[0]
+    for num in arr:
+        if num > max_val:
+            max_val = num
+    return max_val
+
+def linear_search(arr, target):
+    """O(n) - Worst case checks all elements"""
+    for i, num in enumerate(arr):
+        if num == target:
+            return i
+    return -1
+
+# Examples
+numbers = [3, 1, 4, 1, 5, 9, 2, 6]
+print(find_max(numbers))  # 9
+print(linear_search(numbers, 5))  # 4
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function findMax(arr) {
+    // O(n) - Must check every element
+    let maxVal = arr[0];
+    for (const num of arr) {
+        if (num > maxVal) {
+            maxVal = num;
+        }
+    }
+    return maxVal;
+}
+
+function linearSearch(arr, target) {
+    // O(n) - Worst case checks all elements
+    for (let i = 0; i < arr.length; i++) {
+        if (arr[i] === target) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+// Examples
+const numbers = [3, 1, 4, 1, 5, 9, 2, 6];
+console.log(findMax(numbers));  // 9
+console.log(linearSearch(numbers, 5));  // 4
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+public class LinearTime {
+    // O(n) - Must check every element
+    public static int findMax(int[] arr) {
+        int maxVal = arr[0];
+        for (int num : arr) {
+            if (num > maxVal) {
+                maxVal = num;
+            }
+        }
+        return maxVal;
+    }
+
+    // O(n) - Worst case checks all elements
+    public static int linearSearch(int[] arr, int target) {
+        for (int i = 0; i < arr.length; i++) {
+            if (arr[i] == target) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    public static void main(String[] args) {
+        int[] numbers = {3, 1, 4, 1, 5, 9, 2, 6};
+        System.out.println(findMax(numbers));  // 9
+        System.out.println(linearSearch(numbers, 5));  // 4
+    }
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+#include <iostream>
+#include <vector>
+using namespace std;
+
+// O(n) - Must check every element
+int findMax(vector<int>& arr) {
+    int maxVal = arr[0];
+    for (int num : arr) {
+        if (num > maxVal) {
+            maxVal = num;
+        }
+    }
+    return maxVal;
+}
+
+// O(n) - Worst case checks all elements
+int linearSearch(vector<int>& arr, int target) {
+    for (int i = 0; i < arr.size(); i++) {
+        if (arr[i] == target) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+int main() {
+    vector<int> numbers = {3, 1, 4, 1, 5, 9, 2, 6};
+    cout << findMax(numbers) << endl;  // 9
+    cout << linearSearch(numbers, 5) << endl;  // 4
+    return 0;
+}
+```
+  </TabItem>
+</Tabs>
+
+## O(n²) - Quadratic Time
+
+Usually involves nested loops over the data.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def bubble_sort(arr):
+    """O(n²) - Nested loops"""
+    n = len(arr)
+    for i in range(n):
+        for j in range(0, n - i - 1):
+            if arr[j] > arr[j + 1]:
+                arr[j], arr[j + 1] = arr[j + 1], arr[j]
+    return arr
+
+def find_pairs(arr):
+    """O(n²) - Check all pairs"""
+    pairs = []
+    for i in range(len(arr)):
+        for j in range(i + 1, len(arr)):
+            pairs.append((arr[i], arr[j]))
+    return pairs
+
+# Examples
+numbers = [64, 34, 25, 12, 22]
+print(bubble_sort(numbers.copy()))  # [12, 22, 25, 34, 64]
+
+small = [1, 2, 3]
+print(find_pairs(small))  # [(1,2), (1,3), (2,3)]
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function bubbleSort(arr) {
+    // O(n²) - Nested loops
+    const n = arr.length;
+    const result = [...arr];
+    for (let i = 0; i < n; i++) {
+        for (let j = 0; j < n - i - 1; j++) {
+            if (result[j] > result[j + 1]) {
+                [result[j], result[j + 1]] = [result[j + 1], result[j]];
+            }
+        }
+    }
+    return result;
+}
+
+function findPairs(arr) {
+    // O(n²) - Check all pairs
+    const pairs = [];
+    for (let i = 0; i < arr.length; i++) {
+        for (let j = i + 1; j < arr.length; j++) {
+            pairs.push([arr[i], arr[j]]);
+        }
+    }
+    return pairs;
+}
+
+// Examples
+const numbers = [64, 34, 25, 12, 22];
+console.log(bubbleSort(numbers));  // [12, 22, 25, 34, 64]
+
+const small = [1, 2, 3];
+console.log(findPairs(small));  // [[1,2], [1,3], [2,3]]
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+import java.util.*;
+
+public class QuadraticTime {
+    // O(n²) - Nested loops
+    public static int[] bubbleSort(int[] arr) {
+        int[] result = arr.clone();
+        int n = result.length;
+        for (int i = 0; i < n; i++) {
+            for (int j = 0; j < n - i - 1; j++) {
+                if (result[j] > result[j + 1]) {
+                    int temp = result[j];
+                    result[j] = result[j + 1];
+                    result[j + 1] = temp;
+                }
+            }
+        }
+        return result;
+    }
+
+    public static void main(String[] args) {
+        int[] numbers = {64, 34, 25, 12, 22};
+        System.out.println(Arrays.toString(bubbleSort(numbers)));
+        // [12, 22, 25, 34, 64]
+    }
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+#include <iostream>
+#include <vector>
+using namespace std;
+
+// O(n²) - Nested loops
+vector<int> bubbleSort(vector<int> arr) {
+    int n = arr.size();
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n - i - 1; j++) {
+            if (arr[j] > arr[j + 1]) {
+                swap(arr[j], arr[j + 1]);
+            }
+        }
+    }
+    return arr;
+}
+
+int main() {
+    vector<int> numbers = {64, 34, 25, 12, 22};
+    vector<int> sorted = bubbleSort(numbers);
+    for (int n : sorted) {
+        cout << n << " ";  // 12 22 25 34 64
+    }
+    return 0;
+}
+```
+  </TabItem>
+</Tabs>
+
+## Rules for Calculating Big O
+
+### 1. Drop Constants
+O(2n) → O(n)
+O(500) → O(1)
+
+### 2. Drop Lower Order Terms
+O(n² + n) → O(n²)
+O(n + log n) → O(n)
+
+### 3. Different Inputs = Different Variables
+```python
+def print_all_pairs(arr1, arr2):
+    # O(n * m), not O(n²) since different arrays
+    for a in arr1:      # O(n)
+        for b in arr2:  # O(m)
+            print(a, b)
+```
+
+### 4. Sequential Steps Add
+```python
+def do_stuff(arr):
+    for x in arr:    # O(n)
+        print(x)
+    for x in arr:    # O(n)
+        print(x)
+    # Total: O(n) + O(n) = O(2n) = O(n)
+```
+
+### 5. Nested Steps Multiply
+```python
+def do_stuff(arr):
+    for x in arr:        # O(n)
+        for y in arr:    # O(n)
+            print(x, y)
+    # Total: O(n) * O(n) = O(n²)
+```
+
+## Practice: Analyze These Functions
+
+Try to determine the Big O before revealing the answer.
+
+<details>
+<summary>Function 1</summary>
+
+```python
+def mystery1(n):
+    result = 0
+    for i in range(n):
+        for j in range(n):
+            for k in range(n):
+                result += 1
+    return result
+```
+
+**Answer: O(n³)** - Three nested loops, each running n times.
+</details>
+
+<details>
+<summary>Function 2</summary>
+
+```python
+def mystery2(n):
+    result = 0
+    i = n
+    while i > 0:
+        result += i
+        i = i // 2
+    return result
+```
+
+**Answer: O(log n)** - The value halves each iteration.
+</details>
+
+<details>
+<summary>Function 3</summary>
+
+```python
+def mystery3(arr):
+    n = len(arr)
+    for i in range(n):
+        for j in range(i, n):
+            print(arr[i], arr[j])
+```
+
+**Answer: O(n²)** - Even though inner loop starts at i, it's still O(n²).
+The total operations are n + (n-1) + (n-2) + ... + 1 = n(n+1)/2 = O(n²).
+</details>
+
+## Key Takeaways
+
+1. **Big O describes worst-case** scaling behavior
+2. **Constants don't matter** at scale - O(2n) = O(n)
+3. **Focus on the dominant term** - O(n² + n) = O(n²)
+4. **Know the common patterns**:
+   - Loop = O(n)
+   - Nested loops = O(n²)
+   - Halving = O(log n)
+   - Recursion - analyze carefully
+
+## Next Steps
+
+<LinkCard
+  title="Time Complexity"
+  href="/dsa/fundamentals/time-complexity/"
+  description="Dive deeper into analyzing execution time"
+/>

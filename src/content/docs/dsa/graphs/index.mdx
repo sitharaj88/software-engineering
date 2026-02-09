@@ -1,0 +1,2079 @@
+---
+title: Graphs
+description: Master graph representations, traversals, and common graph algorithms
+difficulty: intermediate
+prerequisites: ["Stacks", "Queues", "Hash Tables"]
+timeToRead: "28 min"
+topics: ["graphs", "data-structures", "bfs", "dfs"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+import PathfindingVisualizer from '../../../../components/interactive/PathfindingVisualizer';
+
+A graph is a non-linear data structure consisting of vertices (nodes) connected by edges. Graphs model relationships and are fundamental to many real-world problems.
+
+## Interactive Pathfinding Visualizer
+
+Draw walls on the grid, place start and end points, then run BFS, DFS, Dijkstra's, or A* to visualize how each algorithm explores the search space and finds the shortest path.
+
+<PathfindingVisualizer client:load />
+
+## Graph Terminology
+
+```
+       A ───── B
+      /│\      │
+     / │ \     │
+    C  │  D ── E
+       │      /
+       F ────/
+
+Terminology:
+- Vertices (nodes): A, B, C, D, E, F
+- Edges: Connections between vertices
+- Degree of A: 4 (number of edges)
+- Path A→E: A → B → E or A → D → E
+- Cycle: A → B → E → D → A
+```
+
+## Graph Types
+
+| Type | Description | Example |
+|------|-------------|---------|
+| Directed | Edges have direction | Twitter follows |
+| Undirected | Edges are bidirectional | Facebook friends |
+| Weighted | Edges have costs | Road distances |
+| Unweighted | All edges equal | Social connections |
+| Cyclic | Contains cycles | Road networks |
+| Acyclic | No cycles (DAG) | Task dependencies |
+
+## Graph Representations
+
+### Adjacency List (Preferred)
+
+Space efficient for sparse graphs.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+from collections import defaultdict
+
+# Using dictionary
+graph = {
+    'A': ['B', 'C', 'D'],
+    'B': ['A', 'E'],
+    'C': ['A'],
+    'D': ['A', 'E'],
+    'E': ['B', 'D']
+}
+
+# Using defaultdict
+graph = defaultdict(list)
+edges = [('A', 'B'), ('A', 'C'), ('B', 'D')]
+for u, v in edges:
+    graph[u].append(v)
+    graph[v].append(u)  # For undirected
+
+# Weighted graph
+weighted_graph = {
+    'A': [('B', 5), ('C', 3)],
+    'B': [('A', 5), ('D', 2)],
+    'C': [('A', 3)],
+    'D': [('B', 2)]
+}
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// Using Map
+const graph = new Map();
+graph.set('A', ['B', 'C', 'D']);
+graph.set('B', ['A', 'E']);
+graph.set('C', ['A']);
+
+// Using Object
+const graphObj = {
+  'A': ['B', 'C', 'D'],
+  'B': ['A', 'E'],
+  'C': ['A']
+};
+
+// Building from edges
+function buildGraph(edges) {
+  const graph = new Map();
+  for (const [u, v] of edges) {
+    if (!graph.has(u)) graph.set(u, []);
+    if (!graph.has(v)) graph.set(v, []);
+    graph.get(u).push(v);
+    graph.get(v).push(u);  // Undirected
+  }
+  return graph;
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+import java.util.*;
+
+// Using HashMap with ArrayList
+Map<String, List<String>> graph = new HashMap<>();
+graph.put("A", new ArrayList<>(Arrays.asList("B", "C", "D")));
+graph.put("B", new ArrayList<>(Arrays.asList("A", "E")));
+
+// Building from edges
+void buildGraph(int[][] edges) {
+    Map<Integer, List<Integer>> graph = new HashMap<>();
+    for (int[] edge : edges) {
+        graph.computeIfAbsent(edge[0], k -> new ArrayList<>()).add(edge[1]);
+        graph.computeIfAbsent(edge[1], k -> new ArrayList<>()).add(edge[0]);
+    }
+}
+
+// Weighted graph
+Map<String, List<int[]>> weightedGraph = new HashMap<>();
+// int[] = {neighbor, weight}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+#include <vector>
+#include <unordered_map>
+using namespace std;
+
+// Using vector of vectors (for 0-indexed nodes)
+vector<vector<int>> graph(n);
+graph[0].push_back(1);  // Edge 0 → 1
+graph[1].push_back(0);  // Edge 1 → 0 (undirected)
+
+// Using unordered_map (for any node type)
+unordered_map<int, vector<int>> graphMap;
+graphMap[0].push_back(1);
+
+// Weighted graph
+vector<vector<pair<int, int>>> weightedGraph(n);
+// pair<neighbor, weight>
+weightedGraph[0].push_back({1, 5});  // Edge 0 → 1 with weight 5
+```
+  </TabItem>
+</Tabs>
+
+### Adjacency Matrix
+
+Good for dense graphs or when edge lookup is frequent.
+
+```python
+# n x n matrix where matrix[i][j] = 1 if edge exists
+#     A  B  C  D
+# A [[0, 1, 1, 0],
+# B  [1, 0, 0, 1],
+# C  [1, 0, 0, 0],
+# D  [0, 1, 0, 0]]
+
+n = 4
+matrix = [[0] * n for _ in range(n)]
+
+# Add edge (undirected)
+def add_edge(u, v):
+    matrix[u][v] = 1
+    matrix[v][u] = 1
+
+# Check if edge exists
+def has_edge(u, v):
+    return matrix[u][v] == 1
+```
+
+## Graph Traversals
+
+### Breadth-First Search (BFS)
+
+Explores level by level. Finds shortest path in unweighted graphs.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+from collections import deque
+
+def bfs(graph, start):
+    """
+    Traverse graph in breadth-first order.
+    Time: O(V + E), Space: O(V)
+    """
+    visited = set([start])
+    queue = deque([start])
+    result = []
+
+    while queue:
+        node = queue.popleft()
+        result.append(node)
+
+        for neighbor in graph[node]:
+            if neighbor not in visited:
+                visited.add(neighbor)
+                queue.append(neighbor)
+
+    return result
+
+def shortest_path_bfs(graph, start, end):
+    """Find shortest path in unweighted graph"""
+    if start == end:
+        return [start]
+
+    visited = set([start])
+    queue = deque([(start, [start])])
+
+    while queue:
+        node, path = queue.popleft()
+
+        for neighbor in graph[node]:
+            if neighbor == end:
+                return path + [neighbor]
+            if neighbor not in visited:
+                visited.add(neighbor)
+                queue.append((neighbor, path + [neighbor]))
+
+    return []  # No path found
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function bfs(graph, start) {
+  const visited = new Set([start]);
+  const queue = [start];
+  const result = [];
+
+  while (queue.length > 0) {
+    const node = queue.shift();
+    result.push(node);
+
+    for (const neighbor of graph.get(node) || []) {
+      if (!visited.has(neighbor)) {
+        visited.add(neighbor);
+        queue.push(neighbor);
+      }
+    }
+  }
+
+  return result;
+}
+
+function shortestPath(graph, start, end) {
+  if (start === end) return [start];
+
+  const visited = new Set([start]);
+  const queue = [[start, [start]]];
+
+  while (queue.length > 0) {
+    const [node, path] = queue.shift();
+
+    for (const neighbor of graph.get(node) || []) {
+      if (neighbor === end) {
+        return [...path, neighbor];
+      }
+      if (!visited.has(neighbor)) {
+        visited.add(neighbor);
+        queue.push([neighbor, [...path, neighbor]]);
+      }
+    }
+  }
+
+  return [];
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+import java.util.*;
+
+public List<String> bfs(Map<String, List<String>> graph, String start) {
+    Set<String> visited = new HashSet<>();
+    Queue<String> queue = new LinkedList<>();
+    List<String> result = new ArrayList<>();
+
+    visited.add(start);
+    queue.offer(start);
+
+    while (!queue.isEmpty()) {
+        String node = queue.poll();
+        result.add(node);
+
+        for (String neighbor : graph.getOrDefault(node, new ArrayList<>())) {
+            if (!visited.contains(neighbor)) {
+                visited.add(neighbor);
+                queue.offer(neighbor);
+            }
+        }
+    }
+
+    return result;
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+vector<int> bfs(vector<vector<int>>& graph, int start) {
+    int n = graph.size();
+    vector<bool> visited(n, false);
+    queue<int> q;
+    vector<int> result;
+
+    visited[start] = true;
+    q.push(start);
+
+    while (!q.empty()) {
+        int node = q.front();
+        q.pop();
+        result.push_back(node);
+
+        for (int neighbor : graph[node]) {
+            if (!visited[neighbor]) {
+                visited[neighbor] = true;
+                q.push(neighbor);
+            }
+        }
+    }
+
+    return result;
+}
+```
+  </TabItem>
+</Tabs>
+
+### Depth-First Search (DFS)
+
+Explores as deep as possible before backtracking.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def dfs_recursive(graph, node, visited=None):
+    """
+    DFS using recursion.
+    Time: O(V + E), Space: O(V)
+    """
+    if visited is None:
+        visited = set()
+
+    visited.add(node)
+    result = [node]
+
+    for neighbor in graph[node]:
+        if neighbor not in visited:
+            result.extend(dfs_recursive(graph, neighbor, visited))
+
+    return result
+
+def dfs_iterative(graph, start):
+    """DFS using stack"""
+    visited = set()
+    stack = [start]
+    result = []
+
+    while stack:
+        node = stack.pop()
+        if node not in visited:
+            visited.add(node)
+            result.append(node)
+            # Add neighbors in reverse for correct order
+            for neighbor in reversed(graph[node]):
+                if neighbor not in visited:
+                    stack.append(neighbor)
+
+    return result
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function dfsRecursive(graph, node, visited = new Set()) {
+  visited.add(node);
+  const result = [node];
+
+  for (const neighbor of graph.get(node) || []) {
+    if (!visited.has(neighbor)) {
+      result.push(...dfsRecursive(graph, neighbor, visited));
+    }
+  }
+
+  return result;
+}
+
+function dfsIterative(graph, start) {
+  const visited = new Set();
+  const stack = [start];
+  const result = [];
+
+  while (stack.length > 0) {
+    const node = stack.pop();
+    if (!visited.has(node)) {
+      visited.add(node);
+      result.push(node);
+
+      for (const neighbor of [...(graph.get(node) || [])].reverse()) {
+        if (!visited.has(neighbor)) {
+          stack.push(neighbor);
+        }
+      }
+    }
+  }
+
+  return result;
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+public void dfsRecursive(Map<String, List<String>> graph,
+                         String node,
+                         Set<String> visited,
+                         List<String> result) {
+    visited.add(node);
+    result.add(node);
+
+    for (String neighbor : graph.getOrDefault(node, new ArrayList<>())) {
+        if (!visited.contains(neighbor)) {
+            dfsRecursive(graph, neighbor, visited, result);
+        }
+    }
+}
+
+public List<String> dfsIterative(Map<String, List<String>> graph, String start) {
+    Set<String> visited = new HashSet<>();
+    Stack<String> stack = new Stack<>();
+    List<String> result = new ArrayList<>();
+
+    stack.push(start);
+
+    while (!stack.isEmpty()) {
+        String node = stack.pop();
+        if (!visited.contains(node)) {
+            visited.add(node);
+            result.add(node);
+
+            List<String> neighbors = graph.getOrDefault(node, new ArrayList<>());
+            for (int i = neighbors.size() - 1; i >= 0; i--) {
+                stack.push(neighbors.get(i));
+            }
+        }
+    }
+
+    return result;
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+void dfsRecursive(vector<vector<int>>& graph, int node,
+                  vector<bool>& visited, vector<int>& result) {
+    visited[node] = true;
+    result.push_back(node);
+
+    for (int neighbor : graph[node]) {
+        if (!visited[neighbor]) {
+            dfsRecursive(graph, neighbor, visited, result);
+        }
+    }
+}
+
+vector<int> dfsIterative(vector<vector<int>>& graph, int start) {
+    int n = graph.size();
+    vector<bool> visited(n, false);
+    stack<int> stk;
+    vector<int> result;
+
+    stk.push(start);
+
+    while (!stk.empty()) {
+        int node = stk.top();
+        stk.pop();
+
+        if (!visited[node]) {
+            visited[node] = true;
+            result.push_back(node);
+
+            for (auto it = graph[node].rbegin(); it != graph[node].rend(); ++it) {
+                if (!visited[*it]) {
+                    stk.push(*it);
+                }
+            }
+        }
+    }
+
+    return result;
+}
+```
+  </TabItem>
+</Tabs>
+
+## Common Patterns
+
+### 1. Cycle Detection
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def has_cycle_undirected(graph, n):
+    """
+    Detect cycle in undirected graph using DFS.
+    Time: O(V + E), Space: O(V)
+
+    A cycle exists if we visit a node that's already
+    visited and is not the parent of current node.
+    """
+    visited = set()
+
+    def dfs(node, parent):
+        visited.add(node)
+        for neighbor in graph[node]:
+            if neighbor not in visited:
+                if dfs(neighbor, node):
+                    return True
+            elif neighbor != parent:  # Found cycle
+                return True
+        return False
+
+    for node in range(n):
+        if node not in visited:
+            if dfs(node, -1):
+                return True
+    return False
+
+def has_cycle_directed(graph, n):
+    """
+    Detect cycle in directed graph using colors.
+    WHITE=unvisited, GRAY=in progress, BLACK=finished
+    """
+    WHITE, GRAY, BLACK = 0, 1, 2
+    color = [WHITE] * n
+
+    def dfs(node):
+        color[node] = GRAY
+        for neighbor in graph[node]:
+            if color[neighbor] == GRAY:  # Back edge = cycle
+                return True
+            if color[neighbor] == WHITE and dfs(neighbor):
+                return True
+        color[node] = BLACK
+        return False
+
+    for node in range(n):
+        if color[node] == WHITE:
+            if dfs(node):
+                return True
+    return False
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function hasCycleUndirected(graph, n) {
+  /**
+   * Detect cycle in undirected graph.
+   * Time: O(V + E), Space: O(V)
+   */
+  const visited = new Set();
+
+  function dfs(node, parent) {
+    visited.add(node);
+
+    for (const neighbor of graph[node] || []) {
+      if (!visited.has(neighbor)) {
+        if (dfs(neighbor, node)) return true;
+      } else if (neighbor !== parent) {
+        return true; // Cycle found
+      }
+    }
+    return false;
+  }
+
+  for (let node = 0; node < n; node++) {
+    if (!visited.has(node)) {
+      if (dfs(node, -1)) return true;
+    }
+  }
+  return false;
+}
+
+function hasCycleDirected(graph, n) {
+  const WHITE = 0, GRAY = 1, BLACK = 2;
+  const color = new Array(n).fill(WHITE);
+
+  function dfs(node) {
+    color[node] = GRAY;
+
+    for (const neighbor of graph[node] || []) {
+      if (color[neighbor] === GRAY) return true;
+      if (color[neighbor] === WHITE && dfs(neighbor)) return true;
+    }
+
+    color[node] = BLACK;
+    return false;
+  }
+
+  for (let node = 0; node < n; node++) {
+    if (color[node] === WHITE && dfs(node)) return true;
+  }
+  return false;
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+public boolean hasCycleUndirected(List<List<Integer>> graph, int n) {
+    /**
+     * Detect cycle in undirected graph.
+     * Time: O(V + E), Space: O(V)
+     */
+    boolean[] visited = new boolean[n];
+
+    for (int node = 0; node < n; node++) {
+        if (!visited[node]) {
+            if (dfs(graph, node, -1, visited)) return true;
+        }
+    }
+    return false;
+}
+
+private boolean dfs(List<List<Integer>> graph, int node, int parent, boolean[] visited) {
+    visited[node] = true;
+
+    for (int neighbor : graph.get(node)) {
+        if (!visited[neighbor]) {
+            if (dfs(graph, neighbor, node, visited)) return true;
+        } else if (neighbor != parent) {
+            return true; // Cycle found
+        }
+    }
+    return false;
+}
+
+public boolean hasCycleDirected(List<List<Integer>> graph, int n) {
+    int[] color = new int[n]; // 0=WHITE, 1=GRAY, 2=BLACK
+
+    for (int node = 0; node < n; node++) {
+        if (color[node] == 0) {
+            if (dfsDirected(graph, node, color)) return true;
+        }
+    }
+    return false;
+}
+
+private boolean dfsDirected(List<List<Integer>> graph, int node, int[] color) {
+    color[node] = 1; // GRAY
+
+    for (int neighbor : graph.get(node)) {
+        if (color[neighbor] == 1) return true; // Back edge
+        if (color[neighbor] == 0 && dfsDirected(graph, neighbor, color)) return true;
+    }
+
+    color[node] = 2; // BLACK
+    return false;
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+bool hasCycleUndirected(vector<vector<int>>& graph, int n) {
+    /**
+     * Detect cycle in undirected graph.
+     * Time: O(V + E), Space: O(V)
+     */
+    vector<bool> visited(n, false);
+
+    function<bool(int, int)> dfs = [&](int node, int parent) {
+        visited[node] = true;
+
+        for (int neighbor : graph[node]) {
+            if (!visited[neighbor]) {
+                if (dfs(neighbor, node)) return true;
+            } else if (neighbor != parent) {
+                return true; // Cycle found
+            }
+        }
+        return false;
+    };
+
+    for (int node = 0; node < n; node++) {
+        if (!visited[node] && dfs(node, -1)) return true;
+    }
+    return false;
+}
+
+bool hasCycleDirected(vector<vector<int>>& graph, int n) {
+    vector<int> color(n, 0); // 0=WHITE, 1=GRAY, 2=BLACK
+
+    function<bool(int)> dfs = [&](int node) {
+        color[node] = 1;
+
+        for (int neighbor : graph[node]) {
+            if (color[neighbor] == 1) return true;
+            if (color[neighbor] == 0 && dfs(neighbor)) return true;
+        }
+
+        color[node] = 2;
+        return false;
+    };
+
+    for (int node = 0; node < n; node++) {
+        if (color[node] == 0 && dfs(node)) return true;
+    }
+    return false;
+}
+```
+  </TabItem>
+</Tabs>
+
+### 2. Topological Sort
+
+```
+Topological Sort: Order nodes so all edges point forward
+
+    5 → 0 ← 4
+    ↓       ↓
+    2 → 3 → 1
+
+In-degrees: 0:2, 1:2, 2:1, 3:1, 4:0, 5:0
+Start with: 4, 5 (in-degree 0)
+Result: [4, 5, 0, 2, 3, 1] or [5, 4, 2, 0, 3, 1]
+```
+
+<Tabs>
+  <TabItem label="Python">
+```python
+from collections import deque
+
+def topological_sort_kahn(graph, n):
+    """
+    Topological sort using Kahn's algorithm (BFS).
+    Time: O(V + E), Space: O(V)
+
+    Algorithm:
+    1. Calculate in-degree for each node
+    2. Start with nodes having in-degree 0
+    3. Remove node, decrement neighbors' in-degree
+    4. Add nodes that reach in-degree 0
+    """
+    in_degree = [0] * n
+    for node in range(n):
+        for neighbor in graph[node]:
+            in_degree[neighbor] += 1
+
+    queue = deque([i for i in range(n) if in_degree[i] == 0])
+    result = []
+
+    while queue:
+        node = queue.popleft()
+        result.append(node)
+
+        for neighbor in graph[node]:
+            in_degree[neighbor] -= 1
+            if in_degree[neighbor] == 0:
+                queue.append(neighbor)
+
+    return result if len(result) == n else []  # Empty if cycle
+
+def topological_sort_dfs(graph, n):
+    """Topological sort using DFS (post-order)"""
+    visited = set()
+    stack = []
+
+    def dfs(node):
+        visited.add(node)
+        for neighbor in graph[node]:
+            if neighbor not in visited:
+                dfs(neighbor)
+        stack.append(node)  # Add after all descendants
+
+    for node in range(n):
+        if node not in visited:
+            dfs(node)
+
+    return stack[::-1]  # Reverse post-order
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function topologicalSortKahn(graph, n) {
+  /**
+   * Topological sort using Kahn's algorithm (BFS).
+   * Time: O(V + E), Space: O(V)
+   */
+  const inDegree = new Array(n).fill(0);
+
+  for (let node = 0; node < n; node++) {
+    for (const neighbor of graph[node] || []) {
+      inDegree[neighbor]++;
+    }
+  }
+
+  const queue = [];
+  for (let i = 0; i < n; i++) {
+    if (inDegree[i] === 0) queue.push(i);
+  }
+
+  const result = [];
+
+  while (queue.length > 0) {
+    const node = queue.shift();
+    result.push(node);
+
+    for (const neighbor of graph[node] || []) {
+      inDegree[neighbor]--;
+      if (inDegree[neighbor] === 0) {
+        queue.push(neighbor);
+      }
+    }
+  }
+
+  return result.length === n ? result : []; // Empty if cycle
+}
+
+function topologicalSortDFS(graph, n) {
+  const visited = new Set();
+  const stack = [];
+
+  function dfs(node) {
+    visited.add(node);
+    for (const neighbor of graph[node] || []) {
+      if (!visited.has(neighbor)) {
+        dfs(neighbor);
+      }
+    }
+    stack.push(node);
+  }
+
+  for (let node = 0; node < n; node++) {
+    if (!visited.has(node)) {
+      dfs(node);
+    }
+  }
+
+  return stack.reverse();
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+public int[] topologicalSortKahn(List<List<Integer>> graph, int n) {
+    /**
+     * Topological sort using Kahn's algorithm (BFS).
+     * Time: O(V + E), Space: O(V)
+     */
+    int[] inDegree = new int[n];
+
+    for (int node = 0; node < n; node++) {
+        for (int neighbor : graph.get(node)) {
+            inDegree[neighbor]++;
+        }
+    }
+
+    Queue<Integer> queue = new LinkedList<>();
+    for (int i = 0; i < n; i++) {
+        if (inDegree[i] == 0) queue.offer(i);
+    }
+
+    int[] result = new int[n];
+    int idx = 0;
+
+    while (!queue.isEmpty()) {
+        int node = queue.poll();
+        result[idx++] = node;
+
+        for (int neighbor : graph.get(node)) {
+            inDegree[neighbor]--;
+            if (inDegree[neighbor] == 0) {
+                queue.offer(neighbor);
+            }
+        }
+    }
+
+    return idx == n ? result : new int[0]; // Empty if cycle
+}
+
+public List<Integer> topologicalSortDFS(List<List<Integer>> graph, int n) {
+    boolean[] visited = new boolean[n];
+    Stack<Integer> stack = new Stack<>();
+
+    for (int node = 0; node < n; node++) {
+        if (!visited[node]) {
+            dfs(graph, node, visited, stack);
+        }
+    }
+
+    List<Integer> result = new ArrayList<>();
+    while (!stack.isEmpty()) {
+        result.add(stack.pop());
+    }
+    return result;
+}
+
+private void dfs(List<List<Integer>> graph, int node, boolean[] visited, Stack<Integer> stack) {
+    visited[node] = true;
+    for (int neighbor : graph.get(node)) {
+        if (!visited[neighbor]) {
+            dfs(graph, neighbor, visited, stack);
+        }
+    }
+    stack.push(node);
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+vector<int> topologicalSortKahn(vector<vector<int>>& graph, int n) {
+    /**
+     * Topological sort using Kahn's algorithm (BFS).
+     * Time: O(V + E), Space: O(V)
+     */
+    vector<int> inDegree(n, 0);
+
+    for (int node = 0; node < n; node++) {
+        for (int neighbor : graph[node]) {
+            inDegree[neighbor]++;
+        }
+    }
+
+    queue<int> q;
+    for (int i = 0; i < n; i++) {
+        if (inDegree[i] == 0) q.push(i);
+    }
+
+    vector<int> result;
+
+    while (!q.empty()) {
+        int node = q.front();
+        q.pop();
+        result.push_back(node);
+
+        for (int neighbor : graph[node]) {
+            inDegree[neighbor]--;
+            if (inDegree[neighbor] == 0) {
+                q.push(neighbor);
+            }
+        }
+    }
+
+    return result.size() == n ? result : vector<int>(); // Empty if cycle
+}
+
+vector<int> topologicalSortDFS(vector<vector<int>>& graph, int n) {
+    vector<bool> visited(n, false);
+    vector<int> stack;
+
+    function<void(int)> dfs = [&](int node) {
+        visited[node] = true;
+        for (int neighbor : graph[node]) {
+            if (!visited[neighbor]) {
+                dfs(neighbor);
+            }
+        }
+        stack.push_back(node);
+    };
+
+    for (int node = 0; node < n; node++) {
+        if (!visited[node]) {
+            dfs(node);
+        }
+    }
+
+    reverse(stack.begin(), stack.end());
+    return stack;
+}
+```
+  </TabItem>
+</Tabs>
+
+### 3. Connected Components
+
+<Tabs>
+  <TabItem label="Python">
+```python
+from collections import defaultdict
+
+def count_components(n, edges):
+    """
+    Count connected components in undirected graph.
+    Time: O(V + E), Space: O(V + E)
+
+    Algorithm:
+    1. Build adjacency list
+    2. DFS/BFS from each unvisited node
+    3. Each DFS explores one component
+    """
+    graph = defaultdict(list)
+    for u, v in edges:
+        graph[u].append(v)
+        graph[v].append(u)
+
+    visited = set()
+    count = 0
+
+    def dfs(node):
+        visited.add(node)
+        for neighbor in graph[node]:
+            if neighbor not in visited:
+                dfs(neighbor)
+
+    for node in range(n):
+        if node not in visited:
+            dfs(node)
+            count += 1
+
+    return count
+
+# Using Union-Find (more efficient for large graphs)
+def count_components_uf(n, edges):
+    parent = list(range(n))
+
+    def find(x):
+        if parent[x] != x:
+            parent[x] = find(parent[x])
+        return parent[x]
+
+    def union(x, y):
+        px, py = find(x), find(y)
+        if px != py:
+            parent[px] = py
+            return True
+        return False
+
+    components = n
+    for u, v in edges:
+        if union(u, v):
+            components -= 1
+
+    return components
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function countComponents(n, edges) {
+  /**
+   * Count connected components in undirected graph.
+   * Time: O(V + E), Space: O(V + E)
+   */
+  const graph = new Map();
+  for (let i = 0; i < n; i++) {
+    graph.set(i, []);
+  }
+
+  for (const [u, v] of edges) {
+    graph.get(u).push(v);
+    graph.get(v).push(u);
+  }
+
+  const visited = new Set();
+  let count = 0;
+
+  function dfs(node) {
+    visited.add(node);
+    for (const neighbor of graph.get(node)) {
+      if (!visited.has(neighbor)) {
+        dfs(neighbor);
+      }
+    }
+  }
+
+  for (let node = 0; node < n; node++) {
+    if (!visited.has(node)) {
+      dfs(node);
+      count++;
+    }
+  }
+
+  return count;
+}
+
+// Using Union-Find
+function countComponentsUF(n, edges) {
+  const parent = Array.from({ length: n }, (_, i) => i);
+
+  function find(x) {
+    if (parent[x] !== x) {
+      parent[x] = find(parent[x]);
+    }
+    return parent[x];
+  }
+
+  let components = n;
+  for (const [u, v] of edges) {
+    const pu = find(u), pv = find(v);
+    if (pu !== pv) {
+      parent[pu] = pv;
+      components--;
+    }
+  }
+
+  return components;
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+public int countComponents(int n, int[][] edges) {
+    /**
+     * Count connected components in undirected graph.
+     * Time: O(V + E), Space: O(V + E)
+     */
+    List<List<Integer>> graph = new ArrayList<>();
+    for (int i = 0; i < n; i++) {
+        graph.add(new ArrayList<>());
+    }
+
+    for (int[] edge : edges) {
+        graph.get(edge[0]).add(edge[1]);
+        graph.get(edge[1]).add(edge[0]);
+    }
+
+    boolean[] visited = new boolean[n];
+    int count = 0;
+
+    for (int node = 0; node < n; node++) {
+        if (!visited[node]) {
+            dfs(graph, node, visited);
+            count++;
+        }
+    }
+
+    return count;
+}
+
+private void dfs(List<List<Integer>> graph, int node, boolean[] visited) {
+    visited[node] = true;
+    for (int neighbor : graph.get(node)) {
+        if (!visited[neighbor]) {
+            dfs(graph, neighbor, visited);
+        }
+    }
+}
+
+// Using Union-Find
+public int countComponentsUF(int n, int[][] edges) {
+    int[] parent = new int[n];
+    for (int i = 0; i < n; i++) parent[i] = i;
+
+    int components = n;
+    for (int[] edge : edges) {
+        int pu = find(parent, edge[0]);
+        int pv = find(parent, edge[1]);
+        if (pu != pv) {
+            parent[pu] = pv;
+            components--;
+        }
+    }
+
+    return components;
+}
+
+private int find(int[] parent, int x) {
+    if (parent[x] != x) {
+        parent[x] = find(parent, parent[x]);
+    }
+    return parent[x];
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+int countComponents(int n, vector<vector<int>>& edges) {
+    /**
+     * Count connected components in undirected graph.
+     * Time: O(V + E), Space: O(V + E)
+     */
+    vector<vector<int>> graph(n);
+    for (auto& edge : edges) {
+        graph[edge[0]].push_back(edge[1]);
+        graph[edge[1]].push_back(edge[0]);
+    }
+
+    vector<bool> visited(n, false);
+    int count = 0;
+
+    function<void(int)> dfs = [&](int node) {
+        visited[node] = true;
+        for (int neighbor : graph[node]) {
+            if (!visited[neighbor]) {
+                dfs(neighbor);
+            }
+        }
+    };
+
+    for (int node = 0; node < n; node++) {
+        if (!visited[node]) {
+            dfs(node);
+            count++;
+        }
+    }
+
+    return count;
+}
+
+// Using Union-Find
+int countComponentsUF(int n, vector<vector<int>>& edges) {
+    vector<int> parent(n);
+    iota(parent.begin(), parent.end(), 0);
+
+    function<int(int)> find = [&](int x) {
+        if (parent[x] != x) {
+            parent[x] = find(parent[x]);
+        }
+        return parent[x];
+    };
+
+    int components = n;
+    for (auto& edge : edges) {
+        int pu = find(edge[0]), pv = find(edge[1]);
+        if (pu != pv) {
+            parent[pu] = pv;
+            components--;
+        }
+    }
+
+    return components;
+}
+```
+  </TabItem>
+</Tabs>
+
+### 4. Dijkstra's Shortest Path
+
+```
+Dijkstra's Algorithm: Shortest path in weighted graph (non-negative)
+
+Graph:
+    A --1-- B
+    |       |
+    4       2
+    |       |
+    C --3-- D
+
+Start: A
+distances: {A:0, B:∞, C:∞, D:∞}
+
+Process A(0): update B=1, C=4
+Process B(1): update D=1+2=3
+Process D(3): no improvement
+Process C(4): no improvement
+
+Final: {A:0, B:1, C:4, D:3}
+```
+
+<Tabs>
+  <TabItem label="Python">
+```python
+import heapq
+
+def dijkstra(graph, start):
+    """
+    Find shortest paths from start to all vertices.
+    Time: O((V + E) log V), Space: O(V)
+
+    Algorithm:
+    1. Initialize distances to infinity, start to 0
+    2. Use min-heap priority queue
+    3. Process node with smallest distance
+    4. Relax edges to neighbors
+    """
+    distances = {node: float('inf') for node in graph}
+    distances[start] = 0
+    pq = [(0, start)]  # (distance, node)
+
+    while pq:
+        dist, node = heapq.heappop(pq)
+
+        # Skip if we've found a better path
+        if dist > distances[node]:
+            continue
+
+        for neighbor, weight in graph[node]:
+            new_dist = dist + weight
+            if new_dist < distances[neighbor]:
+                distances[neighbor] = new_dist
+                heapq.heappush(pq, (new_dist, neighbor))
+
+    return distances
+
+# With path reconstruction
+def dijkstra_with_path(graph, start, end):
+    distances = {node: float('inf') for node in graph}
+    distances[start] = 0
+    parent = {start: None}
+    pq = [(0, start)]
+
+    while pq:
+        dist, node = heapq.heappop(pq)
+
+        if node == end:
+            break
+
+        if dist > distances[node]:
+            continue
+
+        for neighbor, weight in graph[node]:
+            new_dist = dist + weight
+            if new_dist < distances[neighbor]:
+                distances[neighbor] = new_dist
+                parent[neighbor] = node
+                heapq.heappush(pq, (new_dist, neighbor))
+
+    # Reconstruct path
+    path = []
+    node = end
+    while node is not None:
+        path.append(node)
+        node = parent.get(node)
+    return path[::-1], distances[end]
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function dijkstra(graph, start) {
+  /**
+   * Find shortest paths from start to all vertices.
+   * Time: O((V + E) log V), Space: O(V)
+   */
+  const distances = new Map();
+  for (const node of graph.keys()) {
+    distances.set(node, Infinity);
+  }
+  distances.set(start, 0);
+
+  // Simple priority queue using array
+  const pq = [[0, start]]; // [distance, node]
+
+  while (pq.length > 0) {
+    pq.sort((a, b) => a[0] - b[0]);
+    const [dist, node] = pq.shift();
+
+    if (dist > distances.get(node)) continue;
+
+    for (const [neighbor, weight] of graph.get(node) || []) {
+      const newDist = dist + weight;
+      if (newDist < distances.get(neighbor)) {
+        distances.set(neighbor, newDist);
+        pq.push([newDist, neighbor]);
+      }
+    }
+  }
+
+  return distances;
+}
+
+// With path reconstruction
+function dijkstraWithPath(graph, start, end) {
+  const distances = new Map();
+  const parent = new Map();
+  parent.set(start, null);
+
+  for (const node of graph.keys()) {
+    distances.set(node, Infinity);
+  }
+  distances.set(start, 0);
+
+  const pq = [[0, start]];
+
+  while (pq.length > 0) {
+    pq.sort((a, b) => a[0] - b[0]);
+    const [dist, node] = pq.shift();
+
+    if (node === end) break;
+    if (dist > distances.get(node)) continue;
+
+    for (const [neighbor, weight] of graph.get(node) || []) {
+      const newDist = dist + weight;
+      if (newDist < distances.get(neighbor)) {
+        distances.set(neighbor, newDist);
+        parent.set(neighbor, node);
+        pq.push([newDist, neighbor]);
+      }
+    }
+  }
+
+  // Reconstruct path
+  const path = [];
+  let node = end;
+  while (node !== null) {
+    path.push(node);
+    node = parent.get(node);
+  }
+  return [path.reverse(), distances.get(end)];
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+public Map<Integer, Integer> dijkstra(Map<Integer, List<int[]>> graph, int start) {
+    /**
+     * Find shortest paths from start to all vertices.
+     * Time: O((V + E) log V), Space: O(V)
+     */
+    Map<Integer, Integer> distances = new HashMap<>();
+    for (int node : graph.keySet()) {
+        distances.put(node, Integer.MAX_VALUE);
+    }
+    distances.put(start, 0);
+
+    // PriorityQueue: [distance, node]
+    PriorityQueue<int[]> pq = new PriorityQueue<>((a, b) -> a[0] - b[0]);
+    pq.offer(new int[]{0, start});
+
+    while (!pq.isEmpty()) {
+        int[] curr = pq.poll();
+        int dist = curr[0], node = curr[1];
+
+        if (dist > distances.get(node)) continue;
+
+        for (int[] edge : graph.getOrDefault(node, new ArrayList<>())) {
+            int neighbor = edge[0], weight = edge[1];
+            int newDist = dist + weight;
+
+            if (newDist < distances.get(neighbor)) {
+                distances.put(neighbor, newDist);
+                pq.offer(new int[]{newDist, neighbor});
+            }
+        }
+    }
+
+    return distances;
+}
+
+// Array-based version (0-indexed nodes)
+public int[] dijkstraArray(List<List<int[]>> graph, int start, int n) {
+    int[] distances = new int[n];
+    Arrays.fill(distances, Integer.MAX_VALUE);
+    distances[start] = 0;
+
+    PriorityQueue<int[]> pq = new PriorityQueue<>((a, b) -> a[0] - b[0]);
+    pq.offer(new int[]{0, start});
+
+    while (!pq.isEmpty()) {
+        int[] curr = pq.poll();
+        int dist = curr[0], node = curr[1];
+
+        if (dist > distances[node]) continue;
+
+        for (int[] edge : graph.get(node)) {
+            int neighbor = edge[0], weight = edge[1];
+            int newDist = dist + weight;
+
+            if (newDist < distances[neighbor]) {
+                distances[neighbor] = newDist;
+                pq.offer(new int[]{newDist, neighbor});
+            }
+        }
+    }
+
+    return distances;
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+vector<int> dijkstra(vector<vector<pair<int,int>>>& graph, int start) {
+    /**
+     * Find shortest paths from start to all vertices.
+     * Time: O((V + E) log V), Space: O(V)
+     * graph[u] = [(neighbor, weight), ...]
+     */
+    int n = graph.size();
+    vector<int> distances(n, INT_MAX);
+    distances[start] = 0;
+
+    // Min-heap: (distance, node)
+    priority_queue<pair<int,int>, vector<pair<int,int>>, greater<pair<int,int>>> pq;
+    pq.push({0, start});
+
+    while (!pq.empty()) {
+        auto [dist, node] = pq.top();
+        pq.pop();
+
+        if (dist > distances[node]) continue;
+
+        for (auto [neighbor, weight] : graph[node]) {
+            int newDist = dist + weight;
+            if (newDist < distances[neighbor]) {
+                distances[neighbor] = newDist;
+                pq.push({newDist, neighbor});
+            }
+        }
+    }
+
+    return distances;
+}
+
+// With path reconstruction
+pair<vector<int>, int> dijkstraWithPath(
+    vector<vector<pair<int,int>>>& graph, int start, int end) {
+
+    int n = graph.size();
+    vector<int> distances(n, INT_MAX);
+    vector<int> parent(n, -1);
+    distances[start] = 0;
+
+    priority_queue<pair<int,int>, vector<pair<int,int>>, greater<pair<int,int>>> pq;
+    pq.push({0, start});
+
+    while (!pq.empty()) {
+        auto [dist, node] = pq.top();
+        pq.pop();
+
+        if (node == end) break;
+        if (dist > distances[node]) continue;
+
+        for (auto [neighbor, weight] : graph[node]) {
+            int newDist = dist + weight;
+            if (newDist < distances[neighbor]) {
+                distances[neighbor] = newDist;
+                parent[neighbor] = node;
+                pq.push({newDist, neighbor});
+            }
+        }
+    }
+
+    // Reconstruct path
+    vector<int> path;
+    for (int node = end; node != -1; node = parent[node]) {
+        path.push_back(node);
+    }
+    reverse(path.begin(), path.end());
+
+    return {path, distances[end]};
+}
+```
+  </TabItem>
+</Tabs>
+
+### 5. Union-Find (Disjoint Set)
+
+<Tabs>
+  <TabItem label="Python">
+```python
+class UnionFind:
+    """
+    Efficient for dynamic connectivity queries.
+    Time: O(α(n)) ≈ O(1) amortized per operation
+
+    Optimizations:
+    - Path compression: flatten tree during find
+    - Union by rank: attach smaller tree under larger
+    """
+    def __init__(self, n):
+        self.parent = list(range(n))
+        self.rank = [0] * n
+
+    def find(self, x):
+        """Find root with path compression"""
+        if self.parent[x] != x:
+            self.parent[x] = self.find(self.parent[x])
+        return self.parent[x]
+
+    def union(self, x, y):
+        """Unite sets containing x and y"""
+        px, py = self.find(x), self.find(y)
+        if px == py:
+            return False  # Already connected
+
+        # Union by rank
+        if self.rank[px] < self.rank[py]:
+            px, py = py, px
+        self.parent[py] = px
+        if self.rank[px] == self.rank[py]:
+            self.rank[px] += 1
+        return True
+
+    def connected(self, x, y):
+        """Check if x and y are in same set"""
+        return self.find(x) == self.find(y)
+
+# Example usage
+uf = UnionFind(5)
+uf.union(0, 1)
+uf.union(2, 3)
+uf.union(1, 2)
+print(uf.connected(0, 3))  # True
+print(uf.connected(0, 4))  # False
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+class UnionFind {
+  /**
+   * Efficient for dynamic connectivity queries.
+   * Time: O(α(n)) ≈ O(1) amortized per operation
+   */
+  constructor(n) {
+    this.parent = Array.from({ length: n }, (_, i) => i);
+    this.rank = new Array(n).fill(0);
+  }
+
+  find(x) {
+    if (this.parent[x] !== x) {
+      this.parent[x] = this.find(this.parent[x]); // Path compression
+    }
+    return this.parent[x];
+  }
+
+  union(x, y) {
+    let px = this.find(x), py = this.find(y);
+    if (px === py) return false;
+
+    // Union by rank
+    if (this.rank[px] < this.rank[py]) {
+      [px, py] = [py, px];
+    }
+    this.parent[py] = px;
+    if (this.rank[px] === this.rank[py]) {
+      this.rank[px]++;
+    }
+    return true;
+  }
+
+  connected(x, y) {
+    return this.find(x) === this.find(y);
+  }
+}
+
+// Example usage
+const uf = new UnionFind(5);
+uf.union(0, 1);
+uf.union(2, 3);
+uf.union(1, 2);
+console.log(uf.connected(0, 3)); // true
+console.log(uf.connected(0, 4)); // false
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+class UnionFind {
+    /**
+     * Efficient for dynamic connectivity queries.
+     * Time: O(α(n)) ≈ O(1) amortized per operation
+     */
+    private int[] parent;
+    private int[] rank;
+
+    public UnionFind(int n) {
+        parent = new int[n];
+        rank = new int[n];
+        for (int i = 0; i < n; i++) {
+            parent[i] = i;
+        }
+    }
+
+    public int find(int x) {
+        if (parent[x] != x) {
+            parent[x] = find(parent[x]); // Path compression
+        }
+        return parent[x];
+    }
+
+    public boolean union(int x, int y) {
+        int px = find(x), py = find(y);
+        if (px == py) return false;
+
+        // Union by rank
+        if (rank[px] < rank[py]) {
+            int temp = px;
+            px = py;
+            py = temp;
+        }
+        parent[py] = px;
+        if (rank[px] == rank[py]) {
+            rank[px]++;
+        }
+        return true;
+    }
+
+    public boolean connected(int x, int y) {
+        return find(x) == find(y);
+    }
+}
+
+// Example usage
+// UnionFind uf = new UnionFind(5);
+// uf.union(0, 1);
+// uf.union(2, 3);
+// uf.union(1, 2);
+// System.out.println(uf.connected(0, 3)); // true
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+class UnionFind {
+    /**
+     * Efficient for dynamic connectivity queries.
+     * Time: O(α(n)) ≈ O(1) amortized per operation
+     */
+private:
+    vector<int> parent, rank_;
+
+public:
+    UnionFind(int n) : parent(n), rank_(n, 0) {
+        iota(parent.begin(), parent.end(), 0);
+    }
+
+    int find(int x) {
+        if (parent[x] != x) {
+            parent[x] = find(parent[x]); // Path compression
+        }
+        return parent[x];
+    }
+
+    bool unite(int x, int y) {
+        int px = find(x), py = find(y);
+        if (px == py) return false;
+
+        // Union by rank
+        if (rank_[px] < rank_[py]) {
+            swap(px, py);
+        }
+        parent[py] = px;
+        if (rank_[px] == rank_[py]) {
+            rank_[px]++;
+        }
+        return true;
+    }
+
+    bool connected(int x, int y) {
+        return find(x) == find(y);
+    }
+};
+
+// Example usage
+// UnionFind uf(5);
+// uf.unite(0, 1);
+// uf.unite(2, 3);
+// uf.unite(1, 2);
+// cout << uf.connected(0, 3) << endl; // 1 (true)
+```
+  </TabItem>
+</Tabs>
+
+### 6. Bipartite Check
+
+```
+Bipartite Graph: Can be 2-colored with no adjacent same colors
+
+Bipartite:              Not Bipartite:
+A(0) ─── B(1)           A(0) ─── B(1)
+│        │                 \     │
+C(1) ─── D(0)              C(1)─/
+
+0 and 1 represent two colors.
+Not bipartite if odd cycle exists.
+```
+
+<Tabs>
+  <TabItem label="Python">
+```python
+from collections import deque
+
+def is_bipartite(graph, n):
+    """
+    Check if graph can be 2-colored.
+    Time: O(V + E), Space: O(V)
+
+    Algorithm:
+    1. BFS/DFS coloring: alternate colors
+    2. If neighbor has same color → not bipartite
+    3. Graph is bipartite iff no odd cycles
+    """
+    color = [-1] * n
+
+    def bfs(start):
+        queue = deque([start])
+        color[start] = 0
+
+        while queue:
+            node = queue.popleft()
+            for neighbor in graph[node]:
+                if color[neighbor] == -1:
+                    color[neighbor] = 1 - color[node]
+                    queue.append(neighbor)
+                elif color[neighbor] == color[node]:
+                    return False  # Same color = not bipartite
+        return True
+
+    # Check all components
+    for node in range(n):
+        if color[node] == -1:
+            if not bfs(node):
+                return False
+    return True
+
+# DFS version
+def is_bipartite_dfs(graph, n):
+    color = [-1] * n
+
+    def dfs(node, c):
+        color[node] = c
+        for neighbor in graph[node]:
+            if color[neighbor] == -1:
+                if not dfs(neighbor, 1 - c):
+                    return False
+            elif color[neighbor] == c:
+                return False
+        return True
+
+    for node in range(n):
+        if color[node] == -1:
+            if not dfs(node, 0):
+                return False
+    return True
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function isBipartite(graph) {
+  /**
+   * Check if graph can be 2-colored.
+   * Time: O(V + E), Space: O(V)
+   */
+  const n = graph.length;
+  const color = new Array(n).fill(-1);
+
+  function bfs(start) {
+    const queue = [start];
+    color[start] = 0;
+
+    while (queue.length > 0) {
+      const node = queue.shift();
+
+      for (const neighbor of graph[node]) {
+        if (color[neighbor] === -1) {
+          color[neighbor] = 1 - color[node];
+          queue.push(neighbor);
+        } else if (color[neighbor] === color[node]) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  for (let node = 0; node < n; node++) {
+    if (color[node] === -1) {
+      if (!bfs(node)) return false;
+    }
+  }
+  return true;
+}
+
+// DFS version
+function isBipartiteDFS(graph) {
+  const n = graph.length;
+  const color = new Array(n).fill(-1);
+
+  function dfs(node, c) {
+    color[node] = c;
+
+    for (const neighbor of graph[node]) {
+      if (color[neighbor] === -1) {
+        if (!dfs(neighbor, 1 - c)) return false;
+      } else if (color[neighbor] === c) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  for (let node = 0; node < n; node++) {
+    if (color[node] === -1) {
+      if (!dfs(node, 0)) return false;
+    }
+  }
+  return true;
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+public boolean isBipartite(int[][] graph) {
+    /**
+     * Check if graph can be 2-colored.
+     * Time: O(V + E), Space: O(V)
+     */
+    int n = graph.length;
+    int[] color = new int[n];
+    Arrays.fill(color, -1);
+
+    for (int node = 0; node < n; node++) {
+        if (color[node] == -1) {
+            if (!bfs(graph, node, color)) return false;
+        }
+    }
+    return true;
+}
+
+private boolean bfs(int[][] graph, int start, int[] color) {
+    Queue<Integer> queue = new LinkedList<>();
+    queue.offer(start);
+    color[start] = 0;
+
+    while (!queue.isEmpty()) {
+        int node = queue.poll();
+
+        for (int neighbor : graph[node]) {
+            if (color[neighbor] == -1) {
+                color[neighbor] = 1 - color[node];
+                queue.offer(neighbor);
+            } else if (color[neighbor] == color[node]) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+// DFS version
+public boolean isBipartiteDFS(int[][] graph) {
+    int n = graph.length;
+    int[] color = new int[n];
+    Arrays.fill(color, -1);
+
+    for (int node = 0; node < n; node++) {
+        if (color[node] == -1) {
+            if (!dfs(graph, node, 0, color)) return false;
+        }
+    }
+    return true;
+}
+
+private boolean dfs(int[][] graph, int node, int c, int[] color) {
+    color[node] = c;
+
+    for (int neighbor : graph[node]) {
+        if (color[neighbor] == -1) {
+            if (!dfs(graph, neighbor, 1 - c, color)) return false;
+        } else if (color[neighbor] == c) {
+            return false;
+        }
+    }
+    return true;
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+bool isBipartite(vector<vector<int>>& graph) {
+    /**
+     * Check if graph can be 2-colored.
+     * Time: O(V + E), Space: O(V)
+     */
+    int n = graph.size();
+    vector<int> color(n, -1);
+
+    auto bfs = [&](int start) {
+        queue<int> q;
+        q.push(start);
+        color[start] = 0;
+
+        while (!q.empty()) {
+            int node = q.front();
+            q.pop();
+
+            for (int neighbor : graph[node]) {
+                if (color[neighbor] == -1) {
+                    color[neighbor] = 1 - color[node];
+                    q.push(neighbor);
+                } else if (color[neighbor] == color[node]) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    };
+
+    for (int node = 0; node < n; node++) {
+        if (color[node] == -1) {
+            if (!bfs(node)) return false;
+        }
+    }
+    return true;
+}
+
+// DFS version
+bool isBipartiteDFS(vector<vector<int>>& graph) {
+    int n = graph.size();
+    vector<int> color(n, -1);
+
+    function<bool(int, int)> dfs = [&](int node, int c) {
+        color[node] = c;
+
+        for (int neighbor : graph[node]) {
+            if (color[neighbor] == -1) {
+                if (!dfs(neighbor, 1 - c)) return false;
+            } else if (color[neighbor] == c) {
+                return false;
+            }
+        }
+        return true;
+    };
+
+    for (int node = 0; node < n; node++) {
+        if (color[node] == -1) {
+            if (!dfs(node, 0)) return false;
+        }
+    }
+    return true;
+}
+```
+  </TabItem>
+</Tabs>
+
+## Time Complexity
+
+| Algorithm | Time | Space |
+|-----------|------|-------|
+| BFS/DFS | O(V + E) | O(V) |
+| Dijkstra | O((V + E) log V) | O(V) |
+| Bellman-Ford | O(V × E) | O(V) |
+| Floyd-Warshall | O(V³) | O(V²) |
+| Topological Sort | O(V + E) | O(V) |
+| Union-Find | O(α(n)) | O(V) |
+
+## Practice Problems
+
+### Easy
+| Problem | Pattern | Companies |
+|---------|---------|-----------|
+| Number of Islands | DFS/BFS Grid | Amazon, Google, Meta |
+| Flood Fill | DFS/BFS | Amazon, Google |
+| Find Center of Star Graph | Degree Count | Amazon |
+
+### Medium
+| Problem | Pattern | Companies |
+|---------|---------|-----------|
+| Clone Graph | DFS + Hash Map | Amazon, Meta |
+| Course Schedule | Topological Sort | Amazon, Google, Meta |
+| Number of Provinces | Union-Find/DFS | Amazon, Google |
+| Pacific Atlantic Water Flow | Multi-source BFS | Amazon, Google |
+| Rotting Oranges | Multi-source BFS | Amazon, Microsoft |
+
+### Hard
+| Problem | Pattern | Companies |
+|---------|---------|-----------|
+| Word Ladder | BFS | Amazon, Meta |
+| Alien Dictionary | Topological Sort | Meta, Google |
+| Shortest Path with Obstacles | BFS + State | Google |
+| Network Delay Time | Dijkstra | Amazon, Google |
+
+## Key Takeaways
+
+1. **BFS for shortest path** - Unweighted graphs, level-order
+2. **DFS for exploration** - Paths, cycles, connected components
+3. **Topological sort for DAGs** - Dependencies, ordering
+4. **Union-Find for connectivity** - Dynamic graph queries
+5. **Dijkstra for weighted graphs** - Single-source shortest path
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="Dynamic Programming"
+    href="/dsa/dynamic-programming/"
+    description="Solve optimization problems on graphs"
+  />
+  <LinkCard
+    title="Backtracking"
+    href="/dsa/backtracking/"
+    description="Explore all paths with pruning"
+  />
+</CardGrid>

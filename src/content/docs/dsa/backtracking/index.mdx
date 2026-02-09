@@ -1,0 +1,534 @@
+---
+title: Backtracking
+description: Master backtracking algorithms for constraint satisfaction and exhaustive search
+difficulty: advanced
+prerequisites: ["Recursion"]
+timeToRead: "22 min"
+topics: ["backtracking", "algorithms", "recursion"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+Backtracking is an algorithmic technique that builds solutions incrementally, abandoning paths that fail to satisfy constraints (pruning). It's essentially a refined brute force approach.
+
+## How Backtracking Works
+
+1. **Choose**: Make a choice from available options
+2. **Explore**: Recursively explore with that choice
+3. **Unchoose**: Undo the choice and try alternatives
+
+```
+Decision Tree for generating subsets of [1, 2]:
+
+                    []
+                   /  \
+           include 1   exclude 1
+                /         \
+              [1]         []
+             /   \       /   \
+       inc 2  exc 2  inc 2  exc 2
+          |      |      |      |
+       [1,2]   [1]    [2]    []
+
+Result: [[], [1], [2], [1,2]]
+```
+
+## Template Pattern
+
+```python
+def backtrack(state, choices):
+    # Base case: solution found
+    if is_solution(state):
+        result.append(state.copy())
+        return
+
+    for choice in choices:
+        # Pruning: skip invalid choices
+        if not is_valid(state, choice):
+            continue
+
+        # Choose
+        state.append(choice)
+
+        # Explore
+        backtrack(state, remaining_choices)
+
+        # Unchoose (backtrack)
+        state.pop()
+```
+
+## Classic Problems
+
+### 1. Subsets
+
+Generate all subsets of a set.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def subsets(nums):
+    """
+    Generate all subsets.
+    Time: O(n * 2^n), Space: O(n)
+    """
+    result = []
+
+    def backtrack(start, path):
+        result.append(path[:])  # Add current subset
+
+        for i in range(start, len(nums)):
+            path.append(nums[i])       # Choose
+            backtrack(i + 1, path)     # Explore
+            path.pop()                  # Unchoose
+
+    backtrack(0, [])
+    return result
+
+# Example: [1, 2, 3]
+# Output: [[], [1], [1,2], [1,2,3], [1,3], [2], [2,3], [3]]
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function subsets(nums) {
+  const result = [];
+
+  function backtrack(start, path) {
+    result.push([...path]);
+
+    for (let i = start; i < nums.length; i++) {
+      path.push(nums[i]);
+      backtrack(i + 1, path);
+      path.pop();
+    }
+  }
+
+  backtrack(0, []);
+  return result;
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+public List<List<Integer>> subsets(int[] nums) {
+    List<List<Integer>> result = new ArrayList<>();
+    backtrack(nums, 0, new ArrayList<>(), result);
+    return result;
+}
+
+private void backtrack(int[] nums, int start, List<Integer> path,
+                       List<List<Integer>> result) {
+    result.add(new ArrayList<>(path));
+
+    for (int i = start; i < nums.length; i++) {
+        path.add(nums[i]);
+        backtrack(nums, i + 1, path, result);
+        path.remove(path.size() - 1);
+    }
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+class Solution {
+public:
+    vector<vector<int>> subsets(vector<int>& nums) {
+        vector<vector<int>> result;
+        vector<int> path;
+        backtrack(nums, 0, path, result);
+        return result;
+    }
+
+private:
+    void backtrack(vector<int>& nums, int start, vector<int>& path,
+                   vector<vector<int>>& result) {
+        result.push_back(path);
+
+        for (int i = start; i < nums.size(); i++) {
+            path.push_back(nums[i]);
+            backtrack(nums, i + 1, path, result);
+            path.pop_back();
+        }
+    }
+};
+```
+  </TabItem>
+</Tabs>
+
+### 2. Permutations
+
+Generate all permutations of a set.
+
+```python
+def permutations(nums):
+    """
+    Generate all permutations.
+    Time: O(n! * n), Space: O(n)
+    """
+    result = []
+
+    def backtrack(path, used):
+        if len(path) == len(nums):
+            result.append(path[:])
+            return
+
+        for i in range(len(nums)):
+            if used[i]:
+                continue
+
+            path.append(nums[i])
+            used[i] = True
+
+            backtrack(path, used)
+
+            path.pop()
+            used[i] = False
+
+    backtrack([], [False] * len(nums))
+    return result
+
+# Alternative using swapping
+def permutations_swap(nums):
+    result = []
+
+    def backtrack(start):
+        if start == len(nums):
+            result.append(nums[:])
+            return
+
+        for i in range(start, len(nums)):
+            nums[start], nums[i] = nums[i], nums[start]
+            backtrack(start + 1)
+            nums[start], nums[i] = nums[i], nums[start]
+
+    backtrack(0)
+    return result
+```
+
+### 3. Combinations
+
+Choose k elements from n.
+
+```python
+def combinations(n, k):
+    """
+    Generate all combinations of k elements from [1, n].
+    Time: O(k * C(n,k)), Space: O(k)
+    """
+    result = []
+
+    def backtrack(start, path):
+        if len(path) == k:
+            result.append(path[:])
+            return
+
+        # Pruning: need (k - len(path)) more elements
+        # Can only use elements from start to n
+        for i in range(start, n + 1 - (k - len(path)) + 1):
+            path.append(i)
+            backtrack(i + 1, path)
+            path.pop()
+
+    backtrack(1, [])
+    return result
+```
+
+### 4. Combination Sum
+
+Find combinations that sum to target.
+
+```python
+def combination_sum(candidates, target):
+    """
+    Find combinations that sum to target.
+    Each number can be used multiple times.
+    Time: O(n^(target/min)), Space: O(target/min)
+    """
+    result = []
+
+    def backtrack(start, path, remaining):
+        if remaining == 0:
+            result.append(path[:])
+            return
+        if remaining < 0:
+            return
+
+        for i in range(start, len(candidates)):
+            path.append(candidates[i])
+            # Same element can be reused, so pass i not i+1
+            backtrack(i, path, remaining - candidates[i])
+            path.pop()
+
+    backtrack(0, [], target)
+    return result
+
+def combination_sum_2(candidates, target):
+    """Each number can only be used once, handle duplicates"""
+    result = []
+    candidates.sort()
+
+    def backtrack(start, path, remaining):
+        if remaining == 0:
+            result.append(path[:])
+            return
+        if remaining < 0:
+            return
+
+        for i in range(start, len(candidates)):
+            # Skip duplicates
+            if i > start and candidates[i] == candidates[i - 1]:
+                continue
+            path.append(candidates[i])
+            backtrack(i + 1, path, remaining - candidates[i])
+            path.pop()
+
+    backtrack(0, [], target)
+    return result
+```
+
+### 5. N-Queens
+
+Place n queens on n×n board without attacking each other.
+
+```python
+def solve_n_queens(n):
+    """
+    Find all solutions to N-Queens problem.
+    Time: O(n!), Space: O(n)
+    """
+    result = []
+
+    def backtrack(row, cols, diag1, diag2, board):
+        if row == n:
+            result.append(["".join(r) for r in board])
+            return
+
+        for col in range(n):
+            # Check if position is safe
+            if col in cols or (row - col) in diag1 or (row + col) in diag2:
+                continue
+
+            # Place queen
+            board[row][col] = 'Q'
+            cols.add(col)
+            diag1.add(row - col)
+            diag2.add(row + col)
+
+            backtrack(row + 1, cols, diag1, diag2, board)
+
+            # Remove queen
+            board[row][col] = '.'
+            cols.remove(col)
+            diag1.remove(row - col)
+            diag2.remove(row + col)
+
+    board = [['.' for _ in range(n)] for _ in range(n)]
+    backtrack(0, set(), set(), set(), board)
+    return result
+```
+
+### 6. Sudoku Solver
+
+Fill 9×9 grid with digits 1-9.
+
+```python
+def solve_sudoku(board):
+    """
+    Solve Sudoku puzzle in-place.
+    Time: O(9^81) worst case, Space: O(81)
+    """
+    def is_valid(row, col, num):
+        # Check row
+        if num in board[row]:
+            return False
+
+        # Check column
+        for r in range(9):
+            if board[r][col] == num:
+                return False
+
+        # Check 3x3 box
+        box_row, box_col = 3 * (row // 3), 3 * (col // 3)
+        for r in range(box_row, box_row + 3):
+            for c in range(box_col, box_col + 3):
+                if board[r][c] == num:
+                    return False
+
+        return True
+
+    def backtrack():
+        for row in range(9):
+            for col in range(9):
+                if board[row][col] == '.':
+                    for num in '123456789':
+                        if is_valid(row, col, num):
+                            board[row][col] = num
+
+                            if backtrack():
+                                return True
+
+                            board[row][col] = '.'
+
+                    return False  # No valid number found
+
+        return True  # All cells filled
+
+    backtrack()
+```
+
+### 7. Word Search
+
+Find if word exists in grid.
+
+```python
+def word_search(board, word):
+    """
+    Check if word exists in grid.
+    Time: O(m * n * 4^L), Space: O(L)
+    """
+    rows, cols = len(board), len(board[0])
+
+    def backtrack(row, col, idx):
+        if idx == len(word):
+            return True
+
+        if (row < 0 or row >= rows or
+            col < 0 or col >= cols or
+            board[row][col] != word[idx]):
+            return False
+
+        # Mark as visited
+        temp = board[row][col]
+        board[row][col] = '#'
+
+        # Explore all directions
+        found = (backtrack(row + 1, col, idx + 1) or
+                 backtrack(row - 1, col, idx + 1) or
+                 backtrack(row, col + 1, idx + 1) or
+                 backtrack(row, col - 1, idx + 1))
+
+        # Restore
+        board[row][col] = temp
+        return found
+
+    for row in range(rows):
+        for col in range(cols):
+            if backtrack(row, col, 0):
+                return True
+    return False
+```
+
+### 8. Generate Parentheses
+
+Generate all valid combinations of n pairs.
+
+```python
+def generate_parentheses(n):
+    """
+    Generate valid parentheses combinations.
+    Time: O(4^n / sqrt(n)), Space: O(n)
+    """
+    result = []
+
+    def backtrack(path, open_count, close_count):
+        if len(path) == 2 * n:
+            result.append(path)
+            return
+
+        if open_count < n:
+            backtrack(path + '(', open_count + 1, close_count)
+
+        if close_count < open_count:
+            backtrack(path + ')', open_count, close_count + 1)
+
+    backtrack('', 0, 0)
+    return result
+```
+
+## Pruning Strategies
+
+### 1. Skip Invalid States Early
+
+```python
+# Instead of checking at the end
+def bad_approach(path):
+    if len(path) == n:
+        if is_valid(path):  # Too late!
+            result.append(path)
+
+# Check validity before recursing
+def good_approach(path, choice):
+    if not is_valid(path, choice):
+        continue  # Prune early
+    backtrack(path + [choice])
+```
+
+### 2. Use Constraints to Limit Choices
+
+```python
+# N-Queens: Only check one queen per row
+def n_queens(row):
+    for col in range(n):
+        if col not in cols and diag_safe:
+            # Only proceed with valid positions
+            ...
+```
+
+### 3. Sort and Skip Duplicates
+
+```python
+# For arrays with duplicates
+nums.sort()
+for i in range(start, len(nums)):
+    if i > start and nums[i] == nums[i-1]:
+        continue  # Skip duplicates
+```
+
+## Practice Problems
+
+### Easy
+| Problem | Pattern | Companies |
+|---------|---------|-----------|
+| Letter Combinations of Phone | Permutations | Amazon, Google |
+| Binary Watch | Combinations | Amazon |
+
+### Medium
+| Problem | Pattern | Companies |
+|---------|---------|-----------|
+| Subsets | Subset Generation | Amazon, Meta |
+| Permutations | Permutation | Amazon, Google |
+| Combination Sum | Combinations | Amazon, Meta |
+| Generate Parentheses | Constraint | Amazon, Google |
+| Word Search | Grid Search | Amazon, Microsoft |
+| Palindrome Partitioning | Partitioning | Amazon, Google |
+
+### Hard
+| Problem | Pattern | Companies |
+|---------|---------|-----------|
+| N-Queens | Constraint Satisfaction | Amazon, Google |
+| Sudoku Solver | Constraint Satisfaction | Amazon, Google |
+| Word Search II | Trie + Backtracking | Amazon, Google |
+| Expression Add Operators | Expression | Meta, Google |
+
+## Key Takeaways
+
+1. **Template**: Choose → Explore → Unchoose
+2. **Prune early** - Check validity before recursing
+3. **Handle duplicates** - Sort and skip consecutive duplicates
+4. **State restoration** - Always undo changes after recursion
+5. **Time complexity** - Usually exponential (n!, 2^n)
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="Dynamic Programming"
+    href="/dsa/dynamic-programming/"
+    description="Optimize overlapping subproblems with memoization"
+  />
+  <LinkCard
+    title="Graphs"
+    href="/dsa/graphs/"
+    description="Apply backtracking for path finding"
+  />
+</CardGrid>

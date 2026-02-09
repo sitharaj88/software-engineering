@@ -1,0 +1,1115 @@
+---
+title: Sorting Algorithms
+description: Master comparison-based and non-comparison sorting algorithms with implementations
+difficulty: intermediate
+prerequisites: ["Arrays", "Recursion"]
+timeToRead: "25 min"
+topics: ["sorting", "algorithms", "divide-and-conquer"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+import SortingVisualizer from '../../../../components/interactive/SortingVisualizer';
+import AlgorithmRacer from '../../../../components/interactive/AlgorithmRacer';
+
+Sorting algorithms arrange elements in a specific order. Understanding different sorting methods and their trade-offs is essential for algorithm design.
+
+## Interactive Sorting Visualizer
+
+Watch each algorithm sort an array step-by-step. Adjust speed and array size, and track comparisons and swaps in real time.
+
+<SortingVisualizer client:load />
+
+## Algorithm Race
+
+Compare sorting algorithms head-to-head on the same data. See which one wins!
+
+<AlgorithmRacer client:load />
+
+## Complexity Comparison
+
+| Algorithm | Best | Average | Worst | Space | Stable |
+|-----------|------|---------|-------|-------|--------|
+| Bubble Sort | O(n) | O(n²) | O(n²) | O(1) | Yes |
+| Selection Sort | O(n²) | O(n²) | O(n²) | O(1) | No |
+| Insertion Sort | O(n) | O(n²) | O(n²) | O(1) | Yes |
+| Merge Sort | O(n log n) | O(n log n) | O(n log n) | O(n) | Yes |
+| Quick Sort | O(n log n) | O(n log n) | O(n²) | O(log n) | No |
+| Heap Sort | O(n log n) | O(n log n) | O(n log n) | O(1) | No |
+| Counting Sort | O(n + k) | O(n + k) | O(n + k) | O(n + k) | Yes |
+| Radix Sort | O(d(n + k)) | O(d(n + k)) | O(d(n + k)) | O(n + k) | Yes |
+
+*n = number of elements, k = range of values, d = number of digits*
+
+## Comparison-Based Sorting
+
+### Bubble Sort
+
+Repeatedly swap adjacent elements if out of order.
+
+```
+Pass 1: [5, 3, 8, 4, 2] → [3, 5, 4, 2, 8]
+Pass 2: [3, 5, 4, 2, 8] → [3, 4, 2, 5, 8]
+Pass 3: [3, 4, 2, 5, 8] → [3, 2, 4, 5, 8]
+Pass 4: [3, 2, 4, 5, 8] → [2, 3, 4, 5, 8]
+```
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def bubble_sort(arr):
+    """
+    Time: O(n²), Space: O(1), Stable: Yes
+    """
+    n = len(arr)
+    for i in range(n):
+        swapped = False
+        for j in range(n - i - 1):
+            if arr[j] > arr[j + 1]:
+                arr[j], arr[j + 1] = arr[j + 1], arr[j]
+                swapped = True
+        if not swapped:  # Optimization: stop if sorted
+            break
+    return arr
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function bubbleSort(arr) {
+  const n = arr.length;
+  for (let i = 0; i < n; i++) {
+    let swapped = false;
+    for (let j = 0; j < n - i - 1; j++) {
+      if (arr[j] > arr[j + 1]) {
+        [arr[j], arr[j + 1]] = [arr[j + 1], arr[j]];
+        swapped = true;
+      }
+    }
+    if (!swapped) break;
+  }
+  return arr;
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+public static void bubbleSort(int[] arr) {
+    int n = arr.length;
+    for (int i = 0; i < n; i++) {
+        boolean swapped = false;
+        for (int j = 0; j < n - i - 1; j++) {
+            if (arr[j] > arr[j + 1]) {
+                int temp = arr[j];
+                arr[j] = arr[j + 1];
+                arr[j + 1] = temp;
+                swapped = true;
+            }
+        }
+        if (!swapped) break;
+    }
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+void bubbleSort(vector<int>& arr) {
+    int n = arr.size();
+    for (int i = 0; i < n; i++) {
+        bool swapped = false;
+        for (int j = 0; j < n - i - 1; j++) {
+            if (arr[j] > arr[j + 1]) {
+                swap(arr[j], arr[j + 1]);
+                swapped = true;
+            }
+        }
+        if (!swapped) break;
+    }
+}
+```
+  </TabItem>
+</Tabs>
+
+### Selection Sort
+
+Find minimum element and place at beginning.
+
+```
+[5, 3, 8, 4, 2] → Find min (2), swap with first
+[2, 3, 8, 4, 5] → Find min in rest (3), already in place
+[2, 3, 8, 4, 5] → Find min in rest (4), swap with 8
+[2, 3, 4, 8, 5] → Find min in rest (5), swap with 8
+[2, 3, 4, 5, 8] → Sorted
+```
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def selection_sort(arr):
+    """
+    Time: O(n²), Space: O(1), Stable: No
+    """
+    n = len(arr)
+    for i in range(n):
+        min_idx = i
+        for j in range(i + 1, n):
+            if arr[j] < arr[min_idx]:
+                min_idx = j
+        arr[i], arr[min_idx] = arr[min_idx], arr[i]
+    return arr
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function selectionSort(arr) {
+  const n = arr.length;
+  for (let i = 0; i < n; i++) {
+    let minIdx = i;
+    for (let j = i + 1; j < n; j++) {
+      if (arr[j] < arr[minIdx]) {
+        minIdx = j;
+      }
+    }
+    [arr[i], arr[minIdx]] = [arr[minIdx], arr[i]];
+  }
+  return arr;
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+public static void selectionSort(int[] arr) {
+    int n = arr.length;
+    for (int i = 0; i < n; i++) {
+        int minIdx = i;
+        for (int j = i + 1; j < n; j++) {
+            if (arr[j] < arr[minIdx]) {
+                minIdx = j;
+            }
+        }
+        int temp = arr[i];
+        arr[i] = arr[minIdx];
+        arr[minIdx] = temp;
+    }
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+void selectionSort(vector<int>& arr) {
+    int n = arr.size();
+    for (int i = 0; i < n; i++) {
+        int minIdx = i;
+        for (int j = i + 1; j < n; j++) {
+            if (arr[j] < arr[minIdx]) {
+                minIdx = j;
+            }
+        }
+        swap(arr[i], arr[minIdx]);
+    }
+}
+```
+  </TabItem>
+</Tabs>
+
+### Insertion Sort
+
+Build sorted array one element at a time.
+
+```
+[5, 3, 8, 4, 2]
+[5] | 3, 8, 4, 2  → Insert 3: [3, 5]
+[3, 5] | 8, 4, 2  → Insert 8: [3, 5, 8]
+[3, 5, 8] | 4, 2  → Insert 4: [3, 4, 5, 8]
+[3, 4, 5, 8] | 2  → Insert 2: [2, 3, 4, 5, 8]
+```
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def insertion_sort(arr):
+    """
+    Time: O(n²), Space: O(1), Stable: Yes
+    Best for small arrays and nearly sorted data.
+    """
+    for i in range(1, len(arr)):
+        key = arr[i]
+        j = i - 1
+        while j >= 0 and arr[j] > key:
+            arr[j + 1] = arr[j]
+            j -= 1
+        arr[j + 1] = key
+    return arr
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function insertionSort(arr) {
+  for (let i = 1; i < arr.length; i++) {
+    const key = arr[i];
+    let j = i - 1;
+    while (j >= 0 && arr[j] > key) {
+      arr[j + 1] = arr[j];
+      j--;
+    }
+    arr[j + 1] = key;
+  }
+  return arr;
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+public static void insertionSort(int[] arr) {
+    for (int i = 1; i < arr.length; i++) {
+        int key = arr[i];
+        int j = i - 1;
+        while (j >= 0 && arr[j] > key) {
+            arr[j + 1] = arr[j];
+            j--;
+        }
+        arr[j + 1] = key;
+    }
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+void insertionSort(vector<int>& arr) {
+    for (int i = 1; i < arr.size(); i++) {
+        int key = arr[i];
+        int j = i - 1;
+        while (j >= 0 && arr[j] > key) {
+            arr[j + 1] = arr[j];
+            j--;
+        }
+        arr[j + 1] = key;
+    }
+}
+```
+  </TabItem>
+</Tabs>
+
+### Merge Sort
+
+Divide array in half, sort each half, merge sorted halves.
+
+```
+         [5, 3, 8, 4, 2, 7, 1, 6]
+              /            \
+     [5, 3, 8, 4]      [2, 7, 1, 6]
+       /     \            /     \
+   [5, 3]  [8, 4]    [2, 7]  [1, 6]
+    / \     / \       / \     / \
+  [5] [3] [8] [4]   [2] [7] [1] [6]
+    \ /     \ /       \ /     \ /
+   [3, 5]  [4, 8]   [2, 7]  [1, 6]
+       \     /          \     /
+     [3, 4, 5, 8]    [1, 2, 6, 7]
+              \          /
+         [1, 2, 3, 4, 5, 6, 7, 8]
+```
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def merge_sort(arr):
+    """
+    Time: O(n log n), Space: O(n), Stable: Yes
+    """
+    if len(arr) <= 1:
+        return arr
+
+    mid = len(arr) // 2
+    left = merge_sort(arr[:mid])
+    right = merge_sort(arr[mid:])
+
+    return merge(left, right)
+
+def merge(left, right):
+    result = []
+    i = j = 0
+
+    while i < len(left) and j < len(right):
+        if left[i] <= right[j]:
+            result.append(left[i])
+            i += 1
+        else:
+            result.append(right[j])
+            j += 1
+
+    result.extend(left[i:])
+    result.extend(right[j:])
+    return result
+
+# In-place merge sort
+def merge_sort_inplace(arr, left, right):
+    if left < right:
+        mid = (left + right) // 2
+        merge_sort_inplace(arr, left, mid)
+        merge_sort_inplace(arr, mid + 1, right)
+        merge_inplace(arr, left, mid, right)
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function mergeSort(arr) {
+  if (arr.length <= 1) return arr;
+
+  const mid = Math.floor(arr.length / 2);
+  const left = mergeSort(arr.slice(0, mid));
+  const right = mergeSort(arr.slice(mid));
+
+  return merge(left, right);
+}
+
+function merge(left, right) {
+  const result = [];
+  let i = 0, j = 0;
+
+  while (i < left.length && j < right.length) {
+    if (left[i] <= right[j]) {
+      result.push(left[i++]);
+    } else {
+      result.push(right[j++]);
+    }
+  }
+
+  return result.concat(left.slice(i)).concat(right.slice(j));
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+public static void mergeSort(int[] arr, int left, int right) {
+    if (left < right) {
+        int mid = left + (right - left) / 2;
+        mergeSort(arr, left, mid);
+        mergeSort(arr, mid + 1, right);
+        merge(arr, left, mid, right);
+    }
+}
+
+private static void merge(int[] arr, int left, int mid, int right) {
+    int[] temp = new int[right - left + 1];
+    int i = left, j = mid + 1, k = 0;
+
+    while (i <= mid && j <= right) {
+        if (arr[i] <= arr[j]) {
+            temp[k++] = arr[i++];
+        } else {
+            temp[k++] = arr[j++];
+        }
+    }
+
+    while (i <= mid) temp[k++] = arr[i++];
+    while (j <= right) temp[k++] = arr[j++];
+
+    System.arraycopy(temp, 0, arr, left, temp.length);
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+void merge(vector<int>& arr, int left, int mid, int right) {
+    vector<int> temp(right - left + 1);
+    int i = left, j = mid + 1, k = 0;
+
+    while (i <= mid && j <= right) {
+        if (arr[i] <= arr[j]) {
+            temp[k++] = arr[i++];
+        } else {
+            temp[k++] = arr[j++];
+        }
+    }
+
+    while (i <= mid) temp[k++] = arr[i++];
+    while (j <= right) temp[k++] = arr[j++];
+
+    for (int p = 0; p < k; p++) {
+        arr[left + p] = temp[p];
+    }
+}
+
+void mergeSort(vector<int>& arr, int left, int right) {
+    if (left < right) {
+        int mid = left + (right - left) / 2;
+        mergeSort(arr, left, mid);
+        mergeSort(arr, mid + 1, right);
+        merge(arr, left, mid, right);
+    }
+}
+```
+  </TabItem>
+</Tabs>
+
+### Quick Sort
+
+Pick a pivot, partition around it, recursively sort partitions.
+
+```
+[5, 3, 8, 4, 2, 7, 1, 6]  pivot=5
+        ↓ partition
+[3, 4, 2, 1] [5] [8, 7, 6]
+     ↓              ↓
+[1, 2, 3, 4] [5] [6, 7, 8]
+```
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def quick_sort(arr):
+    """
+    Time: O(n log n) avg, O(n²) worst, Space: O(log n), Stable: No
+    """
+    if len(arr) <= 1:
+        return arr
+
+    pivot = arr[len(arr) // 2]
+    left = [x for x in arr if x < pivot]
+    middle = [x for x in arr if x == pivot]
+    right = [x for x in arr if x > pivot]
+
+    return quick_sort(left) + middle + quick_sort(right)
+
+# In-place quick sort (more efficient)
+def quick_sort_inplace(arr, low, high):
+    if low < high:
+        pivot_idx = partition(arr, low, high)
+        quick_sort_inplace(arr, low, pivot_idx - 1)
+        quick_sort_inplace(arr, pivot_idx + 1, high)
+
+def partition(arr, low, high):
+    pivot = arr[high]
+    i = low - 1
+
+    for j in range(low, high):
+        if arr[j] <= pivot:
+            i += 1
+            arr[i], arr[j] = arr[j], arr[i]
+
+    arr[i + 1], arr[high] = arr[high], arr[i + 1]
+    return i + 1
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function quickSort(arr, low = 0, high = arr.length - 1) {
+  if (low < high) {
+    const pivotIdx = partition(arr, low, high);
+    quickSort(arr, low, pivotIdx - 1);
+    quickSort(arr, pivotIdx + 1, high);
+  }
+  return arr;
+}
+
+function partition(arr, low, high) {
+  const pivot = arr[high];
+  let i = low - 1;
+
+  for (let j = low; j < high; j++) {
+    if (arr[j] <= pivot) {
+      i++;
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+  }
+
+  [arr[i + 1], arr[high]] = [arr[high], arr[i + 1]];
+  return i + 1;
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+public static void quickSort(int[] arr, int low, int high) {
+    if (low < high) {
+        int pivotIdx = partition(arr, low, high);
+        quickSort(arr, low, pivotIdx - 1);
+        quickSort(arr, pivotIdx + 1, high);
+    }
+}
+
+private static int partition(int[] arr, int low, int high) {
+    int pivot = arr[high];
+    int i = low - 1;
+
+    for (int j = low; j < high; j++) {
+        if (arr[j] <= pivot) {
+            i++;
+            int temp = arr[i];
+            arr[i] = arr[j];
+            arr[j] = temp;
+        }
+    }
+
+    int temp = arr[i + 1];
+    arr[i + 1] = arr[high];
+    arr[high] = temp;
+    return i + 1;
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+int partition(vector<int>& arr, int low, int high) {
+    int pivot = arr[high];
+    int i = low - 1;
+
+    for (int j = low; j < high; j++) {
+        if (arr[j] <= pivot) {
+            i++;
+            swap(arr[i], arr[j]);
+        }
+    }
+
+    swap(arr[i + 1], arr[high]);
+    return i + 1;
+}
+
+void quickSort(vector<int>& arr, int low, int high) {
+    if (low < high) {
+        int pivotIdx = partition(arr, low, high);
+        quickSort(arr, low, pivotIdx - 1);
+        quickSort(arr, pivotIdx + 1, high);
+    }
+}
+```
+  </TabItem>
+</Tabs>
+
+### Heap Sort
+
+Build max-heap, repeatedly extract maximum.
+
+```
+Heap Sort Process:
+1. Build max-heap from array
+2. Swap root (max) with last element
+3. Reduce heap size and heapify
+4. Repeat until heap is empty
+```
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def heap_sort(arr):
+    """
+    Time: O(n log n), Space: O(1), Stable: No
+    """
+    n = len(arr)
+
+    # Build max-heap
+    for i in range(n // 2 - 1, -1, -1):
+        heapify(arr, n, i)
+
+    # Extract elements one by one
+    for i in range(n - 1, 0, -1):
+        arr[0], arr[i] = arr[i], arr[0]
+        heapify(arr, i, 0)
+
+    return arr
+
+def heapify(arr, n, root):
+    largest = root
+    left = 2 * root + 1
+    right = 2 * root + 2
+
+    if left < n and arr[left] > arr[largest]:
+        largest = left
+    if right < n and arr[right] > arr[largest]:
+        largest = right
+
+    if largest != root:
+        arr[root], arr[largest] = arr[largest], arr[root]
+        heapify(arr, n, largest)
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function heapSort(arr) {
+  const n = arr.length;
+
+  // Build max-heap
+  for (let i = Math.floor(n / 2) - 1; i >= 0; i--) {
+    heapify(arr, n, i);
+  }
+
+  // Extract elements
+  for (let i = n - 1; i > 0; i--) {
+    [arr[0], arr[i]] = [arr[i], arr[0]];
+    heapify(arr, i, 0);
+  }
+
+  return arr;
+}
+
+function heapify(arr, n, root) {
+  let largest = root;
+  const left = 2 * root + 1;
+  const right = 2 * root + 2;
+
+  if (left < n && arr[left] > arr[largest]) largest = left;
+  if (right < n && arr[right] > arr[largest]) largest = right;
+
+  if (largest !== root) {
+    [arr[root], arr[largest]] = [arr[largest], arr[root]];
+    heapify(arr, n, largest);
+  }
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+public static void heapSort(int[] arr) {
+    int n = arr.length;
+
+    // Build max-heap
+    for (int i = n / 2 - 1; i >= 0; i--) {
+        heapify(arr, n, i);
+    }
+
+    // Extract elements
+    for (int i = n - 1; i > 0; i--) {
+        int temp = arr[0];
+        arr[0] = arr[i];
+        arr[i] = temp;
+        heapify(arr, i, 0);
+    }
+}
+
+private static void heapify(int[] arr, int n, int root) {
+    int largest = root;
+    int left = 2 * root + 1;
+    int right = 2 * root + 2;
+
+    if (left < n && arr[left] > arr[largest]) largest = left;
+    if (right < n && arr[right] > arr[largest]) largest = right;
+
+    if (largest != root) {
+        int temp = arr[root];
+        arr[root] = arr[largest];
+        arr[largest] = temp;
+        heapify(arr, n, largest);
+    }
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+void heapify(vector<int>& arr, int n, int root) {
+    int largest = root;
+    int left = 2 * root + 1;
+    int right = 2 * root + 2;
+
+    if (left < n && arr[left] > arr[largest]) largest = left;
+    if (right < n && arr[right] > arr[largest]) largest = right;
+
+    if (largest != root) {
+        swap(arr[root], arr[largest]);
+        heapify(arr, n, largest);
+    }
+}
+
+void heapSort(vector<int>& arr) {
+    int n = arr.size();
+
+    // Build max-heap
+    for (int i = n / 2 - 1; i >= 0; i--) {
+        heapify(arr, n, i);
+    }
+
+    // Extract elements
+    for (int i = n - 1; i > 0; i--) {
+        swap(arr[0], arr[i]);
+        heapify(arr, i, 0);
+    }
+}
+```
+  </TabItem>
+</Tabs>
+
+## Non-Comparison Sorting
+
+### Counting Sort
+
+Count occurrences of each value (for small range of integers).
+
+```
+Counting Sort Example: arr = [4, 2, 2, 8, 3, 3, 1]
+
+Step 1: Count occurrences (range 1-8)
+        count = [1, 2, 2, 1, 0, 0, 0, 1]
+                 1  2  3  4  5  6  7  8
+
+Step 2: Cumulative count
+        count = [1, 3, 5, 6, 6, 6, 6, 7]
+
+Step 3: Place elements using cumulative count
+        Output: [1, 2, 2, 3, 3, 4, 8]
+```
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def counting_sort(arr):
+    """
+    Time: O(n + k), Space: O(n + k), Stable: Yes
+    k = range of values
+    """
+    if not arr:
+        return arr
+
+    min_val, max_val = min(arr), max(arr)
+    range_size = max_val - min_val + 1
+
+    count = [0] * range_size
+    output = [0] * len(arr)
+
+    # Count occurrences
+    for num in arr:
+        count[num - min_val] += 1
+
+    # Cumulative count
+    for i in range(1, len(count)):
+        count[i] += count[i - 1]
+
+    # Build output (traverse in reverse for stability)
+    for i in range(len(arr) - 1, -1, -1):
+        num = arr[i]
+        count[num - min_val] -= 1
+        output[count[num - min_val]] = num
+
+    return output
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function countingSort(arr) {
+  if (arr.length === 0) return arr;
+
+  const min = Math.min(...arr);
+  const max = Math.max(...arr);
+  const range = max - min + 1;
+
+  const count = new Array(range).fill(0);
+  const output = new Array(arr.length);
+
+  // Count occurrences
+  for (const num of arr) {
+    count[num - min]++;
+  }
+
+  // Cumulative count
+  for (let i = 1; i < count.length; i++) {
+    count[i] += count[i - 1];
+  }
+
+  // Build output (reverse for stability)
+  for (let i = arr.length - 1; i >= 0; i--) {
+    const num = arr[i];
+    count[num - min]--;
+    output[count[num - min]] = num;
+  }
+
+  return output;
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+public static int[] countingSort(int[] arr) {
+    if (arr.length == 0) return arr;
+
+    int min = Arrays.stream(arr).min().getAsInt();
+    int max = Arrays.stream(arr).max().getAsInt();
+    int range = max - min + 1;
+
+    int[] count = new int[range];
+    int[] output = new int[arr.length];
+
+    // Count occurrences
+    for (int num : arr) {
+        count[num - min]++;
+    }
+
+    // Cumulative count
+    for (int i = 1; i < count.length; i++) {
+        count[i] += count[i - 1];
+    }
+
+    // Build output
+    for (int i = arr.length - 1; i >= 0; i--) {
+        int num = arr[i];
+        count[num - min]--;
+        output[count[num - min]] = num;
+    }
+
+    return output;
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+vector<int> countingSort(vector<int>& arr) {
+    if (arr.empty()) return arr;
+
+    int minVal = *min_element(arr.begin(), arr.end());
+    int maxVal = *max_element(arr.begin(), arr.end());
+    int range = maxVal - minVal + 1;
+
+    vector<int> count(range, 0);
+    vector<int> output(arr.size());
+
+    // Count occurrences
+    for (int num : arr) {
+        count[num - minVal]++;
+    }
+
+    // Cumulative count
+    for (int i = 1; i < range; i++) {
+        count[i] += count[i - 1];
+    }
+
+    // Build output
+    for (int i = arr.size() - 1; i >= 0; i--) {
+        int num = arr[i];
+        count[num - minVal]--;
+        output[count[num - minVal]] = num;
+    }
+
+    return output;
+}
+```
+  </TabItem>
+</Tabs>
+
+### Radix Sort
+
+Sort by each digit, from least to most significant.
+
+```
+Radix Sort Example: arr = [170, 45, 75, 90, 802, 24, 2, 66]
+
+Sort by 1s digit:  [170, 90, 802, 2, 24, 45, 75, 66]
+Sort by 10s digit: [802, 2, 24, 45, 66, 170, 75, 90]
+Sort by 100s digit:[2, 24, 45, 66, 75, 90, 170, 802]
+```
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def radix_sort(arr):
+    """
+    Time: O(d(n + k)), Space: O(n + k), Stable: Yes
+    d = number of digits, k = base (10)
+    """
+    if not arr:
+        return arr
+
+    max_val = max(arr)
+    exp = 1
+
+    while max_val // exp > 0:
+        counting_sort_by_digit(arr, exp)
+        exp *= 10
+
+    return arr
+
+def counting_sort_by_digit(arr, exp):
+    n = len(arr)
+    output = [0] * n
+    count = [0] * 10
+
+    for num in arr:
+        digit = (num // exp) % 10
+        count[digit] += 1
+
+    for i in range(1, 10):
+        count[i] += count[i - 1]
+
+    for i in range(n - 1, -1, -1):
+        digit = (arr[i] // exp) % 10
+        count[digit] -= 1
+        output[count[digit]] = arr[i]
+
+    for i in range(n):
+        arr[i] = output[i]
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function radixSort(arr) {
+  if (arr.length === 0) return arr;
+
+  const max = Math.max(...arr);
+  let exp = 1;
+
+  while (Math.floor(max / exp) > 0) {
+    countingSortByDigit(arr, exp);
+    exp *= 10;
+  }
+
+  return arr;
+}
+
+function countingSortByDigit(arr, exp) {
+  const n = arr.length;
+  const output = new Array(n);
+  const count = new Array(10).fill(0);
+
+  for (const num of arr) {
+    const digit = Math.floor(num / exp) % 10;
+    count[digit]++;
+  }
+
+  for (let i = 1; i < 10; i++) {
+    count[i] += count[i - 1];
+  }
+
+  for (let i = n - 1; i >= 0; i--) {
+    const digit = Math.floor(arr[i] / exp) % 10;
+    count[digit]--;
+    output[count[digit]] = arr[i];
+  }
+
+  for (let i = 0; i < n; i++) {
+    arr[i] = output[i];
+  }
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+public static void radixSort(int[] arr) {
+    if (arr.length == 0) return;
+
+    int max = Arrays.stream(arr).max().getAsInt();
+    int exp = 1;
+
+    while (max / exp > 0) {
+        countingSortByDigit(arr, exp);
+        exp *= 10;
+    }
+}
+
+private static void countingSortByDigit(int[] arr, int exp) {
+    int n = arr.length;
+    int[] output = new int[n];
+    int[] count = new int[10];
+
+    for (int num : arr) {
+        int digit = (num / exp) % 10;
+        count[digit]++;
+    }
+
+    for (int i = 1; i < 10; i++) {
+        count[i] += count[i - 1];
+    }
+
+    for (int i = n - 1; i >= 0; i--) {
+        int digit = (arr[i] / exp) % 10;
+        count[digit]--;
+        output[count[digit]] = arr[i];
+    }
+
+    System.arraycopy(output, 0, arr, 0, n);
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+void countingSortByDigit(vector<int>& arr, int exp) {
+    int n = arr.size();
+    vector<int> output(n);
+    vector<int> count(10, 0);
+
+    for (int num : arr) {
+        int digit = (num / exp) % 10;
+        count[digit]++;
+    }
+
+    for (int i = 1; i < 10; i++) {
+        count[i] += count[i - 1];
+    }
+
+    for (int i = n - 1; i >= 0; i--) {
+        int digit = (arr[i] / exp) % 10;
+        count[digit]--;
+        output[count[digit]] = arr[i];
+    }
+
+    arr = output;
+}
+
+void radixSort(vector<int>& arr) {
+    if (arr.empty()) return;
+
+    int maxVal = *max_element(arr.begin(), arr.end());
+    int exp = 1;
+
+    while (maxVal / exp > 0) {
+        countingSortByDigit(arr, exp);
+        exp *= 10;
+    }
+}
+```
+  </TabItem>
+</Tabs>
+
+## When to Use Which Algorithm
+
+| Scenario | Best Choice |
+|----------|-------------|
+| Small array (n < 50) | Insertion Sort |
+| Nearly sorted | Insertion Sort |
+| Guaranteed O(n log n) | Merge Sort |
+| General purpose | Quick Sort |
+| Limited memory | Heap Sort |
+| Known small range | Counting Sort |
+| Large integers | Radix Sort |
+| Stability required | Merge Sort |
+
+## Practice Problems
+
+### Easy
+| Problem | Pattern | Companies |
+|---------|---------|-----------|
+| Sort an Array | Implementation | Amazon |
+| Merge Sorted Array | Two Pointers | Amazon, Microsoft |
+| Squares of Sorted Array | Two Pointers | Amazon, Google |
+
+### Medium
+| Problem | Pattern | Companies |
+|---------|---------|-----------|
+| Sort Colors | Dutch National Flag | Amazon, Microsoft |
+| Kth Largest Element | Quick Select | Amazon, Google, Meta |
+| Merge Intervals | Sort + Merge | Amazon, Google |
+| Meeting Rooms II | Sort + Heap | Google, Meta |
+
+### Hard
+| Problem | Pattern | Companies |
+|---------|---------|-----------|
+| Count of Smaller Numbers | Merge Sort | Google, Amazon |
+| Reverse Pairs | Merge Sort | Google |
+| Maximum Gap | Bucket Sort | Amazon |
+
+## Key Takeaways
+
+1. **O(n²) algorithms** - Simple but slow; use for small/nearly sorted data
+2. **O(n log n) comparison sorts** - Optimal for general purpose
+3. **Quick Sort** - Fastest in practice, but O(n²) worst case
+4. **Merge Sort** - Guaranteed O(n log n), stable, but uses O(n) space
+5. **Non-comparison sorts** - O(n) possible with constraints
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="Binary Search"
+    href="/dsa/searching/binary-search/"
+    description="Search efficiently in sorted arrays"
+  />
+  <LinkCard
+    title="Heaps"
+    href="/dsa/heaps/"
+    description="Learn about heap sort and priority queues"
+  />
+</CardGrid>

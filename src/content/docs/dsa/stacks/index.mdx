@@ -1,0 +1,1460 @@
+---
+title: Stacks
+description: Master the Last-In-First-Out (LIFO) data structure and common stack-based patterns
+difficulty: beginner
+prerequisites: ["Arrays", "Linked Lists"]
+timeToRead: "18 min"
+topics: ["stacks", "data-structures", "lifo"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+import DataStructureVisualizer from '../../../../components/interactive/DataStructureVisualizer';
+
+A stack is a linear data structure that follows the **Last-In-First-Out (LIFO)** principle. Think of it like a stack of plates - you can only add or remove plates from the top.
+
+## Interactive Stack Visualizer
+
+Push and pop elements to see LIFO in action. Watch elements animate as they enter and leave the stack.
+
+<DataStructureVisualizer client:load defaultDS="stack" />
+
+## What is a Stack?
+
+A stack supports two primary operations:
+- **Push**: Add an element to the top
+- **Pop**: Remove and return the top element
+
+```
+    ┌─────┐
+    │  5  │  ← Top (most recently added)
+    ├─────┤
+    │  3  │
+    ├─────┤
+    │  8  │
+    ├─────┤
+    │  1  │  ← Bottom (first added)
+    └─────┘
+```
+
+## Time Complexity
+
+| Operation | Average | Worst |
+|-----------|---------|-------|
+| Push | O(1) | O(1) |
+| Pop | O(1) | O(1) |
+| Peek/Top | O(1) | O(1) |
+| Search | O(n) | O(n) |
+| isEmpty | O(1) | O(1) |
+
+## Basic Operations
+
+### Stack Implementation
+
+<Tabs>
+  <TabItem label="Python">
+```python
+class Stack:
+    def __init__(self):
+        self.items = []
+
+    def push(self, item):
+        """Add item to top of stack"""
+        self.items.append(item)
+
+    def pop(self):
+        """Remove and return top item"""
+        if self.is_empty():
+            raise IndexError("Pop from empty stack")
+        return self.items.pop()
+
+    def peek(self):
+        """Return top item without removing"""
+        if self.is_empty():
+            raise IndexError("Peek from empty stack")
+        return self.items[-1]
+
+    def is_empty(self):
+        """Check if stack is empty"""
+        return len(self.items) == 0
+
+    def size(self):
+        """Return number of items"""
+        return len(self.items)
+
+# Using Python's built-in list as stack
+stack = []
+stack.append(1)     # Push
+stack.append(2)
+top = stack.pop()   # Pop: returns 2
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+class Stack {
+  constructor() {
+    this.items = [];
+  }
+
+  push(item) {
+    this.items.push(item);
+  }
+
+  pop() {
+    if (this.isEmpty()) {
+      throw new Error("Pop from empty stack");
+    }
+    return this.items.pop();
+  }
+
+  peek() {
+    if (this.isEmpty()) {
+      throw new Error("Peek from empty stack");
+    }
+    return this.items[this.items.length - 1];
+  }
+
+  isEmpty() {
+    return this.items.length === 0;
+  }
+
+  size() {
+    return this.items.length;
+  }
+}
+
+// Using array as stack
+const stack = [];
+stack.push(1);      // Push
+stack.push(2);
+const top = stack.pop();  // Pop: returns 2
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+import java.util.Stack;
+import java.util.EmptyStackException;
+
+// Using Java's built-in Stack
+Stack<Integer> stack = new Stack<>();
+stack.push(1);           // Push
+stack.push(2);
+int top = stack.pop();   // Pop: returns 2
+int peek = stack.peek(); // Peek: returns 1
+
+// Custom implementation using ArrayList
+class MyStack<T> {
+    private ArrayList<T> items = new ArrayList<>();
+
+    public void push(T item) {
+        items.add(item);
+    }
+
+    public T pop() {
+        if (isEmpty()) {
+            throw new EmptyStackException();
+        }
+        return items.remove(items.size() - 1);
+    }
+
+    public T peek() {
+        if (isEmpty()) {
+            throw new EmptyStackException();
+        }
+        return items.get(items.size() - 1);
+    }
+
+    public boolean isEmpty() {
+        return items.isEmpty();
+    }
+
+    public int size() {
+        return items.size();
+    }
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+#include <stack>
+#include <vector>
+#include <stdexcept>
+using namespace std;
+
+// Using STL stack
+stack<int> stk;
+stk.push(1);          // Push
+stk.push(2);
+int top = stk.top();  // Peek: returns 2
+stk.pop();            // Pop (doesn't return value)
+
+// Custom implementation
+template<typename T>
+class MyStack {
+private:
+    vector<T> items;
+
+public:
+    void push(const T& item) {
+        items.push_back(item);
+    }
+
+    T pop() {
+        if (isEmpty()) {
+            throw runtime_error("Pop from empty stack");
+        }
+        T item = items.back();
+        items.pop_back();
+        return item;
+    }
+
+    T peek() const {
+        if (isEmpty()) {
+            throw runtime_error("Peek from empty stack");
+        }
+        return items.back();
+    }
+
+    bool isEmpty() const {
+        return items.empty();
+    }
+
+    size_t size() const {
+        return items.size();
+    }
+};
+```
+  </TabItem>
+</Tabs>
+
+### Linked List Implementation
+
+For frequent push/pop operations, a linked list implementation avoids array resizing:
+
+<Tabs>
+  <TabItem label="Python">
+```python
+class Node:
+    def __init__(self, value):
+        self.value = value
+        self.next = None
+
+class LinkedStack:
+    def __init__(self):
+        self.top = None
+        self._size = 0
+
+    def push(self, value):
+        new_node = Node(value)
+        new_node.next = self.top
+        self.top = new_node
+        self._size += 1
+
+    def pop(self):
+        if self.is_empty():
+            raise IndexError("Pop from empty stack")
+        value = self.top.value
+        self.top = self.top.next
+        self._size -= 1
+        return value
+
+    def peek(self):
+        if self.is_empty():
+            raise IndexError("Peek from empty stack")
+        return self.top.value
+
+    def is_empty(self):
+        return self.top is None
+
+    def size(self):
+        return self._size
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+class Node {
+  constructor(value) {
+    this.value = value;
+    this.next = null;
+  }
+}
+
+class LinkedStack {
+  constructor() {
+    this.top = null;
+    this._size = 0;
+  }
+
+  push(value) {
+    const newNode = new Node(value);
+    newNode.next = this.top;
+    this.top = newNode;
+    this._size++;
+  }
+
+  pop() {
+    if (this.isEmpty()) {
+      throw new Error("Pop from empty stack");
+    }
+    const value = this.top.value;
+    this.top = this.top.next;
+    this._size--;
+    return value;
+  }
+
+  peek() {
+    if (this.isEmpty()) {
+      throw new Error("Peek from empty stack");
+    }
+    return this.top.value;
+  }
+
+  isEmpty() {
+    return this.top === null;
+  }
+
+  size() {
+    return this._size;
+  }
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+class Node<T> {
+    T value;
+    Node<T> next;
+
+    Node(T value) {
+        this.value = value;
+        this.next = null;
+    }
+}
+
+class LinkedStack<T> {
+    private Node<T> top;
+    private int size;
+
+    public void push(T value) {
+        Node<T> newNode = new Node<>(value);
+        newNode.next = top;
+        top = newNode;
+        size++;
+    }
+
+    public T pop() {
+        if (isEmpty()) {
+            throw new EmptyStackException();
+        }
+        T value = top.value;
+        top = top.next;
+        size--;
+        return value;
+    }
+
+    public T peek() {
+        if (isEmpty()) {
+            throw new EmptyStackException();
+        }
+        return top.value;
+    }
+
+    public boolean isEmpty() {
+        return top == null;
+    }
+
+    public int size() {
+        return size;
+    }
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+template<typename T>
+struct Node {
+    T value;
+    Node* next;
+    Node(T val) : value(val), next(nullptr) {}
+};
+
+template<typename T>
+class LinkedStack {
+private:
+    Node<T>* top;
+    size_t _size;
+
+public:
+    LinkedStack() : top(nullptr), _size(0) {}
+
+    ~LinkedStack() {
+        while (!isEmpty()) {
+            pop();
+        }
+    }
+
+    void push(const T& value) {
+        Node<T>* newNode = new Node<T>(value);
+        newNode->next = top;
+        top = newNode;
+        _size++;
+    }
+
+    T pop() {
+        if (isEmpty()) {
+            throw runtime_error("Pop from empty stack");
+        }
+        T value = top->value;
+        Node<T>* temp = top;
+        top = top->next;
+        delete temp;
+        _size--;
+        return value;
+    }
+
+    T peek() const {
+        if (isEmpty()) {
+            throw runtime_error("Peek from empty stack");
+        }
+        return top->value;
+    }
+
+    bool isEmpty() const {
+        return top == nullptr;
+    }
+
+    size_t size() const {
+        return _size;
+    }
+};
+```
+  </TabItem>
+</Tabs>
+
+## Common Patterns
+
+### 1. Valid Parentheses
+
+Check if brackets are properly matched and nested. This is a classic stack problem where we push opening brackets and pop when we encounter closing brackets.
+
+**Algorithm:**
+1. Iterate through each character in the string
+2. If it's an opening bracket, push it onto the stack
+3. If it's a closing bracket, check if the stack is empty or if the top doesn't match
+4. At the end, the stack should be empty for valid parentheses
+
+```
+Input: "({[]})"
+
+Step 1: '(' → push → Stack: ['(']
+Step 2: '{' → push → Stack: ['(', '{']
+Step 3: '[' → push → Stack: ['(', '{', '[']
+Step 4: ']' → pop '[' matches → Stack: ['(', '{']
+Step 5: '}' → pop '{' matches → Stack: ['(']
+Step 6: ')' → pop '(' matches → Stack: []
+
+Result: Stack is empty → Valid!
+```
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def is_valid_parentheses(s: str) -> bool:
+    """
+    Check if string has valid parentheses.
+
+    Approach:
+    - Use a stack to track opening brackets
+    - When we see a closing bracket, check if it matches the top of stack
+    - A valid string will have an empty stack at the end
+
+    Time Complexity: O(n) - we process each character once
+    Space Complexity: O(n) - in worst case, all opening brackets
+
+    Args:
+        s: String containing brackets ()[]{}
+
+    Returns:
+        True if brackets are valid, False otherwise
+    """
+    stack = []
+    # Map closing brackets to their opening counterparts
+    mapping = {')': '(', '}': '{', ']': '['}
+
+    for char in s:
+        if char in mapping:
+            # It's a closing bracket
+            # Check if stack is empty or top doesn't match
+            if not stack or stack.pop() != mapping[char]:
+                return False
+        else:
+            # It's an opening bracket - push to stack
+            stack.append(char)
+
+    # Valid only if all brackets were matched (stack is empty)
+    return len(stack) == 0
+
+# Examples with explanations
+print(is_valid_parentheses("()[]{}"))   # True - each opens and closes
+print(is_valid_parentheses("([)]"))     # False - wrong nesting order
+print(is_valid_parentheses("{[]}"))     # True - proper nesting
+print(is_valid_parentheses("("))        # False - unclosed bracket
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+/**
+ * Check if string has valid parentheses.
+ *
+ * Time Complexity: O(n) - process each character once
+ * Space Complexity: O(n) - stack can hold all opening brackets
+ *
+ * @param {string} s - String containing brackets ()[]{}
+ * @returns {boolean} - True if brackets are valid
+ */
+function isValidParentheses(s) {
+  const stack = [];
+  // Map closing brackets to opening counterparts
+  const mapping = {
+    ')': '(',
+    '}': '{',
+    ']': '['
+  };
+
+  for (const char of s) {
+    if (char in mapping) {
+      // It's a closing bracket
+      if (stack.length === 0 || stack.pop() !== mapping[char]) {
+        return false;
+      }
+    } else {
+      // It's an opening bracket
+      stack.push(char);
+    }
+  }
+
+  // Valid only if all brackets matched
+  return stack.length === 0;
+}
+
+// Examples
+console.log(isValidParentheses("()[]{}")); // true
+console.log(isValidParentheses("([)]"));   // false
+console.log(isValidParentheses("{[]}"));   // true
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+import java.util.Stack;
+import java.util.Map;
+import java.util.HashMap;
+
+public class ValidParentheses {
+    /**
+     * Check if string has valid parentheses.
+     *
+     * Time Complexity: O(n)
+     * Space Complexity: O(n)
+     */
+    public boolean isValid(String s) {
+        Stack<Character> stack = new Stack<>();
+
+        // Map closing brackets to opening counterparts
+        Map<Character, Character> mapping = new HashMap<>();
+        mapping.put(')', '(');
+        mapping.put('}', '{');
+        mapping.put(']', '[');
+
+        for (char c : s.toCharArray()) {
+            if (mapping.containsKey(c)) {
+                // It's a closing bracket
+                if (stack.isEmpty() || stack.pop() != mapping.get(c)) {
+                    return false;
+                }
+            } else {
+                // It's an opening bracket
+                stack.push(c);
+            }
+        }
+
+        return stack.isEmpty();
+    }
+
+    public static void main(String[] args) {
+        ValidParentheses vp = new ValidParentheses();
+        System.out.println(vp.isValid("()[]{}")); // true
+        System.out.println(vp.isValid("([)]"));   // false
+        System.out.println(vp.isValid("{[]}"));   // true
+    }
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+#include <stack>
+#include <string>
+#include <unordered_map>
+using namespace std;
+
+/**
+ * Check if string has valid parentheses.
+ *
+ * Time Complexity: O(n)
+ * Space Complexity: O(n)
+ */
+bool isValidParentheses(string s) {
+    stack<char> stk;
+
+    // Map closing brackets to opening counterparts
+    unordered_map<char, char> mapping = {
+        {')', '('},
+        {'}', '{'},
+        {']', '['}
+    };
+
+    for (char c : s) {
+        if (mapping.find(c) != mapping.end()) {
+            // It's a closing bracket
+            if (stk.empty() || stk.top() != mapping[c]) {
+                return false;
+            }
+            stk.pop();
+        } else {
+            // It's an opening bracket
+            stk.push(c);
+        }
+    }
+
+    return stk.empty();
+}
+
+// Usage
+int main() {
+    cout << isValidParentheses("()[]{}") << endl; // 1 (true)
+    cout << isValidParentheses("([)]") << endl;   // 0 (false)
+    cout << isValidParentheses("{[]}") << endl;   // 1 (true)
+    return 0;
+}
+```
+  </TabItem>
+</Tabs>
+
+### 2. Monotonic Stack
+
+A monotonic stack maintains elements in either increasing or decreasing order. It's powerful for finding the "next greater" or "next smaller" element efficiently.
+
+**Key Insight:** When a new element arrives that breaks the monotonic property, we pop elements and process them - they've found their answer!
+
+```
+Finding Next Greater Element for [4, 2, 1, 5, 3]:
+
+Process 4: Stack empty, push index 0    → Stack: [0]
+Process 2: 2 < 4, push index 1          → Stack: [0, 1]
+Process 1: 1 < 2, push index 2          → Stack: [0, 1, 2]
+Process 5: 5 > nums at indices 2,1,0
+  - Pop 2: result[2] = 5 (next greater for 1 is 5)
+  - Pop 1: result[1] = 5 (next greater for 2 is 5)
+  - Pop 0: result[0] = 5 (next greater for 4 is 5)
+  - Push 3                               → Stack: [3]
+Process 3: 3 < 5, push index 4          → Stack: [3, 4]
+
+Remaining in stack have no next greater: result[3] = result[4] = -1
+
+Result: [5, 5, 5, -1, -1]
+```
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def next_greater_element(nums: list) -> list:
+    """
+    Find the next greater element for each position in the array.
+
+    A monotonic decreasing stack helps us efficiently find when
+    a larger element appears to the right of each position.
+
+    Time Complexity: O(n) - each element pushed and popped at most once
+    Space Complexity: O(n) - for the stack and result array
+
+    Args:
+        nums: List of integers
+
+    Returns:
+        List where result[i] is the next greater element for nums[i],
+        or -1 if none exists
+    """
+    n = len(nums)
+    result = [-1] * n  # Default: no greater element found
+    stack = []  # Store indices (not values) for position tracking
+
+    for i in range(n):
+        # While current element is greater than elements at stack indices
+        # Those elements have found their "next greater element"
+        while stack and nums[stack[-1]] < nums[i]:
+            idx = stack.pop()
+            result[idx] = nums[i]
+
+        # Push current index to stack
+        stack.append(i)
+
+    # Elements remaining in stack have no greater element to their right
+    return result
+
+# Detailed example
+nums = [4, 2, 1, 5, 3]
+print(next_greater_element(nums))  # [5, 5, 5, -1, -1]
+
+# Another example
+nums = [1, 3, 2, 4]
+print(next_greater_element(nums))  # [3, 4, 4, -1]
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+/**
+ * Find next greater element for each position.
+ *
+ * Uses monotonic decreasing stack - when we find a larger element,
+ * it becomes the "next greater" for all smaller elements in stack.
+ *
+ * Time: O(n), Space: O(n)
+ */
+function nextGreaterElement(nums) {
+  const n = nums.length;
+  const result = new Array(n).fill(-1);
+  const stack = []; // Store indices
+
+  for (let i = 0; i < n; i++) {
+    // Pop all smaller elements - they found their next greater
+    while (stack.length > 0 && nums[stack[stack.length - 1]] < nums[i]) {
+      const idx = stack.pop();
+      result[idx] = nums[i];
+    }
+    stack.push(i);
+  }
+
+  return result;
+}
+
+// Examples
+console.log(nextGreaterElement([4, 2, 1, 5, 3])); // [5, 5, 5, -1, -1]
+console.log(nextGreaterElement([1, 3, 2, 4]));    // [3, 4, 4, -1]
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+import java.util.Arrays;
+import java.util.Stack;
+
+public class MonotonicStack {
+    /**
+     * Find next greater element for each position.
+     *
+     * Time: O(n), Space: O(n)
+     */
+    public int[] nextGreaterElement(int[] nums) {
+        int n = nums.length;
+        int[] result = new int[n];
+        Arrays.fill(result, -1);  // Default: no greater element
+
+        Stack<Integer> stack = new Stack<>();  // Store indices
+
+        for (int i = 0; i < n; i++) {
+            // Pop smaller elements - they found their next greater
+            while (!stack.isEmpty() && nums[stack.peek()] < nums[i]) {
+                int idx = stack.pop();
+                result[idx] = nums[i];
+            }
+            stack.push(i);
+        }
+
+        return result;
+    }
+
+    public static void main(String[] args) {
+        MonotonicStack ms = new MonotonicStack();
+        int[] nums = {4, 2, 1, 5, 3};
+        System.out.println(Arrays.toString(ms.nextGreaterElement(nums)));
+        // Output: [5, 5, 5, -1, -1]
+    }
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+#include <vector>
+#include <stack>
+using namespace std;
+
+/**
+ * Find next greater element for each position.
+ *
+ * Time: O(n), Space: O(n)
+ */
+vector<int> nextGreaterElement(vector<int>& nums) {
+    int n = nums.size();
+    vector<int> result(n, -1);  // Default: no greater element
+    stack<int> stk;  // Store indices
+
+    for (int i = 0; i < n; i++) {
+        // Pop smaller elements - they found their next greater
+        while (!stk.empty() && nums[stk.top()] < nums[i]) {
+            int idx = stk.top();
+            stk.pop();
+            result[idx] = nums[i];
+        }
+        stk.push(i);
+    }
+
+    return result;
+}
+
+// Usage
+int main() {
+    vector<int> nums = {4, 2, 1, 5, 3};
+    vector<int> result = nextGreaterElement(nums);
+    // result: [5, 5, 5, -1, -1]
+    return 0;
+}
+```
+  </TabItem>
+</Tabs>
+
+### 3. Min Stack
+
+Design a stack that supports push, pop, top, and retrieving the minimum element in O(1) time.
+
+**Key Insight:** Maintain a secondary stack that tracks the minimum at each level. When we push, we also track what the minimum is at that point.
+
+```
+Operations on MinStack:
+
+push(5): main=[5], min=[5]         (min is 5)
+push(3): main=[5,3], min=[5,3]     (min is 3)
+push(7): main=[5,3,7], min=[5,3]   (min still 3, don't push)
+push(2): main=[5,3,7,2], min=[5,3,2] (new min is 2)
+getMin(): return 2
+pop():   main=[5,3,7], min=[5,3]   (2 was min, pop from both)
+getMin(): return 3
+```
+
+<Tabs>
+  <TabItem label="Python">
+```python
+class MinStack:
+    """
+    Stack with O(1) minimum retrieval.
+
+    We use two stacks:
+    - Main stack: stores all elements
+    - Min stack: stores minimum at each level
+
+    The min stack only grows when we see a new minimum,
+    making it space-efficient while maintaining O(1) getMin.
+    """
+
+    def __init__(self):
+        self.stack = []      # Main stack for all elements
+        self.min_stack = []  # Tracks minimum at each "level"
+
+    def push(self, val: int) -> None:
+        """
+        Push element onto stack.
+        Time: O(1)
+        """
+        self.stack.append(val)
+        # Only push to min_stack if it's a new minimum (or equal)
+        if not self.min_stack or val <= self.min_stack[-1]:
+            self.min_stack.append(val)
+
+    def pop(self) -> None:
+        """
+        Remove top element.
+        Time: O(1)
+        """
+        val = self.stack.pop()
+        # If we're popping the current minimum, update min_stack
+        if val == self.min_stack[-1]:
+            self.min_stack.pop()
+
+    def top(self) -> int:
+        """
+        Get top element without removing.
+        Time: O(1)
+        """
+        return self.stack[-1]
+
+    def getMin(self) -> int:
+        """
+        Retrieve minimum element in stack.
+        Time: O(1)
+        """
+        return self.min_stack[-1]
+
+
+# Usage example
+minStack = MinStack()
+minStack.push(-2)
+minStack.push(0)
+minStack.push(-3)
+print(minStack.getMin())  # -3
+minStack.pop()
+print(minStack.top())     # 0
+print(minStack.getMin())  # -2
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+/**
+ * Stack with O(1) minimum retrieval.
+ */
+class MinStack {
+  constructor() {
+    this.stack = [];    // Main stack
+    this.minStack = []; // Tracks minimums
+  }
+
+  /**
+   * Push element onto stack. O(1)
+   */
+  push(val) {
+    this.stack.push(val);
+    // Push to minStack if new minimum or equal
+    if (this.minStack.length === 0 ||
+        val <= this.minStack[this.minStack.length - 1]) {
+      this.minStack.push(val);
+    }
+  }
+
+  /**
+   * Remove top element. O(1)
+   */
+  pop() {
+    const val = this.stack.pop();
+    if (val === this.minStack[this.minStack.length - 1]) {
+      this.minStack.pop();
+    }
+  }
+
+  /**
+   * Get top element. O(1)
+   */
+  top() {
+    return this.stack[this.stack.length - 1];
+  }
+
+  /**
+   * Get minimum element. O(1)
+   */
+  getMin() {
+    return this.minStack[this.minStack.length - 1];
+  }
+}
+
+// Usage
+const minStack = new MinStack();
+minStack.push(-2);
+minStack.push(0);
+minStack.push(-3);
+console.log(minStack.getMin()); // -3
+minStack.pop();
+console.log(minStack.top());    // 0
+console.log(minStack.getMin()); // -2
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+import java.util.Stack;
+
+/**
+ * Stack with O(1) minimum retrieval.
+ */
+class MinStack {
+    private Stack<Integer> stack;
+    private Stack<Integer> minStack;
+
+    public MinStack() {
+        stack = new Stack<>();
+        minStack = new Stack<>();
+    }
+
+    /** Push element onto stack. O(1) */
+    public void push(int val) {
+        stack.push(val);
+        // Push to minStack if new minimum or equal
+        if (minStack.isEmpty() || val <= minStack.peek()) {
+            minStack.push(val);
+        }
+    }
+
+    /** Remove top element. O(1) */
+    public void pop() {
+        int val = stack.pop();
+        if (val == minStack.peek()) {
+            minStack.pop();
+        }
+    }
+
+    /** Get top element. O(1) */
+    public int top() {
+        return stack.peek();
+    }
+
+    /** Get minimum element. O(1) */
+    public int getMin() {
+        return minStack.peek();
+    }
+
+    public static void main(String[] args) {
+        MinStack minStack = new MinStack();
+        minStack.push(-2);
+        minStack.push(0);
+        minStack.push(-3);
+        System.out.println(minStack.getMin()); // -3
+        minStack.pop();
+        System.out.println(minStack.top());    // 0
+        System.out.println(minStack.getMin()); // -2
+    }
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+#include <stack>
+using namespace std;
+
+/**
+ * Stack with O(1) minimum retrieval.
+ */
+class MinStack {
+private:
+    stack<int> stk;
+    stack<int> minStk;
+
+public:
+    MinStack() {}
+
+    /** Push element onto stack. O(1) */
+    void push(int val) {
+        stk.push(val);
+        // Push to minStk if new minimum or equal
+        if (minStk.empty() || val <= minStk.top()) {
+            minStk.push(val);
+        }
+    }
+
+    /** Remove top element. O(1) */
+    void pop() {
+        int val = stk.top();
+        stk.pop();
+        if (val == minStk.top()) {
+            minStk.pop();
+        }
+    }
+
+    /** Get top element. O(1) */
+    int top() {
+        return stk.top();
+    }
+
+    /** Get minimum element. O(1) */
+    int getMin() {
+        return minStk.top();
+    }
+};
+
+// Usage
+int main() {
+    MinStack minStack;
+    minStack.push(-2);
+    minStack.push(0);
+    minStack.push(-3);
+    cout << minStack.getMin() << endl; // -3
+    minStack.pop();
+    cout << minStack.top() << endl;    // 0
+    cout << minStack.getMin() << endl; // -2
+    return 0;
+}
+```
+  </TabItem>
+</Tabs>
+
+### 4. Decode String
+
+Decode encoded strings like `"3[a2[bc]]"` = `"abcbcabcbcabcbc"`. This problem requires handling nested patterns using a stack.
+
+**Algorithm:**
+1. When we see a digit, build the number (could be multi-digit like "12")
+2. When we see `[`, save current state (string and number) to stack
+3. When we see `]`, pop from stack and repeat current string
+4. When we see a letter, append to current string
+
+```
+Decoding "3[a2[bc]]":
+
+char 3: num = 3
+char [: push ("", 3), reset → str="", num=0
+char a: str = "a"
+char 2: num = 2
+char [: push ("a", 2), reset → str="", num=0
+char b: str = "b"
+char c: str = "bc"
+char ]: pop ("a", 2) → str = "a" + "bc"*2 = "abcbc"
+char ]: pop ("", 3) → str = "" + "abcbc"*3 = "abcbcabcbcabcbc"
+```
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def decode_string(s: str) -> str:
+    """
+    Decode string with nested patterns like "3[a2[bc]]".
+
+    We use a stack to handle nested brackets. Each time we see '[',
+    we save our current progress. When we see ']', we complete
+    that level and combine with the previous state.
+
+    Time Complexity: O(n * max_k) where max_k is the largest repeat count
+    Space Complexity: O(n) for the stack
+
+    Args:
+        s: Encoded string with pattern k[encoded_string]
+
+    Returns:
+        Decoded string
+    """
+    stack = []
+    current_num = 0
+    current_str = ""
+
+    for char in s:
+        if char.isdigit():
+            # Build the number (handles multi-digit like "12")
+            current_num = current_num * 10 + int(char)
+
+        elif char == '[':
+            # Save current state and start fresh
+            stack.append((current_str, current_num))
+            current_str = ""
+            current_num = 0
+
+        elif char == ']':
+            # Pop previous state and build result
+            prev_str, num = stack.pop()
+            current_str = prev_str + current_str * num
+
+        else:
+            # Regular character - append to current string
+            current_str += char
+
+    return current_str
+
+
+# Examples with explanations
+print(decode_string("3[a]2[bc]"))     # "aaabcbc"
+print(decode_string("3[a2[c]]"))      # "accaccacc"
+print(decode_string("2[abc]3[cd]ef")) # "abcabccdcdcdef"
+print(decode_string("10[a]"))         # "aaaaaaaaaa" (handles multi-digit)
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+/**
+ * Decode string with nested patterns.
+ *
+ * Time: O(n * max_k), Space: O(n)
+ */
+function decodeString(s) {
+  const stack = [];
+  let currentNum = 0;
+  let currentStr = "";
+
+  for (const char of s) {
+    if (/\d/.test(char)) {
+      // Build number (handles multi-digit)
+      currentNum = currentNum * 10 + parseInt(char);
+    } else if (char === '[') {
+      // Save state and start fresh
+      stack.push([currentStr, currentNum]);
+      currentStr = "";
+      currentNum = 0;
+    } else if (char === ']') {
+      // Pop and build result
+      const [prevStr, num] = stack.pop();
+      currentStr = prevStr + currentStr.repeat(num);
+    } else {
+      // Regular character
+      currentStr += char;
+    }
+  }
+
+  return currentStr;
+}
+
+// Examples
+console.log(decodeString("3[a]2[bc]"));     // "aaabcbc"
+console.log(decodeString("3[a2[c]]"));      // "accaccacc"
+console.log(decodeString("2[abc]3[cd]ef")); // "abcabccdcdcdef"
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+import java.util.Stack;
+
+public class DecodeString {
+    /**
+     * Decode string with nested patterns.
+     *
+     * Time: O(n * max_k), Space: O(n)
+     */
+    public String decodeString(String s) {
+        Stack<String> strStack = new Stack<>();
+        Stack<Integer> numStack = new Stack<>();
+        StringBuilder currentStr = new StringBuilder();
+        int currentNum = 0;
+
+        for (char c : s.toCharArray()) {
+            if (Character.isDigit(c)) {
+                // Build number
+                currentNum = currentNum * 10 + (c - '0');
+            } else if (c == '[') {
+                // Save state
+                strStack.push(currentStr.toString());
+                numStack.push(currentNum);
+                currentStr = new StringBuilder();
+                currentNum = 0;
+            } else if (c == ']') {
+                // Pop and build result
+                String prevStr = strStack.pop();
+                int num = numStack.pop();
+                StringBuilder temp = new StringBuilder(prevStr);
+                for (int i = 0; i < num; i++) {
+                    temp.append(currentStr);
+                }
+                currentStr = temp;
+            } else {
+                currentStr.append(c);
+            }
+        }
+
+        return currentStr.toString();
+    }
+
+    public static void main(String[] args) {
+        DecodeString ds = new DecodeString();
+        System.out.println(ds.decodeString("3[a]2[bc]")); // "aaabcbc"
+        System.out.println(ds.decodeString("3[a2[c]]"));  // "accaccacc"
+    }
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+#include <string>
+#include <stack>
+using namespace std;
+
+/**
+ * Decode string with nested patterns.
+ *
+ * Time: O(n * max_k), Space: O(n)
+ */
+string decodeString(string s) {
+    stack<pair<string, int>> stk;
+    string currentStr = "";
+    int currentNum = 0;
+
+    for (char c : s) {
+        if (isdigit(c)) {
+            // Build number
+            currentNum = currentNum * 10 + (c - '0');
+        } else if (c == '[') {
+            // Save state
+            stk.push({currentStr, currentNum});
+            currentStr = "";
+            currentNum = 0;
+        } else if (c == ']') {
+            // Pop and build result
+            auto [prevStr, num] = stk.top();
+            stk.pop();
+            string temp = prevStr;
+            for (int i = 0; i < num; i++) {
+                temp += currentStr;
+            }
+            currentStr = temp;
+        } else {
+            currentStr += c;
+        }
+    }
+
+    return currentStr;
+}
+
+// Usage
+int main() {
+    cout << decodeString("3[a]2[bc]") << endl;     // "aaabcbc"
+    cout << decodeString("3[a2[c]]") << endl;      // "accaccacc"
+    cout << decodeString("2[abc]3[cd]ef") << endl; // "abcabccdcdcdef"
+    return 0;
+}
+```
+  </TabItem>
+</Tabs>
+
+### 5. Daily Temperatures
+
+Given daily temperatures, find how many days until a warmer day for each position. This is a perfect monotonic stack application.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def daily_temperatures(temperatures: list) -> list:
+    """
+    Find days until warmer temperature for each day.
+
+    Uses monotonic decreasing stack - when we find a warmer day,
+    all colder days in the stack have found their answer.
+
+    Time: O(n), Space: O(n)
+    """
+    n = len(temperatures)
+    result = [0] * n
+    stack = []  # Store indices of days waiting for warmer temp
+
+    for i in range(n):
+        # Current temp is warmer than temps at indices in stack
+        while stack and temperatures[stack[-1]] < temperatures[i]:
+            prev_day = stack.pop()
+            result[prev_day] = i - prev_day  # Days until warmer
+        stack.append(i)
+
+    return result
+
+# Example
+temps = [73, 74, 75, 71, 69, 72, 76, 73]
+print(daily_temperatures(temps))
+# Output: [1, 1, 4, 2, 1, 1, 0, 0]
+# Day 0 (73°): wait 1 day for 74°
+# Day 2 (75°): wait 4 days for 76°
+# Day 6 (76°): no warmer day ahead
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function dailyTemperatures(temperatures) {
+  const n = temperatures.length;
+  const result = new Array(n).fill(0);
+  const stack = [];
+
+  for (let i = 0; i < n; i++) {
+    while (stack.length && temperatures[stack[stack.length - 1]] < temperatures[i]) {
+      const prevDay = stack.pop();
+      result[prevDay] = i - prevDay;
+    }
+    stack.push(i);
+  }
+
+  return result;
+}
+
+console.log(dailyTemperatures([73, 74, 75, 71, 69, 72, 76, 73]));
+// [1, 1, 4, 2, 1, 1, 0, 0]
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+public int[] dailyTemperatures(int[] temperatures) {
+    int n = temperatures.length;
+    int[] result = new int[n];
+    Stack<Integer> stack = new Stack<>();
+
+    for (int i = 0; i < n; i++) {
+        while (!stack.isEmpty() && temperatures[stack.peek()] < temperatures[i]) {
+            int prevDay = stack.pop();
+            result[prevDay] = i - prevDay;
+        }
+        stack.push(i);
+    }
+
+    return result;
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+vector<int> dailyTemperatures(vector<int>& temperatures) {
+    int n = temperatures.size();
+    vector<int> result(n, 0);
+    stack<int> stk;
+
+    for (int i = 0; i < n; i++) {
+        while (!stk.empty() && temperatures[stk.top()] < temperatures[i]) {
+            int prevDay = stk.top();
+            stk.pop();
+            result[prevDay] = i - prevDay;
+        }
+        stk.push(i);
+    }
+
+    return result;
+}
+```
+  </TabItem>
+</Tabs>
+
+## Applications
+
+1. **Function Call Stack** - Managing function calls and returns
+2. **Undo/Redo Operations** - Text editors, image editors
+3. **Browser History** - Back button navigation
+4. **Expression Parsing** - Compiler design, calculators
+5. **Backtracking** - DFS, maze solving
+6. **Syntax Checking** - Matching delimiters in code
+
+## Practice Problems
+
+### Easy
+| Problem | Pattern | Companies |
+|---------|---------|-----------|
+| Valid Parentheses | Matching | Amazon, Google, Meta |
+| Min Stack | Auxiliary Stack | Amazon, Microsoft |
+| Implement Queue using Stacks | Two Stacks | Amazon, Apple |
+| Baseball Game | Simulation | Amazon |
+
+### Medium
+| Problem | Pattern | Companies |
+|---------|---------|-----------|
+| Daily Temperatures | Monotonic Stack | Amazon, Google |
+| Decode String | Nested Stack | Amazon, Google |
+| Evaluate RPN | Expression | Amazon, Microsoft |
+| Asteroid Collision | Simulation | Amazon |
+
+### Hard
+| Problem | Pattern | Companies |
+|---------|---------|-----------|
+| Largest Rectangle in Histogram | Monotonic Stack | Amazon, Google, Meta |
+| Trapping Rain Water | Two Pointers/Stack | Amazon, Google |
+| Basic Calculator | Expression | Amazon, Meta |
+| Maximal Rectangle | DP + Stack | Amazon, Google |
+
+## Key Takeaways
+
+1. **LIFO principle** - Last in, first out
+2. **O(1) operations** - Push, pop, and peek are constant time
+3. **Monotonic stacks** - Powerful for "next greater/smaller" problems
+4. **Matching problems** - Brackets, parentheses, tags
+5. **State tracking** - Save and restore states (backtracking, parsing)
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="Queues"
+    href="/dsa/queues/"
+    description="Learn about FIFO data structure and its applications"
+  />
+  <LinkCard
+    title="Recursion"
+    href="/dsa/recursion/"
+    description="Understand the call stack and recursive algorithms"
+  />
+</CardGrid>

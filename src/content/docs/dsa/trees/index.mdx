@@ -1,0 +1,1765 @@
+---
+title: Trees
+description: Master binary trees, BST, tree traversals, and common tree algorithms
+difficulty: intermediate
+prerequisites: ["Stacks", "Queues", "Recursion"]
+timeToRead: "25 min"
+topics: ["trees", "data-structures", "bst", "traversals"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+import DataStructureVisualizer from '../../../../components/interactive/DataStructureVisualizer';
+
+A tree is a hierarchical data structure consisting of nodes connected by edges. Unlike linear structures, trees represent parent-child relationships and are fundamental to many algorithms.
+
+## Interactive BST Builder
+
+Build a Binary Search Tree by inserting values. Run in-order, pre-order, post-order, and level-order traversals to see the visit order highlighted on the tree.
+
+<DataStructureVisualizer client:load defaultDS="bst" />
+
+## Tree Terminology
+
+```
+                    1         ← Root (level 0)
+                  /   \
+                 2     3      ← Level 1
+                / \     \
+               4   5     6    ← Level 2 (Leaves)
+              /
+             7                ← Level 3 (Leaf)
+
+Terminology:
+- Root: Node 1 (no parent)
+- Parent of 4, 5: Node 2
+- Children of 2: Nodes 4, 5
+- Siblings: 4 and 5
+- Leaf nodes: 5, 6, 7 (no children)
+- Height of tree: 3 (longest path from root)
+- Depth of node 4: 2 (distance from root)
+```
+
+## Binary Tree Basics
+
+A binary tree has at most two children per node (left and right).
+
+### Node Definition
+
+<Tabs>
+  <TabItem label="Python">
+```python
+class TreeNode:
+    def __init__(self, val=0, left=None, right=None):
+        self.val = val
+        self.left = left
+        self.right = right
+
+# Create a tree
+#       1
+#      / \
+#     2   3
+root = TreeNode(1)
+root.left = TreeNode(2)
+root.right = TreeNode(3)
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+class TreeNode {
+  constructor(val = 0, left = null, right = null) {
+    this.val = val;
+    this.left = left;
+    this.right = right;
+  }
+}
+
+// Create a tree
+const root = new TreeNode(1);
+root.left = new TreeNode(2);
+root.right = new TreeNode(3);
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+class TreeNode {
+    int val;
+    TreeNode left;
+    TreeNode right;
+
+    TreeNode(int val) {
+        this.val = val;
+    }
+
+    TreeNode(int val, TreeNode left, TreeNode right) {
+        this.val = val;
+        this.left = left;
+        this.right = right;
+    }
+}
+
+// Create a tree
+TreeNode root = new TreeNode(1);
+root.left = new TreeNode(2);
+root.right = new TreeNode(3);
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+struct TreeNode {
+    int val;
+    TreeNode* left;
+    TreeNode* right;
+
+    TreeNode(int x) : val(x), left(nullptr), right(nullptr) {}
+    TreeNode(int x, TreeNode* l, TreeNode* r) : val(x), left(l), right(r) {}
+};
+
+// Create a tree
+TreeNode* root = new TreeNode(1);
+root->left = new TreeNode(2);
+root->right = new TreeNode(3);
+```
+  </TabItem>
+</Tabs>
+
+## Tree Traversals
+
+### Depth-First Traversals
+
+```
+        1
+       / \
+      2   3
+     / \
+    4   5
+
+Preorder  (Root, Left, Right): 1, 2, 4, 5, 3
+Inorder   (Left, Root, Right): 4, 2, 5, 1, 3
+Postorder (Left, Right, Root): 4, 5, 2, 3, 1
+```
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# Recursive traversals
+def preorder(root):
+    """Root → Left → Right"""
+    if not root:
+        return []
+    return [root.val] + preorder(root.left) + preorder(root.right)
+
+def inorder(root):
+    """Left → Root → Right"""
+    if not root:
+        return []
+    return inorder(root.left) + [root.val] + inorder(root.right)
+
+def postorder(root):
+    """Left → Right → Root"""
+    if not root:
+        return []
+    return postorder(root.left) + postorder(root.right) + [root.val]
+
+# Iterative preorder using stack
+def preorder_iterative(root):
+    if not root:
+        return []
+    result = []
+    stack = [root]
+
+    while stack:
+        node = stack.pop()
+        result.append(node.val)
+        # Push right first so left is processed first
+        if node.right:
+            stack.append(node.right)
+        if node.left:
+            stack.append(node.left)
+
+    return result
+
+# Iterative inorder using stack
+def inorder_iterative(root):
+    result = []
+    stack = []
+    current = root
+
+    while current or stack:
+        # Go to leftmost node
+        while current:
+            stack.append(current)
+            current = current.left
+        # Process node
+        current = stack.pop()
+        result.append(current.val)
+        # Move to right subtree
+        current = current.right
+
+    return result
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// Recursive traversals
+function preorder(root, result = []) {
+  if (!root) return result;
+  result.push(root.val);
+  preorder(root.left, result);
+  preorder(root.right, result);
+  return result;
+}
+
+function inorder(root, result = []) {
+  if (!root) return result;
+  inorder(root.left, result);
+  result.push(root.val);
+  inorder(root.right, result);
+  return result;
+}
+
+function postorder(root, result = []) {
+  if (!root) return result;
+  postorder(root.left, result);
+  postorder(root.right, result);
+  result.push(root.val);
+  return result;
+}
+
+// Iterative inorder
+function inorderIterative(root) {
+  const result = [];
+  const stack = [];
+  let current = root;
+
+  while (current || stack.length) {
+    while (current) {
+      stack.push(current);
+      current = current.left;
+    }
+    current = stack.pop();
+    result.push(current.val);
+    current = current.right;
+  }
+
+  return result;
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+import java.util.*;
+
+class TreeTraversals {
+    // Recursive inorder
+    public List<Integer> inorderTraversal(TreeNode root) {
+        List<Integer> result = new ArrayList<>();
+        inorderHelper(root, result);
+        return result;
+    }
+
+    private void inorderHelper(TreeNode node, List<Integer> result) {
+        if (node == null) return;
+        inorderHelper(node.left, result);
+        result.add(node.val);
+        inorderHelper(node.right, result);
+    }
+
+    // Iterative inorder
+    public List<Integer> inorderIterative(TreeNode root) {
+        List<Integer> result = new ArrayList<>();
+        Stack<TreeNode> stack = new Stack<>();
+        TreeNode current = root;
+
+        while (current != null || !stack.isEmpty()) {
+            while (current != null) {
+                stack.push(current);
+                current = current.left;
+            }
+            current = stack.pop();
+            result.add(current.val);
+            current = current.right;
+        }
+
+        return result;
+    }
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+#include <vector>
+#include <stack>
+using namespace std;
+
+class TreeTraversals {
+public:
+    // Recursive inorder
+    vector<int> inorderTraversal(TreeNode* root) {
+        vector<int> result;
+        inorderHelper(root, result);
+        return result;
+    }
+
+    void inorderHelper(TreeNode* node, vector<int>& result) {
+        if (!node) return;
+        inorderHelper(node->left, result);
+        result.push_back(node->val);
+        inorderHelper(node->right, result);
+    }
+
+    // Iterative inorder
+    vector<int> inorderIterative(TreeNode* root) {
+        vector<int> result;
+        stack<TreeNode*> stk;
+        TreeNode* current = root;
+
+        while (current || !stk.empty()) {
+            while (current) {
+                stk.push(current);
+                current = current->left;
+            }
+            current = stk.top();
+            stk.pop();
+            result.push_back(current->val);
+            current = current->right;
+        }
+
+        return result;
+    }
+};
+```
+  </TabItem>
+</Tabs>
+
+### Breadth-First (Level Order) Traversal
+
+```
+Level Order Traversal Visualization:
+
+        1         Level 0: [1]
+       / \
+      2   3       Level 1: [2, 3]
+     / \   \
+    4   5   6     Level 2: [4, 5, 6]
+
+Queue processing:
+Step 1: queue = [1] → process 1, add 2, 3
+Step 2: queue = [2, 3] → process 2, add 4, 5; process 3, add 6
+Step 3: queue = [4, 5, 6] → process all (leaves)
+
+Output: [[1], [2, 3], [4, 5, 6]]
+```
+
+<Tabs>
+  <TabItem label="Python">
+```python
+from collections import deque
+
+def level_order(root):
+    """
+    Return nodes grouped by level.
+    Time: O(n), Space: O(n)
+
+    Algorithm:
+    1. Use queue for BFS
+    2. Process all nodes at current level
+    3. Add their children to queue for next level
+    """
+    if not root:
+        return []
+
+    result = []
+    queue = deque([root])
+
+    while queue:
+        level_size = len(queue)
+        current_level = []
+
+        for _ in range(level_size):
+            node = queue.popleft()
+            current_level.append(node.val)
+
+            if node.left:
+                queue.append(node.left)
+            if node.right:
+                queue.append(node.right)
+
+        result.append(current_level)
+
+    return result
+
+# Example output: [[1], [2, 3], [4, 5, 6]]
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function levelOrder(root) {
+  /**
+   * Return nodes grouped by level.
+   * Time: O(n), Space: O(n)
+   */
+  if (!root) return [];
+
+  const result = [];
+  const queue = [root];
+
+  while (queue.length) {
+    const levelSize = queue.length;
+    const currentLevel = [];
+
+    for (let i = 0; i < levelSize; i++) {
+      const node = queue.shift();
+      currentLevel.push(node.val);
+
+      if (node.left) queue.push(node.left);
+      if (node.right) queue.push(node.right);
+    }
+
+    result.push(currentLevel);
+  }
+
+  return result;
+}
+
+// Example output: [[1], [2, 3], [4, 5, 6]]
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+public List<List<Integer>> levelOrder(TreeNode root) {
+    /**
+     * Return nodes grouped by level.
+     * Time: O(n), Space: O(n)
+     */
+    List<List<Integer>> result = new ArrayList<>();
+    if (root == null) return result;
+
+    Queue<TreeNode> queue = new LinkedList<>();
+    queue.offer(root);
+
+    while (!queue.isEmpty()) {
+        int levelSize = queue.size();
+        List<Integer> currentLevel = new ArrayList<>();
+
+        for (int i = 0; i < levelSize; i++) {
+            TreeNode node = queue.poll();
+            currentLevel.add(node.val);
+
+            if (node.left != null) queue.offer(node.left);
+            if (node.right != null) queue.offer(node.right);
+        }
+
+        result.add(currentLevel);
+    }
+
+    return result;
+}
+
+// Example output: [[1], [2, 3], [4, 5, 6]]
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+vector<vector<int>> levelOrder(TreeNode* root) {
+    /**
+     * Return nodes grouped by level.
+     * Time: O(n), Space: O(n)
+     */
+    vector<vector<int>> result;
+    if (!root) return result;
+
+    queue<TreeNode*> q;
+    q.push(root);
+
+    while (!q.empty()) {
+        int levelSize = q.size();
+        vector<int> currentLevel;
+
+        for (int i = 0; i < levelSize; i++) {
+            TreeNode* node = q.front();
+            q.pop();
+            currentLevel.push_back(node->val);
+
+            if (node->left) q.push(node->left);
+            if (node->right) q.push(node->right);
+        }
+
+        result.push_back(currentLevel);
+    }
+
+    return result;
+}
+
+// Example output: [[1], [2, 3], [4, 5, 6]]
+```
+  </TabItem>
+</Tabs>
+
+## Binary Search Tree (BST)
+
+A BST maintains the property: **left < root < right** for all nodes.
+
+```
+        8         ← All values in left subtree < 8
+       / \           All values in right subtree > 8
+      3   10
+     / \    \
+    1   6    14
+       / \   /
+      4   7 13
+```
+
+### BST Operations
+
+<Tabs>
+  <TabItem label="Python">
+```python
+class BST:
+    def __init__(self):
+        self.root = None
+
+    def insert(self, val):
+        """Insert value into BST. Time: O(h)"""
+        if not self.root:
+            self.root = TreeNode(val)
+            return
+
+        current = self.root
+        while True:
+            if val < current.val:
+                if not current.left:
+                    current.left = TreeNode(val)
+                    return
+                current = current.left
+            else:
+                if not current.right:
+                    current.right = TreeNode(val)
+                    return
+                current = current.right
+
+    def search(self, val):
+        """Search for value. Time: O(h)"""
+        current = self.root
+        while current:
+            if val == current.val:
+                return current
+            elif val < current.val:
+                current = current.left
+            else:
+                current = current.right
+        return None
+
+    def delete(self, val):
+        """Delete value from BST. Time: O(h)"""
+        def delete_node(node, val):
+            if not node:
+                return None
+
+            if val < node.val:
+                node.left = delete_node(node.left, val)
+            elif val > node.val:
+                node.right = delete_node(node.right, val)
+            else:
+                # Node found
+                if not node.left:
+                    return node.right
+                if not node.right:
+                    return node.left
+                # Two children: find inorder successor
+                successor = node.right
+                while successor.left:
+                    successor = successor.left
+                node.val = successor.val
+                node.right = delete_node(node.right, successor.val)
+
+            return node
+
+        self.root = delete_node(self.root, val)
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+class BST {
+  constructor() {
+    this.root = null;
+  }
+
+  insert(val) {
+    const newNode = new TreeNode(val);
+    if (!this.root) {
+      this.root = newNode;
+      return;
+    }
+
+    let current = this.root;
+    while (true) {
+      if (val < current.val) {
+        if (!current.left) {
+          current.left = newNode;
+          return;
+        }
+        current = current.left;
+      } else {
+        if (!current.right) {
+          current.right = newNode;
+          return;
+        }
+        current = current.right;
+      }
+    }
+  }
+
+  search(val) {
+    let current = this.root;
+    while (current) {
+      if (val === current.val) return current;
+      current = val < current.val ? current.left : current.right;
+    }
+    return null;
+  }
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+class BST {
+    TreeNode root;
+
+    public void insert(int val) {
+        root = insertRec(root, val);
+    }
+
+    private TreeNode insertRec(TreeNode node, int val) {
+        if (node == null) return new TreeNode(val);
+
+        if (val < node.val) {
+            node.left = insertRec(node.left, val);
+        } else {
+            node.right = insertRec(node.right, val);
+        }
+        return node;
+    }
+
+    public TreeNode search(int val) {
+        TreeNode current = root;
+        while (current != null) {
+            if (val == current.val) return current;
+            current = val < current.val ? current.left : current.right;
+        }
+        return null;
+    }
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+class BST {
+public:
+    TreeNode* root = nullptr;
+
+    void insert(int val) {
+        root = insertRec(root, val);
+    }
+
+    TreeNode* insertRec(TreeNode* node, int val) {
+        if (!node) return new TreeNode(val);
+
+        if (val < node->val) {
+            node->left = insertRec(node->left, val);
+        } else {
+            node->right = insertRec(node->right, val);
+        }
+        return node;
+    }
+
+    TreeNode* search(int val) {
+        TreeNode* current = root;
+        while (current) {
+            if (val == current->val) return current;
+            current = val < current->val ? current->left : current->right;
+        }
+        return nullptr;
+    }
+};
+```
+  </TabItem>
+</Tabs>
+
+## Time Complexity
+
+| Operation | Average | Worst (Skewed) |
+|-----------|---------|----------------|
+| Search | O(log n) | O(n) |
+| Insert | O(log n) | O(n) |
+| Delete | O(log n) | O(n) |
+| Traversal | O(n) | O(n) |
+
+*Worst case occurs when tree becomes a linked list (unbalanced)*
+
+## Common Patterns
+
+### 1. Maximum Depth
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def max_depth(root):
+    """
+    Find height of tree.
+    Time: O(n), Space: O(h)
+
+    Algorithm:
+    1. Base case: empty tree has depth 0
+    2. Recursively find depth of left and right subtrees
+    3. Return 1 + max of both depths
+    """
+    if not root:
+        return 0
+    return 1 + max(max_depth(root.left), max_depth(root.right))
+
+# Iterative BFS approach
+from collections import deque
+
+def max_depth_bfs(root):
+    if not root:
+        return 0
+
+    depth = 0
+    queue = deque([root])
+
+    while queue:
+        depth += 1
+        for _ in range(len(queue)):
+            node = queue.popleft()
+            if node.left:
+                queue.append(node.left)
+            if node.right:
+                queue.append(node.right)
+
+    return depth
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function maxDepth(root) {
+  /**
+   * Find height of tree.
+   * Time: O(n), Space: O(h)
+   */
+  if (!root) return 0;
+  return 1 + Math.max(maxDepth(root.left), maxDepth(root.right));
+}
+
+// Iterative BFS approach
+function maxDepthBFS(root) {
+  if (!root) return 0;
+
+  let depth = 0;
+  const queue = [root];
+
+  while (queue.length) {
+    depth++;
+    const levelSize = queue.length;
+
+    for (let i = 0; i < levelSize; i++) {
+      const node = queue.shift();
+      if (node.left) queue.push(node.left);
+      if (node.right) queue.push(node.right);
+    }
+  }
+
+  return depth;
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+public int maxDepth(TreeNode root) {
+    /**
+     * Find height of tree.
+     * Time: O(n), Space: O(h)
+     */
+    if (root == null) return 0;
+    return 1 + Math.max(maxDepth(root.left), maxDepth(root.right));
+}
+
+// Iterative BFS approach
+public int maxDepthBFS(TreeNode root) {
+    if (root == null) return 0;
+
+    int depth = 0;
+    Queue<TreeNode> queue = new LinkedList<>();
+    queue.offer(root);
+
+    while (!queue.isEmpty()) {
+        depth++;
+        int levelSize = queue.size();
+
+        for (int i = 0; i < levelSize; i++) {
+            TreeNode node = queue.poll();
+            if (node.left != null) queue.offer(node.left);
+            if (node.right != null) queue.offer(node.right);
+        }
+    }
+
+    return depth;
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+int maxDepth(TreeNode* root) {
+    /**
+     * Find height of tree.
+     * Time: O(n), Space: O(h)
+     */
+    if (!root) return 0;
+    return 1 + max(maxDepth(root->left), maxDepth(root->right));
+}
+
+// Iterative BFS approach
+int maxDepthBFS(TreeNode* root) {
+    if (!root) return 0;
+
+    int depth = 0;
+    queue<TreeNode*> q;
+    q.push(root);
+
+    while (!q.empty()) {
+        depth++;
+        int levelSize = q.size();
+
+        for (int i = 0; i < levelSize; i++) {
+            TreeNode* node = q.front();
+            q.pop();
+            if (node->left) q.push(node->left);
+            if (node->right) q.push(node->right);
+        }
+    }
+
+    return depth;
+}
+```
+  </TabItem>
+</Tabs>
+
+### 2. Validate BST
+
+```
+Validate BST using bounds:
+
+Valid BST - each node must be within (min, max) bounds
+
+        5 (−∞, +∞)
+       / \
+      3   7 must be in (5, +∞)
+     / \
+    2   4 must be in (3, 5)
+
+For node 3: valid if 3 > −∞ AND 3 < 5 ✓
+For node 4: valid if 4 > 3 AND 4 < 5 ✓
+```
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def is_valid_bst(root, min_val=float('-inf'), max_val=float('inf')):
+    """
+    Check if tree is valid BST.
+    Time: O(n), Space: O(h)
+
+    Algorithm:
+    1. Each node must be within valid range (min, max)
+    2. Left child: upper bound becomes parent value
+    3. Right child: lower bound becomes parent value
+    """
+    if not root:
+        return True
+
+    if root.val <= min_val or root.val >= max_val:
+        return False
+
+    return (is_valid_bst(root.left, min_val, root.val) and
+            is_valid_bst(root.right, root.val, max_val))
+
+# Alternative: Inorder traversal should be sorted
+def is_valid_bst_inorder(root):
+    prev = float('-inf')
+
+    def inorder(node):
+        nonlocal prev
+        if not node:
+            return True
+
+        if not inorder(node.left):
+            return False
+
+        if node.val <= prev:
+            return False
+        prev = node.val
+
+        return inorder(node.right)
+
+    return inorder(root)
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function isValidBST(root, min = -Infinity, max = Infinity) {
+  /**
+   * Check if tree is valid BST.
+   * Time: O(n), Space: O(h)
+   */
+  if (!root) return true;
+
+  if (root.val <= min || root.val >= max) {
+    return false;
+  }
+
+  return isValidBST(root.left, min, root.val) &&
+         isValidBST(root.right, root.val, max);
+}
+
+// Alternative: Inorder traversal
+function isValidBSTInorder(root) {
+  let prev = -Infinity;
+
+  function inorder(node) {
+    if (!node) return true;
+
+    if (!inorder(node.left)) return false;
+
+    if (node.val <= prev) return false;
+    prev = node.val;
+
+    return inorder(node.right);
+  }
+
+  return inorder(root);
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+public boolean isValidBST(TreeNode root) {
+    return validate(root, Long.MIN_VALUE, Long.MAX_VALUE);
+}
+
+private boolean validate(TreeNode node, long min, long max) {
+    /**
+     * Check if tree is valid BST.
+     * Time: O(n), Space: O(h)
+     */
+    if (node == null) return true;
+
+    if (node.val <= min || node.val >= max) {
+        return false;
+    }
+
+    return validate(node.left, min, node.val) &&
+           validate(node.right, node.val, max);
+}
+
+// Alternative: Inorder traversal
+private TreeNode prev = null;
+
+public boolean isValidBSTInorder(TreeNode root) {
+    prev = null;
+    return inorder(root);
+}
+
+private boolean inorder(TreeNode node) {
+    if (node == null) return true;
+
+    if (!inorder(node.left)) return false;
+
+    if (prev != null && node.val <= prev.val) return false;
+    prev = node;
+
+    return inorder(node.right);
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+bool isValidBST(TreeNode* root) {
+    return validate(root, LONG_MIN, LONG_MAX);
+}
+
+bool validate(TreeNode* node, long min, long max) {
+    /**
+     * Check if tree is valid BST.
+     * Time: O(n), Space: O(h)
+     */
+    if (!node) return true;
+
+    if (node->val <= min || node->val >= max) {
+        return false;
+    }
+
+    return validate(node->left, min, node->val) &&
+           validate(node->right, node->val, max);
+}
+
+// Alternative: Inorder traversal
+TreeNode* prev = nullptr;
+
+bool isValidBSTInorder(TreeNode* root) {
+    prev = nullptr;
+    return inorder(root);
+}
+
+bool inorder(TreeNode* node) {
+    if (!node) return true;
+
+    if (!inorder(node->left)) return false;
+
+    if (prev && node->val <= prev->val) return false;
+    prev = node;
+
+    return inorder(node->right);
+}
+```
+  </TabItem>
+</Tabs>
+
+### 3. Lowest Common Ancestor (BST)
+
+```
+LCA in BST:
+
+        6
+       / \
+      2   8
+     / \ / \
+    0  4 7  9
+      / \
+     3   5
+
+LCA(2, 8) = 6  (split point)
+LCA(2, 4) = 2  (one is ancestor)
+LCA(3, 5) = 4  (both in same subtree)
+
+Algorithm: Find where p and q split (go different directions)
+```
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def lowest_common_ancestor(root, p, q):
+    """
+    Find LCA in BST.
+    Time: O(h), Space: O(1)
+
+    Algorithm:
+    - If both p and q < current: LCA is in left subtree
+    - If both p and q > current: LCA is in right subtree
+    - Otherwise: current is LCA (split point)
+    """
+    current = root
+    while current:
+        if p.val < current.val and q.val < current.val:
+            current = current.left
+        elif p.val > current.val and q.val > current.val:
+            current = current.right
+        else:
+            return current
+    return None
+
+# For general binary tree (not BST)
+def lca_binary_tree(root, p, q):
+    if not root or root == p or root == q:
+        return root
+
+    left = lca_binary_tree(root.left, p, q)
+    right = lca_binary_tree(root.right, p, q)
+
+    if left and right:
+        return root
+    return left if left else right
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function lowestCommonAncestor(root, p, q) {
+  /**
+   * Find LCA in BST.
+   * Time: O(h), Space: O(1)
+   */
+  let current = root;
+
+  while (current) {
+    if (p.val < current.val && q.val < current.val) {
+      current = current.left;
+    } else if (p.val > current.val && q.val > current.val) {
+      current = current.right;
+    } else {
+      return current;
+    }
+  }
+
+  return null;
+}
+
+// For general binary tree (not BST)
+function lcaBinaryTree(root, p, q) {
+  if (!root || root === p || root === q) {
+    return root;
+  }
+
+  const left = lcaBinaryTree(root.left, p, q);
+  const right = lcaBinaryTree(root.right, p, q);
+
+  if (left && right) return root;
+  return left || right;
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+public TreeNode lowestCommonAncestor(TreeNode root, TreeNode p, TreeNode q) {
+    /**
+     * Find LCA in BST.
+     * Time: O(h), Space: O(1)
+     */
+    TreeNode current = root;
+
+    while (current != null) {
+        if (p.val < current.val && q.val < current.val) {
+            current = current.left;
+        } else if (p.val > current.val && q.val > current.val) {
+            current = current.right;
+        } else {
+            return current;
+        }
+    }
+
+    return null;
+}
+
+// For general binary tree (not BST)
+public TreeNode lcaBinaryTree(TreeNode root, TreeNode p, TreeNode q) {
+    if (root == null || root == p || root == q) {
+        return root;
+    }
+
+    TreeNode left = lcaBinaryTree(root.left, p, q);
+    TreeNode right = lcaBinaryTree(root.right, p, q);
+
+    if (left != null && right != null) return root;
+    return left != null ? left : right;
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+TreeNode* lowestCommonAncestor(TreeNode* root, TreeNode* p, TreeNode* q) {
+    /**
+     * Find LCA in BST.
+     * Time: O(h), Space: O(1)
+     */
+    TreeNode* current = root;
+
+    while (current) {
+        if (p->val < current->val && q->val < current->val) {
+            current = current->left;
+        } else if (p->val > current->val && q->val > current->val) {
+            current = current->right;
+        } else {
+            return current;
+        }
+    }
+
+    return nullptr;
+}
+
+// For general binary tree (not BST)
+TreeNode* lcaBinaryTree(TreeNode* root, TreeNode* p, TreeNode* q) {
+    if (!root || root == p || root == q) {
+        return root;
+    }
+
+    TreeNode* left = lcaBinaryTree(root->left, p, q);
+    TreeNode* right = lcaBinaryTree(root->right, p, q);
+
+    if (left && right) return root;
+    return left ? left : right;
+}
+```
+  </TabItem>
+</Tabs>
+
+### 4. Path Sum
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def has_path_sum(root, target_sum):
+    """
+    Check if root-to-leaf path equals target.
+    Time: O(n), Space: O(h)
+
+    Algorithm:
+    1. Base case: null node returns False
+    2. At leaf: check if remaining sum equals node value
+    3. Recurse: subtract current value and check children
+    """
+    if not root:
+        return False
+
+    # Check if leaf node
+    if not root.left and not root.right:
+        return root.val == target_sum
+
+    remaining = target_sum - root.val
+    return (has_path_sum(root.left, remaining) or
+            has_path_sum(root.right, remaining))
+
+# Find all paths that sum to target
+def path_sum_all(root, target_sum):
+    result = []
+
+    def dfs(node, remaining, path):
+        if not node:
+            return
+
+        path.append(node.val)
+
+        if not node.left and not node.right and remaining == node.val:
+            result.append(path[:])
+        else:
+            dfs(node.left, remaining - node.val, path)
+            dfs(node.right, remaining - node.val, path)
+
+        path.pop()  # Backtrack
+
+    dfs(root, target_sum, [])
+    return result
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function hasPathSum(root, targetSum) {
+  /**
+   * Check if root-to-leaf path equals target.
+   * Time: O(n), Space: O(h)
+   */
+  if (!root) return false;
+
+  // Check if leaf node
+  if (!root.left && !root.right) {
+    return root.val === targetSum;
+  }
+
+  const remaining = targetSum - root.val;
+  return hasPathSum(root.left, remaining) ||
+         hasPathSum(root.right, remaining);
+}
+
+// Find all paths that sum to target
+function pathSumAll(root, targetSum) {
+  const result = [];
+
+  function dfs(node, remaining, path) {
+    if (!node) return;
+
+    path.push(node.val);
+
+    if (!node.left && !node.right && remaining === node.val) {
+      result.push([...path]);
+    } else {
+      dfs(node.left, remaining - node.val, path);
+      dfs(node.right, remaining - node.val, path);
+    }
+
+    path.pop(); // Backtrack
+  }
+
+  dfs(root, targetSum, []);
+  return result;
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+public boolean hasPathSum(TreeNode root, int targetSum) {
+    /**
+     * Check if root-to-leaf path equals target.
+     * Time: O(n), Space: O(h)
+     */
+    if (root == null) return false;
+
+    // Check if leaf node
+    if (root.left == null && root.right == null) {
+        return root.val == targetSum;
+    }
+
+    int remaining = targetSum - root.val;
+    return hasPathSum(root.left, remaining) ||
+           hasPathSum(root.right, remaining);
+}
+
+// Find all paths that sum to target
+public List<List<Integer>> pathSumAll(TreeNode root, int targetSum) {
+    List<List<Integer>> result = new ArrayList<>();
+    dfs(root, targetSum, new ArrayList<>(), result);
+    return result;
+}
+
+private void dfs(TreeNode node, int remaining, List<Integer> path,
+                 List<List<Integer>> result) {
+    if (node == null) return;
+
+    path.add(node.val);
+
+    if (node.left == null && node.right == null && remaining == node.val) {
+        result.add(new ArrayList<>(path));
+    } else {
+        dfs(node.left, remaining - node.val, path, result);
+        dfs(node.right, remaining - node.val, path, result);
+    }
+
+    path.remove(path.size() - 1); // Backtrack
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+bool hasPathSum(TreeNode* root, int targetSum) {
+    /**
+     * Check if root-to-leaf path equals target.
+     * Time: O(n), Space: O(h)
+     */
+    if (!root) return false;
+
+    // Check if leaf node
+    if (!root->left && !root->right) {
+        return root->val == targetSum;
+    }
+
+    int remaining = targetSum - root->val;
+    return hasPathSum(root->left, remaining) ||
+           hasPathSum(root->right, remaining);
+}
+
+// Find all paths that sum to target
+vector<vector<int>> pathSumAll(TreeNode* root, int targetSum) {
+    vector<vector<int>> result;
+    vector<int> path;
+    dfs(root, targetSum, path, result);
+    return result;
+}
+
+void dfs(TreeNode* node, int remaining, vector<int>& path,
+         vector<vector<int>>& result) {
+    if (!node) return;
+
+    path.push_back(node->val);
+
+    if (!node->left && !node->right && remaining == node->val) {
+        result.push_back(path);
+    } else {
+        dfs(node->left, remaining - node->val, path, result);
+        dfs(node->right, remaining - node->val, path, result);
+    }
+
+    path.pop_back(); // Backtrack
+}
+```
+  </TabItem>
+</Tabs>
+
+### 5. Invert Binary Tree
+
+```
+Invert (Mirror) Binary Tree:
+
+Original:           Inverted:
+      4                  4
+     / \                / \
+    2   7      →       7   2
+   / \ / \            / \ / \
+  1  3 6  9          9  6 3  1
+
+Algorithm: Swap left and right children at each node
+```
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def invert_tree(root):
+    """
+    Mirror the tree.
+    Time: O(n), Space: O(h)
+
+    Algorithm:
+    1. Base case: null returns null
+    2. Swap left and right children
+    3. Recursively invert both subtrees
+    """
+    if not root:
+        return None
+
+    root.left, root.right = root.right, root.left
+    invert_tree(root.left)
+    invert_tree(root.right)
+
+    return root
+
+# Iterative using BFS
+from collections import deque
+
+def invert_tree_bfs(root):
+    if not root:
+        return None
+
+    queue = deque([root])
+
+    while queue:
+        node = queue.popleft()
+        node.left, node.right = node.right, node.left
+
+        if node.left:
+            queue.append(node.left)
+        if node.right:
+            queue.append(node.right)
+
+    return root
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function invertTree(root) {
+  /**
+   * Mirror the tree.
+   * Time: O(n), Space: O(h)
+   */
+  if (!root) return null;
+
+  [root.left, root.right] = [root.right, root.left];
+  invertTree(root.left);
+  invertTree(root.right);
+
+  return root;
+}
+
+// Iterative using BFS
+function invertTreeBFS(root) {
+  if (!root) return null;
+
+  const queue = [root];
+
+  while (queue.length) {
+    const node = queue.shift();
+    [node.left, node.right] = [node.right, node.left];
+
+    if (node.left) queue.push(node.left);
+    if (node.right) queue.push(node.right);
+  }
+
+  return root;
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+public TreeNode invertTree(TreeNode root) {
+    /**
+     * Mirror the tree.
+     * Time: O(n), Space: O(h)
+     */
+    if (root == null) return null;
+
+    TreeNode temp = root.left;
+    root.left = root.right;
+    root.right = temp;
+
+    invertTree(root.left);
+    invertTree(root.right);
+
+    return root;
+}
+
+// Iterative using BFS
+public TreeNode invertTreeBFS(TreeNode root) {
+    if (root == null) return null;
+
+    Queue<TreeNode> queue = new LinkedList<>();
+    queue.offer(root);
+
+    while (!queue.isEmpty()) {
+        TreeNode node = queue.poll();
+
+        TreeNode temp = node.left;
+        node.left = node.right;
+        node.right = temp;
+
+        if (node.left != null) queue.offer(node.left);
+        if (node.right != null) queue.offer(node.right);
+    }
+
+    return root;
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+TreeNode* invertTree(TreeNode* root) {
+    /**
+     * Mirror the tree.
+     * Time: O(n), Space: O(h)
+     */
+    if (!root) return nullptr;
+
+    swap(root->left, root->right);
+    invertTree(root->left);
+    invertTree(root->right);
+
+    return root;
+}
+
+// Iterative using BFS
+TreeNode* invertTreeBFS(TreeNode* root) {
+    if (!root) return nullptr;
+
+    queue<TreeNode*> q;
+    q.push(root);
+
+    while (!q.empty()) {
+        TreeNode* node = q.front();
+        q.pop();
+
+        swap(node->left, node->right);
+
+        if (node->left) q.push(node->left);
+        if (node->right) q.push(node->right);
+    }
+
+    return root;
+}
+```
+  </TabItem>
+</Tabs>
+
+### 6. Serialize and Deserialize
+
+<Tabs>
+  <TabItem label="Python">
+```python
+class Codec:
+    """
+    Encode tree to string and decode back.
+    Time: O(n) for both operations
+    Space: O(n)
+    """
+    def serialize(self, root):
+        """Encode tree to string using preorder"""
+        if not root:
+            return "null,"
+        return (str(root.val) + "," +
+                self.serialize(root.left) +
+                self.serialize(root.right))
+
+    def deserialize(self, data):
+        """Decode string to tree"""
+        def build():
+            val = next(values)
+            if val == "null":
+                return None
+            node = TreeNode(int(val))
+            node.left = build()
+            node.right = build()
+            return node
+
+        values = iter(data.split(","))
+        return build()
+
+# Example:
+#       1
+#      / \
+#     2   3
+#        / \
+#       4   5
+# Serialized: "1,2,null,null,3,4,null,null,5,null,null,"
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+class Codec {
+  /**
+   * Encode tree to string and decode back.
+   * Time: O(n) for both operations
+   */
+  serialize(root) {
+    if (!root) return "null,";
+    return root.val + "," +
+           this.serialize(root.left) +
+           this.serialize(root.right);
+  }
+
+  deserialize(data) {
+    const values = data.split(",").filter(s => s);
+    let index = 0;
+
+    function build() {
+      if (index >= values.length) return null;
+
+      const val = values[index++];
+      if (val === "null") return null;
+
+      const node = new TreeNode(parseInt(val));
+      node.left = build();
+      node.right = build();
+      return node;
+    }
+
+    return build();
+  }
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+public class Codec {
+    /**
+     * Encode tree to string and decode back.
+     * Time: O(n) for both operations
+     */
+    public String serialize(TreeNode root) {
+        StringBuilder sb = new StringBuilder();
+        serializeHelper(root, sb);
+        return sb.toString();
+    }
+
+    private void serializeHelper(TreeNode node, StringBuilder sb) {
+        if (node == null) {
+            sb.append("null,");
+            return;
+        }
+        sb.append(node.val).append(",");
+        serializeHelper(node.left, sb);
+        serializeHelper(node.right, sb);
+    }
+
+    public TreeNode deserialize(String data) {
+        Queue<String> values = new LinkedList<>(
+            Arrays.asList(data.split(","))
+        );
+        return buildTree(values);
+    }
+
+    private TreeNode buildTree(Queue<String> values) {
+        String val = values.poll();
+        if (val.equals("null")) return null;
+
+        TreeNode node = new TreeNode(Integer.parseInt(val));
+        node.left = buildTree(values);
+        node.right = buildTree(values);
+        return node;
+    }
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+class Codec {
+public:
+    /**
+     * Encode tree to string and decode back.
+     * Time: O(n) for both operations
+     */
+    string serialize(TreeNode* root) {
+        if (!root) return "null,";
+        return to_string(root->val) + "," +
+               serialize(root->left) +
+               serialize(root->right);
+    }
+
+    TreeNode* deserialize(string data) {
+        queue<string> values;
+        stringstream ss(data);
+        string token;
+        while (getline(ss, token, ',')) {
+            if (!token.empty()) values.push(token);
+        }
+        return buildTree(values);
+    }
+
+private:
+    TreeNode* buildTree(queue<string>& values) {
+        if (values.empty()) return nullptr;
+
+        string val = values.front();
+        values.pop();
+
+        if (val == "null") return nullptr;
+
+        TreeNode* node = new TreeNode(stoi(val));
+        node->left = buildTree(values);
+        node->right = buildTree(values);
+        return node;
+    }
+};
+```
+  </TabItem>
+</Tabs>
+
+## Tree Types
+
+| Type | Description |
+|------|-------------|
+| Binary Tree | At most 2 children per node |
+| BST | Left < Root < Right |
+| Balanced BST | Height = O(log n): AVL, Red-Black |
+| Complete Binary | All levels filled except possibly last |
+| Perfect Binary | All leaves at same level, all nodes have 2 children |
+| Full Binary | Every node has 0 or 2 children |
+
+## Practice Problems
+
+### Easy
+| Problem | Pattern | Companies |
+|---------|---------|-----------|
+| Maximum Depth | DFS | Amazon, Google |
+| Invert Binary Tree | Recursion | Google, Amazon |
+| Same Tree | Recursion | Amazon, Microsoft |
+| Symmetric Tree | Recursion | Amazon, Microsoft |
+
+### Medium
+| Problem | Pattern | Companies |
+|---------|---------|-----------|
+| Validate BST | Inorder/Bounds | Amazon, Meta |
+| Level Order Traversal | BFS | Amazon, Google |
+| Construct BST from Preorder | Recursion | Amazon, Google |
+| Lowest Common Ancestor | Recursion | Meta, Amazon |
+| Binary Tree Right Side View | BFS | Meta, Amazon |
+
+### Hard
+| Problem | Pattern | Companies |
+|---------|---------|-----------|
+| Serialize and Deserialize | Preorder | Meta, Google |
+| Binary Tree Maximum Path Sum | DFS | Meta, Google |
+| Recover Binary Search Tree | Inorder | Amazon, Microsoft |
+
+## Key Takeaways
+
+1. **Traversal order matters** - Inorder on BST gives sorted order
+2. **Recursion is natural** - Trees are recursive structures
+3. **BST property** - Enables O(log n) search on balanced trees
+4. **Balance matters** - Unbalanced trees degrade to O(n)
+5. **BFS vs DFS** - BFS for levels, DFS for paths
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="Heaps"
+    href="/dsa/heaps/"
+    description="Learn about priority queues and heap operations"
+  />
+  <LinkCard
+    title="Graphs"
+    href="/dsa/graphs/"
+    description="Extend tree concepts to general graph structures"
+  />
+</CardGrid>

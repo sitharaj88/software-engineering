@@ -1,0 +1,232 @@
+---
+title: System Design
+description: Learn how to design scalable, reliable distributed systems
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+System design is the process of defining the architecture, components, modules, interfaces, and data flow of a system to satisfy specified requirements. It bridges the gap between problem definition and implementation, requiring you to think about **scalability**, **reliability**, **availability**, and **maintainability** from day one.
+
+Whether you are preparing for a senior engineering interview or architecting a production system that serves millions of users, mastering system design is non-negotiable.
+
+## Why System Design Matters
+
+### For Interviews
+- **Senior and staff-level roles** at every major tech company include a dedicated system design round
+- Interviewers evaluate your ability to handle **ambiguity**, make **trade-offs**, and communicate technical decisions clearly
+- Unlike coding interviews, there is no single correct answer — the quality of your reasoning matters more than the final design
+
+### For Real-World Engineering
+- Poor system design leads to **outages**, **data loss**, and **wasted engineering effort**
+- Well-designed systems can **scale gracefully** from 100 to 100 million users
+- Understanding distributed systems concepts helps you make better decisions about technology choices, infrastructure, and team boundaries
+
+---
+
+## Topics Covered
+
+<CardGrid>
+  <Card title="Fundamentals" icon="open-book">
+    Client-server model, networking basics, HTTP/HTTPS, DNS, TCP/UDP, API design patterns (REST, GraphQL, gRPC), and core trade-offs like latency vs throughput and the CAP theorem.
+
+    [Explore Fundamentals →](/system-design/fundamentals/)
+  </Card>
+  <Card title="Databases" icon="list-format">
+    SQL vs NoSQL, ACID properties, sharding, replication, indexing strategies, normalization and denormalization, and a practical database selection guide.
+
+    [Explore Databases →](/system-design/databases/)
+  </Card>
+  <Card title="Scalability" icon="rocket">
+    Horizontal and vertical scaling, load balancing algorithms, caching strategies (CDN, application, database), message queues, and rate limiting patterns.
+
+    [Explore Scalability →](/system-design/scalability/)
+  </Card>
+  <Card title="Case Studies" icon="puzzle">
+    Full design walkthroughs for real-world systems: URL Shortener, Chat System, and News Feed — each with requirements, architecture diagrams, and scaling considerations.
+
+    [Explore Case Studies →](/system-design/case-studies/)
+  </Card>
+  <Card title="Caching & CDNs" icon="star">
+    Cache invalidation strategies, write-through vs write-back, cache eviction policies (LRU, LFU, FIFO), and CDN architecture for global content delivery.
+
+    [Covered in Scalability →](/system-design/scalability/)
+  </Card>
+  <Card title="Microservices" icon="setting">
+    Service decomposition, inter-service communication, service discovery, API gateways, circuit breakers, and distributed tracing in microservice architectures.
+
+    [Covered in Scalability →](/system-design/scalability/)
+  </Card>
+</CardGrid>
+
+---
+
+## System Design Interview Framework
+
+Use this step-by-step framework to structure any system design interview. Spending the right amount of time in each phase is critical.
+
+### Step 1: Requirements Clarification (3-5 minutes)
+
+Never jump into designing before understanding the problem. Ask clarifying questions:
+
+- **Functional requirements**: What should the system do? What are the core features?
+- **Non-functional requirements**: What are the scale, latency, availability, and consistency expectations?
+- **Constraints**: Are there budget, technology, or regulatory constraints?
+- **Scope**: Which features are in scope for this discussion?
+
+```
+Example questions for "Design a URL Shortener":
+- How many URLs per day? (Write volume)
+- How many redirects per day? (Read volume)
+- How long should shortened URLs be valid?
+- Should users be able to customize short URLs?
+- Do we need analytics (click tracking)?
+```
+
+### Step 2: Back-of-the-Envelope Estimation (3-5 minutes)
+
+Quantify the scale to guide design decisions:
+
+- **Traffic estimates**: Requests per second (read and write)
+- **Storage estimates**: How much data per record, total data over time
+- **Bandwidth estimates**: Incoming and outgoing data per second
+- **Memory estimates**: If caching, how much data fits in memory
+
+```
+Example estimation:
+- 100M new URLs/month → ~40 URLs/sec (write)
+- Read:Write ratio = 100:1 → 4,000 reads/sec
+- Each URL record ~500 bytes → 50 GB/month → 600 GB/year
+- Cache top 20% → ~120 GB memory needed
+```
+
+### Step 3: High-Level Design (5-10 minutes)
+
+Sketch the major components and how they interact:
+
+- Draw the **client**, **load balancer**, **application servers**, **database**, and **cache**
+- Identify the **APIs** (endpoints, request/response formats)
+- Show the **data flow** for core use cases
+- Keep it simple — details come later
+
+### Step 4: Detailed Design (10-15 minutes)
+
+Dive deep into the most critical components:
+
+- **Database schema** and choice of database
+- **Algorithm design** for core logic
+- **Caching strategy** and cache invalidation
+- **Data partitioning** and replication strategy
+- Address the interviewer's areas of interest
+
+### Step 5: Scaling and Bottlenecks (5-10 minutes)
+
+Identify and address potential issues:
+
+- **Single points of failure**: What happens if a component goes down?
+- **Bottlenecks**: Where will the system hit limits first?
+- **Scaling strategies**: How to handle 10x or 100x growth?
+- **Monitoring and alerting**: How do you know when something is wrong?
+
+---
+
+## Quick Reference: Key Concepts
+
+| Concept | Description | Why It Matters |
+|---------|-------------|----------------|
+| **Horizontal Scaling** | Adding more machines to distribute load | Enables near-linear capacity growth |
+| **Vertical Scaling** | Adding more resources (CPU, RAM) to a single machine | Simpler but has hard upper limits |
+| **Load Balancing** | Distributing requests across multiple servers | Prevents overloading any single server |
+| **Caching** | Storing frequently accessed data in fast storage | Reduces latency and database load by 10-100x |
+| **CDN** | Content Delivery Network for static assets | Serves content from geographically close servers |
+| **Database Sharding** | Splitting data across multiple database instances | Enables horizontal database scaling |
+| **Replication** | Maintaining copies of data across nodes | Increases availability and read throughput |
+| **CAP Theorem** | Consistency, Availability, Partition tolerance — pick two | Guides database and architecture decisions |
+| **Consistent Hashing** | Hash ring for distributing data across nodes | Minimizes data movement when nodes change |
+| **Message Queue** | Asynchronous communication between services | Decouples components and handles traffic spikes |
+| **Rate Limiting** | Throttling request frequency per client | Prevents abuse and ensures fair resource usage |
+| **Circuit Breaker** | Stops cascading failures between services | Improves resilience in distributed systems |
+| **API Gateway** | Single entry point for all client requests | Handles auth, routing, rate limiting, and logging |
+| **Idempotency** | Same request produces same result if repeated | Critical for retry logic and exactly-once semantics |
+| **Eventual Consistency** | Data will converge to consistent state over time | Enables higher availability at the cost of staleness |
+
+---
+
+## Numbers Every Engineer Should Know
+
+These latency and throughput numbers help you make informed estimation decisions during system design.
+
+| Operation | Latency |
+|-----------|---------|
+| L1 cache reference | 0.5 ns |
+| L2 cache reference | 7 ns |
+| Main memory reference | 100 ns |
+| SSD random read | 150 us |
+| HDD sequential read (1 MB) | 20 ms |
+| Send packet CA → Netherlands → CA | 150 ms |
+| Read 1 MB sequentially from memory | 250 us |
+| Read 1 MB sequentially from SSD | 1 ms |
+| Read 1 MB sequentially from HDD | 20 ms |
+
+| Scale | Requests/sec | Notes |
+|-------|-------------|-------|
+| Single web server | 1,000-10,000 | Depends on complexity |
+| Single database | 5,000-10,000 | Read-heavy workloads |
+| Redis/Memcached | 100,000+ | In-memory operations |
+| Kafka (single broker) | 100,000+ | Append-only log |
+
+---
+
+## Recommended Learning Path
+
+<CardGrid stagger>
+  <Card title="Week 1-2: Fundamentals" icon="open-book">
+    Start with networking basics, the client-server model, and API design. Understand the core trade-offs that underpin every design decision.
+
+    [Begin with Fundamentals →](/system-design/fundamentals/)
+  </Card>
+  <Card title="Week 3-4: Storage & Data" icon="list-format">
+    Deep dive into database selection, schema design, indexing, sharding, and replication. These concepts appear in every system design problem.
+
+    [Study Databases →](/system-design/databases/)
+  </Card>
+  <Card title="Week 5-6: Scaling Patterns" icon="rocket">
+    Learn load balancing, caching, message queues, and other patterns that enable systems to handle millions of users.
+
+    [Learn Scalability →](/system-design/scalability/)
+  </Card>
+  <Card title="Week 7-8: Practice" icon="puzzle">
+    Apply everything by working through complete case studies. Practice the interview framework with real problems.
+
+    [Practice Case Studies →](/system-design/case-studies/)
+  </Card>
+</CardGrid>
+
+---
+
+## Common Mistakes in System Design Interviews
+
+1. **Jumping into the solution** without clarifying requirements
+2. **Over-engineering** the design for unrealistic scale
+3. **Ignoring trade-offs** — every decision has a cost
+4. **Not considering failure modes** — what happens when things break?
+5. **Talking without drawing** — always use a diagram
+6. **Focusing only on happy paths** — discuss edge cases and error handling
+7. **Not estimating** — numbers drive design decisions
+8. **Designing in isolation** — consider operational concerns (deployment, monitoring, alerting)
+
+---
+
+## Ready to Begin?
+
+<CardGrid>
+  <LinkCard
+    title="System Design Fundamentals"
+    href="/system-design/fundamentals/"
+    description="Start with networking basics, API design, and core distributed systems concepts"
+  />
+  <LinkCard
+    title="Jump to Case Studies"
+    href="/system-design/case-studies/"
+    description="Practice with complete design walkthroughs for URL Shortener, Chat, and News Feed"
+  />
+</CardGrid>

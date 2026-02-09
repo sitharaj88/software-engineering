@@ -1,0 +1,577 @@
+---
+title: Two Pointers Technique
+description: Master the two pointers pattern for solving array and string problems efficiently
+difficulty: beginner
+prerequisites: ["Arrays", "Big O Notation"]
+timeToRead: "25 min"
+topics: ["arrays", "two-pointers", "techniques"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+The **Two Pointers** technique uses two pointers to traverse a data structure, often moving towards each other or in the same direction. It's a powerful pattern that can reduce O(n²) solutions to O(n).
+
+## When to Use Two Pointers
+
+- **Sorted arrays** - Find pairs, triplets, or subarrays
+- **Palindrome problems** - Check from both ends
+- **Partitioning** - Separate elements by condition
+- **Merging** - Combine sorted arrays
+- **Removing duplicates** - In-place modifications
+
+## Pattern 1: Opposite Direction
+
+Two pointers start at opposite ends and move towards each other.
+
+```
+Array:  [1, 2, 3, 4, 5, 6, 7]
+         ↑                 ↑
+       left             right
+```
+
+### Example: Two Sum (Sorted Array)
+
+Given a sorted array, find two numbers that sum to a target.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def two_sum_sorted(nums: list[int], target: int) -> list[int]:
+    """
+    Find indices of two numbers that sum to target.
+    Time: O(n), Space: O(1)
+    """
+    left, right = 0, len(nums) - 1
+
+    while left < right:
+        current_sum = nums[left] + nums[right]
+
+        if current_sum == target:
+            return [left, right]
+        elif current_sum < target:
+            left += 1   # Need larger sum
+        else:
+            right -= 1  # Need smaller sum
+
+    return []  # No solution found
+
+# Example
+nums = [1, 2, 3, 4, 6]
+print(two_sum_sorted(nums, 6))  # [1, 3] -> 2 + 4 = 6
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function twoSumSorted(nums, target) {
+    /**
+     * Find indices of two numbers that sum to target.
+     * Time: O(n), Space: O(1)
+     */
+    let left = 0;
+    let right = nums.length - 1;
+
+    while (left < right) {
+        const currentSum = nums[left] + nums[right];
+
+        if (currentSum === target) {
+            return [left, right];
+        } else if (currentSum < target) {
+            left++;   // Need larger sum
+        } else {
+            right--;  // Need smaller sum
+        }
+    }
+
+    return [];  // No solution found
+}
+
+// Example
+const nums = [1, 2, 3, 4, 6];
+console.log(twoSumSorted(nums, 6));  // [1, 3] -> 2 + 4 = 6
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+public class TwoPointers {
+    /**
+     * Find indices of two numbers that sum to target.
+     * Time: O(n), Space: O(1)
+     */
+    public static int[] twoSumSorted(int[] nums, int target) {
+        int left = 0;
+        int right = nums.length - 1;
+
+        while (left < right) {
+            int currentSum = nums[left] + nums[right];
+
+            if (currentSum == target) {
+                return new int[]{left, right};
+            } else if (currentSum < target) {
+                left++;   // Need larger sum
+            } else {
+                right--;  // Need smaller sum
+            }
+        }
+
+        return new int[]{};  // No solution found
+    }
+
+    public static void main(String[] args) {
+        int[] nums = {1, 2, 3, 4, 6};
+        int[] result = twoSumSorted(nums, 6);
+        System.out.println(Arrays.toString(result));  // [1, 3]
+    }
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+#include <vector>
+using namespace std;
+
+/**
+ * Find indices of two numbers that sum to target.
+ * Time: O(n), Space: O(1)
+ */
+vector<int> twoSumSorted(vector<int>& nums, int target) {
+    int left = 0;
+    int right = nums.size() - 1;
+
+    while (left < right) {
+        int currentSum = nums[left] + nums[right];
+
+        if (currentSum == target) {
+            return {left, right};
+        } else if (currentSum < target) {
+            left++;   // Need larger sum
+        } else {
+            right--;  // Need smaller sum
+        }
+    }
+
+    return {};  // No solution found
+}
+
+// Example: nums = {1, 2, 3, 4, 6}, target = 6
+// Output: {1, 3} -> 2 + 4 = 6
+```
+  </TabItem>
+</Tabs>
+
+### Example: Valid Palindrome
+
+Check if a string is a palindrome (ignoring non-alphanumeric characters).
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def is_palindrome(s: str) -> bool:
+    """
+    Check if string is palindrome.
+    Time: O(n), Space: O(1)
+    """
+    left, right = 0, len(s) - 1
+
+    while left < right:
+        # Skip non-alphanumeric characters
+        while left < right and not s[left].isalnum():
+            left += 1
+        while left < right and not s[right].isalnum():
+            right -= 1
+
+        # Compare characters (case-insensitive)
+        if s[left].lower() != s[right].lower():
+            return False
+
+        left += 1
+        right -= 1
+
+    return True
+
+# Examples
+print(is_palindrome("A man, a plan, a canal: Panama"))  # True
+print(is_palindrome("race a car"))  # False
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function isPalindrome(s) {
+    /**
+     * Check if string is palindrome.
+     * Time: O(n), Space: O(1)
+     */
+    let left = 0;
+    let right = s.length - 1;
+
+    while (left < right) {
+        // Skip non-alphanumeric characters
+        while (left < right && !isAlphaNumeric(s[left])) {
+            left++;
+        }
+        while (left < right && !isAlphaNumeric(s[right])) {
+            right--;
+        }
+
+        // Compare characters (case-insensitive)
+        if (s[left].toLowerCase() !== s[right].toLowerCase()) {
+            return false;
+        }
+
+        left++;
+        right--;
+    }
+
+    return true;
+}
+
+function isAlphaNumeric(char) {
+    return /[a-zA-Z0-9]/.test(char);
+}
+
+// Examples
+console.log(isPalindrome("A man, a plan, a canal: Panama"));  // true
+console.log(isPalindrome("race a car"));  // false
+```
+  </TabItem>
+</Tabs>
+
+### Example: Container With Most Water
+
+Find two lines that form a container holding the most water.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def max_area(height: list[int]) -> int:
+    """
+    Find max water container area.
+    Time: O(n), Space: O(1)
+    """
+    left, right = 0, len(height) - 1
+    max_water = 0
+
+    while left < right:
+        # Calculate current area
+        width = right - left
+        h = min(height[left], height[right])
+        current_area = width * h
+        max_water = max(max_water, current_area)
+
+        # Move the shorter line inward
+        if height[left] < height[right]:
+            left += 1
+        else:
+            right -= 1
+
+    return max_water
+
+# Example
+heights = [1, 8, 6, 2, 5, 4, 8, 3, 7]
+print(max_area(heights))  # 49
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function maxArea(height) {
+    /**
+     * Find max water container area.
+     * Time: O(n), Space: O(1)
+     */
+    let left = 0;
+    let right = height.length - 1;
+    let maxWater = 0;
+
+    while (left < right) {
+        // Calculate current area
+        const width = right - left;
+        const h = Math.min(height[left], height[right]);
+        const currentArea = width * h;
+        maxWater = Math.max(maxWater, currentArea);
+
+        // Move the shorter line inward
+        if (height[left] < height[right]) {
+            left++;
+        } else {
+            right--;
+        }
+    }
+
+    return maxWater;
+}
+
+// Example
+const heights = [1, 8, 6, 2, 5, 4, 8, 3, 7];
+console.log(maxArea(heights));  // 49
+```
+  </TabItem>
+</Tabs>
+
+## Pattern 2: Same Direction (Fast & Slow)
+
+Both pointers move in the same direction, often at different speeds.
+
+```
+Array:  [1, 1, 2, 2, 3, 4, 4]
+         ↑  ↑
+       slow fast
+```
+
+### Example: Remove Duplicates (In-Place)
+
+Remove duplicates from a sorted array in-place.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def remove_duplicates(nums: list[int]) -> int:
+    """
+    Remove duplicates in-place, return new length.
+    Time: O(n), Space: O(1)
+    """
+    if not nums:
+        return 0
+
+    slow = 0  # Points to last unique element
+
+    for fast in range(1, len(nums)):
+        if nums[fast] != nums[slow]:
+            slow += 1
+            nums[slow] = nums[fast]
+
+    return slow + 1
+
+# Example
+nums = [1, 1, 2, 2, 3, 4, 4]
+length = remove_duplicates(nums)
+print(nums[:length])  # [1, 2, 3, 4]
+print(length)         # 4
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function removeDuplicates(nums) {
+    /**
+     * Remove duplicates in-place, return new length.
+     * Time: O(n), Space: O(1)
+     */
+    if (nums.length === 0) return 0;
+
+    let slow = 0;  // Points to last unique element
+
+    for (let fast = 1; fast < nums.length; fast++) {
+        if (nums[fast] !== nums[slow]) {
+            slow++;
+            nums[slow] = nums[fast];
+        }
+    }
+
+    return slow + 1;
+}
+
+// Example
+const nums = [1, 1, 2, 2, 3, 4, 4];
+const length = removeDuplicates(nums);
+console.log(nums.slice(0, length));  // [1, 2, 3, 4]
+console.log(length);                  // 4
+```
+  </TabItem>
+</Tabs>
+
+### Example: Move Zeroes
+
+Move all zeroes to the end while maintaining order of other elements.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def move_zeroes(nums: list[int]) -> None:
+    """
+    Move zeroes to end in-place.
+    Time: O(n), Space: O(1)
+    """
+    slow = 0  # Position for next non-zero element
+
+    # Move all non-zero elements to the front
+    for fast in range(len(nums)):
+        if nums[fast] != 0:
+            nums[slow], nums[fast] = nums[fast], nums[slow]
+            slow += 1
+
+# Example
+nums = [0, 1, 0, 3, 12]
+move_zeroes(nums)
+print(nums)  # [1, 3, 12, 0, 0]
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function moveZeroes(nums) {
+    /**
+     * Move zeroes to end in-place.
+     * Time: O(n), Space: O(1)
+     */
+    let slow = 0;  // Position for next non-zero element
+
+    // Move all non-zero elements to the front
+    for (let fast = 0; fast < nums.length; fast++) {
+        if (nums[fast] !== 0) {
+            [nums[slow], nums[fast]] = [nums[fast], nums[slow]];
+            slow++;
+        }
+    }
+}
+
+// Example
+const nums = [0, 1, 0, 3, 12];
+moveZeroes(nums);
+console.log(nums);  // [1, 3, 12, 0, 0]
+```
+  </TabItem>
+</Tabs>
+
+## Pattern 3: Three Pointers (3Sum)
+
+Extension of two pointers for finding triplets.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def three_sum(nums: list[int]) -> list[list[int]]:
+    """
+    Find all unique triplets that sum to zero.
+    Time: O(n²), Space: O(1) excluding output
+    """
+    nums.sort()
+    result = []
+
+    for i in range(len(nums) - 2):
+        # Skip duplicates for first element
+        if i > 0 and nums[i] == nums[i - 1]:
+            continue
+
+        left, right = i + 1, len(nums) - 1
+
+        while left < right:
+            total = nums[i] + nums[left] + nums[right]
+
+            if total == 0:
+                result.append([nums[i], nums[left], nums[right]])
+
+                # Skip duplicates
+                while left < right and nums[left] == nums[left + 1]:
+                    left += 1
+                while left < right and nums[right] == nums[right - 1]:
+                    right -= 1
+
+                left += 1
+                right -= 1
+            elif total < 0:
+                left += 1
+            else:
+                right -= 1
+
+    return result
+
+# Example
+nums = [-1, 0, 1, 2, -1, -4]
+print(three_sum(nums))  # [[-1, -1, 2], [-1, 0, 1]]
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function threeSum(nums) {
+    /**
+     * Find all unique triplets that sum to zero.
+     * Time: O(n²), Space: O(1) excluding output
+     */
+    nums.sort((a, b) => a - b);
+    const result = [];
+
+    for (let i = 0; i < nums.length - 2; i++) {
+        // Skip duplicates for first element
+        if (i > 0 && nums[i] === nums[i - 1]) continue;
+
+        let left = i + 1;
+        let right = nums.length - 1;
+
+        while (left < right) {
+            const total = nums[i] + nums[left] + nums[right];
+
+            if (total === 0) {
+                result.push([nums[i], nums[left], nums[right]]);
+
+                // Skip duplicates
+                while (left < right && nums[left] === nums[left + 1]) left++;
+                while (left < right && nums[right] === nums[right - 1]) right--;
+
+                left++;
+                right--;
+            } else if (total < 0) {
+                left++;
+            } else {
+                right--;
+            }
+        }
+    }
+
+    return result;
+}
+
+// Example
+const nums = [-1, 0, 1, 2, -1, -4];
+console.log(threeSum(nums));  // [[-1, -1, 2], [-1, 0, 1]]
+```
+  </TabItem>
+</Tabs>
+
+## Complexity Analysis
+
+| Problem | Brute Force | Two Pointers |
+|---------|-------------|--------------|
+| Two Sum (sorted) | O(n²) | O(n) |
+| Valid Palindrome | O(n) with extra space | O(n) in-place |
+| Container With Most Water | O(n²) | O(n) |
+| Remove Duplicates | O(n) with extra space | O(n) in-place |
+| 3Sum | O(n³) | O(n²) |
+
+## Common Mistakes
+
+1. **Forgetting to handle edge cases** - Empty arrays, single elements
+2. **Off-by-one errors** - Check `left < right` vs `left <= right`
+3. **Not skipping duplicates** - Important for unique results
+4. **Infinite loops** - Always ensure pointers move
+
+## Practice Problems
+
+| Problem | Difficulty | Pattern |
+|---------|------------|---------|
+| Two Sum II | Easy | Opposite Direction |
+| Valid Palindrome | Easy | Opposite Direction |
+| Remove Duplicates | Easy | Same Direction |
+| Move Zeroes | Easy | Same Direction |
+| Container With Most Water | Medium | Opposite Direction |
+| 3Sum | Medium | Three Pointers |
+| Trapping Rain Water | Hard | Two Pointers + Precompute |
+
+## Key Takeaways
+
+1. **Sorted arrays** are ideal for two pointers (opposite direction)
+2. **In-place modifications** use same-direction pointers
+3. **Always consider** what condition moves each pointer
+4. **Watch for duplicates** when collecting unique results
+5. **Two pointers often reduces** O(n²) to O(n)
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="Sliding Window"
+    href="/dsa/arrays/sliding-window/"
+    description="Learn another powerful array technique"
+  />
+  <LinkCard
+    title="Linked Lists - Fast & Slow"
+    href="/dsa/linked-lists/fast-slow-pointers/"
+    description="Apply two pointers to linked lists"
+  />
+</CardGrid>

@@ -1,0 +1,453 @@
+---
+title: Linked Lists
+description: Master linked list operations and common patterns for node-based data structures
+difficulty: beginner
+prerequisites: ["Arrays", "Big O Notation"]
+timeToRead: "25 min"
+topics: ["linked-lists", "data-structures"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+import DataStructureVisualizer from '../../../../components/interactive/DataStructureVisualizer';
+
+A linked list is a linear data structure where elements are stored in nodes, each containing data and a reference (pointer) to the next node.
+
+## Interactive Linked List Visualizer
+
+Add and remove nodes to see how pointers connect elements in a linked list.
+
+<DataStructureVisualizer client:load defaultDS="linkedlist" />
+
+## Types of Linked Lists
+
+### Singly Linked List
+Each node points to the next node only.
+```
+head → [1|→] → [2|→] → [3|→] → [4|→] → null
+```
+
+### Doubly Linked List
+Each node points to both next and previous nodes.
+```
+null ← [←|1|→] ↔ [←|2|→] ↔ [←|3|→] → null
+```
+
+### Circular Linked List
+The last node points back to the first.
+```
+head → [1|→] → [2|→] → [3|→] ─┐
+        ↑________________________│
+```
+
+## Node Implementation
+
+<Tabs>
+  <TabItem label="Python">
+```python
+class ListNode:
+    def __init__(self, val=0, next=None):
+        self.val = val
+        self.next = next
+
+# Creating a linked list: 1 → 2 → 3
+head = ListNode(1)
+head.next = ListNode(2)
+head.next.next = ListNode(3)
+
+# Or using helper function
+def create_list(values):
+    dummy = ListNode(0)
+    current = dummy
+    for val in values:
+        current.next = ListNode(val)
+        current = current.next
+    return dummy.next
+
+head = create_list([1, 2, 3, 4, 5])
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+class ListNode {
+    constructor(val = 0, next = null) {
+        this.val = val;
+        this.next = next;
+    }
+}
+
+// Creating a linked list: 1 → 2 → 3
+let head = new ListNode(1);
+head.next = new ListNode(2);
+head.next.next = new ListNode(3);
+
+// Or using helper function
+function createList(values) {
+    const dummy = new ListNode(0);
+    let current = dummy;
+    for (const val of values) {
+        current.next = new ListNode(val);
+        current = current.next;
+    }
+    return dummy.next;
+}
+
+head = createList([1, 2, 3, 4, 5]);
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+class ListNode {
+    int val;
+    ListNode next;
+
+    ListNode(int val) {
+        this.val = val;
+        this.next = null;
+    }
+}
+
+// Creating a linked list: 1 → 2 → 3
+ListNode head = new ListNode(1);
+head.next = new ListNode(2);
+head.next.next = new ListNode(3);
+```
+  </TabItem>
+</Tabs>
+
+## Time Complexity Comparison
+
+| Operation | Array | Linked List |
+|-----------|-------|-------------|
+| Access by index | O(1) | O(n) |
+| Insert at beginning | O(n) | O(1) |
+| Insert at end | O(1)* | O(n)** |
+| Insert at middle | O(n) | O(1)*** |
+| Delete at beginning | O(n) | O(1) |
+| Delete at middle | O(n) | O(1)*** |
+| Search | O(n) | O(n) |
+
+*Amortized for dynamic arrays
+**O(1) if tail pointer maintained
+***After finding the position
+
+## Essential Operations
+
+### Traversal
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def traverse(head):
+    """Print all values in linked list."""
+    current = head
+    while current:
+        print(current.val, end=" → ")
+        current = current.next
+    print("null")
+
+def get_length(head):
+    """Get length of linked list."""
+    length = 0
+    current = head
+    while current:
+        length += 1
+        current = current.next
+    return length
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function traverse(head) {
+    let current = head;
+    const values = [];
+    while (current) {
+        values.push(current.val);
+        current = current.next;
+    }
+    console.log(values.join(" → ") + " → null");
+}
+
+function getLength(head) {
+    let length = 0;
+    let current = head;
+    while (current) {
+        length++;
+        current = current.next;
+    }
+    return length;
+}
+```
+  </TabItem>
+</Tabs>
+
+### Insertion
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def insert_at_beginning(head, val):
+    """Insert at beginning. O(1)"""
+    new_node = ListNode(val)
+    new_node.next = head
+    return new_node  # New head
+
+def insert_at_end(head, val):
+    """Insert at end. O(n)"""
+    new_node = ListNode(val)
+    if not head:
+        return new_node
+
+    current = head
+    while current.next:
+        current = current.next
+    current.next = new_node
+    return head
+
+def insert_after(node, val):
+    """Insert after given node. O(1)"""
+    new_node = ListNode(val)
+    new_node.next = node.next
+    node.next = new_node
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function insertAtBeginning(head, val) {
+    const newNode = new ListNode(val);
+    newNode.next = head;
+    return newNode;  // New head
+}
+
+function insertAtEnd(head, val) {
+    const newNode = new ListNode(val);
+    if (!head) return newNode;
+
+    let current = head;
+    while (current.next) {
+        current = current.next;
+    }
+    current.next = newNode;
+    return head;
+}
+```
+  </TabItem>
+</Tabs>
+
+### Deletion
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def delete_at_beginning(head):
+    """Delete first node. O(1)"""
+    if not head:
+        return None
+    return head.next
+
+def delete_node(head, val):
+    """Delete first node with given value. O(n)"""
+    # Use dummy node to handle edge cases
+    dummy = ListNode(0)
+    dummy.next = head
+    current = dummy
+
+    while current.next:
+        if current.next.val == val:
+            current.next = current.next.next
+            return dummy.next
+        current = current.next
+
+    return dummy.next
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function deleteAtBeginning(head) {
+    if (!head) return null;
+    return head.next;
+}
+
+function deleteNode(head, val) {
+    const dummy = new ListNode(0);
+    dummy.next = head;
+    let current = dummy;
+
+    while (current.next) {
+        if (current.next.val === val) {
+            current.next = current.next.next;
+            return dummy.next;
+        }
+        current = current.next;
+    }
+
+    return dummy.next;
+}
+```
+  </TabItem>
+</Tabs>
+
+## Common Patterns
+
+### 1. Dummy Node Pattern
+
+Use a dummy node to simplify edge cases (empty list, head modification).
+
+```python
+def remove_elements(head, val):
+    """Remove all nodes with given value."""
+    dummy = ListNode(0)
+    dummy.next = head
+    current = dummy
+
+    while current.next:
+        if current.next.val == val:
+            current.next = current.next.next
+        else:
+            current = current.next
+
+    return dummy.next
+```
+
+### 2. Fast and Slow Pointers
+
+Two pointers moving at different speeds.
+
+```python
+def find_middle(head):
+    """Find middle node. O(n) time, O(1) space."""
+    slow = fast = head
+    while fast and fast.next:
+        slow = slow.next
+        fast = fast.next.next
+    return slow
+
+def has_cycle(head):
+    """Detect if linked list has a cycle."""
+    slow = fast = head
+    while fast and fast.next:
+        slow = slow.next
+        fast = fast.next.next
+        if slow == fast:
+            return True
+    return False
+```
+
+### 3. Reverse Linked List
+
+Essential technique for many problems.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def reverse_iterative(head):
+    """Reverse linked list iteratively. O(n) time, O(1) space."""
+    prev = None
+    current = head
+
+    while current:
+        next_node = current.next  # Save next
+        current.next = prev       # Reverse pointer
+        prev = current            # Move prev forward
+        current = next_node       # Move current forward
+
+    return prev  # New head
+
+def reverse_recursive(head):
+    """Reverse linked list recursively. O(n) time, O(n) space."""
+    if not head or not head.next:
+        return head
+
+    new_head = reverse_recursive(head.next)
+    head.next.next = head
+    head.next = None
+
+    return new_head
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function reverseIterative(head) {
+    let prev = null;
+    let current = head;
+
+    while (current) {
+        const nextNode = current.next;
+        current.next = prev;
+        prev = current;
+        current = nextNode;
+    }
+
+    return prev;
+}
+
+function reverseRecursive(head) {
+    if (!head || !head.next) return head;
+
+    const newHead = reverseRecursive(head.next);
+    head.next.next = head;
+    head.next = null;
+
+    return newHead;
+}
+```
+  </TabItem>
+</Tabs>
+
+## Merge Two Sorted Lists
+
+```python
+def merge_two_lists(l1, l2):
+    """Merge two sorted linked lists."""
+    dummy = ListNode(0)
+    current = dummy
+
+    while l1 and l2:
+        if l1.val <= l2.val:
+            current.next = l1
+            l1 = l1.next
+        else:
+            current.next = l2
+            l2 = l2.next
+        current = current.next
+
+    # Attach remaining nodes
+    current.next = l1 or l2
+
+    return dummy.next
+```
+
+## Practice Problems
+
+| Problem | Difficulty | Pattern |
+|---------|------------|---------|
+| Reverse Linked List | Easy | Reversal |
+| Merge Two Sorted Lists | Easy | Two Pointers |
+| Linked List Cycle | Easy | Fast & Slow |
+| Middle of Linked List | Easy | Fast & Slow |
+| Remove Nth from End | Medium | Two Pointers |
+| Add Two Numbers | Medium | Math + Traversal |
+| Reorder List | Medium | Multiple Patterns |
+| LRU Cache | Medium | Doubly Linked List + HashMap |
+
+## Key Takeaways
+
+1. **Use dummy nodes** to simplify edge cases
+2. **Fast and slow pointers** find middle and detect cycles
+3. **Reversal** is a fundamental operation
+4. **Draw diagrams** when solving problems
+5. **Watch for null pointers** - common source of bugs
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="Fast & Slow Pointers"
+    href="/dsa/linked-lists/fast-slow-pointers/"
+    description="Deep dive into the two-pointer technique for linked lists"
+  />
+  <LinkCard
+    title="Stacks"
+    href="/dsa/stacks/"
+    description="Continue to stack data structure"
+  />
+</CardGrid>

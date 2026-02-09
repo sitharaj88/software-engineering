@@ -1,0 +1,241 @@
+---
+title: Software Engineering Hub
+description: The world's most comprehensive interactive platform for mastering software engineering — from data structures to system design
+template: splash
+hero:
+  tagline: Master software engineering with interactive visualizers, algorithm racers, pattern matchers, and production-ready code examples in Python, JavaScript, Java, and C++.
+  image:
+    file: ../../assets/hero-image.svg
+  actions:
+    - text: Start Learning
+      link: /getting-started/
+      icon: right-arrow
+      variant: primary
+    - text: Interactive Tools
+      link: /dsa/
+      icon: rocket
+      variant: secondary
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+## What Makes This Platform Unique
+
+<CardGrid>
+  <Card title="Interactive Visualizers" icon="seti:video">
+    Watch algorithms come alive with step-by-step sorting visualizations, pathfinding grids, BST builders, and data structure animations — not just static diagrams.
+  </Card>
+  <Card title="Algorithm Racer" icon="rocket">
+    Race sorting algorithms head-to-head with real performance metrics. Compare bubble sort vs quick sort on 5,000 elements and see the difference in milliseconds.
+  </Card>
+  <Card title="Pattern Matcher" icon="magnifier">
+    Describe your problem in plain English and our pattern matcher instantly identifies the right algorithmic approach — Two Pointers, Sliding Window, DP, and more.
+  </Card>
+  <Card title="Multi-Language Code" icon="list-format">
+    Production-quality implementations in Python, JavaScript, Java, and C++ — with integrated code playground featuring syntax highlighting and simulated execution.
+  </Card>
+  <Card title="Complexity Analyzer" icon="pencil">
+    Interactive growth-rate visualizer — toggle between O(1) through O(n!) and see exactly how many operations each requires at any input size.
+  </Card>
+  <Card title="Knowledge Quizzes" icon="approve-check">
+    Test your understanding with topic-specific quizzes featuring instant feedback, explanations, code-based questions, and progress scoring.
+  </Card>
+</CardGrid>
+
+---
+
+## Browse by Category
+
+<CardGrid>
+  <Card title="Data Structures & Algorithms" icon="puzzle">
+    **22+ Interactive Lessons** covering every essential topic
+
+    **Linear**: Arrays, Strings, Linked Lists, Stacks, Queues
+
+    **Non-Linear**: Hash Tables, Trees, Heaps, Graphs
+
+    **Algorithms**: Sorting, Searching, Recursion, DP, Greedy
+
+    **Interactive Tools**: Sorting Visualizer, Pathfinding Grid, BST Builder, Algorithm Racer
+
+    [Explore DSA →](/dsa/)
+  </Card>
+  <Card title="System Design" icon="setting">
+    **Architect systems at scale** with real-world case studies
+
+    **Fundamentals**: Networking, APIs, CAP Theorem
+
+    **Infrastructure**: Load Balancing, Caching, Message Queues
+
+    **Case Studies**: URL Shortener, Chat App, News Feed
+
+    [Explore System Design →](/system-design/)
+  </Card>
+  <Card title="Design Patterns" icon="document">
+    **Master the Gang of Four** patterns with practical code
+
+    **Creational**: Singleton, Factory, Builder, Prototype
+
+    **Structural**: Adapter, Decorator, Facade, Proxy
+
+    **Behavioral**: Observer, Strategy, Command, State
+
+    [Explore Design Patterns →](/design-patterns/)
+  </Card>
+  <Card title="Interview Preparation" icon="rocket">
+    **Ace your technical interviews** with proven strategies
+
+    **Coding**: 15 patterns, UMPIRE framework, 75 must-solve problems
+
+    **System Design**: Step-by-step framework with case studies
+
+    **Behavioral**: STAR method, top 20 questions, leadership principles
+
+    [Start Interview Prep →](/interview-prep/)
+  </Card>
+</CardGrid>
+
+---
+
+## Interactive Learning Tools
+
+Our platform goes beyond reading. Every concept includes hands-on interactive tools:
+
+<CardGrid stagger>
+  <Card title="Sorting Visualizer" icon="seti:video">
+    Watch Bubble, Selection, Insertion, Merge, Quick, and Heap sort algorithms animate step-by-step. Control speed, array size, and track comparisons/swaps in real time.
+
+    [Try Sorting Visualizer →](/dsa/sorting/)
+  </Card>
+  <Card title="Pathfinding Visualizer" icon="star">
+    Draw walls on a grid and watch BFS, DFS, Dijkstra's, and A* search find the shortest path. Compare how different algorithms explore the search space.
+
+    [Try Pathfinding →](/dsa/graphs/)
+  </Card>
+  <Card title="Data Structure Builder" icon="open-book">
+    Build Binary Search Trees by inserting values. Visualize stack push/pop, queue enqueue/dequeue, and linked list operations with smooth animations.
+
+    [Try DS Visualizer →](/dsa/trees/)
+  </Card>
+  <Card title="Algorithm Race" icon="rocket">
+    Pit algorithms against each other on arrays of 100 to 5,000 elements. See actual execution times, comparison counts, and swap counts side-by-side.
+
+    [Try Algorithm Race →](/dsa/sorting/)
+  </Card>
+</CardGrid>
+
+---
+
+## Learning Paths
+
+Choose a structured curriculum based on your goals.
+
+<CardGrid stagger>
+  <Card title="Foundations Track" icon="open-book">
+    **Duration**: 8-10 weeks | **Level**: Beginner
+
+    Build systematic DSA knowledge from first principles. Start with complexity analysis and progress through all fundamental structures and algorithms.
+
+    **Prerequisites**: Basic programming knowledge
+
+    [Begin Foundations Track →](/getting-started/learning-paths/)
+  </Card>
+  <Card title="Interview Preparation" icon="rocket">
+    **Duration**: 6-8 weeks | **Level**: Intermediate
+
+    Intensive preparation for technical interviews. Focus on high-frequency patterns and problem-solving frameworks used at top technology companies.
+
+    **Prerequisites**: Familiarity with basic data structures
+
+    [Begin Interview Prep →](/interview-prep/)
+  </Card>
+  <Card title="System Design Track" icon="setting">
+    **Duration**: 4-6 weeks | **Level**: Intermediate-Advanced
+
+    Learn to design scalable distributed systems. Cover databases, caching, load balancing, and practice with real-world case studies.
+
+    **Prerequisites**: Basic web development knowledge
+
+    [Begin System Design →](/system-design/)
+  </Card>
+  <Card title="Advanced Track" icon="star">
+    **Duration**: 12+ weeks | **Level**: Advanced
+
+    Deep exploration of advanced algorithms, design patterns, optimization techniques, and competitive programming strategies.
+
+    **Prerequisites**: Solid DSA fundamentals
+
+    [Begin Advanced Track →](/getting-started/learning-paths/)
+  </Card>
+</CardGrid>
+
+---
+
+## Curriculum Overview
+
+### Phase 1: Foundations (Weeks 1-6)
+| Week | Topics | Key Concepts | Interactive Tool |
+|------|--------|--------------|-----------------|
+| 1-2 | Analysis | Big O notation, Time/Space complexity | Complexity Analyzer |
+| 3-4 | Linear Structures | Arrays, Strings, Linked Lists | DS Visualizer |
+| 5-6 | Abstract Data Types | Stacks, Queues, Hash Tables | DS Visualizer |
+
+### Phase 2: Hierarchical & Network Structures (Weeks 7-12)
+| Week | Topics | Key Concepts | Interactive Tool |
+|------|--------|--------------|-----------------|
+| 7-8 | Trees | BST, Traversals, Balanced Trees | BST Builder |
+| 9-10 | Heaps & Priority Queues | Heap operations, Top-K problems | DS Visualizer |
+| 11-12 | Graphs | BFS, DFS, Shortest paths | Pathfinding Visualizer |
+
+### Phase 3: Algorithmic Techniques (Weeks 13-20)
+| Week | Topics | Key Concepts | Interactive Tool |
+|------|--------|--------------|-----------------|
+| 13-14 | Sorting & Searching | Comparison sorts, Binary search | Sorting Visualizer, Algorithm Racer |
+| 15-16 | Recursion & Backtracking | Divide & conquer, Pruning | Code Playground |
+| 17-20 | Dynamic Programming | Memoization, Tabulation, Optimization | Pattern Matcher |
+
+### Phase 4: Interview & System Design (Weeks 21+)
+| Week | Topics | Key Concepts | Interactive Tool |
+|------|--------|--------------|-----------------|
+| 21-22 | Interview Patterns | 15 coding patterns, problem-solving framework | Pattern Matcher, Quiz |
+| 23-24 | System Design | Scalability, databases, caching | Architecture Diagrams |
+| 25-26 | Design Patterns | Creational, Structural, Behavioral | Code Playground |
+
+---
+
+## Quick Reference
+
+<CardGrid>
+  <LinkCard
+    title="Complexity Cheatsheet"
+    href="/dsa/#complexity-cheatsheet"
+    description="Big O reference for all data structures and algorithms"
+  />
+  <LinkCard
+    title="Algorithm Pattern Guide"
+    href="/interview-prep/coding-interviews/"
+    description="15 essential patterns for solving coding problems"
+  />
+  <LinkCard
+    title="System Design Framework"
+    href="/system-design/"
+    description="Step-by-step approach to system design interviews"
+  />
+  <LinkCard
+    title="75 Must-Solve Problems"
+    href="/interview-prep/problem-bank/"
+    description="Curated problem set covering all essential patterns"
+  />
+</CardGrid>
+
+---
+
+## Platform Standards
+
+| Aspect | Standard |
+|--------|----------|
+| **Complexity** | Big O analysis with justification for all algorithms |
+| **Code Quality** | Language-specific style guides (PEP 8, Airbnb, Google Java) |
+| **Languages** | Python 3.10+, ES2022+, Java 17+, C++17 |
+| **Interactivity** | Every topic includes at least one interactive tool |
+| **References** | Algorithm sources cited (CLRS, Sedgewick) where applicable |

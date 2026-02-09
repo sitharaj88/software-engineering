@@ -1,0 +1,708 @@
+---
+title: Greedy Algorithms
+description: Master greedy strategies for optimization problems
+difficulty: intermediate
+prerequisites: ["Sorting", "Arrays"]
+timeToRead: "20 min"
+topics: ["greedy", "algorithms", "optimization"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+Greedy algorithms make locally optimal choices at each step, hoping to find a global optimum. They're simpler and faster than dynamic programming but don't always yield optimal solutions.
+
+## When Greedy Works
+
+Greedy algorithms work when the problem has:
+1. **Greedy Choice Property**: A locally optimal choice leads to a globally optimal solution
+2. **Optimal Substructure**: Optimal solution contains optimal solutions to subproblems
+
+## Greedy vs Dynamic Programming
+
+| Aspect | Greedy | Dynamic Programming |
+|--------|--------|-------------------|
+| Approach | Choose best now | Consider all options |
+| Guarantee | Not always optimal | Always optimal |
+| Time | Usually faster | Usually slower |
+| Space | Usually O(1) | Often O(n) or O(n²) |
+| Use case | When greedy works | When it doesn't |
+
+## Classic Problems
+
+### 1. Activity Selection
+
+Select maximum non-overlapping activities.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def activity_selection(activities):
+    """
+    Select maximum number of non-overlapping activities.
+    Activities: [(start, end), ...]
+    Time: O(n log n), Space: O(1)
+    """
+    # Sort by end time (greedy choice)
+    activities.sort(key=lambda x: x[1])
+
+    count = 1
+    last_end = activities[0][1]
+
+    for i in range(1, len(activities)):
+        if activities[i][0] >= last_end:
+            count += 1
+            last_end = activities[i][1]
+
+    return count
+
+# Why greedy works:
+# Choosing earliest ending activity leaves maximum room for others
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function activitySelection(activities) {
+  activities.sort((a, b) => a[1] - b[1]);
+
+  let count = 1;
+  let lastEnd = activities[0][1];
+
+  for (let i = 1; i < activities.length; i++) {
+    if (activities[i][0] >= lastEnd) {
+      count++;
+      lastEnd = activities[i][1];
+    }
+  }
+
+  return count;
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+public int activitySelection(int[][] activities) {
+    Arrays.sort(activities, (a, b) -> a[1] - b[1]);
+
+    int count = 1;
+    int lastEnd = activities[0][1];
+
+    for (int i = 1; i < activities.length; i++) {
+        if (activities[i][0] >= lastEnd) {
+            count++;
+            lastEnd = activities[i][1];
+        }
+    }
+
+    return count;
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+int activitySelection(vector<pair<int, int>>& activities) {
+    sort(activities.begin(), activities.end(),
+         [](auto& a, auto& b) { return a.second < b.second; });
+
+    int count = 1;
+    int lastEnd = activities[0].second;
+
+    for (int i = 1; i < activities.size(); i++) {
+        if (activities[i].first >= lastEnd) {
+            count++;
+            lastEnd = activities[i].second;
+        }
+    }
+
+    return count;
+}
+```
+  </TabItem>
+</Tabs>
+
+### 2. Coin Change (Greedy - Only Works for Certain Coin Systems)
+
+```python
+def coin_change_greedy(coins, amount):
+    """
+    Minimum coins for amount (greedy - not always optimal!).
+    Works for standard currency systems (e.g., US coins).
+    Time: O(n), Space: O(1)
+    """
+    coins.sort(reverse=True)  # Start with largest
+    count = 0
+
+    for coin in coins:
+        if amount >= coin:
+            count += amount // coin
+            amount %= coin
+
+    return count if amount == 0 else -1
+
+# Counter-example where greedy fails:
+# coins = [1, 3, 4], amount = 6
+# Greedy: 4 + 1 + 1 = 3 coins
+# Optimal: 3 + 3 = 2 coins
+```
+
+### 3. Jump Game
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def can_jump(nums):
+    """
+    Can we reach the last index?
+    Time: O(n), Space: O(1)
+    """
+    max_reach = 0
+
+    for i, jump in enumerate(nums):
+        if i > max_reach:
+            return False
+        max_reach = max(max_reach, i + jump)
+        if max_reach >= len(nums) - 1:
+            return True
+
+    return True
+
+def min_jumps(nums):
+    """
+    Minimum jumps to reach end.
+    Time: O(n), Space: O(1)
+    """
+    n = len(nums)
+    if n <= 1:
+        return 0
+
+    jumps = 0
+    current_end = 0
+    farthest = 0
+
+    for i in range(n - 1):
+        farthest = max(farthest, i + nums[i])
+
+        if i == current_end:
+            jumps += 1
+            current_end = farthest
+
+            if current_end >= n - 1:
+                break
+
+    return jumps
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function canJump(nums) {
+  let maxReach = 0;
+
+  for (let i = 0; i < nums.length; i++) {
+    if (i > maxReach) return false;
+    maxReach = Math.max(maxReach, i + nums[i]);
+    if (maxReach >= nums.length - 1) return true;
+  }
+
+  return true;
+}
+
+function minJumps(nums) {
+  const n = nums.length;
+  if (n <= 1) return 0;
+
+  let jumps = 0;
+  let currentEnd = 0;
+  let farthest = 0;
+
+  for (let i = 0; i < n - 1; i++) {
+    farthest = Math.max(farthest, i + nums[i]);
+
+    if (i === currentEnd) {
+      jumps++;
+      currentEnd = farthest;
+
+      if (currentEnd >= n - 1) break;
+    }
+  }
+
+  return jumps;
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+public boolean canJump(int[] nums) {
+    int maxReach = 0;
+
+    for (int i = 0; i < nums.length; i++) {
+        if (i > maxReach) return false;
+        maxReach = Math.max(maxReach, i + nums[i]);
+        if (maxReach >= nums.length - 1) return true;
+    }
+
+    return true;
+}
+
+public int minJumps(int[] nums) {
+    int n = nums.length;
+    if (n <= 1) return 0;
+
+    int jumps = 0;
+    int currentEnd = 0;
+    int farthest = 0;
+
+    for (int i = 0; i < n - 1; i++) {
+        farthest = Math.max(farthest, i + nums[i]);
+
+        if (i == currentEnd) {
+            jumps++;
+            currentEnd = farthest;
+
+            if (currentEnd >= n - 1) break;
+        }
+    }
+
+    return jumps;
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+bool canJump(vector<int>& nums) {
+    int maxReach = 0;
+
+    for (int i = 0; i < nums.size(); i++) {
+        if (i > maxReach) return false;
+        maxReach = max(maxReach, i + nums[i]);
+        if (maxReach >= nums.size() - 1) return true;
+    }
+
+    return true;
+}
+
+int minJumps(vector<int>& nums) {
+    int n = nums.size();
+    if (n <= 1) return 0;
+
+    int jumps = 0;
+    int currentEnd = 0;
+    int farthest = 0;
+
+    for (int i = 0; i < n - 1; i++) {
+        farthest = max(farthest, i + nums[i]);
+
+        if (i == currentEnd) {
+            jumps++;
+            currentEnd = farthest;
+
+            if (currentEnd >= n - 1) break;
+        }
+    }
+
+    return jumps;
+}
+```
+  </TabItem>
+</Tabs>
+
+### 4. Merge Intervals
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def merge_intervals(intervals):
+    """
+    Merge overlapping intervals.
+    Time: O(n log n), Space: O(n)
+    """
+    intervals.sort(key=lambda x: x[0])
+    merged = [intervals[0]]
+
+    for start, end in intervals[1:]:
+        if start <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], end)
+        else:
+            merged.append([start, end])
+
+    return merged
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function mergeIntervals(intervals) {
+  intervals.sort((a, b) => a[0] - b[0]);
+  const merged = [intervals[0]];
+
+  for (let i = 1; i < intervals.length; i++) {
+    const [start, end] = intervals[i];
+
+    if (start <= merged[merged.length - 1][1]) {
+      merged[merged.length - 1][1] = Math.max(merged[merged.length - 1][1], end);
+    } else {
+      merged.push([start, end]);
+    }
+  }
+
+  return merged;
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+public int[][] mergeIntervals(int[][] intervals) {
+    Arrays.sort(intervals, (a, b) -> a[0] - b[0]);
+    List<int[]> merged = new ArrayList<>();
+    merged.add(intervals[0]);
+
+    for (int i = 1; i < intervals.length; i++) {
+        int[] last = merged.get(merged.size() - 1);
+
+        if (intervals[i][0] <= last[1]) {
+            last[1] = Math.max(last[1], intervals[i][1]);
+        } else {
+            merged.add(intervals[i]);
+        }
+    }
+
+    return merged.toArray(new int[merged.size()][]);
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+vector<vector<int>> mergeIntervals(vector<vector<int>>& intervals) {
+    sort(intervals.begin(), intervals.end());
+    vector<vector<int>> merged = {intervals[0]};
+
+    for (int i = 1; i < intervals.size(); i++) {
+        if (intervals[i][0] <= merged.back()[1]) {
+            merged.back()[1] = max(merged.back()[1], intervals[i][1]);
+        } else {
+            merged.push_back(intervals[i]);
+        }
+    }
+
+    return merged;
+}
+```
+  </TabItem>
+</Tabs>
+
+### 5. Meeting Rooms II
+
+```python
+import heapq
+
+def min_meeting_rooms(intervals):
+    """
+    Minimum meeting rooms needed.
+    Time: O(n log n), Space: O(n)
+    """
+    if not intervals:
+        return 0
+
+    intervals.sort(key=lambda x: x[0])
+    rooms = []  # Min-heap of end times
+
+    heapq.heappush(rooms, intervals[0][1])
+
+    for i in range(1, len(intervals)):
+        # If earliest ending room is free
+        if intervals[i][0] >= rooms[0]:
+            heapq.heappop(rooms)
+
+        heapq.heappush(rooms, intervals[i][1])
+
+    return len(rooms)
+```
+
+### 6. Task Scheduler
+
+```python
+from collections import Counter
+
+def least_interval(tasks, n):
+    """
+    Minimum intervals to complete all tasks with cooldown.
+    Time: O(t), Space: O(1)
+    """
+    freq = Counter(tasks)
+    max_freq = max(freq.values())
+    max_count = list(freq.values()).count(max_freq)
+
+    # Formula: (max_freq - 1) * (n + 1) + max_count
+    # Represents slots needed for most frequent task + tasks at same frequency
+    result = (max_freq - 1) * (n + 1) + max_count
+
+    return max(result, len(tasks))
+```
+
+### 7. Gas Station
+
+```python
+def can_complete_circuit(gas, cost):
+    """
+    Find starting station to complete circuit.
+    Time: O(n), Space: O(1)
+    """
+    total_tank = 0
+    curr_tank = 0
+    start = 0
+
+    for i in range(len(gas)):
+        total_tank += gas[i] - cost[i]
+        curr_tank += gas[i] - cost[i]
+
+        if curr_tank < 0:
+            start = i + 1
+            curr_tank = 0
+
+    return start if total_tank >= 0 else -1
+```
+
+### 8. Partition Labels
+
+```python
+def partition_labels(s):
+    """
+    Partition string so each letter appears in at most one part.
+    Time: O(n), Space: O(1)
+    """
+    # Find last occurrence of each character
+    last = {c: i for i, c in enumerate(s)}
+
+    partitions = []
+    start = end = 0
+
+    for i, c in enumerate(s):
+        end = max(end, last[c])
+
+        if i == end:
+            partitions.append(end - start + 1)
+            start = i + 1
+
+    return partitions
+```
+
+### 9. Assign Cookies
+
+```python
+def find_content_children(g, s):
+    """
+    Assign cookies to maximize satisfied children.
+    g[i] = greed factor, s[j] = cookie size
+    Time: O(n log n + m log m), Space: O(1)
+    """
+    g.sort()
+    s.sort()
+
+    child = cookie = 0
+
+    while child < len(g) and cookie < len(s):
+        if s[cookie] >= g[child]:
+            child += 1
+        cookie += 1
+
+    return child
+```
+
+### 10. Non-overlapping Intervals
+
+```python
+def erase_overlap_intervals(intervals):
+    """
+    Minimum removals to make intervals non-overlapping.
+    Time: O(n log n), Space: O(1)
+    """
+    intervals.sort(key=lambda x: x[1])
+    count = 0
+    prev_end = float('-inf')
+
+    for start, end in intervals:
+        if start >= prev_end:
+            prev_end = end
+        else:
+            count += 1
+
+    return count
+```
+
+### 11. Huffman Coding
+
+```python
+import heapq
+from collections import Counter
+
+def huffman_encoding(text):
+    """
+    Build Huffman tree for optimal encoding.
+    Time: O(n log n), Space: O(n)
+    """
+    freq = Counter(text)
+    heap = [[f, [char, ""]] for char, f in freq.items()]
+    heapq.heapify(heap)
+
+    while len(heap) > 1:
+        lo = heapq.heappop(heap)
+        hi = heapq.heappop(heap)
+
+        for pair in lo[1:]:
+            pair[1] = '0' + pair[1]
+        for pair in hi[1:]:
+            pair[1] = '1' + pair[1]
+
+        heapq.heappush(heap, [lo[0] + hi[0]] + lo[1:] + hi[1:])
+
+    return {char: code for char, code in heap[0][1:]}
+```
+
+### 12. Best Time to Buy and Sell Stock II
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def max_profit(prices):
+    """
+    Maximum profit with unlimited transactions.
+    Time: O(n), Space: O(1)
+
+    Key insight: Sum all upward slopes
+    """
+    profit = 0
+
+    for i in range(1, len(prices)):
+        if prices[i] > prices[i - 1]:
+            profit += prices[i] - prices[i - 1]
+
+    return profit
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function maxProfit(prices) {
+  let profit = 0;
+
+  for (let i = 1; i < prices.length; i++) {
+    if (prices[i] > prices[i - 1]) {
+      profit += prices[i] - prices[i - 1];
+    }
+  }
+
+  return profit;
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+public int maxProfit(int[] prices) {
+    int profit = 0;
+
+    for (int i = 1; i < prices.length; i++) {
+        if (prices[i] > prices[i - 1]) {
+            profit += prices[i] - prices[i - 1];
+        }
+    }
+
+    return profit;
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+int maxProfit(vector<int>& prices) {
+    int profit = 0;
+
+    for (int i = 1; i < prices.size(); i++) {
+        if (prices[i] > prices[i - 1]) {
+            profit += prices[i] - prices[i - 1];
+        }
+    }
+
+    return profit;
+}
+```
+  </TabItem>
+</Tabs>
+
+## Proof Techniques
+
+### Exchange Argument
+
+Show that swapping elements in a non-greedy solution improves or maintains quality.
+
+```
+For activity selection:
+If greedy chooses activity A (earliest end) but optimal chooses B (later end),
+we can swap B with A in the optimal solution.
+Since A ends earlier, it doesn't affect any activities after B.
+Therefore, greedy choice is at least as good.
+```
+
+### Greedy Stays Ahead
+
+Show that at each step, greedy solution is at least as good as optimal.
+
+```
+For coin change with standard coins:
+At each step, greedy uses the largest possible coin.
+Any alternative using smaller coins would use more coins.
+Therefore, greedy is optimal.
+```
+
+## Common Greedy Patterns
+
+| Pattern | Strategy | Example |
+|---------|----------|---------|
+| **Earliest End** | Sort by end time | Activity Selection |
+| **Smallest First** | Sort by size | Assign Cookies |
+| **Largest First** | Sort descending | Coin Change |
+| **Difference** | Sort by difference | Weighted Job Scheduling |
+| **Two Pointers** | Track boundaries | Partition Labels |
+
+## Practice Problems
+
+### Easy
+| Problem | Pattern | Companies |
+|---------|---------|-----------|
+| Assign Cookies | Sort + Two Pointers | Amazon |
+| Lemonade Change | Simulation | Amazon |
+| Best Time to Buy and Sell Stock II | Sum Increases | Amazon, Meta |
+
+### Medium
+| Problem | Pattern | Companies |
+|---------|---------|-----------|
+| Jump Game | Track Max Reach | Amazon, Google |
+| Gas Station | Circular | Amazon |
+| Partition Labels | Last Occurrence | Amazon |
+| Task Scheduler | Frequency | Meta, Amazon |
+| Non-overlapping Intervals | Sort by End | Amazon, Google |
+
+### Hard
+| Problem | Pattern | Companies |
+|---------|---------|-----------|
+| Candy | Two Pass | Amazon |
+| Create Maximum Number | Stack | Google |
+| Minimum Number of Refueling Stops | Heap | Google |
+| IPO | Heap | Amazon |
+
+## Key Takeaways
+
+1. **Greedy is simple** - Make best local choice
+2. **Not always optimal** - Verify greedy property
+3. **Sorting often helps** - Enables greedy selection
+4. **Prove correctness** - Exchange argument or stays ahead
+5. **Compare with DP** - Use DP when greedy fails
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="Dynamic Programming"
+    href="/dsa/dynamic-programming/"
+    description="When greedy doesn't work, use DP"
+  />
+  <LinkCard
+    title="Heaps"
+    href="/dsa/heaps/"
+    description="Optimize greedy selections with heaps"
+  />
+</CardGrid>

@@ -1,0 +1,1095 @@
+---
+title: Coding Interview Guide
+description: Master the 15 essential coding patterns with problem-solving frameworks, template code, and company-specific strategies
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+Coding interviews test your ability to solve algorithmic problems under time pressure. Success depends not on memorizing solutions, but on recognizing **patterns** and applying systematic **frameworks**.
+
+This guide covers the UMPIRE problem-solving method and 15 essential coding patterns that appear in over 90% of technical interview questions.
+
+## The UMPIRE Problem-Solving Framework
+
+Before writing a single line of code, work through these six steps. This framework prevents the most common interview mistake: jumping into code without a plan.
+
+```
+U - Understand the problem
+M - Match to known patterns
+P - Plan your approach
+I - Implement the solution
+R - Review your code
+E - Evaluate complexity
+```
+
+### U -- Understand the Problem
+
+Spend 3-5 minutes here. Ask clarifying questions:
+
+- **Input/Output**: What exactly are the inputs and outputs? What types?
+- **Constraints**: What is the size of the input? (This hints at required complexity.)
+- **Edge cases**: Empty input? Single element? Negative numbers? Duplicates?
+- **Examples**: Walk through 2-3 examples, including at least one edge case.
+
+```
+Example dialogue:
+You: "Can the array contain negative numbers?"
+Interviewer: "Yes, both positive and negative."
+You: "Can the array be empty?"
+Interviewer: "No, it will have at least one element."
+You: "What should I return if there are multiple valid answers?"
+Interviewer: "Return any one of them."
+```
+
+### M -- Match to Known Patterns
+
+Based on the problem characteristics, identify which pattern(s) apply:
+
+| If you see... | Think about... |
+|--------------|---------------|
+| Sorted array, find target | Binary Search |
+| Find pairs/triplets in array | Two Pointers |
+| Contiguous subarray/substring | Sliding Window |
+| Tree/graph traversal | BFS / DFS |
+| Optimal substructure + overlapping subproblems | Dynamic Programming |
+| Make locally optimal choices | Greedy |
+| Generate all combinations/permutations | Backtracking |
+| Top K / streaming data | Heap / Priority Queue |
+| Matching brackets, nearest smaller | Stack |
+| Frequency counting, lookups | Hash Map |
+| Detect cycle, find middle | Linked List (fast/slow) |
+| Level-order, path problems | Tree Traversals |
+| Shortest path, connectivity | Graph Algorithms |
+| Toggle/check bits, power of 2 | Bit Manipulation |
+| Connected components, cycle detection | Union-Find |
+
+### P -- Plan Your Approach
+
+1. State the brute-force approach and its complexity
+2. Identify the bottleneck in brute force
+3. Describe your optimized approach using the matched pattern
+4. Define data structures you will use
+5. Walk through your approach with one example
+
+### I -- Implement the Solution
+
+- Write clean, readable code with descriptive names
+- Use helper functions to keep logic modular
+- Handle edge cases first (early returns)
+- Comment key sections if the logic is non-obvious
+
+### R -- Review Your Code
+
+- Trace through your code with the provided examples
+- Check off-by-one errors (loop boundaries, indices)
+- Verify edge cases (empty, single element, all same)
+- Look for potential bugs (null checks, integer overflow)
+
+### E -- Evaluate Complexity
+
+- State time complexity with justification
+- State space complexity (include recursion stack if applicable)
+- Discuss if further optimization is possible
+
+---
+
+## The 15 Essential Coding Patterns
+
+### Pattern 1: Two Pointers
+
+**When to use**: Sorted arrays, finding pairs, partitioning, removing duplicates.
+
+**Key idea**: Use two pointers moving toward each other (or in the same direction) to reduce an O(n^2) search to O(n).
+
+```python
+# Template: Two pointers moving inward
+def two_pointer_inward(arr, target):
+    left, right = 0, len(arr) - 1
+    while left < right:
+        current = arr[left] + arr[right]
+        if current == target:
+            return [left, right]
+        elif current < target:
+            left += 1
+        else:
+            right -= 1
+    return [-1, -1]
+
+# Template: Two pointers same direction (fast/slow)
+def remove_duplicates(nums):
+    if not nums:
+        return 0
+    slow = 0
+    for fast in range(1, len(nums)):
+        if nums[fast] != nums[slow]:
+            slow += 1
+            nums[slow] = nums[fast]
+    return slow + 1
+```
+
+**Classic problems**: Two Sum II (sorted), 3Sum, Container With Most Water, Remove Duplicates from Sorted Array, Trapping Rain Water.
+
+**Complexity**: Time O(n), Space O(1) for most two-pointer problems.
+
+---
+
+### Pattern 2: Sliding Window
+
+**When to use**: Contiguous subarrays or substrings, maximum/minimum over a range, fixed-size or variable-size windows.
+
+**Key idea**: Maintain a window that expands from the right and contracts from the left to avoid recomputing overlapping segments.
+
+```python
+# Template: Variable-size sliding window
+def sliding_window(s):
+    left = 0
+    result = 0
+    window_state = {}  # or set, counter, sum, etc.
+
+    for right in range(len(s)):
+        # 1. Expand: add s[right] to window state
+        window_state[s[right]] = window_state.get(s[right], 0) + 1
+
+        # 2. Shrink: while window is invalid
+        while window_is_invalid(window_state):
+            window_state[s[left]] -= 1
+            if window_state[s[left]] == 0:
+                del window_state[s[left]]
+            left += 1
+
+        # 3. Update result
+        result = max(result, right - left + 1)
+
+    return result
+```
+
+**Classic problems**: Longest Substring Without Repeating Characters, Minimum Window Substring, Maximum Sum Subarray of Size K, Longest Repeating Character Replacement, Permutation in String.
+
+**Complexity**: Time O(n), Space O(k) where k is the window state size.
+
+---
+
+### Pattern 3: Binary Search
+
+**When to use**: Sorted arrays, search space reduction, finding boundaries, searching on the answer space.
+
+**Key idea**: Halve the search space each iteration. Works not only on sorted arrays but on any monotonic function.
+
+```python
+# Template: Standard binary search
+def binary_search(nums, target):
+    left, right = 0, len(nums) - 1
+    while left <= right:
+        mid = left + (right - left) // 2
+        if nums[mid] == target:
+            return mid
+        elif nums[mid] < target:
+            left = mid + 1
+        else:
+            right = mid - 1
+    return -1
+
+# Template: Binary search on answer space
+def binary_search_on_answer(low, high):
+    """Find the minimum value that satisfies a condition."""
+    while low < high:
+        mid = low + (high - low) // 2
+        if condition(mid):
+            high = mid       # mid might be the answer
+        else:
+            low = mid + 1    # mid is too small
+    return low
+
+# Template: Find leftmost (first) occurrence
+def find_leftmost(nums, target):
+    left, right = 0, len(nums) - 1
+    result = -1
+    while left <= right:
+        mid = left + (right - left) // 2
+        if nums[mid] == target:
+            result = mid
+            right = mid - 1  # keep searching left
+        elif nums[mid] < target:
+            left = mid + 1
+        else:
+            right = mid - 1
+    return result
+```
+
+**Classic problems**: Search in Rotated Sorted Array, Find Minimum in Rotated Sorted Array, Koko Eating Bananas, Median of Two Sorted Arrays, Search a 2D Matrix.
+
+**Complexity**: Time O(log n), Space O(1).
+
+---
+
+### Pattern 4: BFS / DFS
+
+**When to use**: Tree or graph traversal, shortest path in unweighted graph (BFS), exploring all paths (DFS), connected components.
+
+**Key idea**: BFS explores level by level using a queue. DFS explores as deep as possible using a stack or recursion.
+
+```python
+from collections import deque
+
+# Template: BFS (shortest path in unweighted graph)
+def bfs(graph, start):
+    visited = set([start])
+    queue = deque([start])
+    distance = {start: 0}
+
+    while queue:
+        node = queue.popleft()
+        for neighbor in graph[node]:
+            if neighbor not in visited:
+                visited.add(neighbor)
+                distance[neighbor] = distance[node] + 1
+                queue.append(neighbor)
+
+    return distance
+
+# Template: DFS (recursive)
+def dfs(graph, node, visited=None):
+    if visited is None:
+        visited = set()
+    visited.add(node)
+
+    for neighbor in graph[node]:
+        if neighbor not in visited:
+            dfs(graph, neighbor, visited)
+
+    return visited
+
+# Template: DFS (iterative)
+def dfs_iterative(graph, start):
+    visited = set()
+    stack = [start]
+
+    while stack:
+        node = stack.pop()
+        if node in visited:
+            continue
+        visited.add(node)
+        for neighbor in graph[node]:
+            if neighbor not in visited:
+                stack.append(neighbor)
+
+    return visited
+```
+
+**Classic problems**: Number of Islands, Word Ladder, Clone Graph, Course Schedule, Pacific Atlantic Water Flow, Rotting Oranges.
+
+**Complexity**: Time O(V + E), Space O(V) for both BFS and DFS.
+
+---
+
+### Pattern 5: Dynamic Programming
+
+**When to use**: Optimization problems with overlapping subproblems and optimal substructure. Problems asking for count, min, max, or "is it possible."
+
+**Key idea**: Break the problem into subproblems. Store results to avoid recomputation. Build the solution bottom-up or top-down.
+
+```python
+# Template: 1D DP (bottom-up)
+def dp_1d(n):
+    dp = [0] * (n + 1)
+    dp[0] = base_case_0
+    dp[1] = base_case_1
+
+    for i in range(2, n + 1):
+        dp[i] = recurrence(dp[i-1], dp[i-2])  # depends on problem
+
+    return dp[n]
+
+# Template: 2D DP (bottom-up)
+def dp_2d(m, n):
+    dp = [[0] * (n + 1) for _ in range(m + 1)]
+    # Initialize base cases
+    for i in range(m + 1):
+        dp[i][0] = base_case
+    for j in range(n + 1):
+        dp[0][j] = base_case
+
+    for i in range(1, m + 1):
+        for j in range(1, n + 1):
+            dp[i][j] = recurrence(dp[i-1][j], dp[i][j-1], dp[i-1][j-1])
+
+    return dp[m][n]
+
+# Template: Top-down with memoization
+def dp_top_down(n, memo=None):
+    if memo is None:
+        memo = {}
+    if n in memo:
+        return memo[n]
+    if n <= 1:
+        return base_case
+
+    memo[n] = recurrence(dp_top_down(n-1, memo), dp_top_down(n-2, memo))
+    return memo[n]
+```
+
+**DP problem-solving steps**:
+1. Define the state: What does `dp[i]` represent?
+2. Find the recurrence: How does `dp[i]` relate to smaller subproblems?
+3. Identify base cases: What are the smallest subproblems?
+4. Determine iteration order: Bottom-up? Which direction?
+5. Optimize space if possible (often from O(n) to O(1) or O(n^2) to O(n))
+
+**Classic problems**: Climbing Stairs, Coin Change, Longest Common Subsequence, Longest Increasing Subsequence, 0/1 Knapsack, Edit Distance, House Robber, Word Break.
+
+**Complexity**: Time and space depend on the number of states, typically O(n) or O(n*m).
+
+---
+
+### Pattern 6: Greedy
+
+**When to use**: Problems where making the locally optimal choice at each step leads to the globally optimal solution. Interval scheduling, activity selection.
+
+**Key idea**: Sort the input by some criteria, then iterate and make the best local decision. Greedy works only when you can prove the greedy choice property.
+
+```python
+# Template: Interval scheduling (maximize non-overlapping intervals)
+def interval_scheduling(intervals):
+    """Select maximum number of non-overlapping intervals."""
+    intervals.sort(key=lambda x: x[1])  # Sort by end time
+    count = 0
+    last_end = float('-inf')
+
+    for start, end in intervals:
+        if start >= last_end:
+            count += 1
+            last_end = end
+
+    return count
+
+# Template: Merge overlapping intervals
+def merge_intervals(intervals):
+    intervals.sort(key=lambda x: x[0])
+    merged = [intervals[0]]
+
+    for start, end in intervals[1:]:
+        if start <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], end)
+        else:
+            merged.append([start, end])
+
+    return merged
+```
+
+**Classic problems**: Jump Game, Gas Station, Merge Intervals, Non-Overlapping Intervals, Task Scheduler, Partition Labels.
+
+**Complexity**: Typically O(n log n) due to sorting, O(1) or O(n) space.
+
+---
+
+### Pattern 7: Backtracking
+
+**When to use**: Generate all valid combinations, permutations, or subsets. Constraint satisfaction problems. Problems that say "find all" or "generate all."
+
+**Key idea**: Build solutions incrementally. At each step, make a choice, recurse, then undo the choice (backtrack). Prune invalid paths early.
+
+```python
+# Template: General backtracking
+def backtrack(candidates, path, result, start=0):
+    if is_valid_solution(path):
+        result.append(path[:])  # Add a copy
+        return
+
+    for i in range(start, len(candidates)):
+        # Pruning: skip invalid choices
+        if not is_valid_choice(candidates[i], path):
+            continue
+
+        path.append(candidates[i])       # Make choice
+        backtrack(candidates, path, result, i + 1)  # Recurse
+        path.pop()                        # Undo choice (backtrack)
+
+# Template: Subsets
+def subsets(nums):
+    result = []
+    def backtrack(start, path):
+        result.append(path[:])
+        for i in range(start, len(nums)):
+            path.append(nums[i])
+            backtrack(i + 1, path)
+            path.pop()
+    backtrack(0, [])
+    return result
+
+# Template: Permutations
+def permutations(nums):
+    result = []
+    def backtrack(path, remaining):
+        if not remaining:
+            result.append(path[:])
+            return
+        for i in range(len(remaining)):
+            path.append(remaining[i])
+            backtrack(path, remaining[:i] + remaining[i+1:])
+            path.pop()
+    backtrack([], nums)
+    return result
+```
+
+**Classic problems**: Subsets, Permutations, Combination Sum, N-Queens, Palindrome Partitioning, Word Search, Sudoku Solver, Letter Combinations of a Phone Number.
+
+**Complexity**: Time O(2^n) for subsets, O(n!) for permutations. Space O(n) for recursion depth.
+
+---
+
+### Pattern 8: Heap / Priority Queue
+
+**When to use**: Top-K problems, finding the kth largest/smallest, merge K sorted lists, streaming data, scheduling.
+
+**Key idea**: A heap gives O(log n) insertion and O(1) access to the min/max element. Use a min-heap of size K for "top K largest" problems.
+
+```python
+import heapq
+
+# Template: Kth largest element
+def kth_largest(nums, k):
+    """Use a min-heap of size k."""
+    heap = nums[:k]
+    heapq.heapify(heap)
+
+    for num in nums[k:]:
+        if num > heap[0]:
+            heapq.heapreplace(heap, num)
+
+    return heap[0]
+
+# Template: Merge K sorted lists
+def merge_k_sorted(lists):
+    heap = []
+    for i, lst in enumerate(lists):
+        if lst:
+            heapq.heappush(heap, (lst[0], i, 0))
+
+    result = []
+    while heap:
+        val, list_idx, elem_idx = heapq.heappop(heap)
+        result.append(val)
+        if elem_idx + 1 < len(lists[list_idx]):
+            next_val = lists[list_idx][elem_idx + 1]
+            heapq.heappush(heap, (next_val, list_idx, elem_idx + 1))
+
+    return result
+
+# Template: Running median (two heaps)
+class MedianFinder:
+    def __init__(self):
+        self.small = []  # max-heap (negate values)
+        self.large = []  # min-heap
+
+    def add_num(self, num):
+        heapq.heappush(self.small, -num)
+        heapq.heappush(self.large, -heapq.heappop(self.small))
+        if len(self.large) > len(self.small):
+            heapq.heappush(self.small, -heapq.heappop(self.large))
+
+    def find_median(self):
+        if len(self.small) > len(self.large):
+            return -self.small[0]
+        return (-self.small[0] + self.large[0]) / 2
+```
+
+**Classic problems**: Kth Largest Element in Array, Top K Frequent Elements, Merge K Sorted Lists, Find Median from Data Stream, Task Scheduler, Reorganize String.
+
+**Complexity**: Time O(n log k) for top-K problems, Space O(k).
+
+---
+
+### Pattern 9: Stack
+
+**When to use**: Matching parentheses, nearest greater/smaller element, expression evaluation, backtracking state, undo operations.
+
+**Key idea**: Use LIFO ordering to track state. Monotonic stacks maintain elements in sorted order for "next greater/smaller" problems.
+
+```python
+# Template: Valid parentheses
+def is_valid_parentheses(s):
+    stack = []
+    mapping = {')': '(', '}': '{', ']': '['}
+
+    for char in s:
+        if char in mapping:
+            if not stack or stack[-1] != mapping[char]:
+                return False
+            stack.pop()
+        else:
+            stack.append(char)
+
+    return len(stack) == 0
+
+# Template: Monotonic stack (next greater element)
+def next_greater_element(nums):
+    """For each element, find the next element that is greater."""
+    n = len(nums)
+    result = [-1] * n
+    stack = []  # stores indices
+
+    for i in range(n):
+        while stack and nums[i] > nums[stack[-1]]:
+            idx = stack.pop()
+            result[idx] = nums[i]
+        stack.append(i)
+
+    return result
+
+# Template: Evaluate Reverse Polish Notation
+def eval_rpn(tokens):
+    stack = []
+    operators = {
+        '+': lambda a, b: a + b,
+        '-': lambda a, b: a - b,
+        '*': lambda a, b: a * b,
+        '/': lambda a, b: int(a / b),
+    }
+
+    for token in tokens:
+        if token in operators:
+            b, a = stack.pop(), stack.pop()
+            stack.append(operators[token](a, b))
+        else:
+            stack.append(int(token))
+
+    return stack[0]
+```
+
+**Classic problems**: Valid Parentheses, Min Stack, Daily Temperatures, Largest Rectangle in Histogram, Trapping Rain Water (stack approach), Evaluate Reverse Polish Notation.
+
+**Complexity**: Time O(n), Space O(n) for most stack problems.
+
+---
+
+### Pattern 10: Hash Map
+
+**When to use**: Frequency counting, grouping elements, O(1) lookups, two-sum type problems, caching.
+
+**Key idea**: Trade space for time. A hash map provides O(1) average-case lookup, insertion, and deletion.
+
+```python
+from collections import Counter, defaultdict
+
+# Template: Two Sum (unsorted)
+def two_sum(nums, target):
+    seen = {}
+    for i, num in enumerate(nums):
+        complement = target - num
+        if complement in seen:
+            return [seen[complement], i]
+        seen[num] = i
+    return []
+
+# Template: Group Anagrams
+def group_anagrams(strs):
+    groups = defaultdict(list)
+    for s in strs:
+        key = tuple(sorted(s))
+        groups[key].append(s)
+    return list(groups.values())
+
+# Template: Subarray sum equals K (prefix sum + hash map)
+def subarray_sum(nums, k):
+    """Count subarrays with sum equal to k."""
+    count = 0
+    prefix_sum = 0
+    prefix_counts = {0: 1}
+
+    for num in nums:
+        prefix_sum += num
+        if prefix_sum - k in prefix_counts:
+            count += prefix_counts[prefix_sum - k]
+        prefix_counts[prefix_sum] = prefix_counts.get(prefix_sum, 0) + 1
+
+    return count
+```
+
+**Classic problems**: Two Sum, Group Anagrams, Subarray Sum Equals K, Longest Consecutive Sequence, LRU Cache, Top K Frequent Elements.
+
+**Complexity**: Time O(n) average, Space O(n).
+
+---
+
+### Pattern 11: Linked List Techniques
+
+**When to use**: Cycle detection, finding the middle, reversing, merging, removing nth node from end.
+
+**Key idea**: Use fast/slow pointers for cycle detection and finding the middle. Master iterative reversal. Use a dummy head node to simplify edge cases.
+
+```python
+class ListNode:
+    def __init__(self, val=0, next=None):
+        self.val = val
+        self.next = next
+
+# Template: Reverse a linked list
+def reverse_list(head):
+    prev = None
+    curr = head
+    while curr:
+        next_temp = curr.next
+        curr.next = prev
+        prev = curr
+        curr = next_temp
+    return prev
+
+# Template: Detect cycle (Floyd's algorithm)
+def has_cycle(head):
+    slow = fast = head
+    while fast and fast.next:
+        slow = slow.next
+        fast = fast.next.next
+        if slow == fast:
+            return True
+    return False
+
+# Template: Find middle of linked list
+def find_middle(head):
+    slow = fast = head
+    while fast and fast.next:
+        slow = slow.next
+        fast = fast.next.next
+    return slow
+
+# Template: Merge two sorted lists
+def merge_two_lists(l1, l2):
+    dummy = ListNode(0)
+    curr = dummy
+    while l1 and l2:
+        if l1.val <= l2.val:
+            curr.next = l1
+            l1 = l1.next
+        else:
+            curr.next = l2
+            l2 = l2.next
+        curr = curr.next
+    curr.next = l1 or l2
+    return dummy.next
+```
+
+**Classic problems**: Reverse Linked List, Linked List Cycle, Merge Two Sorted Lists, Remove Nth Node From End, Reorder List, LRU Cache.
+
+**Complexity**: Time O(n), Space O(1) for most linked list operations.
+
+---
+
+### Pattern 12: Tree Traversals
+
+**When to use**: Any problem involving binary trees. DFS (preorder, inorder, postorder) and BFS (level-order) are the two fundamental approaches.
+
+**Key idea**: DFS uses recursion or a stack, processing nodes depth-first. BFS uses a queue, processing level by level. Choose based on what the problem asks.
+
+```python
+from collections import deque
+
+class TreeNode:
+    def __init__(self, val=0, left=None, right=None):
+        self.val = val
+        self.left = left
+        self.right = right
+
+# Template: DFS traversals (recursive)
+def preorder(root):
+    if not root:
+        return []
+    return [root.val] + preorder(root.left) + preorder(root.right)
+
+def inorder(root):
+    if not root:
+        return []
+    return inorder(root.left) + [root.val] + inorder(root.right)
+
+def postorder(root):
+    if not root:
+        return []
+    return postorder(root.left) + postorder(root.right) + [root.val]
+
+# Template: BFS (level-order traversal)
+def level_order(root):
+    if not root:
+        return []
+    result = []
+    queue = deque([root])
+
+    while queue:
+        level = []
+        for _ in range(len(queue)):
+            node = queue.popleft()
+            level.append(node.val)
+            if node.left:
+                queue.append(node.left)
+            if node.right:
+                queue.append(node.right)
+        result.append(level)
+
+    return result
+
+# Template: Max depth (classic DFS)
+def max_depth(root):
+    if not root:
+        return 0
+    return 1 + max(max_depth(root.left), max_depth(root.right))
+
+# Template: Path sum check
+def has_path_sum(root, target):
+    if not root:
+        return False
+    if not root.left and not root.right:
+        return root.val == target
+    return (has_path_sum(root.left, target - root.val) or
+            has_path_sum(root.right, target - root.val))
+```
+
+**Classic problems**: Maximum Depth, Same Tree, Invert Binary Tree, Level Order Traversal, Validate BST, Lowest Common Ancestor, Serialize/Deserialize Binary Tree, Binary Tree Maximum Path Sum.
+
+**Complexity**: Time O(n) for all traversals, Space O(h) for DFS and O(w) for BFS where h is height and w is max width.
+
+---
+
+### Pattern 13: Graph Algorithms
+
+**When to use**: Problems involving networks, connections, dependencies, shortest paths, or connected components.
+
+**Key idea**: Represent graphs as adjacency lists. Use BFS for shortest path in unweighted graphs, DFS for exploring all paths, and topological sort for dependency ordering.
+
+```python
+from collections import deque, defaultdict
+
+# Template: Topological Sort (Kahn's algorithm - BFS)
+def topological_sort(num_nodes, edges):
+    """edges: list of [prerequisite, dependent] pairs."""
+    graph = defaultdict(list)
+    in_degree = [0] * num_nodes
+
+    for pre, dep in edges:
+        graph[pre].append(dep)
+        in_degree[dep] += 1
+
+    queue = deque([i for i in range(num_nodes) if in_degree[i] == 0])
+    order = []
+
+    while queue:
+        node = queue.popleft()
+        order.append(node)
+        for neighbor in graph[node]:
+            in_degree[neighbor] -= 1
+            if in_degree[neighbor] == 0:
+                queue.append(neighbor)
+
+    return order if len(order) == num_nodes else []  # empty = cycle exists
+
+# Template: Detect cycle in directed graph (DFS)
+def has_cycle_directed(num_nodes, edges):
+    graph = defaultdict(list)
+    for u, v in edges:
+        graph[u].append(v)
+
+    WHITE, GRAY, BLACK = 0, 1, 2
+    color = [WHITE] * num_nodes
+
+    def dfs(node):
+        color[node] = GRAY
+        for neighbor in graph[node]:
+            if color[neighbor] == GRAY:
+                return True  # back edge = cycle
+            if color[neighbor] == WHITE and dfs(neighbor):
+                return True
+        color[node] = BLACK
+        return False
+
+    return any(color[i] == WHITE and dfs(i) for i in range(num_nodes))
+
+# Template: Number of connected components (undirected)
+def count_components(n, edges):
+    graph = defaultdict(list)
+    for u, v in edges:
+        graph[u].append(v)
+        graph[v].append(u)
+
+    visited = set()
+    count = 0
+
+    def dfs(node):
+        visited.add(node)
+        for neighbor in graph[node]:
+            if neighbor not in visited:
+                dfs(neighbor)
+
+    for i in range(n):
+        if i not in visited:
+            dfs(i)
+            count += 1
+
+    return count
+```
+
+**Classic problems**: Course Schedule, Number of Islands, Clone Graph, Pacific Atlantic Water Flow, Word Ladder, Alien Dictionary, Network Delay Time.
+
+**Complexity**: Time O(V + E), Space O(V + E) for adjacency list representation.
+
+---
+
+### Pattern 14: Bit Manipulation
+
+**When to use**: Problems involving powers of 2, toggling states, finding unique elements, counting bits, or optimizing space.
+
+**Key idea**: Use bitwise operators (AND, OR, XOR, NOT, shift) to manipulate individual bits. XOR is particularly useful because `a ^ a = 0` and `a ^ 0 = a`.
+
+```python
+# Essential bit operations
+# Check if bit is set:     num & (1 << i)
+# Set a bit:               num | (1 << i)
+# Clear a bit:             num & ~(1 << i)
+# Toggle a bit:            num ^ (1 << i)
+# Check power of 2:        num > 0 and (num & (num - 1)) == 0
+# Count set bits:          bin(num).count('1')
+# Get lowest set bit:      num & (-num)
+
+# Template: Single Number (find unique in array of pairs)
+def single_number(nums):
+    """Every element appears twice except one. Find it."""
+    result = 0
+    for num in nums:
+        result ^= num
+    return result
+
+# Template: Count number of 1 bits
+def count_bits(n):
+    count = 0
+    while n:
+        count += 1
+        n &= n - 1  # Clear lowest set bit
+    return count
+
+# Template: Find two unique numbers (all others appear twice)
+def single_number_iii(nums):
+    xor_all = 0
+    for num in nums:
+        xor_all ^= num
+
+    # Find rightmost set bit (differentiating bit)
+    diff_bit = xor_all & (-xor_all)
+
+    a, b = 0, 0
+    for num in nums:
+        if num & diff_bit:
+            a ^= num
+        else:
+            b ^= num
+
+    return [a, b]
+
+# Template: Reverse bits of a 32-bit integer
+def reverse_bits(n):
+    result = 0
+    for _ in range(32):
+        result = (result << 1) | (n & 1)
+        n >>= 1
+    return result
+```
+
+**Classic problems**: Single Number, Number of 1 Bits, Counting Bits, Reverse Bits, Missing Number, Sum of Two Integers (no + operator).
+
+**Complexity**: Time O(1) or O(n) depending on the problem, Space O(1).
+
+---
+
+### Pattern 15: Union-Find (Disjoint Set Union)
+
+**When to use**: Dynamic connectivity, connected components, cycle detection in undirected graphs, grouping elements.
+
+**Key idea**: Maintain a forest of trees where each tree represents a connected component. Two key operations: `find` (which component does an element belong to?) and `union` (merge two components). Path compression and union by rank achieve near O(1) amortized time.
+
+```python
+class UnionFind:
+    def __init__(self, n):
+        self.parent = list(range(n))
+        self.rank = [0] * n
+        self.components = n
+
+    def find(self, x):
+        """Find with path compression."""
+        if self.parent[x] != x:
+            self.parent[x] = self.find(self.parent[x])
+        return self.parent[x]
+
+    def union(self, x, y):
+        """Union by rank. Returns True if x and y were in different sets."""
+        root_x, root_y = self.find(x), self.find(y)
+        if root_x == root_y:
+            return False
+
+        if self.rank[root_x] < self.rank[root_y]:
+            root_x, root_y = root_y, root_x
+        self.parent[root_y] = root_x
+        if self.rank[root_x] == self.rank[root_y]:
+            self.rank[root_x] += 1
+
+        self.components -= 1
+        return True
+
+    def connected(self, x, y):
+        return self.find(x) == self.find(y)
+
+
+# Example: Number of connected components
+def count_components_uf(n, edges):
+    uf = UnionFind(n)
+    for u, v in edges:
+        uf.union(u, v)
+    return uf.components
+
+# Example: Detect cycle in undirected graph
+def has_cycle_undirected(n, edges):
+    uf = UnionFind(n)
+    for u, v in edges:
+        if not uf.union(u, v):
+            return True  # u and v already connected = cycle
+    return False
+```
+
+**Classic problems**: Number of Connected Components, Redundant Connection, Accounts Merge, Longest Consecutive Sequence (UF approach), Graph Valid Tree.
+
+**Complexity**: Time O(alpha(n)) per operation (nearly O(1) amortized), Space O(n).
+
+---
+
+## Quick Pattern Reference
+
+| # | Pattern | Best For | Time | Space |
+|---|---------|----------|------|-------|
+| 1 | Two Pointers | Sorted arrays, pairs | O(n) | O(1) |
+| 2 | Sliding Window | Subarrays, substrings | O(n) | O(k) |
+| 3 | Binary Search | Sorted data, answer space | O(log n) | O(1) |
+| 4 | BFS/DFS | Trees, graphs | O(V+E) | O(V) |
+| 5 | Dynamic Programming | Optimization, counting | O(n*m) | O(n) |
+| 6 | Greedy | Intervals, scheduling | O(n log n) | O(1) |
+| 7 | Backtracking | All combinations/permutations | O(2^n) | O(n) |
+| 8 | Heap | Top-K, streaming | O(n log k) | O(k) |
+| 9 | Stack | Matching, nearest greater | O(n) | O(n) |
+| 10 | Hash Map | Lookups, counting | O(n) | O(n) |
+| 11 | Linked List | Pointers, reversal | O(n) | O(1) |
+| 12 | Tree Traversals | Binary tree problems | O(n) | O(h) |
+| 13 | Graph Algorithms | Networks, dependencies | O(V+E) | O(V+E) |
+| 14 | Bit Manipulation | Unique elements, flags | O(n) | O(1) |
+| 15 | Union-Find | Connectivity, grouping | O(n*a(n)) | O(n) |
+
+---
+
+## Company-Specific Tips
+
+### Google
+- Emphasizes **code quality and optimization**. Expect follow-up questions asking you to improve time or space complexity.
+- Often tests **graph problems** and **dynamic programming**.
+- Uses Google Docs or a shared editor. Practice writing code without autocomplete or syntax highlighting.
+- "Googleyness" round: they evaluate intellectual humility and collaborative problem-solving.
+
+### Meta (Facebook)
+- Typically **2 coding rounds** in the phone screen, **2 coding + 1 system design + 1 behavioral** on-site.
+- Loves **tree and graph problems**, **BFS/DFS**, and **string manipulation**.
+- Fast pace: you may be expected to solve 2 medium problems in 45 minutes.
+- Ninja (coding speed) and Pirate (product impact) evaluation framework.
+
+### Amazon
+- **Leadership Principles** are woven into every round. Prepare 2-3 stories for each principle.
+- Coding rounds often feature **arrays, strings, and trees**.
+- Behavioral questions are extensive. Use the STAR method rigorously.
+- "Bar Raiser" interviewer has veto power and evaluates long-term potential.
+
+### Apple
+- Focuses on **clean code, design taste, and attention to detail**.
+- May include domain-specific questions based on the team you are interviewing for.
+- Expects knowledge of **object-oriented design** in addition to algorithms.
+
+### Microsoft
+- Generally considered the **most balanced** across coding, design, and behavioral.
+- Emphasizes **problem-solving approach** over getting the optimal solution.
+- "As appropriate" interview with the hiring manager is the final round.
+
+### Netflix
+- Primarily hires **senior+ engineers**. Interviews focus heavily on **system design** and **culture fit**.
+- Coding may be less emphasized compared to architecture and judgment.
+- "Freedom and Responsibility" culture means they evaluate independence and decision-making.
+
+---
+
+## Common Mistakes and How to Avoid Them
+
+### Mistake 1: Not Clarifying the Problem
+**Symptom**: You solve a different problem than what was asked.
+**Fix**: Repeat the problem back in your own words. Confirm constraints. Walk through an example together with the interviewer.
+
+### Mistake 2: Jumping to an Optimal Solution
+**Symptom**: You spend 20 minutes thinking silently before writing anything.
+**Fix**: Start with brute force. Say "The brute force approach would be..." Then optimize. This shows progress and buys you hints from the interviewer.
+
+### Mistake 3: Not Considering Edge Cases
+**Symptom**: Your solution works for the examples but fails on empty input, single element, or extreme values.
+**Fix**: Before coding, explicitly list edge cases: empty input, single element, all duplicates, negative numbers, very large input.
+
+### Mistake 4: Poor Variable Names
+**Symptom**: Your code uses `i`, `j`, `k`, `temp`, `temp2` everywhere.
+**Fix**: Use descriptive names. `left`, `right`, `window_sum`, `max_length`, `node`, `prev`. The interviewer needs to read your code quickly.
+
+### Mistake 5: Not Testing Your Solution
+**Symptom**: You say "I think this works" and stop.
+**Fix**: Trace through your code line by line with the given example. Then test with an edge case. Then check boundary conditions in your loops.
+
+### Mistake 6: Ignoring Space Complexity
+**Symptom**: You only mention time complexity.
+**Fix**: Always state both. "This is O(n) time and O(n) space due to the hash map." If the interviewer asks if you can reduce space, discuss the trade-offs.
+
+### Mistake 7: Giving Up Too Quickly
+**Symptom**: You say "I don't know how to solve this" after 5 minutes.
+**Fix**: Break the problem down. Solve a simpler version first. Think about what data structure could help. Ask the interviewer for a hint -- this is expected and encouraged.
+
+### Mistake 8: Over-Communicating or Under-Communicating
+**Symptom**: You either narrate every character you type, or you code in complete silence.
+**Fix**: Share your high-level thinking: "I am going to use two pointers because the array is sorted." During implementation, brief comments are enough: "Now I will handle the edge case where the list is empty."
+
+---
+
+## Practice Strategy
+
+### Week-by-Week Pattern Focus
+
+| Week | Patterns to Master | Daily Goal |
+|------|-------------------|------------|
+| 1 | Two Pointers, Sliding Window, Hash Map | 3 easy + 1 medium |
+| 2 | Binary Search, Stack, Linked List | 2 easy + 2 medium |
+| 3 | BFS/DFS, Tree Traversals | 1 easy + 2 medium |
+| 4 | Graph Algorithms, Backtracking | 2-3 medium |
+| 5 | Dynamic Programming (1D) | 2-3 medium |
+| 6 | DP (2D), Greedy, Heap | 2 medium + 1 hard |
+| 7 | Bit Manipulation, Union-Find, Mixed | 2 medium + 1 hard |
+| 8 | Mock interviews, timed practice | 2 medium in 40 min |
+
+### How to Review a Problem
+
+After solving (or failing to solve) a problem, do this:
+
+1. **Identify the pattern** -- which of the 15 patterns does it use?
+2. **Note the key insight** -- what was the "aha" moment?
+3. **Write the time/space complexity** and justify it
+4. **Revisit in 3 days** -- can you solve it again without looking?
+5. **Revisit in 7 days** -- is it now second nature?
+
+This spaced-repetition approach builds long-term retention, not just short-term recall.
+
+---
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="Problem Bank"
+    href="/interview-prep/problem-bank/"
+    description="76 must-solve problems organized by topic and pattern"
+  />
+  <LinkCard
+    title="Behavioral Interviews"
+    href="/interview-prep/behavioral/"
+    description="Master the STAR method and prepare for top 20 questions"
+  />
+</CardGrid>

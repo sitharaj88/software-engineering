@@ -1,0 +1,1862 @@
+---
+title: Behavioral Design Patterns
+description: Master Observer, Strategy, Command, State, Iterator, and Template Method patterns with Python and TypeScript examples
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+Behavioral patterns are concerned with algorithms and the assignment of responsibilities between objects. They describe not just patterns of objects or classes but also the patterns of communication between them. These patterns shift your focus from flow of control to the way objects are interconnected.
+
+---
+
+## Observer
+
+### Intent
+
+Define a **one-to-many dependency** between objects so that when one object changes state, all its dependents are notified and updated automatically.
+
+### Problem
+
+An e-commerce application needs to notify multiple systems when an order is placed: the inventory system must update stock, the email system must send a confirmation, and the analytics system must track the sale. Hard-coding these notifications creates tight coupling.
+
+### Solution
+
+Define a subscription mechanism that lets objects subscribe to events and get notified when those events occur. The publisher (subject) maintains a list of subscribers (observers) and notifies them of state changes.
+
+### Structure
+
+```
+┌──────────────────────┐         ┌──────────────────┐
+│      Subject          │         │   Observer        │
+│      (Publisher)       │         │   (interface)     │
+├──────────────────────┤         ├──────────────────┤
+│ - observers: list     │────────►│ + update(data)   │
+│ + subscribe(obs)      │  1..*   └────────┬─────────┘
+│ + unsubscribe(obs)    │                  │
+│ + notify()            │         ┌────────┴────────┐
+└──────────────────────┘         │                  │
+                            ┌────┴────┐     ┌──────┴─────┐
+                            │ EmailObs│     │InventoryObs│
+                            └─────────┘     └────────────┘
+```
+
+### Code Examples
+
+<Tabs>
+  <TabItem label="Python">
+```python
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from typing import Any
+
+
+# Event data
+@dataclass
+class OrderEvent:
+    order_id: str
+    customer_email: str
+    items: list[str]
+    total: float
+
+
+# Observer interface
+class EventListener(ABC):
+    @abstractmethod
+    def update(self, event: OrderEvent) -> None:
+        pass
+
+
+# Subject (Publisher)
+class EventManager:
+    """Manages subscriptions and notifications."""
+
+    def __init__(self) -> None:
+        self._listeners: dict[str, list[EventListener]] = {}
+
+    def subscribe(self, event_type: str, listener: EventListener) -> None:
+        if event_type not in self._listeners:
+            self._listeners[event_type] = []
+        self._listeners[event_type].append(listener)
+
+    def unsubscribe(self, event_type: str, listener: EventListener) -> None:
+        if event_type in self._listeners:
+            self._listeners[event_type].remove(listener)
+
+    def notify(self, event_type: str, event: OrderEvent) -> None:
+        for listener in self._listeners.get(event_type, []):
+            listener.update(event)
+
+
+# Concrete observers
+class EmailNotifier(EventListener):
+    def update(self, event: OrderEvent) -> None:
+        print(
+            f"  [Email] Sending confirmation to {event.customer_email} "
+            f"for order {event.order_id} (${event.total:.2f})"
+        )
+
+
+class InventoryManager(EventListener):
+    def update(self, event: OrderEvent) -> None:
+        for item in event.items:
+            print(f"  [Inventory] Reducing stock for: {item}")
+
+
+class AnalyticsTracker(EventListener):
+    def update(self, event: OrderEvent) -> None:
+        print(
+            f"  [Analytics] Tracking sale: {event.order_id}, "
+            f"items={len(event.items)}, revenue=${event.total:.2f}"
+        )
+
+
+class AuditLogger(EventListener):
+    def update(self, event: OrderEvent) -> None:
+        print(f"  [Audit] Order {event.order_id} placed at ${event.total:.2f}")
+
+
+# Order service using the event manager
+class OrderService:
+    def __init__(self) -> None:
+        self.events = EventManager()
+
+    def place_order(
+        self, order_id: str, email: str, items: list[str], total: float
+    ) -> None:
+        print(f"\nPlacing order {order_id}...")
+        event = OrderEvent(order_id, email, items, total)
+        # Process the order...
+        self.events.notify("order_placed", event)
+
+
+# Usage
+service = OrderService()
+service.events.subscribe("order_placed", EmailNotifier())
+service.events.subscribe("order_placed", InventoryManager())
+service.events.subscribe("order_placed", AnalyticsTracker())
+service.events.subscribe("order_placed", AuditLogger())
+
+service.place_order("ORD-001", "alice@example.com", ["Laptop", "Mouse"], 1299.99)
+# All four observers are notified automatically
+```
+  </TabItem>
+  <TabItem label="TypeScript">
+```typescript
+// Event data
+interface OrderEvent {
+  orderId: string;
+  customerEmail: string;
+  items: string[];
+  total: number;
+}
+
+// Observer interface
+interface EventListener {
+  update(event: OrderEvent): void;
+}
+
+// Subject (Publisher)
+class EventManager {
+  private listeners = new Map<string, EventListener[]>();
+
+  subscribe(eventType: string, listener: EventListener): void {
+    if (!this.listeners.has(eventType)) {
+      this.listeners.set(eventType, []);
+    }
+    this.listeners.get(eventType)!.push(listener);
+  }
+
+  unsubscribe(eventType: string, listener: EventListener): void {
+    const list = this.listeners.get(eventType);
+    if (list) {
+      const index = list.indexOf(listener);
+      if (index !== -1) list.splice(index, 1);
+    }
+  }
+
+  notify(eventType: string, event: OrderEvent): void {
+    for (const listener of this.listeners.get(eventType) ?? []) {
+      listener.update(event);
+    }
+  }
+}
+
+// Concrete observers
+class EmailNotifier implements EventListener {
+  update(event: OrderEvent): void {
+    console.log(
+      `  [Email] Sending confirmation to ${event.customerEmail} ` +
+      `for order ${event.orderId} ($${event.total.toFixed(2)})`
+    );
+  }
+}
+
+class InventoryManager implements EventListener {
+  update(event: OrderEvent): void {
+    for (const item of event.items) {
+      console.log(`  [Inventory] Reducing stock for: ${item}`);
+    }
+  }
+}
+
+class AnalyticsTracker implements EventListener {
+  update(event: OrderEvent): void {
+    console.log(
+      `  [Analytics] Tracking sale: ${event.orderId}, ` +
+      `items=${event.items.length}, revenue=$${event.total.toFixed(2)}`
+    );
+  }
+}
+
+// Order service
+class OrderService {
+  events = new EventManager();
+
+  placeOrder(
+    orderId: string, email: string, items: string[], total: number,
+  ): void {
+    console.log(`\nPlacing order ${orderId}...`);
+    const event: OrderEvent = {
+      orderId, customerEmail: email, items, total,
+    };
+    this.events.notify("order_placed", event);
+  }
+}
+
+// Usage
+const service = new OrderService();
+service.events.subscribe("order_placed", new EmailNotifier());
+service.events.subscribe("order_placed", new InventoryManager());
+service.events.subscribe("order_placed", new AnalyticsTracker());
+
+service.placeOrder("ORD-001", "alice@example.com", ["Laptop", "Mouse"], 1299.99);
+```
+  </TabItem>
+</Tabs>
+
+### When to Use
+
+- Changes to one object require changing others, and you do not know how many objects need to change
+- An object should notify other objects without knowing who they are
+- You need a pub/sub or event-driven architecture
+
+### Pros and Cons
+
+| Pros | Cons |
+|------|------|
+| Open/Closed: add new subscribers without modifying publisher | Subscribers should not depend on notification order |
+| Establishes dynamic relationships at runtime | Can cause memory leaks if subscribers are not unsubscribed |
+| Loose coupling between subject and observers | Complex update chains can be hard to debug |
+
+### Real-World Usage
+
+- **DOM events**: `addEventListener` / `removeEventListener`
+- **React state management**: `useEffect` subscribes to state changes
+- **Python signals**: Django's `post_save`, `pre_delete` signals
+- **Node.js EventEmitter**: Core event system in Node.js
+
+---
+
+## Strategy
+
+### Intent
+
+Define a family of algorithms, encapsulate each one, and make them **interchangeable**. Strategy lets the algorithm vary independently from clients that use it.
+
+### Problem
+
+A payment processing system needs to support credit cards, PayPal, cryptocurrency, and bank transfers. Embedding all payment logic in one class creates a massive conditional mess that is hard to extend and test.
+
+### Solution
+
+Extract each algorithm into its own class with a common interface. The context class stores a reference to a strategy and delegates work to it. The strategy can be swapped at runtime.
+
+### Structure
+
+```
+┌──────────────────────┐      ┌──────────────────┐
+│      Context          │      │   Strategy        │
+├──────────────────────┤ has  │   (interface)     │
+│ - strategy: Strategy  │─────►├──────────────────┤
+│ + set_strategy(s)     │      │ + execute(data)  │
+│ + do_something()      │      └────────┬─────────┘
+└──────────────────────┘               │
+                                ┌──────┴──────────┐
+                                │                  │
+                          ┌─────┴─────┐    ┌──────┴──────┐
+                          │StrategyA  │    │ StrategyB   │
+                          │(CreditCard)│    │ (PayPal)    │
+                          └───────────┘    └─────────────┘
+```
+
+### Code Examples
+
+<Tabs>
+  <TabItem label="Python">
+```python
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+
+
+@dataclass
+class PaymentDetails:
+    amount: float
+    currency: str = "USD"
+
+
+@dataclass
+class PaymentResult:
+    success: bool
+    transaction_id: str
+    message: str
+
+
+# Strategy interface
+class PaymentStrategy(ABC):
+    @abstractmethod
+    def pay(self, details: PaymentDetails) -> PaymentResult:
+        pass
+
+    @abstractmethod
+    def validate(self, details: PaymentDetails) -> bool:
+        pass
+
+
+# Concrete strategies
+class CreditCardPayment(PaymentStrategy):
+    def __init__(self, card_number: str, expiry: str, cvv: str) -> None:
+        self.card_number = card_number
+        self.expiry = expiry
+        self.cvv = cvv
+
+    def validate(self, details: PaymentDetails) -> bool:
+        return (
+            len(self.card_number) == 16
+            and details.amount > 0
+            and details.amount <= 50000
+        )
+
+    def pay(self, details: PaymentDetails) -> PaymentResult:
+        if not self.validate(details):
+            return PaymentResult(False, "", "Validation failed")
+        masked = f"****{self.card_number[-4:]}"
+        return PaymentResult(
+            True,
+            f"CC-{id(self)}",
+            f"Charged ${details.amount:.2f} to card {masked}",
+        )
+
+
+class PayPalPayment(PaymentStrategy):
+    def __init__(self, email: str) -> None:
+        self.email = email
+
+    def validate(self, details: PaymentDetails) -> bool:
+        return "@" in self.email and details.amount > 0
+
+    def pay(self, details: PaymentDetails) -> PaymentResult:
+        if not self.validate(details):
+            return PaymentResult(False, "", "Validation failed")
+        return PaymentResult(
+            True,
+            f"PP-{id(self)}",
+            f"Charged ${details.amount:.2f} via PayPal ({self.email})",
+        )
+
+
+class CryptoPayment(PaymentStrategy):
+    def __init__(self, wallet_address: str, coin: str = "BTC") -> None:
+        self.wallet_address = wallet_address
+        self.coin = coin
+
+    def validate(self, details: PaymentDetails) -> bool:
+        return len(self.wallet_address) > 10 and details.amount > 0
+
+    def pay(self, details: PaymentDetails) -> PaymentResult:
+        if not self.validate(details):
+            return PaymentResult(False, "", "Validation failed")
+        short_addr = f"{self.wallet_address[:6]}...{self.wallet_address[-4:]}"
+        return PaymentResult(
+            True,
+            f"CRYPTO-{id(self)}",
+            f"Sent ${details.amount:.2f} in {self.coin} to {short_addr}",
+        )
+
+
+# Context
+class PaymentProcessor:
+    def __init__(self, strategy: PaymentStrategy) -> None:
+        self._strategy = strategy
+
+    def set_strategy(self, strategy: PaymentStrategy) -> None:
+        self._strategy = strategy
+
+    def checkout(self, amount: float) -> PaymentResult:
+        details = PaymentDetails(amount=amount)
+        result = self._strategy.pay(details)
+        print(f"Payment: {result.message}")
+        return result
+
+
+# Usage -- swap strategies at runtime
+processor = PaymentProcessor(
+    CreditCardPayment("4111111111111111", "12/25", "123")
+)
+processor.checkout(99.99)
+
+processor.set_strategy(PayPalPayment("alice@example.com"))
+processor.checkout(49.99)
+
+processor.set_strategy(
+    CryptoPayment("0x742d35Cc6634C0532925a3b844Bc9e7595f2bD38")
+)
+processor.checkout(199.99)
+```
+  </TabItem>
+  <TabItem label="TypeScript">
+```typescript
+interface PaymentDetails {
+  amount: number;
+  currency: string;
+}
+
+interface PaymentResult {
+  success: boolean;
+  transactionId: string;
+  message: string;
+}
+
+// Strategy interface
+interface PaymentStrategy {
+  pay(details: PaymentDetails): PaymentResult;
+  validate(details: PaymentDetails): boolean;
+}
+
+// Concrete strategies
+class CreditCardPayment implements PaymentStrategy {
+  constructor(
+    private cardNumber: string,
+    private expiry: string,
+    private cvv: string,
+  ) {}
+
+  validate(details: PaymentDetails): boolean {
+    return this.cardNumber.length === 16 && details.amount > 0
+      && details.amount <= 50000;
+  }
+
+  pay(details: PaymentDetails): PaymentResult {
+    if (!this.validate(details)) {
+      return { success: false, transactionId: "", message: "Validation failed" };
+    }
+    const masked = `****${this.cardNumber.slice(-4)}`;
+    return {
+      success: true,
+      transactionId: `CC-${Date.now()}`,
+      message: `Charged $${details.amount.toFixed(2)} to card ${masked}`,
+    };
+  }
+}
+
+class PayPalPayment implements PaymentStrategy {
+  constructor(private email: string) {}
+
+  validate(details: PaymentDetails): boolean {
+    return this.email.includes("@") && details.amount > 0;
+  }
+
+  pay(details: PaymentDetails): PaymentResult {
+    if (!this.validate(details)) {
+      return { success: false, transactionId: "", message: "Validation failed" };
+    }
+    return {
+      success: true,
+      transactionId: `PP-${Date.now()}`,
+      message: `Charged $${details.amount.toFixed(2)} via PayPal (${this.email})`,
+    };
+  }
+}
+
+class CryptoPayment implements PaymentStrategy {
+  constructor(
+    private walletAddress: string,
+    private coin = "BTC",
+  ) {}
+
+  validate(details: PaymentDetails): boolean {
+    return this.walletAddress.length > 10 && details.amount > 0;
+  }
+
+  pay(details: PaymentDetails): PaymentResult {
+    if (!this.validate(details)) {
+      return { success: false, transactionId: "", message: "Validation failed" };
+    }
+    const short = `${this.walletAddress.slice(0, 6)}...${this.walletAddress.slice(-4)}`;
+    return {
+      success: true,
+      transactionId: `CRYPTO-${Date.now()}`,
+      message: `Sent $${details.amount.toFixed(2)} in ${this.coin} to ${short}`,
+    };
+  }
+}
+
+// Context
+class PaymentProcessor {
+  constructor(private strategy: PaymentStrategy) {}
+
+  setStrategy(strategy: PaymentStrategy): void {
+    this.strategy = strategy;
+  }
+
+  checkout(amount: number): PaymentResult {
+    const details: PaymentDetails = { amount, currency: "USD" };
+    const result = this.strategy.pay(details);
+    console.log(`Payment: ${result.message}`);
+    return result;
+  }
+}
+
+// Usage
+const processor = new PaymentProcessor(
+  new CreditCardPayment("4111111111111111", "12/25", "123")
+);
+processor.checkout(99.99);
+
+processor.setStrategy(new PayPalPayment("alice@example.com"));
+processor.checkout(49.99);
+
+processor.setStrategy(
+  new CryptoPayment("0x742d35Cc6634C0532925a3b844Bc9e7595f2bD38")
+);
+processor.checkout(199.99);
+```
+  </TabItem>
+</Tabs>
+
+### When to Use
+
+- You have multiple algorithms for a specific task and want to switch between them
+- You want to avoid large conditional statements selecting behavior
+- You need to isolate the algorithm's implementation details from the code that uses it
+
+### Pros and Cons
+
+| Pros | Cons |
+|------|------|
+| Swap algorithms at runtime | Clients must be aware of different strategies |
+| Isolate algorithm implementation from context | Overkill if only a few algorithms that rarely change |
+| Open/Closed: add new strategies without modifying context | Increased number of classes |
+| Replace inheritance with composition | |
+
+### Real-World Usage
+
+- **Python `sorted()` key parameter**: The key function is a strategy for comparison
+- **Express.js middleware**: Each middleware is a strategy for request processing
+- **Java `Comparator`**: Encapsulates comparison algorithms
+
+---
+
+## Command
+
+### Intent
+
+Encapsulate a request as an object, letting you **parameterize** clients with different requests, queue or log requests, and support undoable operations.
+
+### Problem
+
+A text editor needs undo/redo functionality. Operations include typing text, deleting text, formatting, and moving the cursor. You need to track each operation so it can be reversed.
+
+### Solution
+
+Turn each operation into a stand-alone object containing all the information needed to perform the action. The same interface lets you queue, log, undo, and redo operations uniformly.
+
+### Structure
+
+```
+┌────────────┐    ┌──────────────────┐    ┌─────────────┐
+│  Invoker    │───►│  Command         │───►│  Receiver    │
+│ (Button,   │    │  (interface)      │    │  (Editor)    │
+│  Menu)     │    ├──────────────────┤    └─────────────┘
+└────────────┘    │ + execute()      │
+                  │ + undo()         │
+                  └──────────┬───────┘
+                             │
+                  ┌──────────┴──────────┐
+                  │                     │
+            ┌─────┴──────┐     ┌───────┴──────┐
+            │ TypeCommand │     │DeleteCommand  │
+            │ + execute() │     │ + execute()   │
+            │ + undo()    │     │ + undo()      │
+            └────────────┘     └──────────────┘
+```
+
+### Code Examples
+
+<Tabs>
+  <TabItem label="Python">
+```python
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
+
+
+# Receiver -- the object being acted upon
+class TextEditor:
+    def __init__(self) -> None:
+        self.content = ""
+        self.cursor_position = 0
+
+    def insert(self, text: str, position: int) -> None:
+        self.content = (
+            self.content[:position] + text + self.content[position:]
+        )
+        self.cursor_position = position + len(text)
+
+    def delete(self, position: int, length: int) -> str:
+        deleted = self.content[position : position + length]
+        self.content = self.content[:position] + self.content[position + length:]
+        self.cursor_position = position
+        return deleted
+
+    def __str__(self) -> str:
+        return f'"{self.content}" (cursor at {self.cursor_position})'
+
+
+# Command interface
+class Command(ABC):
+    @abstractmethod
+    def execute(self) -> None:
+        pass
+
+    @abstractmethod
+    def undo(self) -> None:
+        pass
+
+
+# Concrete commands
+class TypeCommand(Command):
+    def __init__(self, editor: TextEditor, text: str, position: int) -> None:
+        self.editor = editor
+        self.text = text
+        self.position = position
+
+    def execute(self) -> None:
+        self.editor.insert(self.text, self.position)
+
+    def undo(self) -> None:
+        self.editor.delete(self.position, len(self.text))
+
+
+class DeleteCommand(Command):
+    def __init__(self, editor: TextEditor, position: int, length: int) -> None:
+        self.editor = editor
+        self.position = position
+        self.length = length
+        self._deleted_text = ""
+
+    def execute(self) -> None:
+        self._deleted_text = self.editor.delete(self.position, self.length)
+
+    def undo(self) -> None:
+        self.editor.insert(self._deleted_text, self.position)
+
+
+# Invoker -- manages command execution and history
+class CommandHistory:
+    def __init__(self) -> None:
+        self._history: list[Command] = []
+        self._redo_stack: list[Command] = []
+
+    def execute(self, command: Command) -> None:
+        command.execute()
+        self._history.append(command)
+        self._redo_stack.clear()  # Clear redo stack on new command
+
+    def undo(self) -> bool:
+        if not self._history:
+            print("Nothing to undo")
+            return False
+        command = self._history.pop()
+        command.undo()
+        self._redo_stack.append(command)
+        return True
+
+    def redo(self) -> bool:
+        if not self._redo_stack:
+            print("Nothing to redo")
+            return False
+        command = self._redo_stack.pop()
+        command.execute()
+        self._history.append(command)
+        return True
+
+
+# Usage
+editor = TextEditor()
+history = CommandHistory()
+
+# Type "Hello World"
+history.execute(TypeCommand(editor, "Hello", 0))
+print(f"After typing 'Hello': {editor}")
+
+history.execute(TypeCommand(editor, " World", 5))
+print(f"After typing ' World': {editor}")
+
+# Delete "World"
+history.execute(DeleteCommand(editor, 6, 5))
+print(f"After deleting 'World': {editor}")
+
+# Undo the delete
+history.undo()
+print(f"After undo: {editor}")
+
+# Undo the " World"
+history.undo()
+print(f"After undo: {editor}")
+
+# Redo " World"
+history.redo()
+print(f"After redo: {editor}")
+```
+  </TabItem>
+  <TabItem label="TypeScript">
+```typescript
+// Receiver
+class TextEditor {
+  content = "";
+  cursorPosition = 0;
+
+  insert(text: string, position: number): void {
+    this.content =
+      this.content.slice(0, position) + text + this.content.slice(position);
+    this.cursorPosition = position + text.length;
+  }
+
+  delete(position: number, length: number): string {
+    const deleted = this.content.slice(position, position + length);
+    this.content =
+      this.content.slice(0, position) + this.content.slice(position + length);
+    this.cursorPosition = position;
+    return deleted;
+  }
+
+  toString(): string {
+    return `"${this.content}" (cursor at ${this.cursorPosition})`;
+  }
+}
+
+// Command interface
+interface Command {
+  execute(): void;
+  undo(): void;
+}
+
+// Concrete commands
+class TypeCommand implements Command {
+  constructor(
+    private editor: TextEditor,
+    private text: string,
+    private position: number,
+  ) {}
+
+  execute(): void {
+    this.editor.insert(this.text, this.position);
+  }
+
+  undo(): void {
+    this.editor.delete(this.position, this.text.length);
+  }
+}
+
+class DeleteCommand implements Command {
+  private deletedText = "";
+
+  constructor(
+    private editor: TextEditor,
+    private position: number,
+    private length: number,
+  ) {}
+
+  execute(): void {
+    this.deletedText = this.editor.delete(this.position, this.length);
+  }
+
+  undo(): void {
+    this.editor.insert(this.deletedText, this.position);
+  }
+}
+
+// Invoker
+class CommandHistory {
+  private history: Command[] = [];
+  private redoStack: Command[] = [];
+
+  execute(command: Command): void {
+    command.execute();
+    this.history.push(command);
+    this.redoStack = [];
+  }
+
+  undo(): boolean {
+    const command = this.history.pop();
+    if (!command) {
+      console.log("Nothing to undo");
+      return false;
+    }
+    command.undo();
+    this.redoStack.push(command);
+    return true;
+  }
+
+  redo(): boolean {
+    const command = this.redoStack.pop();
+    if (!command) {
+      console.log("Nothing to redo");
+      return false;
+    }
+    command.execute();
+    this.history.push(command);
+    return true;
+  }
+}
+
+// Usage
+const editor = new TextEditor();
+const history = new CommandHistory();
+
+history.execute(new TypeCommand(editor, "Hello", 0));
+console.log(`After typing 'Hello': ${editor}`);
+
+history.execute(new TypeCommand(editor, " World", 5));
+console.log(`After typing ' World': ${editor}`);
+
+history.execute(new DeleteCommand(editor, 6, 5));
+console.log(`After deleting 'World': ${editor}`);
+
+history.undo();
+console.log(`After undo: ${editor}`);
+
+history.undo();
+console.log(`After undo: ${editor}`);
+
+history.redo();
+console.log(`After redo: ${editor}`);
+```
+  </TabItem>
+</Tabs>
+
+### When to Use
+
+- You need undo/redo functionality
+- You want to queue, schedule, or log operations
+- You need to support macro recording (sequences of commands)
+- You want to decouple the object that invokes the operation from the object that performs it
+
+### Pros and Cons
+
+| Pros | Cons |
+|------|------|
+| Single Responsibility: decouple invocation from execution | Can increase complexity with many command classes |
+| Open/Closed: add new commands without modifying existing code | Each command needs execute and undo logic |
+| Undo/redo, queuing, and logging become straightforward | Memory usage grows with history size |
+| Compose commands into macros | |
+
+### Real-World Usage
+
+- **Text editors**: Every keystroke is a command with undo support
+- **Git**: Each commit is a command that can be reverted
+- **Redux**: Actions are command objects dispatched to reducers
+- **Task queues (Celery, Bull)**: Jobs are serialized command objects
+
+---
+
+## State
+
+### Intent
+
+Allow an object to **alter its behavior** when its internal state changes. The object will appear to change its class.
+
+### Problem
+
+A document in a workflow system can be in Draft, Review, or Published state. Each state has different rules: drafts can be edited and submitted; reviews can be approved or rejected; published documents can only be archived. Managing these transitions with conditionals creates fragile spaghetti code.
+
+### Solution
+
+Create a State class for each possible state. The context object delegates behavior to its current state object. State transitions are handled by replacing the state object.
+
+### Structure
+
+```
+┌────────────────────────┐
+│       Context           │
+├────────────────────────┤
+│ - state: State          │
+│ + set_state(state)      │      ┌──────────────────┐
+│ + request() {           │─────►│   State           │
+│     state.handle(this)  │      │   (interface)     │
+│   }                     │      ├──────────────────┤
+└────────────────────────┘      │ + handle(ctx)    │
+                                └────────┬─────────┘
+                                         │
+                              ┌──────────┼──────────┐
+                              │          │          │
+                        ┌─────┴──┐ ┌────┴───┐ ┌───┴──────┐
+                        │ Draft  │ │ Review │ │ Published│
+                        └────────┘ └────────┘ └──────────┘
+```
+
+### Code Examples
+
+<Tabs>
+  <TabItem label="Python">
+```python
+from __future__ import annotations
+from abc import ABC, abstractmethod
+
+
+# State interface
+class DocumentState(ABC):
+    @abstractmethod
+    def edit(self, doc: Document, content: str) -> str:
+        pass
+
+    @abstractmethod
+    def submit(self, doc: Document) -> str:
+        pass
+
+    @abstractmethod
+    def approve(self, doc: Document) -> str:
+        pass
+
+    @abstractmethod
+    def reject(self, doc: Document) -> str:
+        pass
+
+    @abstractmethod
+    def publish(self, doc: Document) -> str:
+        pass
+
+
+# Concrete states
+class DraftState(DocumentState):
+    def edit(self, doc: Document, content: str) -> str:
+        doc.content = content
+        return f"Draft updated: '{content[:30]}...'"
+
+    def submit(self, doc: Document) -> str:
+        doc.set_state(ReviewState())
+        return "Document submitted for review"
+
+    def approve(self, doc: Document) -> str:
+        return "Cannot approve a draft. Submit it first."
+
+    def reject(self, doc: Document) -> str:
+        return "Cannot reject a draft. Submit it first."
+
+    def publish(self, doc: Document) -> str:
+        return "Cannot publish a draft. Submit and approve first."
+
+
+class ReviewState(DocumentState):
+    def edit(self, doc: Document, content: str) -> str:
+        return "Cannot edit during review. Reject to return to draft."
+
+    def submit(self, doc: Document) -> str:
+        return "Document is already under review."
+
+    def approve(self, doc: Document) -> str:
+        doc.set_state(ApprovedState())
+        return "Document approved! Ready for publishing."
+
+    def reject(self, doc: Document) -> str:
+        doc.set_state(DraftState())
+        return "Document rejected. Returned to draft."
+
+    def publish(self, doc: Document) -> str:
+        return "Cannot publish. Must be approved first."
+
+
+class ApprovedState(DocumentState):
+    def edit(self, doc: Document, content: str) -> str:
+        return "Cannot edit an approved document."
+
+    def submit(self, doc: Document) -> str:
+        return "Document is already approved."
+
+    def approve(self, doc: Document) -> str:
+        return "Document is already approved."
+
+    def reject(self, doc: Document) -> str:
+        doc.set_state(DraftState())
+        return "Approval revoked. Returned to draft."
+
+    def publish(self, doc: Document) -> str:
+        doc.set_state(PublishedState())
+        return "Document published!"
+
+
+class PublishedState(DocumentState):
+    def edit(self, doc: Document, content: str) -> str:
+        return "Cannot edit a published document."
+
+    def submit(self, doc: Document) -> str:
+        return "Document is already published."
+
+    def approve(self, doc: Document) -> str:
+        return "Document is already published."
+
+    def reject(self, doc: Document) -> str:
+        return "Cannot reject a published document."
+
+    def publish(self, doc: Document) -> str:
+        return "Document is already published."
+
+
+# Context
+class Document:
+    def __init__(self, title: str) -> None:
+        self.title = title
+        self.content = ""
+        self._state: DocumentState = DraftState()
+
+    @property
+    def state_name(self) -> str:
+        return type(self._state).__name__.replace("State", "")
+
+    def set_state(self, state: DocumentState) -> None:
+        self._state = state
+        print(f"  State changed to: {self.state_name}")
+
+    def edit(self, content: str) -> str:
+        return self._state.edit(self, content)
+
+    def submit(self) -> str:
+        return self._state.submit(self)
+
+    def approve(self) -> str:
+        return self._state.approve(self)
+
+    def reject(self) -> str:
+        return self._state.reject(self)
+
+    def publish(self) -> str:
+        return self._state.publish(self)
+
+
+# Usage
+doc = Document("Design Patterns Guide")
+
+print(doc.edit("Initial content about patterns"))  # Works in Draft
+print(doc.publish())   # Cannot publish a draft
+print(doc.submit())    # Moves to Review
+print(doc.edit("Fix typo"))   # Cannot edit in Review
+print(doc.reject())    # Back to Draft
+print(doc.edit("Revised content with corrections"))
+print(doc.submit())    # Back to Review
+print(doc.approve())   # Moves to Approved
+print(doc.publish())   # Published!
+print(doc.edit("One more thing"))  # Cannot edit published doc
+```
+  </TabItem>
+  <TabItem label="TypeScript">
+```typescript
+// State interface
+interface DocumentState {
+  edit(doc: Document, content: string): string;
+  submit(doc: Document): string;
+  approve(doc: Document): string;
+  reject(doc: Document): string;
+  publish(doc: Document): string;
+}
+
+class DraftState implements DocumentState {
+  edit(doc: Document, content: string): string {
+    doc.content = content;
+    return `Draft updated: '${content.slice(0, 30)}...'`;
+  }
+  submit(doc: Document): string {
+    doc.setState(new ReviewState());
+    return "Document submitted for review";
+  }
+  approve(doc: Document): string {
+    return "Cannot approve a draft. Submit it first.";
+  }
+  reject(doc: Document): string {
+    return "Cannot reject a draft. Submit it first.";
+  }
+  publish(doc: Document): string {
+    return "Cannot publish a draft. Submit and approve first.";
+  }
+}
+
+class ReviewState implements DocumentState {
+  edit(doc: Document, content: string): string {
+    return "Cannot edit during review. Reject to return to draft.";
+  }
+  submit(doc: Document): string {
+    return "Document is already under review.";
+  }
+  approve(doc: Document): string {
+    doc.setState(new ApprovedState());
+    return "Document approved! Ready for publishing.";
+  }
+  reject(doc: Document): string {
+    doc.setState(new DraftState());
+    return "Document rejected. Returned to draft.";
+  }
+  publish(doc: Document): string {
+    return "Cannot publish. Must be approved first.";
+  }
+}
+
+class ApprovedState implements DocumentState {
+  edit(doc: Document, content: string): string {
+    return "Cannot edit an approved document.";
+  }
+  submit(doc: Document): string { return "Already approved."; }
+  approve(doc: Document): string { return "Already approved."; }
+  reject(doc: Document): string {
+    doc.setState(new DraftState());
+    return "Approval revoked. Returned to draft.";
+  }
+  publish(doc: Document): string {
+    doc.setState(new PublishedState());
+    return "Document published!";
+  }
+}
+
+class PublishedState implements DocumentState {
+  edit(doc: Document, content: string): string {
+    return "Cannot edit a published document.";
+  }
+  submit(doc: Document): string { return "Already published."; }
+  approve(doc: Document): string { return "Already published."; }
+  reject(doc: Document): string { return "Cannot reject published doc."; }
+  publish(doc: Document): string { return "Already published."; }
+}
+
+// Context
+class Document {
+  content = "";
+  private state: DocumentState = new DraftState();
+
+  constructor(public title: string) {}
+
+  get stateName(): string {
+    return this.state.constructor.name.replace("State", "");
+  }
+
+  setState(state: DocumentState): void {
+    this.state = state;
+    console.log(`  State changed to: ${this.stateName}`);
+  }
+
+  edit(content: string): string { return this.state.edit(this, content); }
+  submit(): string { return this.state.submit(this); }
+  approve(): string { return this.state.approve(this); }
+  reject(): string { return this.state.reject(this); }
+  publish(): string { return this.state.publish(this); }
+}
+
+// Usage
+const doc = new Document("Design Patterns Guide");
+console.log(doc.edit("Initial content"));
+console.log(doc.submit());
+console.log(doc.approve());
+console.log(doc.publish());
+console.log(doc.edit("Try to edit")); // Cannot edit published
+```
+  </TabItem>
+</Tabs>
+
+### When to Use
+
+- An object's behavior depends on its state and must change at runtime
+- You have large conditionals (switch/if-else) that depend on the object's state
+- State-specific behavior should be defined independently and new states added easily
+
+### Pros and Cons
+
+| Pros | Cons |
+|------|------|
+| Single Responsibility: each state in its own class | Can be overkill for few states with simple logic |
+| Open/Closed: add new states without modifying existing ones | States may become tightly coupled if they know about each other |
+| Eliminates complex conditional logic | Increased number of classes |
+| State transitions are explicit and visible | |
+
+### Real-World Usage
+
+- **TCP connection states**: LISTEN, SYN_SENT, ESTABLISHED, CLOSED
+- **Game character AI**: Idle, Patrol, Chase, Attack states
+- **Order processing**: Pending, Processing, Shipped, Delivered
+
+---
+
+## Iterator
+
+### Intent
+
+Provide a way to access the elements of an aggregate object **sequentially** without exposing its underlying representation.
+
+### Problem
+
+A social network graph stores users and their connections in different ways (adjacency list, adjacency matrix, database). Traversal code should not need to know the storage format.
+
+### Solution
+
+Extract the traversal logic into a separate iterator object. The collection provides a method to create an iterator, and clients use the iterator's standard interface to traverse elements.
+
+### Structure
+
+```
+┌──────────────────────┐      ┌──────────────────┐
+│   IterableCollection  │      │   Iterator        │
+│   (interface)         │      │   (interface)     │
+├──────────────────────┤      ├──────────────────┤
+│ + create_iterator()  │─────►│ + has_next(): bool│
+└──────────┬───────────┘      │ + next(): item   │
+           │                   └────────┬─────────┘
+           │                            │
+     ┌─────┴──────┐            ┌───────┴────────┐
+     │ Collection  │            │ ConcreteIterator│
+     │ (concrete)  │            │ - current_pos   │
+     └────────────┘            └────────────────┘
+```
+
+### Code Examples
+
+<Tabs>
+  <TabItem label="Python">
+```python
+from __future__ import annotations
+from collections.abc import Iterator, Iterable
+from typing import Any
+
+
+class TreeNode:
+    """A node in a binary tree."""
+
+    def __init__(self, value: int, left: TreeNode | None = None,
+                 right: TreeNode | None = None) -> None:
+        self.value = value
+        self.left = left
+        self.right = right
+
+
+class InOrderIterator(Iterator[int]):
+    """Iterates a binary tree in-order (left, root, right)."""
+
+    def __init__(self, root: TreeNode | None) -> None:
+        self._stack: list[TreeNode] = []
+        self._current = root
+
+    def __next__(self) -> int:
+        while self._current or self._stack:
+            while self._current:
+                self._stack.append(self._current)
+                self._current = self._current.left
+
+            node = self._stack.pop()
+            self._current = node.right
+            return node.value
+
+        raise StopIteration
+
+    def __iter__(self) -> InOrderIterator:
+        return self
+
+
+class PreOrderIterator(Iterator[int]):
+    """Iterates a binary tree pre-order (root, left, right)."""
+
+    def __init__(self, root: TreeNode | None) -> None:
+        self._stack: list[TreeNode] = [root] if root else []
+
+    def __next__(self) -> int:
+        if not self._stack:
+            raise StopIteration
+
+        node = self._stack.pop()
+        if node.right:
+            self._stack.append(node.right)
+        if node.left:
+            self._stack.append(node.left)
+        return node.value
+
+    def __iter__(self) -> PreOrderIterator:
+        return self
+
+
+class BinaryTree(Iterable[int]):
+    """An iterable binary tree with multiple traversal strategies."""
+
+    def __init__(self, root: TreeNode | None = None) -> None:
+        self.root = root
+
+    def __iter__(self) -> InOrderIterator:
+        """Default iteration is in-order."""
+        return InOrderIterator(self.root)
+
+    def preorder(self) -> PreOrderIterator:
+        return PreOrderIterator(self.root)
+
+    def inorder(self) -> InOrderIterator:
+        return InOrderIterator(self.root)
+
+
+# Usage
+#       4
+#      / \
+#     2   6
+#    / \ / \
+#   1  3 5  7
+tree = BinaryTree(
+    TreeNode(4,
+        TreeNode(2, TreeNode(1), TreeNode(3)),
+        TreeNode(6, TreeNode(5), TreeNode(7)),
+    )
+)
+
+print("In-order:", list(tree))          # [1, 2, 3, 4, 5, 6, 7]
+print("Pre-order:", list(tree.preorder()))  # [4, 2, 1, 3, 6, 5, 7]
+
+# Works with for loops, comprehensions, etc.
+evens = [x for x in tree if x % 2 == 0]
+print("Even values:", evens)  # [2, 4, 6]
+```
+  </TabItem>
+  <TabItem label="TypeScript">
+```typescript
+// Iterator interface (matching ES6 iterator protocol)
+interface TreeIterator {
+  next(): IteratorResult<number>;
+  [Symbol.iterator](): TreeIterator;
+}
+
+class TreeNode {
+  constructor(
+    public value: number,
+    public left: TreeNode | null = null,
+    public right: TreeNode | null = null,
+  ) {}
+}
+
+class InOrderIterator implements TreeIterator {
+  private stack: TreeNode[] = [];
+  private current: TreeNode | null;
+
+  constructor(root: TreeNode | null) {
+    this.current = root;
+  }
+
+  next(): IteratorResult<number> {
+    while (this.current || this.stack.length) {
+      while (this.current) {
+        this.stack.push(this.current);
+        this.current = this.current.left;
+      }
+
+      const node = this.stack.pop()!;
+      this.current = node.right;
+      return { value: node.value, done: false };
+    }
+
+    return { value: undefined as any, done: true };
+  }
+
+  [Symbol.iterator](): TreeIterator {
+    return this;
+  }
+}
+
+class PreOrderIterator implements TreeIterator {
+  private stack: TreeNode[];
+
+  constructor(root: TreeNode | null) {
+    this.stack = root ? [root] : [];
+  }
+
+  next(): IteratorResult<number> {
+    if (!this.stack.length) {
+      return { value: undefined as any, done: true };
+    }
+
+    const node = this.stack.pop()!;
+    if (node.right) this.stack.push(node.right);
+    if (node.left) this.stack.push(node.left);
+    return { value: node.value, done: false };
+  }
+
+  [Symbol.iterator](): TreeIterator {
+    return this;
+  }
+}
+
+class BinaryTree {
+  constructor(public root: TreeNode | null = null) {}
+
+  // Default iteration is in-order
+  [Symbol.iterator](): TreeIterator {
+    return new InOrderIterator(this.root);
+  }
+
+  preorder(): TreeIterator {
+    return new PreOrderIterator(this.root);
+  }
+
+  inorder(): TreeIterator {
+    return new InOrderIterator(this.root);
+  }
+}
+
+// Usage
+const tree = new BinaryTree(
+  new TreeNode(4,
+    new TreeNode(2, new TreeNode(1), new TreeNode(3)),
+    new TreeNode(6, new TreeNode(5), new TreeNode(7)),
+  )
+);
+
+console.log("In-order:", [...tree]);               // [1, 2, 3, 4, 5, 6, 7]
+console.log("Pre-order:", [...tree.preorder()]);   // [4, 2, 1, 3, 6, 5, 7]
+
+// Works with for...of, spread, destructuring
+for (const value of tree) {
+  if (value % 2 === 0) {
+    console.log(`Even: ${value}`);
+  }
+}
+```
+  </TabItem>
+</Tabs>
+
+### When to Use
+
+- You need to traverse a complex data structure without exposing its internals
+- You want multiple traversal strategies for the same collection
+- You want a uniform interface for traversing different data structures
+
+### Pros and Cons
+
+| Pros | Cons |
+|------|------|
+| Single Responsibility: traversal logic separated from collection | Overkill for simple collections with built-in iteration |
+| Open/Closed: add new iterators without modifying collection | May be less efficient than direct access for simple cases |
+| Multiple iterators can traverse the same collection simultaneously | Extra objects for each iterator |
+| Integrates with language features (for loops, generators) | |
+
+### Real-World Usage
+
+- **Python iterators and generators**: `__iter__` and `__next__` protocol
+- **JavaScript `Symbol.iterator`**: Built-in iterator protocol for `for...of`
+- **Java `Iterable<T>` and `Iterator<T>`**: Standard collection traversal
+
+---
+
+## Template Method
+
+### Intent
+
+Define the **skeleton of an algorithm** in a base class, letting subclasses override specific steps without changing the algorithm's structure.
+
+### Problem
+
+A data processing pipeline always follows the same steps: read data, validate it, transform it, and write results. But each data source (CSV, JSON, database) has different implementations for each step. Duplicating the pipeline structure in each class leads to code duplication.
+
+### Solution
+
+Put the algorithm structure in a base class method (the template method). Define abstract methods for the steps that vary. Subclasses implement the specific steps.
+
+### Structure
+
+```
+┌────────────────────────────────┐
+│       AbstractClass             │
+├────────────────────────────────┤
+│ + template_method() {          │  ← Fixed algorithm structure
+│     step1();                   │
+│     step2();                   │
+│     if (hook()) step3();       │
+│     step4();                   │
+│   }                            │
+│ # step1()  (abstract)          │  ← Subclasses implement
+│ # step2()  (abstract)          │
+│ # hook(): bool  (optional)     │  ← Hook with default behavior
+│ # step4()  (abstract)          │
+└──────────────┬─────────────────┘
+               │
+    ┌──────────┴──────────┐
+    │                     │
+┌───┴──────────┐  ┌──────┴───────┐
+│ ConcreteClassA│  │ConcreteClassB│
+│ step1() {...} │  │ step1() {...}│
+│ step2() {...} │  │ step2() {...}│
+└──────────────┘  └──────────────┘
+```
+
+### Code Examples
+
+<Tabs>
+  <TabItem label="Python">
+```python
+from abc import ABC, abstractmethod
+import json
+import csv
+from io import StringIO
+
+
+class DataPipeline(ABC):
+    """
+    Template Method: defines the skeleton of a data processing
+    pipeline. Subclasses provide specific implementations.
+    """
+
+    def process(self, source: str) -> dict:
+        """The template method -- fixed algorithm structure."""
+        raw_data = self.extract(source)
+        validated = self.validate(raw_data)
+        transformed = self.transform(validated)
+
+        if self.should_log():  # Hook method
+            self.log(transformed)
+
+        self.load(transformed)
+        return {"records_processed": len(transformed)}
+
+    @abstractmethod
+    def extract(self, source: str) -> list[dict]:
+        """Step 1: Read raw data from source."""
+        pass
+
+    def validate(self, data: list[dict]) -> list[dict]:
+        """Step 2: Validate records (default: remove empties)."""
+        return [record for record in data if record]
+
+    @abstractmethod
+    def transform(self, data: list[dict]) -> list[dict]:
+        """Step 3: Transform data to target format."""
+        pass
+
+    def should_log(self) -> bool:
+        """Hook: subclasses can override to enable logging."""
+        return False
+
+    def log(self, data: list[dict]) -> None:
+        """Optional logging step."""
+        print(f"  Processed {len(data)} records")
+
+    @abstractmethod
+    def load(self, data: list[dict]) -> None:
+        """Step 4: Write processed data to destination."""
+        pass
+
+
+class JsonPipeline(DataPipeline):
+    """Processes JSON data sources."""
+
+    def extract(self, source: str) -> list[dict]:
+        print("  Extracting from JSON...")
+        return json.loads(source)
+
+    def transform(self, data: list[dict]) -> list[dict]:
+        print("  Transforming: normalizing keys to lowercase...")
+        return [
+            {k.lower(): v for k, v in record.items()}
+            for record in data
+        ]
+
+    def load(self, data: list[dict]) -> None:
+        print(f"  Loading {len(data)} records to database...")
+
+    def should_log(self) -> bool:
+        return True  # Enable logging for JSON pipeline
+
+
+class CsvPipeline(DataPipeline):
+    """Processes CSV data sources."""
+
+    def extract(self, source: str) -> list[dict]:
+        print("  Extracting from CSV...")
+        reader = csv.DictReader(StringIO(source))
+        return list(reader)
+
+    def transform(self, data: list[dict]) -> list[dict]:
+        print("  Transforming: converting numeric strings...")
+        transformed = []
+        for record in data:
+            new_record = {}
+            for k, v in record.items():
+                try:
+                    new_record[k] = int(v)
+                except (ValueError, TypeError):
+                    new_record[k] = v
+            transformed.append(new_record)
+        return transformed
+
+    def load(self, data: list[dict]) -> None:
+        print(f"  Loading {len(data)} CSV records to warehouse...")
+
+
+class ApiPipeline(DataPipeline):
+    """Processes data from an API response."""
+
+    def extract(self, source: str) -> list[dict]:
+        print(f"  Fetching data from API: {source}")
+        # Simulated API response
+        return [
+            {"userId": 1, "name": "Alice", "active": True},
+            {"userId": 2, "name": "Bob", "active": False},
+        ]
+
+    def validate(self, data: list[dict]) -> list[dict]:
+        """Override: only keep active users."""
+        base_validated = super().validate(data)
+        return [r for r in base_validated if r.get("active")]
+
+    def transform(self, data: list[dict]) -> list[dict]:
+        print("  Transforming: extracting user profiles...")
+        return [{"id": r["userId"], "name": r["name"]} for r in data]
+
+    def load(self, data: list[dict]) -> None:
+        print(f"  Syncing {len(data)} user profiles...")
+
+    def should_log(self) -> bool:
+        return True
+
+
+# Usage -- same algorithm, different implementations
+print("=== JSON Pipeline ===")
+json_data = '[{"Name": "Alice", "Age": "30"}, {"Name": "Bob", "Age": "25"}]'
+JsonPipeline().process(json_data)
+
+print("\n=== CSV Pipeline ===")
+csv_data = "name,age,score\nAlice,30,95\nBob,25,87"
+CsvPipeline().process(csv_data)
+
+print("\n=== API Pipeline ===")
+ApiPipeline().process("https://api.example.com/users")
+```
+  </TabItem>
+  <TabItem label="TypeScript">
+```typescript
+// Template Method base class
+abstract class DataPipeline {
+  /**
+   * The template method -- fixed algorithm structure.
+   * Subclasses should not override this (TypeScript has no final methods).
+   */
+  process(source: string): { recordsProcessed: number } {
+    const rawData = this.extract(source);
+    const validated = this.validate(rawData);
+    const transformed = this.transform(validated);
+
+    if (this.shouldLog()) {
+      this.log(transformed);
+    }
+
+    this.load(transformed);
+    return { recordsProcessed: transformed.length };
+  }
+
+  // Abstract steps -- subclasses MUST implement
+  protected abstract extract(source: string): Record<string, unknown>[];
+  protected abstract transform(
+    data: Record<string, unknown>[],
+  ): Record<string, unknown>[];
+  protected abstract load(data: Record<string, unknown>[]): void;
+
+  // Default implementation -- subclasses CAN override
+  protected validate(
+    data: Record<string, unknown>[],
+  ): Record<string, unknown>[] {
+    return data.filter(
+      record => Object.keys(record).length > 0,
+    );
+  }
+
+  // Hook -- subclasses CAN override
+  protected shouldLog(): boolean {
+    return false;
+  }
+
+  protected log(data: Record<string, unknown>[]): void {
+    console.log(`  Processed ${data.length} records`);
+  }
+}
+
+class JsonPipeline extends DataPipeline {
+  protected extract(source: string): Record<string, unknown>[] {
+    console.log("  Extracting from JSON...");
+    return JSON.parse(source);
+  }
+
+  protected transform(
+    data: Record<string, unknown>[],
+  ): Record<string, unknown>[] {
+    console.log("  Transforming: normalizing keys to lowercase...");
+    return data.map(record => {
+      const normalized: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(record)) {
+        normalized[key.toLowerCase()] = value;
+      }
+      return normalized;
+    });
+  }
+
+  protected load(data: Record<string, unknown>[]): void {
+    console.log(`  Loading ${data.length} records to database...`);
+  }
+
+  protected shouldLog(): boolean {
+    return true;
+  }
+}
+
+class CsvPipeline extends DataPipeline {
+  protected extract(source: string): Record<string, unknown>[] {
+    console.log("  Extracting from CSV...");
+    const [headerLine, ...rows] = source.trim().split("\n");
+    const headers = headerLine.split(",");
+    return rows.map(row => {
+      const values = row.split(",");
+      const record: Record<string, unknown> = {};
+      headers.forEach((h, i) => (record[h] = values[i]));
+      return record;
+    });
+  }
+
+  protected transform(
+    data: Record<string, unknown>[],
+  ): Record<string, unknown>[] {
+    console.log("  Transforming: converting numeric strings...");
+    return data.map(record => {
+      const converted: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(record)) {
+        const num = Number(value);
+        converted[key] = isNaN(num) ? value : num;
+      }
+      return converted;
+    });
+  }
+
+  protected load(data: Record<string, unknown>[]): void {
+    console.log(`  Loading ${data.length} CSV records to warehouse...`);
+  }
+}
+
+class ApiPipeline extends DataPipeline {
+  protected extract(source: string): Record<string, unknown>[] {
+    console.log(`  Fetching data from API: ${source}`);
+    return [
+      { userId: 1, name: "Alice", active: true },
+      { userId: 2, name: "Bob", active: false },
+    ];
+  }
+
+  protected validate(
+    data: Record<string, unknown>[],
+  ): Record<string, unknown>[] {
+    const baseValidated = super.validate(data);
+    return baseValidated.filter(r => r.active === true);
+  }
+
+  protected transform(
+    data: Record<string, unknown>[],
+  ): Record<string, unknown>[] {
+    console.log("  Transforming: extracting user profiles...");
+    return data.map(r => ({ id: r.userId, name: r.name }));
+  }
+
+  protected load(data: Record<string, unknown>[]): void {
+    console.log(`  Syncing ${data.length} user profiles...`);
+  }
+
+  protected shouldLog(): boolean {
+    return true;
+  }
+}
+
+// Usage
+console.log("=== JSON Pipeline ===");
+new JsonPipeline().process(
+  '[{"Name": "Alice", "Age": 30}, {"Name": "Bob", "Age": 25}]'
+);
+
+console.log("\n=== CSV Pipeline ===");
+new CsvPipeline().process("name,age,score\nAlice,30,95\nBob,25,87");
+
+console.log("\n=== API Pipeline ===");
+new ApiPipeline().process("https://api.example.com/users");
+```
+  </TabItem>
+</Tabs>
+
+### When to Use
+
+- Multiple classes share the same algorithm structure but differ in specific steps
+- You want to control which parts of an algorithm subclasses can override
+- You want to avoid code duplication by pulling shared logic into a base class
+- Framework code defines the flow; user code fills in the specifics
+
+### Pros and Cons
+
+| Pros | Cons |
+|------|------|
+| Eliminate code duplication by pulling common logic to base class | Can violate Liskov Substitution if subclasses suppress steps |
+| Let subclasses override only certain steps | Harder to maintain as the number of steps grows |
+| Hooks provide optional extension points | Tight coupling to the base class structure |
+| Control the algorithm skeleton centrally | Subclasses are limited to the predefined algorithm flow |
+
+### Real-World Usage
+
+- **Python `unittest.TestCase`**: `setUp()`, `test_*()`, `tearDown()` is a template method
+- **React class components**: `componentDidMount`, `render`, `componentWillUnmount` lifecycle
+- **Java Servlet**: `doGet()`, `doPost()` are steps in the HTTP handling template
+- **Django class-based views**: `get()`, `post()`, `get_queryset()` hooks
+
+---
+
+## Pattern Comparison
+
+| Pattern | Purpose | Key Mechanism |
+|---------|---------|---------------|
+| **Observer** | Notify dependents of state changes | Subscription + notification list |
+| **Strategy** | Swap algorithms at runtime | Composition with algorithm interface |
+| **Command** | Encapsulate operations as objects | Command objects with execute/undo |
+| **State** | Change behavior when state changes | Delegate to current state object |
+| **Iterator** | Traverse collections uniformly | Cursor object with next/hasNext |
+| **Template Method** | Define algorithm skeleton | Inheritance with abstract steps |
+
+### Strategy vs State
+
+These two patterns look similar but solve different problems:
+
+| Aspect | Strategy | State |
+|--------|----------|-------|
+| **Intent** | Choose an algorithm | Change behavior with state |
+| **Who decides** | Client selects the strategy | State object controls transitions |
+| **Awareness** | Strategies are independent of each other | States know about other states |
+| **Switching** | Client explicitly changes strategy | State changes triggered by context actions |
+
+### Strategy vs Template Method
+
+| Aspect | Strategy | Template Method |
+|--------|----------|-----------------|
+| **Mechanism** | Composition (has-a) | Inheritance (is-a) |
+| **Flexibility** | Swap at runtime | Fixed at compile time |
+| **Granularity** | Replaces entire algorithm | Overrides specific steps |
+| **Coupling** | Loose | Tight to base class |
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="Creational Patterns"
+    href="/design-patterns/creational/"
+    description="Learn Singleton, Factory Method, Abstract Factory, Builder, and Prototype"
+  />
+  <LinkCard
+    title="Structural Patterns"
+    href="/design-patterns/structural/"
+    description="Learn Adapter, Bridge, Composite, Decorator, Facade, and Proxy"
+  />
+</CardGrid>

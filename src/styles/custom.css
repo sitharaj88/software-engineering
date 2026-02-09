@@ -1,0 +1,441 @@
+/* Custom styles for Software Engineering Hub */
+
+/* Import fonts */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Fira+Code:wght@400;500&display=swap');
+
+/* Root variables */
+:root {
+  --sl-color-accent-low: #e6f0ff;
+  --sl-color-accent: #0066cc;
+  --sl-color-accent-high: #003366;
+  --sl-font-system: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --sl-font-system-mono: 'Fira Code', Consolas, Monaco, 'Andale Mono', monospace;
+  --sl-text-2xl: 1.5rem;
+  --sl-text-3xl: 2rem;
+  --sl-text-4xl: 2.5rem;
+}
+
+/* Dark mode improvements */
+:root[data-theme='dark'] {
+  --sl-color-accent-low: #0a2d5c;
+  --sl-color-accent: #4d9fff;
+  --sl-color-accent-high: #b3d4ff;
+}
+
+/* Hero section enhancement */
+.hero {
+  padding: 3rem 0;
+}
+
+.hero .tagline {
+  font-size: 1.15rem;
+  line-height: 1.7;
+  max-width: 50ch;
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Better content width */
+.sl-markdown-content {
+  max-width: 85ch;
+}
+
+/* Code blocks styling */
+.expressive-code {
+  margin: 1.5rem 0;
+}
+
+.expressive-code pre {
+  border-radius: 0.5rem;
+  padding: 1rem;
+}
+
+/* Difficulty badges */
+.difficulty-easy {
+  background-color: #10b981;
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.difficulty-medium {
+  background-color: #f59e0b;
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.difficulty-hard {
+  background-color: #ef4444;
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+/* Complexity table styling */
+.complexity-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+}
+
+.complexity-table th,
+.complexity-table td {
+  padding: 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid var(--sl-color-gray-5);
+}
+
+.complexity-table th {
+  background-color: var(--sl-color-gray-6);
+  font-weight: 600;
+}
+
+/* Interactive component container */
+.interactive-container {
+  border: 1px solid var(--sl-color-gray-5);
+  border-radius: 0.75rem;
+  padding: 1.25rem;
+  margin: 1.5rem 0;
+  background-color: var(--sl-color-bg);
+}
+
+/* Code playground styles */
+.code-playground {
+  border-radius: 0.75rem;
+  overflow: hidden;
+  margin: 1.5rem 0;
+}
+
+.code-playground-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  background-color: var(--sl-color-gray-6);
+  border-bottom: 1px solid var(--sl-color-gray-5);
+}
+
+.code-playground-tabs {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.code-playground-tab {
+  padding: 0.25rem 0.75rem;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: all 0.2s;
+}
+
+.code-playground-tab:hover {
+  background-color: var(--sl-color-gray-5);
+}
+
+.code-playground-tab.active {
+  background-color: var(--sl-color-accent);
+  color: white;
+}
+
+/* Visualizer styles */
+.visualizer {
+  min-height: 300px;
+  border: 1px solid var(--sl-color-gray-5);
+  border-radius: 0.75rem;
+  padding: 1rem;
+  margin: 1.5rem 0;
+}
+
+.visualizer-controls {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.visualizer-btn {
+  padding: 0.5rem 1rem;
+  border-radius: 0.375rem;
+  border: 1px solid var(--sl-color-gray-4);
+  background-color: var(--sl-color-bg);
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 0.85rem;
+}
+
+.visualizer-btn:hover {
+  background-color: var(--sl-color-gray-6);
+}
+
+.visualizer-btn.primary {
+  background-color: var(--sl-color-accent);
+  color: white;
+  border-color: var(--sl-color-accent);
+}
+
+/* Callout boxes */
+.callout {
+  padding: 1rem 1.25rem;
+  border-radius: 0.5rem;
+  margin: 1rem 0;
+  border-left: 4px solid;
+}
+
+.callout-tip {
+  background-color: #ecfdf5;
+  border-color: #10b981;
+}
+
+.callout-warning {
+  background-color: #fffbeb;
+  border-color: #f59e0b;
+}
+
+.callout-info {
+  background-color: #eff6ff;
+  border-color: #3b82f6;
+}
+
+:root[data-theme='dark'] .callout-tip {
+  background-color: #064e3b20;
+}
+
+:root[data-theme='dark'] .callout-warning {
+  background-color: #78350f20;
+}
+
+:root[data-theme='dark'] .callout-info {
+  background-color: #1e3a5f20;
+}
+
+/* Progress indicator */
+.progress-bar {
+  height: 8px;
+  background-color: var(--sl-color-gray-5);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background-color: var(--sl-color-accent);
+  transition: width 0.3s ease;
+}
+
+/* Card grid */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+  margin: 1.5rem 0;
+}
+
+.card {
+  padding: 1.5rem;
+  border: 1px solid var(--sl-color-gray-5);
+  border-radius: 0.75rem;
+  transition: box-shadow 0.3s, transform 0.3s, border-color 0.3s;
+}
+
+.card:hover {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  transform: translateY(-3px);
+  border-color: var(--sl-color-accent);
+}
+
+/* Algorithm animation container */
+.algorithm-animation {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 200px;
+  padding: 1rem;
+}
+
+.algorithm-animation .bar {
+  background-color: var(--sl-color-accent);
+  border-radius: 4px 4px 0 0;
+  transition: height 0.3s ease, background-color 0.3s ease;
+}
+
+.algorithm-animation .bar.comparing {
+  background-color: #f59e0b;
+}
+
+.algorithm-animation .bar.sorted {
+  background-color: #10b981;
+}
+
+/* Better table styling */
+.sl-markdown-content table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1.5rem 0;
+  font-size: 0.9rem;
+}
+
+.sl-markdown-content th {
+  background-color: var(--sl-color-gray-6);
+  font-weight: 700;
+  text-align: left;
+  padding: 0.75rem 1rem;
+  border-bottom: 2px solid var(--sl-color-gray-4);
+}
+
+.sl-markdown-content td {
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid var(--sl-color-gray-5);
+}
+
+.sl-markdown-content tr:hover td {
+  background-color: var(--sl-color-gray-7, #f8f9fb);
+}
+
+:root[data-theme='dark'] .sl-markdown-content tr:hover td {
+  background-color: var(--sl-color-gray-6);
+}
+
+/* Feature highlight section */
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 2rem;
+  margin: 2rem 0;
+}
+
+.feature-card {
+  padding: 2rem;
+  border-radius: 1rem;
+  border: 1px solid var(--sl-color-gray-5);
+  background: linear-gradient(135deg, var(--sl-color-bg), var(--sl-color-gray-7, #f8f9fb));
+  transition: all 0.3s;
+}
+
+.feature-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.1);
+}
+
+/* Interactive component animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.5s ease-out;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.6s ease-out;
+}
+
+/* Button styles */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+  text-decoration: none;
+}
+
+.btn-primary {
+  background-color: var(--sl-color-accent);
+  color: white;
+}
+
+.btn-primary:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+
+.btn-success {
+  background-color: #10b981;
+  color: white;
+}
+
+.btn-danger {
+  background-color: #ef4444;
+  color: white;
+}
+
+/* Sidebar enhancements */
+nav.sidebar .top-level > li > details > summary,
+nav.sidebar .top-level > li > a {
+  font-weight: 600;
+}
+
+/* Mobile responsiveness for interactive components */
+@media (max-width: 768px) {
+  .feature-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .sl-markdown-content table {
+    font-size: 0.8rem;
+  }
+
+  .sl-markdown-content th,
+  .sl-markdown-content td {
+    padding: 0.5rem;
+  }
+}
+
+/* Print styles */
+@media print {
+  .interactive-container,
+  .code-playground,
+  .visualizer {
+    border: 1px solid #ddd;
+    page-break-inside: avoid;
+  }
+}
+
+/* Selection highlight */
+::selection {
+  background-color: var(--sl-color-accent);
+  color: white;
+}
+
+/* Focus styles for accessibility */
+:focus-visible {
+  outline: 2px solid var(--sl-color-accent);
+  outline-offset: 2px;
+  border-radius: 0.25rem;
+}
+
+/* Starlight card grid spacing fix */
+.sl-link-card {
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.sl-link-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}

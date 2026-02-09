@@ -1,0 +1,1081 @@
+<!DOCTYPE html><html lang="en" dir="ltr" data-theme="dark" data-has-toc data-has-sidebar class="astro-bguv2lll"> <head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>Problem Bank | Software Engineering Hub</title><link rel="canonical" href="https://sitharaj88.github.io/software-engineering/interview-prep/problem-bank/"/><link rel="sitemap" href="/software-engineering/sitemap-index.xml"/><link rel="shortcut icon" href="/software-engineering/favicon.svg" type="image/svg+xml"/><meta name="generator" content="Astro v5.16.15"/><meta name="generator" content="Starlight v0.30.6"/><meta property="og:title" content="Problem Bank"/><meta property="og:type" content="article"/><meta property="og:url" content="https://sitharaj88.github.io/software-engineering/interview-prep/problem-bank/"/><meta property="og:locale" content="en"/><meta property="og:description" content="76 must-solve coding problems organized by topic, difficulty, and pattern with key insights for each"/><meta property="og:site_name" content="Software Engineering Hub"/><meta name="twitter:card" content="summary_large_image"/><meta name="description" content="76 must-solve coding problems organized by topic, difficulty, and pattern with key insights for each"/><script>
+	window.StarlightThemeProvider = (() => {
+		const storedTheme =
+			typeof localStorage !== 'undefined' && localStorage.getItem('starlight-theme');
+		const theme =
+			storedTheme ||
+			(window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+		document.documentElement.dataset.theme = theme === 'light' ? 'light' : 'dark';
+		return {
+			updatePickers(theme = storedTheme || 'auto') {
+				document.querySelectorAll('starlight-theme-select').forEach((picker) => {
+					const select = picker.querySelector('select');
+					if (select) select.value = theme;
+					/** @type {HTMLTemplateElement | null} */
+					const tmpl = document.querySelector(`#theme-icons`);
+					const newIcon = tmpl && tmpl.content.querySelector('.' + theme);
+					if (newIcon) {
+						const oldIcon = picker.querySelector('svg.label-icon');
+						if (oldIcon) {
+							oldIcon.replaceChildren(...newIcon.cloneNode(true).childNodes);
+						}
+					}
+				});
+			},
+		};
+	})();
+</script><template id="theme-icons"><svg aria-hidden="true" class="light astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M5 12a1 1 0 0 0-1-1H3a1 1 0 0 0 0 2h1a1 1 0 0 0 1-1Zm.64 5-.71.71a1 1 0 0 0 0 1.41 1 1 0 0 0 1.41 0l.71-.71A1 1 0 0 0 5.64 17ZM12 5a1 1 0 0 0 1-1V3a1 1 0 0 0-2 0v1a1 1 0 0 0 1 1Zm5.66 2.34a1 1 0 0 0 .7-.29l.71-.71a1 1 0 1 0-1.41-1.41l-.66.71a1 1 0 0 0 0 1.41 1 1 0 0 0 .66.29Zm-12-.29a1 1 0 0 0 1.41 0 1 1 0 0 0 0-1.41l-.71-.71a1.004 1.004 0 1 0-1.43 1.41l.73.71ZM21 11h-1a1 1 0 0 0 0 2h1a1 1 0 0 0 0-2Zm-2.64 6A1 1 0 0 0 17 18.36l.71.71a1 1 0 0 0 1.41 0 1 1 0 0 0 0-1.41l-.76-.66ZM12 6.5a5.5 5.5 0 1 0 5.5 5.5A5.51 5.51 0 0 0 12 6.5Zm0 9a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Zm0 3.5a1 1 0 0 0-1 1v1a1 1 0 0 0 2 0v-1a1 1 0 0 0-1-1Z"/></svg> <svg aria-hidden="true" class="dark astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M21.64 13a1 1 0 0 0-1.05-.14 8.049 8.049 0 0 1-3.37.73 8.15 8.15 0 0 1-8.14-8.1 8.59 8.59 0 0 1 .25-2A1 1 0 0 0 8 2.36a10.14 10.14 0 1 0 14 11.69 1 1 0 0 0-.36-1.05Zm-9.5 6.69A8.14 8.14 0 0 1 7.08 5.22v.27a10.15 10.15 0 0 0 10.14 10.14 9.784 9.784 0 0 0 2.1-.22 8.11 8.11 0 0 1-7.18 4.32v-.04Z"/></svg> <svg aria-hidden="true" class="auto astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M21 14h-1V7a3 3 0 0 0-3-3H7a3 3 0 0 0-3 3v7H3a1 1 0 0 0-1 1v2a3 3 0 0 0 3 3h14a3 3 0 0 0 3-3v-2a1 1 0 0 0-1-1ZM6 7a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v7H6V7Zm14 10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-1h16v1Z"/></svg> </template><link rel="stylesheet" href="/software-engineering/_astro/index.CprImThi.css">
+<style>:root{--sl-badge-default-border: var(--sl-color-accent);--sl-badge-default-bg: var(--sl-color-accent-low);--sl-badge-default-text: #fff;--sl-badge-note-border: var(--sl-color-blue);--sl-badge-note-bg: var(--sl-color-blue-low);--sl-badge-note-text: #fff;--sl-badge-danger-border: var(--sl-color-red);--sl-badge-danger-bg: var(--sl-color-red-low);--sl-badge-danger-text: #fff;--sl-badge-success-border: var(--sl-color-green);--sl-badge-success-bg: var(--sl-color-green-low);--sl-badge-success-text: #fff;--sl-badge-caution-border: var(--sl-color-orange);--sl-badge-caution-bg: var(--sl-color-orange-low);--sl-badge-caution-text: #fff;--sl-badge-tip-border: var(--sl-color-purple);--sl-badge-tip-bg: var(--sl-color-purple-low);--sl-badge-tip-text: #fff}[data-theme=light]:root{--sl-badge-default-bg: var(--sl-color-accent-high);--sl-badge-note-bg: var(--sl-color-blue-high);--sl-badge-danger-bg: var(--sl-color-red-high);--sl-badge-success-bg: var(--sl-color-green-high);--sl-badge-caution-bg: var(--sl-color-orange-high);--sl-badge-tip-bg: var(--sl-color-purple-high)}.sl-badge:where(.astro-avdet4wd){display:inline-block;border:1px solid var(--sl-color-border-badge);border-radius:.25rem;font-family:var(--sl-font-system-mono);line-height:normal;color:var(--sl-color-text-badge);background-color:var(--sl-color-bg-badge);overflow-wrap:anywhere}.sidebar-content .sl-badge:where(.astro-avdet4wd){line-height:1;font-size:var(--sl-text-xs);padding:.125rem .375rem}.sidebar-content a[aria-current=page]>.sl-badge:where(.astro-avdet4wd){--sl-color-bg-badge: transparent;--sl-color-border-badge: currentColor;color:inherit}.default:where(.astro-avdet4wd){--sl-color-bg-badge: var(--sl-badge-default-bg);--sl-color-border-badge: var(--sl-badge-default-border);--sl-color-text-badge: var(--sl-badge-default-text)}.note:where(.astro-avdet4wd){--sl-color-bg-badge: var(--sl-badge-note-bg);--sl-color-border-badge: var(--sl-badge-note-border);--sl-color-text-badge: var(--sl-badge-note-text)}.danger:where(.astro-avdet4wd){--sl-color-bg-badge: var(--sl-badge-danger-bg);--sl-color-border-badge: var(--sl-badge-danger-border);--sl-color-text-badge: var(--sl-badge-danger-text)}.success:where(.astro-avdet4wd){--sl-color-bg-badge: var(--sl-badge-success-bg);--sl-color-border-badge: var(--sl-badge-success-border);--sl-color-text-badge: var(--sl-badge-success-text)}.tip:where(.astro-avdet4wd){--sl-color-bg-badge: var(--sl-badge-tip-bg);--sl-color-border-badge: var(--sl-badge-tip-border);--sl-color-text-badge: var(--sl-badge-tip-text)}.caution:where(.astro-avdet4wd){--sl-color-bg-badge: var(--sl-badge-caution-bg);--sl-color-border-badge: var(--sl-badge-caution-border);--sl-color-text-badge: var(--sl-badge-caution-text)}.small:where(.astro-avdet4wd){font-size:var(--sl-text-xs);padding:.125rem .25rem}.medium:where(.astro-avdet4wd){font-size:var(--sl-text-sm);padding:.175rem .35rem}.large:where(.astro-avdet4wd){font-size:var(--sl-text-base);padding:.225rem .45rem}.sl-markdown-content :is(h1,h2,h3,h4,h5,h6) .sl-badge:where(.astro-avdet4wd){vertical-align:middle}
+.card:where(.astro-v5tidmuc){--sl-card-border: var(--sl-color-purple);--sl-card-bg: var(--sl-color-purple-low);border:1px solid var(--sl-color-gray-5);background-color:var(--sl-color-black);padding:clamp(1rem,calc(.125rem + 3vw),2.5rem);flex-direction:column;gap:clamp(.5rem,calc(.125rem + 1vw),1rem)}.card:where(.astro-v5tidmuc):nth-child(4n+1){--sl-card-border: var(--sl-color-orange);--sl-card-bg: var(--sl-color-orange-low)}.card:where(.astro-v5tidmuc):nth-child(4n+3){--sl-card-border: var(--sl-color-green);--sl-card-bg: var(--sl-color-green-low)}.card:where(.astro-v5tidmuc):nth-child(4n+4){--sl-card-border: var(--sl-color-red);--sl-card-bg: var(--sl-color-red-low)}.card:where(.astro-v5tidmuc):nth-child(4n+5){--sl-card-border: var(--sl-color-blue);--sl-card-bg: var(--sl-color-blue-low)}.title:where(.astro-v5tidmuc){font-weight:600;font-size:var(--sl-text-h4);color:var(--sl-color-white);line-height:var(--sl-line-height-headings);gap:1rem;align-items:center}.card:where(.astro-v5tidmuc) .icon:where(.astro-v5tidmuc){border:1px solid var(--sl-card-border);background-color:var(--sl-card-bg);padding:.2em;border-radius:.25rem}.card:where(.astro-v5tidmuc) .body:where(.astro-v5tidmuc){margin:0;font-size:clamp(var(--sl-text-sm),calc(.5rem + 1vw),var(--sl-text-body))}
+.card-grid:where(.astro-zntqmydn){display:grid;grid-template-columns:100%;gap:1rem}.card-grid:where(.astro-zntqmydn)>*{margin-top:0!important}@media(min-width:50rem){.card-grid:where(.astro-zntqmydn){grid-template-columns:1fr 1fr;gap:1.5rem}.stagger:where(.astro-zntqmydn){--stagger-height: 5rem;padding-bottom:var(--stagger-height)}.stagger:where(.astro-zntqmydn)>*:nth-child(2n){transform:translateY(var(--stagger-height))}}
+svg:where(.astro-c6vsoqas){color:var(--sl-icon-color);font-size:var(--sl-icon-size, 1em);width:1em;height:1em}
+starlight-tabs:where(.astro-esqgolmp){display:block}.tablist-wrapper:where(.astro-esqgolmp){overflow-x:auto}:where(.astro-esqgolmp)[role=tablist]{display:flex;list-style:none;border-bottom:2px solid var(--sl-color-gray-5);padding:0}.tab:where(.astro-esqgolmp){margin-bottom:-2px}.tab:where(.astro-esqgolmp)>:where(.astro-esqgolmp)[role=tab]{display:flex;align-items:center;gap:.5rem;padding:0 1.25rem;text-decoration:none;border-bottom:2px solid var(--sl-color-gray-5);color:var(--sl-color-gray-3);outline-offset:var(--sl-outline-offset-inside);overflow-wrap:initial}.tab:where(.astro-esqgolmp) :where(.astro-esqgolmp)[role=tab][aria-selected=true]{color:var(--sl-color-white);border-color:var(--sl-color-text-accent);font-weight:600}.tablist-wrapper:where(.astro-esqgolmp)~[role=tabpanel]{margin-top:1rem}
+.sl-link-card:where(.astro-mf7fz2mj){display:grid;grid-template-columns:1fr auto;gap:.5rem;border:1px solid var(--sl-color-gray-5);border-radius:.5rem;padding:1rem;box-shadow:var(--sl-shadow-sm);position:relative}a:where(.astro-mf7fz2mj){text-decoration:none;line-height:var(--sl-line-height-headings)}a:where(.astro-mf7fz2mj):before{content:"";position:absolute;inset:0}.stack:where(.astro-mf7fz2mj){flex-direction:column;gap:.5rem}.title:where(.astro-mf7fz2mj){color:var(--sl-color-white);font-weight:600;font-size:var(--sl-text-lg)}.description:where(.astro-mf7fz2mj){color:var(--sl-color-gray-3);line-height:1.5}.icon:where(.astro-mf7fz2mj){color:var(--sl-color-gray-3)}.sl-link-card:where(.astro-mf7fz2mj):hover{background:var(--sl-color-gray-7, var(--sl-color-gray-6));border-color:var(--sl-color-gray-2)}.sl-link-card:where(.astro-mf7fz2mj):hover .icon:where(.astro-mf7fz2mj){color:var(--sl-color-white)}
+.sl-steps{--bullet-size: calc(var(--sl-line-height) * 1rem);--bullet-margin: .375rem;list-style:none;counter-reset:steps-counter var(--sl-steps-start, 0);padding-inline-start:0}.sl-steps>li{counter-increment:steps-counter;position:relative;padding-inline-start:calc(var(--bullet-size) + 1rem);padding-bottom:1px;min-height:calc(var(--bullet-size) + var(--bullet-margin))}.sl-steps>li+li{margin-top:0}.sl-steps>li:before{content:counter(steps-counter);position:absolute;top:0;inset-inline-start:0;width:var(--bullet-size);height:var(--bullet-size);line-height:var(--bullet-size);font-size:var(--sl-text-xs);font-weight:600;text-align:center;color:var(--sl-color-white);background-color:var(--sl-color-gray-6);border-radius:99rem;box-shadow:inset 0 0 0 1px var(--sl-color-gray-5)}.sl-steps>li:after{--guide-width: 1px;content:"";position:absolute;top:calc(var(--bullet-size) + var(--bullet-margin));bottom:var(--bullet-margin);inset-inline-start:calc((var(--bullet-size) - var(--guide-width)) / 2);width:var(--guide-width);background-color:var(--sl-color-hairline-light)}.sl-steps>li>:first-child{--lh: calc(1em * var(--sl-line-height));--shift-y: calc(.5 * (var(--bullet-size) - var(--lh)));transform:translateY(var(--shift-y));margin-bottom:var(--shift-y)}.sl-steps>li>:first-child:where(h1,h2,h3,h4,h5,h6){--lh: calc(1em * var(--sl-line-height-headings))}@supports (--prop: 1lh){.sl-steps>li>:first-child{--lh: 1lh}}
+.sl-link-button:where(.astro-xwgiixxa){align-items:center;border:1px solid transparent;border-radius:999rem;display:inline-flex;font-size:var(--sl-text-sm);gap:.5em;line-height:1.1875;outline-offset:.25rem;padding:.4375rem 1.125rem;text-decoration:none}.sl-link-button:where(.astro-xwgiixxa).primary{background:var(--sl-color-text-accent);border-color:var(--sl-color-text-accent);color:var(--sl-color-black)}.sl-link-button:where(.astro-xwgiixxa).primary:hover{color:var(--sl-color-black)}.sl-link-button:where(.astro-xwgiixxa).secondary{border-color:inherit;color:var(--sl-color-white)}.sl-link-button:where(.astro-xwgiixxa).minimal{color:var(--sl-color-white);padding-inline:0}.sl-link-button:where(.astro-xwgiixxa) svg{flex-shrink:0}@media(min-width:50rem){.sl-link-button:where(.astro-xwgiixxa){font-size:var(--sl-text-base);padding:.9375rem 1.25rem}}.sl-markdown-content .sl-link-button:where(.astro-xwgiixxa){margin-inline-end:1rem}.sl-markdown-content .sl-link-button:where(.astro-xwgiixxa):not(:where(p *)){margin-block:1rem}
+</style><script type="module" src="/software-engineering/_astro/page.B1D-nYk3.js"></script></head> <body class="astro-bguv2lll"> <a href="#_top" class="astro-7q3lir66">Skip to content</a>  <div class="page sl-flex astro-vrdttmbt"> <header class="header astro-vrdttmbt"><div class="header sl-flex astro-kmkmnagf"> <div class="title-wrapper sl-flex astro-kmkmnagf"> <a href="/software-engineering/" class="site-title sl-flex astro-m46x6ez3">  <span class="astro-m46x6ez3" translate="no"> Software Engineering Hub </span> </a>  </div> <div class="sl-flex astro-kmkmnagf"> <site-search class="astro-kmkmnagf astro-v37mnknz" data-translations="{&#34;placeholder&#34;:&#34;Search&#34;}"> <button data-open-modal disabled aria-label="Search" aria-keyshortcuts="Control+K" class="astro-v37mnknz"> <svg aria-hidden="true" class="astro-v37mnknz astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M21.71 20.29 18 16.61A9 9 0 1 0 16.61 18l3.68 3.68a.999.999 0 0 0 1.42 0 1 1 0 0 0 0-1.39ZM11 18a7 7 0 1 1 0-14 7 7 0 0 1 0 14Z"/></svg>  <span class="sl-hidden md:sl-block astro-v37mnknz" aria-hidden="true">Search</span> <kbd class="sl-hidden md:sl-flex astro-v37mnknz" style="display: none;"> <kbd class="astro-v37mnknz">Ctrl</kbd><kbd class="astro-v37mnknz">K</kbd> </kbd> </button> <dialog style="padding:0" aria-label="Search" class="astro-v37mnknz"> <div class="dialog-frame sl-flex astro-v37mnknz">  <button data-close-modal class="sl-flex md:sl-hidden astro-v37mnknz"> Cancel </button> <div class="search-container astro-v37mnknz"> <div id="starlight__search" class="astro-v37mnknz"></div> </div> </div> </dialog> </site-search>  <script>
+	(() => {
+		const openBtn = document.querySelector('button[data-open-modal]');
+		const shortcut = openBtn?.querySelector('kbd');
+		if (!openBtn || !(shortcut instanceof HTMLElement)) return;
+		const platformKey = shortcut.querySelector('kbd');
+		if (platformKey && /(Mac|iPhone|iPod|iPad)/i.test(navigator.platform)) {
+			platformKey.textContent = '⌘';
+			openBtn.setAttribute('aria-keyshortcuts', 'Meta+K');
+		}
+		shortcut.style.display = '';
+	})();
+</script> <script type="module" src="/software-engineering/_astro/Search.astro_astro_type_script_index_0_lang.CSD5BS71.js"></script>   </div> <div class="sl-hidden md:sl-flex right-group astro-kmkmnagf"> <div class="sl-flex social-icons astro-kmkmnagf"> <a href="https://github.com/sitharaj88/software-engineering" rel="me" class="sl-flex astro-wy4te6ga"><span class="sr-only astro-wy4te6ga">GitHub</span><svg aria-hidden="true" class="astro-wy4te6ga astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.83-.26.83-.57L9 21.07c-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.08-.74.09-.73.09-.73 1.2.09 1.83 1.24 1.83 1.24 1.08 1.83 2.81 1.3 3.5 1 .1-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.14-.3-.54-1.52.1-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.64 1.66.24 2.88.12 3.18a4.65 4.65 0 0 1 1.23 3.22c0 4.61-2.8 5.63-5.48 5.92.42.36.81 1.1.81 2.22l-.01 3.29c0 .31.2.69.82.57A12 12 0 0 0 12 .3Z"/></svg> </a> </div> <starlight-theme-select>  <label style="--sl-select-width: 6.25em" class="astro-4yphtoen"> <span class="sr-only astro-4yphtoen">Select theme</span> <svg aria-hidden="true" class="icon label-icon astro-4yphtoen astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M21 14h-1V7a3 3 0 0 0-3-3H7a3 3 0 0 0-3 3v7H3a1 1 0 0 0-1 1v2a3 3 0 0 0 3 3h14a3 3 0 0 0 3-3v-2a1 1 0 0 0-1-1ZM6 7a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v7H6V7Zm14 10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-1h16v1Z"/></svg>  <select value="auto" autocomplete="off" class="astro-4yphtoen"> <option value="dark" class="astro-4yphtoen">Dark</option><option value="light" class="astro-4yphtoen">Light</option><option value="auto" selected class="astro-4yphtoen">Auto</option> </select> <svg aria-hidden="true" class="icon caret astro-4yphtoen astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M17 9.17a1 1 0 0 0-1.41 0L12 12.71 8.46 9.17a1 1 0 1 0-1.41 1.42l4.24 4.24a1.002 1.002 0 0 0 1.42 0L17 10.59a1.002 1.002 0 0 0 0-1.42Z"/></svg>  </label>  </starlight-theme-select>  <script>
+	StarlightThemeProvider.updatePickers();
+</script> <script type="module">const r="starlight-theme",o=e=>e==="auto"||e==="dark"||e==="light"?e:"auto",c=()=>o(typeof localStorage<"u"&&localStorage.getItem(r));function n(e){typeof localStorage<"u"&&localStorage.setItem(r,e==="light"||e==="dark"?e:"")}const l=()=>matchMedia("(prefers-color-scheme: light)").matches?"light":"dark";function t(e){StarlightThemeProvider.updatePickers(e),document.documentElement.dataset.theme=e==="auto"?l():e,n(e)}matchMedia("(prefers-color-scheme: light)").addEventListener("change",()=>{c()==="auto"&&t("auto")});class s extends HTMLElement{constructor(){super(),t(c()),this.querySelector("select")?.addEventListener("change",a=>{a.currentTarget instanceof HTMLSelectElement&&t(o(a.currentTarget.value))})}}customElements.define("starlight-theme-select",s);</script> <script type="module">class s extends HTMLElement{constructor(){super();const e=this.querySelector("select");e&&(e.addEventListener("change",t=>{t.currentTarget instanceof HTMLSelectElement&&(window.location.pathname=t.currentTarget.value)}),window.addEventListener("pageshow",t=>{if(!t.persisted)return;const n=e.querySelector("option[selected]")?.index;n!==e.selectedIndex&&(e.selectedIndex=n??0)}))}}customElements.define("starlight-lang-select",s);</script> </div> </div> </header> <nav class="sidebar astro-vrdttmbt" aria-label="Main"> <starlight-menu-button class="astro-jif73yzw"> <button aria-expanded="false" aria-label="Menu" aria-controls="starlight__sidebar" class="sl-flex md:sl-hidden astro-jif73yzw"> <svg aria-hidden="true" class="astro-jif73yzw astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M3 8h18a1 1 0 1 0 0-2H3a1 1 0 0 0 0 2Zm18 8H3a1 1 0 0 0 0 2h18a1 1 0 0 0 0-2Zm0-5H3a1 1 0 0 0 0 2h18a1 1 0 0 0 0-2Z"/></svg>  </button> </starlight-menu-button> <script type="module">class s extends HTMLElement{constructor(){super(),this.btn=this.querySelector("button"),this.btn.addEventListener("click",()=>this.toggleExpanded());const t=this.closest("nav");t&&t.addEventListener("keyup",e=>this.closeOnEscape(e))}setExpanded(t){this.setAttribute("aria-expanded",String(t)),document.body.toggleAttribute("data-mobile-menu-expanded",t)}toggleExpanded(){this.setExpanded(this.getAttribute("aria-expanded")!=="true")}closeOnEscape(t){t.code==="Escape"&&(this.setExpanded(!1),this.btn.focus())}}customElements.define("starlight-menu-button",s);</script>   <div id="starlight__sidebar" class="sidebar-pane astro-vrdttmbt"> <div class="sidebar-content sl-flex astro-vrdttmbt"> <sl-sidebar-state-persist data-hash="1wgz9ym" class="astro-kku4brbg"> <script aria-hidden="true">
+		(() => {
+			try {
+				if (!matchMedia('(min-width: 50em)').matches) return;
+				/** @type {HTMLElement | null} */
+				const target = document.querySelector('sl-sidebar-state-persist');
+				const state = JSON.parse(sessionStorage.getItem('sl-sidebar-state') || '0');
+				if (!target || !state || target.dataset.hash !== state.hash) return;
+				window._starlightScrollRestore = state.scroll;
+				customElements.define(
+					'sl-sidebar-restore',
+					class SidebarRestore extends HTMLElement {
+						connectedCallback() {
+							try {
+								const idx = parseInt(this.dataset.index || '');
+								const details = this.closest('details');
+								if (details && typeof state.open[idx] === 'boolean') details.open = state.open[idx];
+							} catch {}
+						}
+					}
+				);
+			} catch {}
+		})();
+	</script>  <ul class="top-level astro-3ii7xxms"> <li class="astro-3ii7xxms"> <details open class="astro-3ii7xxms"> <sl-sidebar-restore data-index="0"></sl-sidebar-restore> <summary class="astro-3ii7xxms"> <div class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">Getting Started</span>  </div> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>  </summary> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/software-engineering/getting-started" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Introduction</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/getting-started/how-to-use" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">How to Use This Site</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/getting-started/learning-paths" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Learning Paths</span>  </a> </li> </ul>  </details> </li><li class="astro-3ii7xxms"> <details open class="astro-3ii7xxms"> <sl-sidebar-restore data-index="1"></sl-sidebar-restore> <summary class="astro-3ii7xxms"> <div class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">Data Structures &amp; Algorithms</span>  </div> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>  </summary> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/software-engineering/dsa" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Overview</span>  </a> </li><li class="astro-3ii7xxms"> <details open class="astro-3ii7xxms"> <sl-sidebar-restore data-index="2"></sl-sidebar-restore> <summary class="astro-3ii7xxms"> <div class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">Fundamentals</span>  </div> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>  </summary> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/software-engineering/dsa/fundamentals/big-o-notation" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Big O Notation</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/dsa/fundamentals/time-complexity" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Time Complexity</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/dsa/fundamentals/space-complexity" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Space Complexity</span>  </a> </li> </ul>  </details> </li><li class="astro-3ii7xxms"> <details open class="astro-3ii7xxms"> <sl-sidebar-restore data-index="3"></sl-sidebar-restore> <summary class="astro-3ii7xxms"> <div class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">Linear Data Structures</span>  </div> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>  </summary> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/software-engineering/dsa/arrays" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Arrays</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/dsa/arrays/two-pointers" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Two Pointers</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/dsa/arrays/sliding-window" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Sliding Window</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/dsa/strings" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Strings</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/dsa/linked-lists" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Linked Lists</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/dsa/stacks" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Stacks</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/dsa/queues" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Queues</span>  </a> </li> </ul>  </details> </li><li class="astro-3ii7xxms"> <details open class="astro-3ii7xxms"> <sl-sidebar-restore data-index="4"></sl-sidebar-restore> <summary class="astro-3ii7xxms"> <div class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">Non-Linear Data Structures</span>  </div> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>  </summary> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/software-engineering/dsa/hash-tables" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Hash Tables</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/dsa/trees" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Trees</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/dsa/heaps" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Heaps</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/dsa/graphs" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Graphs</span>  </a> </li> </ul>  </details> </li><li class="astro-3ii7xxms"> <details open class="astro-3ii7xxms"> <sl-sidebar-restore data-index="5"></sl-sidebar-restore> <summary class="astro-3ii7xxms"> <div class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">Algorithms</span>  </div> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>  </summary> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/software-engineering/dsa/sorting" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Sorting</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/dsa/searching/binary-search" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Binary Search</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/dsa/recursion" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Recursion</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/dsa/backtracking" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Backtracking</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/dsa/dynamic-programming" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Dynamic Programming</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/dsa/greedy" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Greedy</span>  </a> </li> </ul>  </details> </li> </ul>  </details> </li><li class="astro-3ii7xxms"> <details open class="astro-3ii7xxms"> <sl-sidebar-restore data-index="6"></sl-sidebar-restore> <summary class="astro-3ii7xxms"> <div class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">System Design</span>  </div> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>  </summary> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/software-engineering/system-design" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Overview</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/system-design/fundamentals" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Fundamentals</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/system-design/databases" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Databases</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/system-design/scalability" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Scalability</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/system-design/case-studies" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Case Studies</span>  </a> </li> </ul>  </details> </li><li class="astro-3ii7xxms"> <details open class="astro-3ii7xxms"> <sl-sidebar-restore data-index="7"></sl-sidebar-restore> <summary class="astro-3ii7xxms"> <div class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">Design Patterns</span>  </div> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>  </summary> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/software-engineering/design-patterns" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Overview</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/design-patterns/creational" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Creational Patterns</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/design-patterns/structural" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Structural Patterns</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/design-patterns/behavioral" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Behavioral Patterns</span>  </a> </li> </ul>  </details> </li><li class="astro-3ii7xxms"> <details open class="astro-3ii7xxms"> <sl-sidebar-restore data-index="8"></sl-sidebar-restore> <summary class="astro-3ii7xxms"> <div class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">Interview Preparation</span>  </div> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>  </summary> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/software-engineering/interview-prep" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Overview</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/interview-prep/coding-interviews" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Coding Interviews</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/interview-prep/behavioral" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Behavioral Interviews</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/interview-prep/problem-bank" aria-current="page" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Problem Bank (76 Problems)</span>  </a> </li> </ul>  </details> </li> </ul>   <script aria-hidden="true">
+		(() => {
+			const scroller = document.getElementById('starlight__sidebar');
+			if (!window._starlightScrollRestore || !scroller) return;
+			scroller.scrollTop = window._starlightScrollRestore;
+			delete window._starlightScrollRestore;
+		})();
+	</script> </sl-sidebar-state-persist>  <div class="md:sl-hidden"> <div class="mobile-preferences sl-flex astro-wu23bvmt"> <div class="sl-flex social-icons astro-wu23bvmt"> <a href="https://github.com/sitharaj88/software-engineering" rel="me" class="sl-flex astro-wy4te6ga"><span class="sr-only astro-wy4te6ga">GitHub</span><svg aria-hidden="true" class="astro-wy4te6ga astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.83-.26.83-.57L9 21.07c-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.08-.74.09-.73.09-.73 1.2.09 1.83 1.24 1.83 1.24 1.08 1.83 2.81 1.3 3.5 1 .1-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.14-.3-.54-1.52.1-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.64 1.66.24 2.88.12 3.18a4.65 4.65 0 0 1 1.23 3.22c0 4.61-2.8 5.63-5.48 5.92.42.36.81 1.1.81 2.22l-.01 3.29c0 .31.2.69.82.57A12 12 0 0 0 12 .3Z"/></svg> </a> </div> <starlight-theme-select>  <label style="--sl-select-width: 6.25em" class="astro-4yphtoen"> <span class="sr-only astro-4yphtoen">Select theme</span> <svg aria-hidden="true" class="icon label-icon astro-4yphtoen astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M21 14h-1V7a3 3 0 0 0-3-3H7a3 3 0 0 0-3 3v7H3a1 1 0 0 0-1 1v2a3 3 0 0 0 3 3h14a3 3 0 0 0 3-3v-2a1 1 0 0 0-1-1ZM6 7a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v7H6V7Zm14 10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-1h16v1Z"/></svg>  <select value="auto" autocomplete="off" class="astro-4yphtoen"> <option value="dark" class="astro-4yphtoen">Dark</option><option value="light" class="astro-4yphtoen">Light</option><option value="auto" selected class="astro-4yphtoen">Auto</option> </select> <svg aria-hidden="true" class="icon caret astro-4yphtoen astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M17 9.17a1 1 0 0 0-1.41 0L12 12.71 8.46 9.17a1 1 0 1 0-1.41 1.42l4.24 4.24a1.002 1.002 0 0 0 1.42 0L17 10.59a1.002 1.002 0 0 0 0-1.42Z"/></svg>  </label>  </starlight-theme-select>  <script>
+	StarlightThemeProvider.updatePickers();
+</script>   </div>  </div> </div> </div> </nav> <div class="main-frame astro-vrdttmbt">  <script type="module">const a=document.getElementById("starlight__sidebar"),n=a?.querySelector("sl-sidebar-state-persist"),o="sl-sidebar-state",i=()=>{let t=[];const e=n?.dataset.hash||"";try{const s=sessionStorage.getItem(o),r=JSON.parse(s||"{}");Array.isArray(r.open)&&r.hash===e&&(t=r.open)}catch{}return{hash:e,open:t,scroll:a?.scrollTop||0}},c=t=>{try{sessionStorage.setItem(o,JSON.stringify(t))}catch{}},d=()=>c(i()),l=(t,e)=>{const s=i();s.open[e]=t,c(s)};n?.addEventListener("click",t=>{if(!(t.target instanceof Element))return;const e=t.target.closest("summary")?.closest("details");if(!e)return;const s=e.querySelector("sl-sidebar-restore"),r=parseInt(s?.dataset.index||"");isNaN(r)||l(!e.open,r)});addEventListener("visibilitychange",()=>{document.visibilityState==="hidden"&&d()});addEventListener("pageHide",d);</script> <div class="lg:sl-flex astro-67yu43on"> <aside class="right-sidebar-container astro-67yu43on"> <div class="right-sidebar astro-67yu43on"> <script type="module" src="/software-engineering/_astro/MobileTableOfContents.astro_astro_type_script_index_0_lang.C181hMzK.js"></script><script type="module" src="/software-engineering/_astro/TableOfContents.astro_astro_type_script_index_0_lang.CKWWgpjV.js"></script><div class="lg:sl-hidden astro-pb3aqygn"><mobile-starlight-toc data-min-h="2" data-max-h="3" class="astro-doynk5tl"><nav aria-labelledby="starlight__on-this-page--mobile" class="astro-doynk5tl"><details id="starlight__mobile-toc" class="astro-doynk5tl"><summary id="starlight__on-this-page--mobile" class="sl-flex astro-doynk5tl"><div class="toggle sl-flex astro-doynk5tl">On this page<svg aria-hidden="true" class="caret astro-doynk5tl astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg> </div><span class="display-current astro-doynk5tl"></span></summary><div class="dropdown astro-doynk5tl"><ul class="isMobile astro-g2bywc46" style="--depth: 0;"> <li class="astro-g2bywc46" style="--depth: 0;"> <a href="#_top" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Overview</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#how-to-use-this-problem-bank" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">How to Use This Problem Bank</span> </a> <ul class="isMobile astro-g2bywc46" style="--depth: 1;"> <li class="astro-g2bywc46" style="--depth: 1;"> <a href="#difficulty-guide" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">Difficulty Guide</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 1;"> <a href="#progress-tracker" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">Progress Tracker</span> </a>  </li> </ul>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#arrays-and-hashing" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Arrays and Hashing</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#two-pointers" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Two Pointers</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#sliding-window" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Sliding Window</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#stack" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Stack</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#binary-search" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Binary Search</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#linked-lists" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Linked Lists</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#trees" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Trees</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#graphs" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Graphs</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#dynamic-programming" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Dynamic Programming</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#backtracking" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Backtracking</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#greedy" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Greedy</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#intervals" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Intervals</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#heap--priority-queue" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Heap / Priority Queue</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#bit-manipulation" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Bit Manipulation</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#study-order-recommendation" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Study Order Recommendation</span> </a> <ul class="isMobile astro-g2bywc46" style="--depth: 1;"> <li class="astro-g2bywc46" style="--depth: 1;"> <a href="#phase-1-fundamentals-week-1-2" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">Phase 1: Fundamentals (Week 1-2)</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 1;"> <a href="#phase-2-core-data-structures-week-3-4" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">Phase 2: Core Data Structures (Week 3-4)</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 1;"> <a href="#phase-3-trees-and-graphs-week-5-6" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">Phase 3: Trees and Graphs (Week 5-6)</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 1;"> <a href="#phase-4-advanced-patterns-week-7-8" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">Phase 4: Advanced Patterns (Week 7-8)</span> </a>  </li> </ul>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#patterns-by-frequency-in-interviews" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Patterns by Frequency in Interviews</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#next-steps" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Next Steps</span> </a>  </li> </ul> </div></details></nav></mobile-starlight-toc></div><div class="right-sidebar-panel sl-hidden lg:sl-block astro-pb3aqygn"><div class="sl-container astro-pb3aqygn"><starlight-toc data-min-h="2" data-max-h="3"><nav aria-labelledby="starlight__on-this-page"><h2 id="starlight__on-this-page">On this page</h2><ul class="astro-g2bywc46" style="--depth: 0;"> <li class="astro-g2bywc46" style="--depth: 0;"> <a href="#_top" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Overview</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#how-to-use-this-problem-bank" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">How to Use This Problem Bank</span> </a> <ul class="astro-g2bywc46" style="--depth: 1;"> <li class="astro-g2bywc46" style="--depth: 1;"> <a href="#difficulty-guide" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">Difficulty Guide</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 1;"> <a href="#progress-tracker" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">Progress Tracker</span> </a>  </li> </ul>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#arrays-and-hashing" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Arrays and Hashing</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#two-pointers" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Two Pointers</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#sliding-window" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Sliding Window</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#stack" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Stack</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#binary-search" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Binary Search</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#linked-lists" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Linked Lists</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#trees" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Trees</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#graphs" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Graphs</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#dynamic-programming" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Dynamic Programming</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#backtracking" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Backtracking</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#greedy" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Greedy</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#intervals" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Intervals</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#heap--priority-queue" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Heap / Priority Queue</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#bit-manipulation" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Bit Manipulation</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#study-order-recommendation" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Study Order Recommendation</span> </a> <ul class="astro-g2bywc46" style="--depth: 1;"> <li class="astro-g2bywc46" style="--depth: 1;"> <a href="#phase-1-fundamentals-week-1-2" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">Phase 1: Fundamentals (Week 1-2)</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 1;"> <a href="#phase-2-core-data-structures-week-3-4" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">Phase 2: Core Data Structures (Week 3-4)</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 1;"> <a href="#phase-3-trees-and-graphs-week-5-6" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">Phase 3: Trees and Graphs (Week 5-6)</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 1;"> <a href="#phase-4-advanced-patterns-week-7-8" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">Phase 4: Advanced Patterns (Week 7-8)</span> </a>  </li> </ul>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#patterns-by-frequency-in-interviews" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Patterns by Frequency in Interviews</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#next-steps" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Next Steps</span> </a>  </li> </ul> </nav></starlight-toc></div></div> </div> </aside> <div class="main-pane astro-67yu43on">  <main data-pagefind-body class="astro-bguv2lll" lang="en" dir="ltr">    <div class="content-panel astro-7nkwcw3z"> <div class="sl-container astro-7nkwcw3z"> <h1 id="_top" class="astro-j6tvhyss">Problem Bank</h1>  </div> </div>  <div class="content-panel astro-7nkwcw3z"> <div class="sl-container astro-7nkwcw3z"> <div class="sl-markdown-content"> <p>This curated list of 76 problems covers the most frequently tested topics and patterns in software engineering interviews. Solving these problems will give you strong coverage of the concepts that appear at Google, Meta, Amazon, Apple, Microsoft, and other top companies.</p>
+<h2 id="how-to-use-this-problem-bank">How to Use This Problem Bank</h2>
+<ol>
+<li><strong>Work through topics in order</strong> — they build on each other</li>
+<li><strong>Solve Easy problems first</strong> within each topic before attempting Medium</li>
+<li><strong>For each problem</strong>: read the description, try it yourself for 20-30 minutes, then study the solution</li>
+<li><strong>Note the pattern</strong> — connecting problems to patterns is more valuable than memorizing solutions</li>
+<li><strong>Revisit problems</strong> you struggled with after 3 days, then again after 7 days</li>
+</ol>
+<h3 id="difficulty-guide">Difficulty Guide</h3>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Difficulty</th><th>Target Time</th><th>What It Tests</th></tr></thead><tbody><tr><td><strong>Easy</strong></td><td>10-15 min</td><td>Core concept, single pattern</td></tr><tr><td><strong>Medium</strong></td><td>20-30 min</td><td>Pattern combination, edge cases, optimization</td></tr><tr><td><strong>Hard</strong></td><td>30-45 min</td><td>Multiple patterns, complex logic, creative insight</td></tr></tbody></table>
+<h3 id="progress-tracker">Progress Tracker</h3>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Topic</th><th>Total</th><th>Easy</th><th>Medium</th><th>Hard</th></tr></thead><tbody><tr><td>Arrays and Hashing</td><td>9</td><td>3</td><td>5</td><td>1</td></tr><tr><td>Two Pointers</td><td>5</td><td>1</td><td>3</td><td>1</td></tr><tr><td>Sliding Window</td><td>4</td><td>1</td><td>2</td><td>1</td></tr><tr><td>Stack</td><td>4</td><td>1</td><td>2</td><td>1</td></tr><tr><td>Binary Search</td><td>5</td><td>1</td><td>3</td><td>1</td></tr><tr><td>Linked Lists</td><td>6</td><td>2</td><td>3</td><td>1</td></tr><tr><td>Trees</td><td>9</td><td>3</td><td>4</td><td>2</td></tr><tr><td>Graphs</td><td>7</td><td>0</td><td>5</td><td>2</td></tr><tr><td>Dynamic Programming</td><td>11</td><td>2</td><td>6</td><td>3</td></tr><tr><td>Backtracking</td><td>4</td><td>0</td><td>3</td><td>1</td></tr><tr><td>Greedy</td><td>4</td><td>1</td><td>3</td><td>0</td></tr><tr><td>Intervals</td><td>3</td><td>1</td><td>2</td><td>0</td></tr><tr><td>Heap / Priority Queue</td><td>2</td><td>0</td><td>1</td><td>1</td></tr><tr><td>Bit Manipulation</td><td>2</td><td>2</td><td>0</td><td>0</td></tr><tr><td><strong>Total</strong></td><td><strong>76</strong></td><td><strong>18</strong></td><td><strong>43</strong></td><td><strong>15</strong></td></tr></tbody></table>
+<hr>
+<h2 id="arrays-and-hashing">Arrays and Hashing</h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>#</th><th>Problem</th><th>Difficulty</th><th>Pattern</th><th>Key Insight</th></tr></thead><tbody><tr><td>1</td><td>Two Sum</td><td>Easy</td><td>Hash Map</td><td>Store complement in a hash map for O(1) lookup. One-pass: check before inserting.</td></tr><tr><td>2</td><td>Contains Duplicate</td><td>Easy</td><td>Hash Set</td><td>Insert into a set; if insertion fails, a duplicate exists. O(n) time, O(n) space.</td></tr><tr><td>3</td><td>Valid Anagram</td><td>Easy</td><td>Hash Map / Sorting</td><td>Compare character frequency counts. Sorting works in O(n log n); counting in O(n).</td></tr><tr><td>4</td><td>Group Anagrams</td><td>Medium</td><td>Hash Map</td><td>Use sorted characters (or character count tuple) as the hash key to group words.</td></tr><tr><td>5</td><td>Top K Frequent Elements</td><td>Medium</td><td>Hash Map + Heap</td><td>Count frequencies with a hash map, then use a min-heap of size k or bucket sort for O(n).</td></tr><tr><td>6</td><td>Product of Array Except Self</td><td>Medium</td><td>Prefix/Suffix</td><td>Build prefix products left-to-right, then suffix products right-to-left. Avoids division.</td></tr><tr><td>7</td><td>Encode and Decode Strings</td><td>Medium</td><td>String Encoding</td><td>Use a length-prefixed encoding like “4#word” to handle any character, including delimiters.</td></tr><tr><td>8</td><td>Longest Consecutive Sequence</td><td>Medium</td><td>Hash Set</td><td>Put all numbers in a set. For each number that has no predecessor (num-1 not in set), count the streak.</td></tr><tr><td>9</td><td>First Missing Positive</td><td>Hard</td><td>Index as Hash</td><td>Place each number at its correct index (num at index num-1). Then scan for the first mismatch.</td></tr></tbody></table>
+<hr>
+<h2 id="two-pointers">Two Pointers</h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>#</th><th>Problem</th><th>Difficulty</th><th>Pattern</th><th>Key Insight</th></tr></thead><tbody><tr><td>10</td><td>Valid Palindrome</td><td>Easy</td><td>Two Pointers (inward)</td><td>Compare characters from both ends, skipping non-alphanumeric characters.</td></tr><tr><td>11</td><td>Two Sum II (Sorted)</td><td>Medium</td><td>Two Pointers (inward)</td><td>Left and right pointers move inward. Sum too small? Move left. Too large? Move right.</td></tr><tr><td>12</td><td>3Sum</td><td>Medium</td><td>Sort + Two Pointers</td><td>Sort the array. Fix one element, use two pointers for the remaining pair. Skip duplicates carefully.</td></tr><tr><td>13</td><td>Container With Most Water</td><td>Medium</td><td>Two Pointers (inward)</td><td>Start at widest container. Move the shorter wall inward since that is the only way to potentially increase area.</td></tr><tr><td>14</td><td>Trapping Rain Water</td><td>Hard</td><td>Two Pointers / Stack</td><td>Track max-left and max-right as you move inward. Water at each position = min(maxL, maxR) - height.</td></tr></tbody></table>
+<hr>
+<h2 id="sliding-window">Sliding Window</h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>#</th><th>Problem</th><th>Difficulty</th><th>Pattern</th><th>Key Insight</th></tr></thead><tbody><tr><td>15</td><td>Best Time to Buy and Sell Stock</td><td>Easy</td><td>Sliding Window / Kadane</td><td>Track the minimum price so far. At each price, check if selling yields a new max profit.</td></tr><tr><td>16</td><td>Longest Substring Without Repeating Characters</td><td>Medium</td><td>Variable Window + Set</td><td>Expand right. When a duplicate is found, shrink left until the window is valid again.</td></tr><tr><td>17</td><td>Longest Repeating Character Replacement</td><td>Medium</td><td>Variable Window + Count</td><td>Window is valid when <code dir="auto">window_size - max_frequency &#x3C;= k</code>. Shrink left when invalid.</td></tr><tr><td>18</td><td>Minimum Window Substring</td><td>Hard</td><td>Variable Window + Map</td><td>Expand right to include all required characters, then shrink left to find the minimum valid window.</td></tr></tbody></table>
+<hr>
+<h2 id="stack">Stack</h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>#</th><th>Problem</th><th>Difficulty</th><th>Pattern</th><th>Key Insight</th></tr></thead><tbody><tr><td>19</td><td>Valid Parentheses</td><td>Easy</td><td>Stack</td><td>Push opening brackets. Pop and compare for closing brackets. Stack must be empty at the end.</td></tr><tr><td>20</td><td>Min Stack</td><td>Medium</td><td>Two Stacks</td><td>Maintain a parallel stack tracking the minimum at each level. O(1) getMin.</td></tr><tr><td>21</td><td>Daily Temperatures</td><td>Medium</td><td>Monotonic Stack</td><td>Maintain a decreasing stack of indices. When a warmer day is found, pop and calculate distance.</td></tr><tr><td>22</td><td>Largest Rectangle in Histogram</td><td>Hard</td><td>Monotonic Stack</td><td>Maintain an increasing stack of heights. When a shorter bar is found, calculate areas by popping.</td></tr></tbody></table>
+<hr>
+<h2 id="binary-search">Binary Search</h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>#</th><th>Problem</th><th>Difficulty</th><th>Pattern</th><th>Key Insight</th></tr></thead><tbody><tr><td>23</td><td>Binary Search</td><td>Easy</td><td>Standard Binary Search</td><td>Classic <code dir="auto">left &#x3C;= right</code> loop. Compare mid with target. Adjust left or right accordingly.</td></tr><tr><td>24</td><td>Search a 2D Matrix</td><td>Medium</td><td>Binary Search</td><td>Treat the 2D matrix as a flattened 1D array. Convert index with row = mid // cols, col = mid % cols.</td></tr><tr><td>25</td><td>Koko Eating Bananas</td><td>Medium</td><td>Binary Search on Answer</td><td>Binary search on eating speed k from 1 to max(piles). Check if she can finish in h hours at speed k.</td></tr><tr><td>26</td><td>Search in Rotated Sorted Array</td><td>Medium</td><td>Modified Binary Search</td><td>Determine which half is sorted. Check if target lies in the sorted half. Adjust pointers.</td></tr><tr><td>27</td><td>Median of Two Sorted Arrays</td><td>Hard</td><td>Binary Search on Partition</td><td>Binary search on the shorter array. Partition both arrays so left halves contain the smaller elements.</td></tr></tbody></table>
+<hr>
+<h2 id="linked-lists">Linked Lists</h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>#</th><th>Problem</th><th>Difficulty</th><th>Pattern</th><th>Key Insight</th></tr></thead><tbody><tr><td>28</td><td>Reverse Linked List</td><td>Easy</td><td>Iterative Reversal</td><td>Maintain three pointers: prev, curr, next. Redirect arrows one by one.</td></tr><tr><td>29</td><td>Merge Two Sorted Lists</td><td>Easy</td><td>Dummy Head + Compare</td><td>Use a dummy node to simplify edge cases. Compare heads, attach the smaller one, advance that pointer.</td></tr><tr><td>30</td><td>Linked List Cycle</td><td>Medium</td><td>Fast/Slow Pointers</td><td>Fast moves 2 steps, slow moves 1. If they meet, there is a cycle. If fast reaches null, no cycle.</td></tr><tr><td>31</td><td>Reorder List</td><td>Medium</td><td>Find Middle + Reverse + Merge</td><td>Split at middle using fast/slow. Reverse the second half. Interleave the two halves.</td></tr><tr><td>32</td><td>Remove Nth Node From End</td><td>Medium</td><td>Two Pointers with Gap</td><td>Advance fast pointer n steps ahead. Then move both until fast reaches the end. Slow is at the target.</td></tr><tr><td>33</td><td>Merge K Sorted Lists</td><td>Hard</td><td>Heap + Merge</td><td>Push the head of each list into a min-heap. Pop the smallest, add its next to the heap.</td></tr></tbody></table>
+<hr>
+<h2 id="trees">Trees</h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>#</th><th>Problem</th><th>Difficulty</th><th>Pattern</th><th>Key Insight</th></tr></thead><tbody><tr><td>34</td><td>Invert Binary Tree</td><td>Easy</td><td>DFS (Recursive)</td><td>Swap left and right children at every node, then recurse on both subtrees.</td></tr><tr><td>35</td><td>Maximum Depth of Binary Tree</td><td>Easy</td><td>DFS</td><td>Base case: null node returns 0. Return 1 + max(depth of left, depth of right).</td></tr><tr><td>36</td><td>Same Tree</td><td>Easy</td><td>DFS (Simultaneous)</td><td>Compare values at each node. Recurse on left-left and right-right. Both null = equal, one null = not equal.</td></tr><tr><td>37</td><td>Subtree of Another Tree</td><td>Medium</td><td>DFS + Same Tree</td><td>For each node in the main tree, check if the subtree rooted there is identical to the target tree.</td></tr><tr><td>38</td><td>Lowest Common Ancestor of BST</td><td>Medium</td><td>BST Property</td><td>If both values are smaller, go left. Both larger, go right. Otherwise, current node is the LCA.</td></tr><tr><td>39</td><td>Binary Tree Level Order Traversal</td><td>Medium</td><td>BFS</td><td>Use a queue. Process all nodes at current level, then add their children for the next level.</td></tr><tr><td>40</td><td>Validate BST</td><td>Medium</td><td>DFS + Range</td><td>Pass min/max bounds down. Each node must be within its valid range. Update bounds on recursion.</td></tr><tr><td>41</td><td>Binary Tree Maximum Path Sum</td><td>Hard</td><td>DFS + Global Max</td><td>At each node, compute the max “arm” (node + best child). Update global max with node + both arms.</td></tr><tr><td>42</td><td>Serialize and Deserialize Binary Tree</td><td>Hard</td><td>BFS or Preorder DFS</td><td>Use preorder with null markers. Serialize: DFS writing values. Deserialize: read values and rebuild.</td></tr></tbody></table>
+<hr>
+<h2 id="graphs">Graphs</h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>#</th><th>Problem</th><th>Difficulty</th><th>Pattern</th><th>Key Insight</th></tr></thead><tbody><tr><td>43</td><td>Number of Islands</td><td>Medium</td><td>DFS/BFS on Grid</td><td>For each unvisited land cell, run DFS/BFS to mark the entire island. Count the number of DFS/BFS calls.</td></tr><tr><td>44</td><td>Clone Graph</td><td>Medium</td><td>BFS/DFS + Hash Map</td><td>Use a hash map from original node to clone. BFS/DFS: clone neighbors lazily, linking clones together.</td></tr><tr><td>45</td><td>Pacific Atlantic Water Flow</td><td>Medium</td><td>Reverse DFS/BFS</td><td>Instead of flowing from each cell, start BFS from ocean borders. Find cells reachable from both oceans.</td></tr><tr><td>46</td><td>Course Schedule</td><td>Medium</td><td>Topological Sort / DFS</td><td>Model courses as a directed graph. If a cycle exists (via DFS coloring or topo sort failure), return false.</td></tr><tr><td>47</td><td>Course Schedule II</td><td>Medium</td><td>Topological Sort (Kahn)</td><td>BFS with in-degree tracking. Process nodes with in-degree 0. If all nodes processed, return the order.</td></tr><tr><td>48</td><td>Word Ladder</td><td>Hard</td><td>BFS</td><td>Each word is a node. Connect words differing by one letter. BFS from beginWord finds the shortest path.</td></tr><tr><td>49</td><td>Alien Dictionary</td><td>Hard</td><td>Topological Sort</td><td>Compare adjacent words to extract ordering edges. Run topological sort. Detect cycles for invalid orderings.</td></tr></tbody></table>
+<hr>
+<h2 id="dynamic-programming">Dynamic Programming</h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>#</th><th>Problem</th><th>Difficulty</th><th>Pattern</th><th>Key Insight</th></tr></thead><tbody><tr><td>50</td><td>Climbing Stairs</td><td>Easy</td><td>1D DP (Fibonacci)</td><td>dp[i] = dp[i-1] + dp[i-2]. You can reach step i from step i-1 or i-2.</td></tr><tr><td>51</td><td>House Robber</td><td>Easy</td><td>1D DP</td><td>dp[i] = max(dp[i-1], dp[i-2] + nums[i]). At each house, choose to rob it or skip it.</td></tr><tr><td>52</td><td>Coin Change</td><td>Medium</td><td>1D DP (Unbounded Knapsack)</td><td>dp[amount] = min coins to make that amount. For each coin, dp[a] = min(dp[a], dp[a-coin] + 1).</td></tr><tr><td>53</td><td>Longest Increasing Subsequence</td><td>Medium</td><td>1D DP / Binary Search</td><td>DP: dp[i] = longest ending at i. O(n log n): maintain a tails array and binary search for insertion point.</td></tr><tr><td>54</td><td>Word Break</td><td>Medium</td><td>1D DP + Set</td><td>dp[i] = true if s[0:i] can be segmented. Check all <code dir="auto">j &#x3C; i</code>: dp[j] and s[j:i] in dictionary.</td></tr><tr><td>55</td><td>Unique Paths</td><td>Medium</td><td>2D DP</td><td>dp[i][j] = dp[i-1][j] + dp[i][j-1]. Only move right or down. Can optimize to 1D array.</td></tr><tr><td>56</td><td>Longest Common Subsequence</td><td>Medium</td><td>2D DP</td><td>If chars match, dp[i][j] = dp[i-1][j-1] + 1. Else, dp[i][j] = max(dp[i-1][j], dp[i][j-1]).</td></tr><tr><td>57</td><td>Decode Ways</td><td>Medium</td><td>1D DP</td><td>dp[i] = ways to decode s[0:i]. Single digit valid? Add dp[i-1]. Two digits valid? Add dp[i-2].</td></tr><tr><td>58</td><td>0/1 Knapsack</td><td>Medium</td><td>2D DP</td><td>dp[i][w] = max value using first i items with capacity w. Include or exclude each item.</td></tr><tr><td>59</td><td>Edit Distance</td><td>Hard</td><td>2D DP</td><td>dp[i][j] = min ops to convert word1[0:i] to word2[0:j]. Insert, delete, or replace are the three choices.</td></tr><tr><td>60</td><td>Longest Palindromic Substring</td><td>Hard</td><td>2D DP / Expand Around Center</td><td>Expand around each center (single char and between chars). Track the longest found. O(n^2) time, O(1) space.</td></tr><tr><td>61</td><td>Burst Balloons</td><td>Hard</td><td>Interval DP</td><td>dp[l][r] = max coins from popping balloons between l and r. Choose the last balloon to pop in the range.</td></tr></tbody></table>
+<hr>
+<h2 id="backtracking">Backtracking</h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>#</th><th>Problem</th><th>Difficulty</th><th>Pattern</th><th>Key Insight</th></tr></thead><tbody><tr><td>62</td><td>Subsets</td><td>Medium</td><td>Backtracking</td><td>At each element, choose to include or exclude it. Generates all 2^n subsets.</td></tr><tr><td>63</td><td>Combination Sum</td><td>Medium</td><td>Backtracking + Pruning</td><td>Sort candidates. For each candidate, either use it again (allow reuse) or move to next. Prune when sum exceeds target.</td></tr><tr><td>64</td><td>Permutations</td><td>Medium</td><td>Backtracking</td><td>At each position, try every unused element. Swap or use a visited set to track used elements.</td></tr><tr><td>65</td><td>Word Search</td><td>Hard</td><td>DFS Backtracking on Grid</td><td>From each cell matching the first letter, DFS in 4 directions. Mark cells visited during search, unmark on backtrack.</td></tr></tbody></table>
+<hr>
+<h2 id="greedy">Greedy</h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>#</th><th>Problem</th><th>Difficulty</th><th>Pattern</th><th>Key Insight</th></tr></thead><tbody><tr><td>66</td><td>Maximum Subarray (Kadane)</td><td>Easy</td><td>Greedy / DP</td><td>At each element, either extend the current subarray or start a new one. current = max(num, current + num).</td></tr><tr><td>67</td><td>Jump Game</td><td>Medium</td><td>Greedy</td><td>Track the farthest reachable index. If you reach a position beyond farthest, return false.</td></tr><tr><td>68</td><td>Gas Station</td><td>Medium</td><td>Greedy</td><td>If total gas >= total cost, a solution exists. Start from the station after the one where running sum goes negative.</td></tr><tr><td>69</td><td>Hand of Straights</td><td>Medium</td><td>Greedy + Hash Map</td><td>Sort cards. For each smallest card, try to form a group of W consecutive. Use a frequency map to check availability.</td></tr></tbody></table>
+<hr>
+<h2 id="intervals">Intervals</h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>#</th><th>Problem</th><th>Difficulty</th><th>Pattern</th><th>Key Insight</th></tr></thead><tbody><tr><td>70</td><td>Meeting Rooms</td><td>Easy</td><td>Sort + Scan</td><td>Sort by start time. If any interval overlaps with the previous one, return false.</td></tr><tr><td>71</td><td>Merge Intervals</td><td>Medium</td><td>Sort + Merge</td><td>Sort by start time. If current overlaps with last merged, extend the end. Otherwise, add a new interval.</td></tr><tr><td>72</td><td>Non-Overlapping Intervals</td><td>Medium</td><td>Greedy</td><td>Sort by end time. Greedily keep intervals with earliest end. Count removed overlaps.</td></tr></tbody></table>
+<hr>
+<h2 id="heap--priority-queue">Heap / Priority Queue</h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>#</th><th>Problem</th><th>Difficulty</th><th>Pattern</th><th>Key Insight</th></tr></thead><tbody><tr><td>73</td><td>Kth Largest Element in Array</td><td>Medium</td><td>Min-Heap of Size K</td><td>Maintain a min-heap of size k. After processing all elements, the heap top is the kth largest. Also solvable with Quickselect in O(n) average.</td></tr><tr><td>74</td><td>Find Median from Data Stream</td><td>Hard</td><td>Two Heaps</td><td>Use a max-heap for the lower half and a min-heap for the upper half. Balance sizes so they differ by at most 1. Median is the top of the larger heap (or average of both tops).</td></tr></tbody></table>
+<hr>
+<h2 id="bit-manipulation">Bit Manipulation</h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>#</th><th>Problem</th><th>Difficulty</th><th>Pattern</th><th>Key Insight</th></tr></thead><tbody><tr><td>75</td><td>Single Number</td><td>Easy</td><td>XOR</td><td>XOR all elements. Pairs cancel out (a ^ a = 0). The remaining value is the unique element.</td></tr><tr><td>76</td><td>Number of 1 Bits</td><td>Easy</td><td>Bit Clearing</td><td>Use n &#x26; (n-1) to clear the lowest set bit. Count iterations until n becomes 0.</td></tr></tbody></table>
+<hr>
+<h2 id="study-order-recommendation">Study Order Recommendation</h2>
+<p>For maximum efficiency, solve the problems in this order. Each phase builds on the skills developed in the previous one.</p>
+<h3 id="phase-1-fundamentals-week-1-2">Phase 1: Fundamentals (Week 1-2)</h3>
+<p>Solve problems 1-9 (Arrays and Hashing), 10-14 (Two Pointers), and 15-18 (Sliding Window). These patterns form the foundation and appear in nearly every interview.</p>
+<h3 id="phase-2-core-data-structures-week-3-4">Phase 2: Core Data Structures (Week 3-4)</h3>
+<p>Solve problems 19-22 (Stack), 23-27 (Binary Search), and 28-33 (Linked Lists). These test your ability to use data structures appropriately and implement pointer manipulation.</p>
+<h3 id="phase-3-trees-and-graphs-week-5-6">Phase 3: Trees and Graphs (Week 5-6)</h3>
+<p>Solve problems 34-42 (Trees) and 43-49 (Graphs). Tree and graph problems are the most frequently tested category at top companies. Master DFS, BFS, and topological sort.</p>
+<h3 id="phase-4-advanced-patterns-week-7-8">Phase 4: Advanced Patterns (Week 7-8)</h3>
+<p>Solve problems 50-61 (Dynamic Programming), 62-65 (Backtracking), and 66-76 (Greedy, Intervals, Heap, Bit Manipulation). DP is the hardest category. Start with easy DP problems and work up gradually.</p>
+<hr>
+<h2 id="patterns-by-frequency-in-interviews">Patterns by Frequency in Interviews</h2>
+<p>Based on aggregated data from interview reports, here is how often each pattern appears:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Pattern</th><th>Frequency</th><th>Priority</th></tr></thead><tbody><tr><td>Arrays + Hash Map</td><td>Very High</td><td>Must master first</td></tr><tr><td>Trees (DFS/BFS)</td><td>Very High</td><td>Must master</td></tr><tr><td>Two Pointers</td><td>High</td><td>Must master</td></tr><tr><td>Sliding Window</td><td>High</td><td>Must master</td></tr><tr><td>Binary Search</td><td>High</td><td>Must master</td></tr><tr><td>Dynamic Programming</td><td>High</td><td>Must master (medium problems at minimum)</td></tr><tr><td>Graphs</td><td>Medium-High</td><td>Important for top companies</td></tr><tr><td>Stack</td><td>Medium</td><td>Important</td></tr><tr><td>Linked Lists</td><td>Medium</td><td>Important</td></tr><tr><td>Backtracking</td><td>Medium</td><td>Important for combinations/permutations</td></tr><tr><td>Greedy</td><td>Medium</td><td>Important</td></tr><tr><td>Heap</td><td>Medium</td><td>Focus on Top-K problems</td></tr><tr><td>Intervals</td><td>Medium-Low</td><td>2-3 problems are enough</td></tr><tr><td>Bit Manipulation</td><td>Low</td><td>Know the basics</td></tr><tr><td>Union-Find</td><td>Low</td><td>Know the template</td></tr></tbody></table>
+<hr>
+<h2 id="next-steps">Next Steps</h2>
+<div class="card-grid astro-zntqmydn"><div class="sl-link-card astro-mf7fz2mj"> <span class="sl-flex stack astro-mf7fz2mj"> <a href="/interview-prep/coding-interviews/" class="astro-mf7fz2mj"> <span class="title astro-mf7fz2mj">Coding Interview Guide</span> </a> <span class="description astro-mf7fz2mj">Study the 15 coding patterns with template code and detailed explanations</span> </span> <svg aria-hidden="true" class="icon rtl:flip astro-mf7fz2mj astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.333em;"><path d="M17.92 11.62a1.001 1.001 0 0 0-.21-.33l-5-5a1.003 1.003 0 1 0-1.42 1.42l3.3 3.29H7a1 1 0 0 0 0 2h7.59l-3.3 3.29a1.002 1.002 0 0 0 .325 1.639 1 1 0 0 0 1.095-.219l5-5a1 1 0 0 0 .21-.33 1 1 0 0 0 0-.76Z"/></svg>  </div> <div class="sl-link-card astro-mf7fz2mj"> <span class="sl-flex stack astro-mf7fz2mj"> <a href="/interview-prep/behavioral/" class="astro-mf7fz2mj"> <span class="title astro-mf7fz2mj">Behavioral Interview Guide</span> </a> <span class="description astro-mf7fz2mj">Prepare STAR stories and practice the top 20 behavioral questions</span> </span> <svg aria-hidden="true" class="icon rtl:flip astro-mf7fz2mj astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.333em;"><path d="M17.92 11.62a1.001 1.001 0 0 0-.21-.33l-5-5a1.003 1.003 0 1 0-1.42 1.42l3.3 3.29H7a1 1 0 0 0 0 2h7.59l-3.3 3.29a1.002 1.002 0 0 0 .325 1.639 1 1 0 0 0 1.095-.219l5-5a1 1 0 0 0 .21-.33 1 1 0 0 0 0-.76Z"/></svg>  </div> </div>  </div> <footer class="sl-flex astro-3yyafb3n"> <div class="meta sl-flex astro-3yyafb3n">   </div> <div class="pagination-links astro-u2l5gyhi" dir="ltr"> <a href="/software-engineering/interview-prep/behavioral" rel="prev" class="astro-u2l5gyhi"> <svg aria-hidden="true" class="astro-u2l5gyhi astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.5rem;"><path d="M17 11H9.41l3.3-3.29a1.004 1.004 0 1 0-1.42-1.42l-5 5a1 1 0 0 0-.21.33 1 1 0 0 0 0 .76 1 1 0 0 0 .21.33l5 5a1.002 1.002 0 0 0 1.639-.325 1 1 0 0 0-.219-1.095L9.41 13H17a1 1 0 0 0 0-2Z"/></svg>  <span class="astro-u2l5gyhi"> Previous <br class="astro-u2l5gyhi"> <span class="link-title astro-u2l5gyhi">Behavioral Interviews</span> </span> </a>  </div>   </footer>  </div> </div>   </main> </div> </div>  </div> </div>  </body></html>

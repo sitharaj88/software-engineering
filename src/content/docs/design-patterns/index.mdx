@@ -1,0 +1,201 @@
+---
+title: Design Patterns
+description: Master essential Gang of Four design patterns with practical examples in Python and TypeScript
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+Design patterns are proven, reusable solutions to common problems that arise in software design. First cataloged by the "Gang of Four" (Erich Gamma, Richard Helm, Ralph Johnson, and John Vlissides) in their landmark 1994 book *Design Patterns: Elements of Reusable Object-Oriented Software*, these patterns remain foundational knowledge for every software engineer.
+
+## Why Design Patterns Matter
+
+Design patterns provide a **shared vocabulary** for developers. Instead of explaining a complex design decision from scratch, you can say "we used a Strategy pattern here" and your team immediately understands the architecture. They also:
+
+- **Accelerate development** by providing tested solutions to recurring problems
+- **Improve code quality** through well-structured, maintainable designs
+- **Facilitate communication** with a common language among developers
+- **Reduce risk** by leveraging solutions that have been refined over decades
+- **Support SOLID principles** and clean architecture naturally
+
+## The Three Categories
+
+Design patterns are organized into three categories based on their purpose:
+
+<CardGrid>
+  <Card title="Creational Patterns" icon="puzzle">
+    Deal with **object creation mechanisms**, abstracting the instantiation process to make systems independent of how objects are created, composed, and represented.
+
+    - [Singleton](/design-patterns/creational/#singleton)
+    - [Factory Method](/design-patterns/creational/#factory-method)
+    - [Abstract Factory](/design-patterns/creational/#abstract-factory)
+    - [Builder](/design-patterns/creational/#builder)
+    - [Prototype](/design-patterns/creational/#prototype)
+
+    [View Creational Patterns](/design-patterns/creational/)
+  </Card>
+  <Card title="Structural Patterns" icon="setting">
+    Concerned with **class and object composition**, using inheritance and interfaces to compose objects into larger structures while keeping them flexible and efficient.
+
+    - [Adapter](/design-patterns/structural/#adapter)
+    - [Bridge](/design-patterns/structural/#bridge)
+    - [Composite](/design-patterns/structural/#composite)
+    - [Decorator](/design-patterns/structural/#decorator)
+    - [Facade](/design-patterns/structural/#facade)
+    - [Proxy](/design-patterns/structural/#proxy)
+
+    [View Structural Patterns](/design-patterns/structural/)
+  </Card>
+  <Card title="Behavioral Patterns" icon="rocket">
+    Focus on **communication between objects**, defining how objects interact and distribute responsibility among themselves.
+
+    - [Observer](/design-patterns/behavioral/#observer)
+    - [Strategy](/design-patterns/behavioral/#strategy)
+    - [Command](/design-patterns/behavioral/#command)
+    - [State](/design-patterns/behavioral/#state)
+    - [Iterator](/design-patterns/behavioral/#iterator)
+    - [Template Method](/design-patterns/behavioral/#template-method)
+
+    [View Behavioral Patterns](/design-patterns/behavioral/)
+  </Card>
+</CardGrid>
+
+## When to Use Design Patterns
+
+### Use Patterns When
+
+- You recognize a **recurring problem** that a pattern solves cleanly
+- You need to **decouple** components for flexibility and testability
+- Your code is becoming **rigid** or **fragile** under changing requirements
+- You want to **communicate intent** clearly to other developers
+- You need to follow the **Open/Closed Principle** (open for extension, closed for modification)
+
+### Avoid Patterns When
+
+- The problem is **simple enough** that a pattern adds unnecessary complexity
+- You are **forcing a pattern** where a direct solution is clearer
+- The pattern introduces **over-engineering** for a prototype or throwaway code
+- You do not fully **understand** the pattern and its trade-offs
+- A language feature (closures, first-class functions, generics) already solves the problem natively
+
+:::caution[Pattern Overuse]
+The most common mistake is applying patterns everywhere. A pattern is a tool, not a goal. If your solution is clear without a pattern, do not add one just for the sake of it. As the saying goes: "When all you have is a hammer, everything looks like a nail."
+:::
+
+## Quick Reference Table
+
+### Creational Patterns
+
+| Pattern | Intent | Common Use Cases |
+|---------|--------|-----------------|
+| **Singleton** | Ensure a class has only one instance | Configuration managers, logging, connection pools |
+| **Factory Method** | Define an interface for creating objects, letting subclasses decide which class to instantiate | UI component libraries, plugin systems, document parsers |
+| **Abstract Factory** | Create families of related objects without specifying concrete classes | Cross-platform UI toolkits, database access layers |
+| **Builder** | Construct complex objects step by step | Query builders, configuration objects, HTTP requests |
+| **Prototype** | Create new objects by copying existing ones | Game entities, document templates, cached objects |
+
+### Structural Patterns
+
+| Pattern | Intent | Common Use Cases |
+|---------|--------|-----------------|
+| **Adapter** | Convert an interface into another that clients expect | Legacy system integration, third-party library wrappers |
+| **Bridge** | Separate abstraction from implementation so both can vary | Cross-platform rendering, device drivers, persistence layers |
+| **Composite** | Compose objects into tree structures for part-whole hierarchies | File systems, UI component trees, organizational charts |
+| **Decorator** | Attach additional responsibilities to objects dynamically | I/O streams, middleware pipelines, logging wrappers |
+| **Facade** | Provide a simplified interface to a complex subsystem | API gateways, library wrappers, service orchestration |
+| **Proxy** | Provide a surrogate or placeholder to control access | Lazy loading, access control, caching, remote objects |
+
+### Behavioral Patterns
+
+| Pattern | Intent | Common Use Cases |
+|---------|--------|-----------------|
+| **Observer** | Define a one-to-many dependency so dependents are notified of changes | Event systems, reactive UI, pub/sub messaging |
+| **Strategy** | Define a family of interchangeable algorithms | Sorting algorithms, payment processing, validation rules |
+| **Command** | Encapsulate a request as an object | Undo/redo systems, task queues, macro recording |
+| **State** | Allow an object to alter its behavior when its internal state changes | Workflow engines, TCP connections, game character AI |
+| **Iterator** | Provide a way to access elements of a collection sequentially | Collection traversal, database cursors, stream processing |
+| **Template Method** | Define the skeleton of an algorithm, deferring steps to subclasses | Frameworks, data pipelines, test fixtures |
+
+## Relationships Between Patterns
+
+Patterns often complement each other. Understanding these relationships helps you choose the right combination:
+
+```
+Creational Relationships:
+  Abstract Factory  ──uses──►  Factory Method
+  Builder           ──can build──►  Composite
+  Prototype         ──alternative to──►  Factory Method
+
+Structural Relationships:
+  Adapter       ──similar to──►  Bridge (but different intent)
+  Composite     ──often uses──►  Iterator
+  Decorator     ──similar to──►  Proxy (but different intent)
+  Facade        ──simplifies──►  Complex subsystems
+
+Behavioral Relationships:
+  Strategy      ──similar to──►  State (but different intent)
+  Observer      ──often uses──►  Mediator
+  Command       ──can use──►  Memento (for undo)
+  Iterator      ──traverses──►  Composite
+  Template Method ──alternative to──►  Strategy (inheritance vs composition)
+```
+
+## How to Study Design Patterns
+
+1. **Understand the problem first** -- Know what problem each pattern solves before memorizing the structure
+2. **Study the UML/structure** -- Understand the participants and their relationships
+3. **Read real-world examples** -- See how patterns are used in frameworks you already know
+4. **Implement from scratch** -- Code each pattern yourself in your preferred language
+5. **Recognize patterns in existing code** -- Look for patterns in open-source libraries
+6. **Practice refactoring** -- Take messy code and refactor it using appropriate patterns
+
+## Recommended Learning Path
+
+<CardGrid stagger>
+  <Card title="Phase 1: Essential Patterns" icon="open-book">
+    **Duration**: 1-2 weeks
+
+    Start with the most commonly used patterns that you will encounter in everyday development.
+
+    **Start with**: Singleton, Factory Method, Observer, Strategy, Decorator
+
+    **Prerequisites**: Basic OOP knowledge (classes, interfaces, inheritance)
+  </Card>
+  <Card title="Phase 2: Structural Mastery" icon="star">
+    **Duration**: 1-2 weeks
+
+    Learn how to compose objects into flexible, maintainable structures.
+
+    **Focus on**: Adapter, Facade, Composite, Proxy, Builder
+
+    **Prerequisites**: Phase 1 patterns
+  </Card>
+  <Card title="Phase 3: Advanced Patterns" icon="rocket">
+    **Duration**: 2-3 weeks
+
+    Master the remaining behavioral patterns and learn to combine patterns effectively.
+
+    **Focus on**: Command, State, Template Method, Iterator, Abstract Factory, Bridge, Prototype
+
+    **Prerequisites**: Phases 1 and 2
+  </Card>
+</CardGrid>
+
+## Begin Learning
+
+<CardGrid>
+  <LinkCard
+    title="Creational Patterns"
+    href="/design-patterns/creational/"
+    description="Singleton, Factory Method, Abstract Factory, Builder, Prototype"
+  />
+  <LinkCard
+    title="Structural Patterns"
+    href="/design-patterns/structural/"
+    description="Adapter, Bridge, Composite, Decorator, Facade, Proxy"
+  />
+  <LinkCard
+    title="Behavioral Patterns"
+    href="/design-patterns/behavioral/"
+    description="Observer, Strategy, Command, State, Iterator, Template Method"
+  />
+</CardGrid>

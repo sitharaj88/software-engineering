@@ -1,0 +1,279 @@
+---
+title: Space Complexity
+description: Learn to analyze and optimize memory usage in algorithms
+difficulty: beginner
+prerequisites: ["Big O Notation", "Time Complexity"]
+timeToRead: "12 min"
+topics: ["complexity", "fundamentals"]
+---
+
+Space complexity measures the amount of memory an algorithm uses relative to the input size.
+
+## Types of Space
+
+### 1. Input Space
+Memory used to store the input (usually not counted).
+
+### 2. Auxiliary Space
+Extra space used by the algorithm beyond the input.
+
+**Space Complexity = Input Space + Auxiliary Space**
+
+Most often, we focus on **auxiliary space** when discussing space complexity.
+
+## Common Space Complexities
+
+### O(1) - Constant Space
+
+Uses a fixed amount of memory regardless of input size.
+
+```python
+def find_max(arr):
+    max_val = arr[0]       # 1 variable
+    for num in arr:
+        if num > max_val:
+            max_val = num
+    return max_val
+# Space: O(1) - only stores max_val
+```
+
+```python
+def swap_in_place(arr, i, j):
+    temp = arr[i]          # 1 variable
+    arr[i] = arr[j]
+    arr[j] = temp
+# Space: O(1)
+```
+
+### O(n) - Linear Space
+
+Memory grows linearly with input size.
+
+```python
+def create_copy(arr):
+    copy = []              # New array
+    for num in arr:
+        copy.append(num)   # Grows to size n
+    return copy
+# Space: O(n)
+```
+
+```python
+def collect_even(arr):
+    evens = []
+    for num in arr:
+        if num % 2 == 0:
+            evens.append(num)  # Worst case: all even → O(n)
+    return evens
+# Space: O(n)
+```
+
+### O(n²) - Quadratic Space
+
+Often seen with 2D arrays or matrices.
+
+```python
+def create_matrix(n):
+    matrix = []
+    for i in range(n):
+        row = [0] * n      # n elements per row
+        matrix.append(row) # n rows
+    return matrix
+# Space: O(n²)
+```
+
+### O(log n) - Logarithmic Space
+
+Common in recursive algorithms that halve the problem.
+
+```python
+def binary_search_recursive(arr, target, left, right):
+    if left > right:
+        return -1
+    mid = (left + right) // 2
+    if arr[mid] == target:
+        return mid
+    elif arr[mid] < target:
+        return binary_search_recursive(arr, target, mid + 1, right)
+    else:
+        return binary_search_recursive(arr, target, left, mid - 1)
+# Space: O(log n) - call stack depth
+```
+
+## Recursion and Call Stack
+
+Each recursive call uses stack space for:
+- Return address
+- Local variables
+- Parameters
+
+```python
+def factorial(n):
+    if n <= 1:
+        return 1
+    return n * factorial(n - 1)
+# Space: O(n) - n stack frames
+
+# Call stack for factorial(4):
+# factorial(4)
+#   factorial(3)
+#     factorial(2)
+#       factorial(1)  ← max depth = 4
+```
+
+### Tail Recursion (Optimization)
+
+```python
+def factorial_tail(n, acc=1):
+    if n <= 1:
+        return acc
+    return factorial_tail(n - 1, n * acc)
+# Still O(n) in Python (no tail call optimization)
+# But O(1) in languages with TCO
+```
+
+## In-Place Algorithms
+
+Algorithms that modify input directly without extra space.
+
+```python
+# In-place reversal - O(1) space
+def reverse_in_place(arr):
+    left, right = 0, len(arr) - 1
+    while left < right:
+        arr[left], arr[right] = arr[right], arr[left]
+        left += 1
+        right -= 1
+
+# NOT in-place - O(n) space
+def reverse_copy(arr):
+    return arr[::-1]  # Creates new array
+```
+
+### Common In-Place Operations
+- Two pointer swaps
+- Partitioning (Quick Sort)
+- Heap operations
+- In-place rotation
+
+## Space-Time Tradeoffs
+
+Often, you can trade space for time (or vice versa).
+
+### Example: Two Sum
+
+**O(n²) time, O(1) space:**
+```python
+def two_sum_brute(nums, target):
+    for i in range(len(nums)):
+        for j in range(i + 1, len(nums)):
+            if nums[i] + nums[j] == target:
+                return [i, j]
+    return []
+```
+
+**O(n) time, O(n) space:**
+```python
+def two_sum_hash(nums, target):
+    seen = {}  # Uses O(n) extra space
+    for i, num in enumerate(nums):
+        complement = target - num
+        if complement in seen:
+            return [seen[complement], i]
+        seen[num] = i
+    return []
+```
+
+### Example: Fibonacci
+
+**O(2ⁿ) time, O(n) space (recursion):**
+```python
+def fib_recursive(n):
+    if n <= 1:
+        return n
+    return fib_recursive(n-1) + fib_recursive(n-2)
+```
+
+**O(n) time, O(n) space (memoization):**
+```python
+def fib_memo(n, memo={}):
+    if n in memo:
+        return memo[n]
+    if n <= 1:
+        return n
+    memo[n] = fib_memo(n-1, memo) + fib_memo(n-2, memo)
+    return memo[n]
+```
+
+**O(n) time, O(1) space (iteration):**
+```python
+def fib_iterative(n):
+    if n <= 1:
+        return n
+    prev, curr = 0, 1
+    for _ in range(2, n + 1):
+        prev, curr = curr, prev + curr
+    return curr
+```
+
+## Analyzing Data Structures
+
+| Structure | Space for n elements |
+|-----------|---------------------|
+| Array | O(n) |
+| Hash Table | O(n) |
+| Linked List | O(n) |
+| Binary Tree | O(n) |
+| Graph (Adjacency List) | O(V + E) |
+| Graph (Adjacency Matrix) | O(V²) |
+| Trie | O(ALPHABET × n × m) |
+
+## Algorithm Space Comparison
+
+| Algorithm | Time | Auxiliary Space |
+|-----------|------|-----------------|
+| Bubble Sort | O(n²) | O(1) |
+| Merge Sort | O(n log n) | O(n) |
+| Quick Sort | O(n log n) | O(log n) |
+| Heap Sort | O(n log n) | O(1) |
+| Counting Sort | O(n + k) | O(n + k) |
+| BFS | O(V + E) | O(V) |
+| DFS (recursive) | O(V + E) | O(V) |
+| DFS (iterative) | O(V + E) | O(V) |
+
+## Tips for Optimizing Space
+
+1. **Use in-place modifications** when possible
+2. **Reuse variables** instead of creating new ones
+3. **Process data in chunks** for large inputs
+4. **Use generators/iterators** instead of lists
+5. **Consider iterative vs recursive** solutions
+6. **Bit manipulation** can reduce space for flags
+
+```python
+# Instead of boolean array - O(n) space
+visited = [False] * n
+
+# Use bit manipulation - O(n/32) space
+visited = 0
+visited |= (1 << node)  # Set bit
+is_visited = visited & (1 << node)  # Check bit
+```
+
+## Key Takeaways
+
+1. **Auxiliary space** is what we usually analyze
+2. **Recursive calls** consume stack space
+3. **In-place algorithms** achieve O(1) auxiliary space
+4. **Tradeoffs exist** between time and space
+5. **Hash tables** trade O(n) space for O(1) lookups
+
+## Next Steps
+
+import { LinkCard } from '@astrojs/starlight/components';
+
+<LinkCard
+  title="Arrays"
+  href="/dsa/arrays/"
+  description="Apply complexity analysis to array problems"
+/>

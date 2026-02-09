@@ -1,0 +1,1503 @@
+---
+title: Structural Design Patterns
+description: Master Adapter, Bridge, Composite, Decorator, Facade, and Proxy patterns with Python and TypeScript examples
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+Structural patterns explain how to assemble objects and classes into larger structures while keeping those structures flexible and efficient. They use inheritance and composition to create new functionality from existing building blocks.
+
+---
+
+## Adapter
+
+### Intent
+
+Convert the interface of a class into another interface that clients expect. Adapter lets classes work together that could not otherwise because of **incompatible interfaces**.
+
+### Problem
+
+You are integrating a third-party analytics library into your application, but its interface is completely different from what your code expects. You cannot modify the library, and you do not want to rewrite your existing code.
+
+### Solution
+
+Create a wrapper class (the adapter) that translates calls from your interface into the format understood by the third-party class.
+
+### Structure
+
+```
+┌──────────────┐      ┌─────────────────┐
+│    Client     │─────►│  Target         │
+└──────────────┘      │  (interface)    │
+                      ├─────────────────┤
+                      │ + request()     │
+                      └────────┬────────┘
+                               │
+                      ┌────────┴────────┐
+                      │    Adapter       │
+                      ├─────────────────┤     ┌─────────────────┐
+                      │ - adaptee       │────►│   Adaptee       │
+                      │ + request()     │     ├─────────────────┤
+                      │   (translates   │     │ + specific_req()│
+                      │    to adaptee)  │     └─────────────────┘
+                      └─────────────────┘
+```
+
+### Code Examples
+
+<Tabs>
+  <TabItem label="Python">
+```python
+from abc import ABC, abstractmethod
+import json
+import xml.etree.ElementTree as ET
+
+
+# Target interface your application expects
+class DataParser(ABC):
+    @abstractmethod
+    def parse(self, raw_data: str) -> dict:
+        """Parse raw data and return a dictionary."""
+        pass
+
+
+# Existing parser that works fine
+class JsonParser(DataParser):
+    def parse(self, raw_data: str) -> dict:
+        return json.loads(raw_data)
+
+
+# Third-party library with an incompatible interface
+class LegacyXmlProcessor:
+    """Adaptee -- cannot modify this class."""
+
+    def process_xml(self, xml_string: str) -> ET.Element:
+        return ET.fromstring(xml_string)
+
+    def extract_fields(self, element: ET.Element) -> list[tuple[str, str]]:
+        return [(child.tag, child.text or "") for child in element]
+
+
+# Adapter: makes LegacyXmlProcessor work as a DataParser
+class XmlParserAdapter(DataParser):
+    """Adapts LegacyXmlProcessor to the DataParser interface."""
+
+    def __init__(self) -> None:
+        self._processor = LegacyXmlProcessor()
+
+    def parse(self, raw_data: str) -> dict:
+        element = self._processor.process_xml(raw_data)
+        fields = self._processor.extract_fields(element)
+        return dict(fields)
+
+
+# Client code -- works with any DataParser
+def process_data(parser: DataParser, raw_data: str) -> None:
+    result = parser.parse(raw_data)
+    for key, value in result.items():
+        print(f"  {key}: {value}")
+
+
+# Usage
+print("JSON data:")
+process_data(JsonParser(), '{"name": "Alice", "age": "30"}')
+
+print("\nXML data (via adapter):")
+xml_data = "<user><name>Alice</name><age>30</age></user>"
+process_data(XmlParserAdapter(), xml_data)
+# Both produce the same output format
+```
+  </TabItem>
+  <TabItem label="TypeScript">
+```typescript
+// Target interface your application expects
+interface DataParser {
+  parse(rawData: string): Record<string, string>;
+}
+
+// Existing parser that works fine
+class JsonParser implements DataParser {
+  parse(rawData: string): Record<string, string> {
+    return JSON.parse(rawData);
+  }
+}
+
+// Third-party library with an incompatible interface
+class LegacyXmlProcessor {
+  processXml(xmlString: string): Document {
+    const parser = new DOMParser();
+    return parser.parseFromString(xmlString, "text/xml");
+  }
+
+  extractFields(doc: Document): Array<[string, string]> {
+    const root = doc.documentElement;
+    const fields: Array<[string, string]> = [];
+    for (const child of Array.from(root.children)) {
+      fields.push([child.tagName, child.textContent ?? ""]);
+    }
+    return fields;
+  }
+}
+
+// Adapter: makes LegacyXmlProcessor work as a DataParser
+class XmlParserAdapter implements DataParser {
+  private processor = new LegacyXmlProcessor();
+
+  parse(rawData: string): Record<string, string> {
+    const doc = this.processor.processXml(rawData);
+    const fields = this.processor.extractFields(doc);
+    return Object.fromEntries(fields);
+  }
+}
+
+// Client code -- works with any DataParser
+function processData(parser: DataParser, rawData: string): void {
+  const result = parser.parse(rawData);
+  for (const [key, value] of Object.entries(result)) {
+    console.log(`  ${key}: ${value}`);
+  }
+}
+
+// Usage
+console.log("JSON data:");
+processData(new JsonParser(), '{"name": "Alice", "age": "30"}');
+
+console.log("\nXML data (via adapter):");
+const xmlData = "<user><name>Alice</name><age>30</age></user>";
+processData(new XmlParserAdapter(), xmlData);
+```
+  </TabItem>
+</Tabs>
+
+### When to Use
+
+- You want to use an existing class but its interface does not match what you need
+- You need to integrate third-party or legacy code without modifying it
+- You want to create a reusable class that cooperates with unrelated classes
+
+### Pros and Cons
+
+| Pros | Cons |
+|------|------|
+| Single Responsibility: conversion logic separated from business logic | Added complexity from extra indirection |
+| Open/Closed: add new adapters without modifying existing code | Sometimes simpler to modify the adaptee directly |
+| Reusable wrapper for multiple incompatible classes | Performance overhead of translation layer |
+
+### Real-World Usage
+
+- **Python `io.TextIOWrapper`**: Adapts byte streams to text streams
+- **TypeScript ORMs**: Adapt different database drivers to a common query interface
+- **React wrappers**: Adapting jQuery plugins to React components
+
+---
+
+## Bridge
+
+### Intent
+
+Decouple an **abstraction from its implementation** so that the two can vary independently.
+
+### Problem
+
+You have a `Shape` hierarchy (Circle, Square) and a `Renderer` hierarchy (SVG, Canvas). Without Bridge, you would need CircleSVG, CircleCanvas, SquareSVG, SquareCanvas -- a class explosion that grows multiplicatively.
+
+### Solution
+
+Split the monolithic class into two separate hierarchies: the abstraction (what the client uses) and the implementation (what does the work). The abstraction contains a reference to the implementation and delegates work to it.
+
+### Structure
+
+```
+┌───────────────────┐        ┌──────────────────────┐
+│   Abstraction      │        │   Implementation     │
+├───────────────────┤ has-a  │   (interface)        │
+│ - impl: Impl       │───────►├──────────────────────┤
+│ + operation()      │        │ + render_circle()    │
+└────────┬──────────┘        │ + render_square()    │
+         │                    └──────────┬───────────┘
+         │                               │
+  ┌──────┴──────┐              ┌─────────┴────────┐
+  │  Circle     │              │                   │
+  │  Square     │         ┌────┴────┐    ┌────────┴──┐
+  └─────────────┘         │SVGRender│    │CanvasRender│
+                          └─────────┘    └───────────┘
+```
+
+### Code Examples
+
+<Tabs>
+  <TabItem label="Python">
+```python
+from abc import ABC, abstractmethod
+
+
+# Implementation interface
+class Renderer(ABC):
+    @abstractmethod
+    def render_circle(self, x: float, y: float, radius: float) -> str:
+        pass
+
+    @abstractmethod
+    def render_rectangle(self, x: float, y: float, w: float, h: float) -> str:
+        pass
+
+
+# Concrete implementations
+class SVGRenderer(Renderer):
+    def render_circle(self, x: float, y: float, radius: float) -> str:
+        return f'<circle cx="{x}" cy="{y}" r="{radius}" />'
+
+    def render_rectangle(self, x: float, y: float, w: float, h: float) -> str:
+        return f'<rect x="{x}" y="{y}" width="{w}" height="{h}" />'
+
+
+class CanvasRenderer(Renderer):
+    def render_circle(self, x: float, y: float, radius: float) -> str:
+        return f"ctx.arc({x}, {y}, {radius}, 0, 2 * Math.PI); ctx.fill();"
+
+    def render_rectangle(self, x: float, y: float, w: float, h: float) -> str:
+        return f"ctx.fillRect({x}, {y}, {w}, {h});"
+
+
+# Abstraction
+class Shape(ABC):
+    def __init__(self, renderer: Renderer) -> None:
+        self.renderer = renderer
+
+    @abstractmethod
+    def draw(self) -> str:
+        pass
+
+
+# Refined abstractions
+class Circle(Shape):
+    def __init__(self, renderer: Renderer, x: float, y: float, radius: float):
+        super().__init__(renderer)
+        self.x = x
+        self.y = y
+        self.radius = radius
+
+    def draw(self) -> str:
+        return self.renderer.render_circle(self.x, self.y, self.radius)
+
+
+class Rectangle(Shape):
+    def __init__(self, renderer: Renderer, x: float, y: float, w: float, h: float):
+        super().__init__(renderer)
+        self.x = x
+        self.y = y
+        self.w = w
+        self.h = h
+
+    def draw(self) -> str:
+        return self.renderer.render_rectangle(self.x, self.y, self.w, self.h)
+
+
+# Usage -- mix any shape with any renderer
+svg = SVGRenderer()
+canvas = CanvasRenderer()
+
+shapes: list[Shape] = [
+    Circle(svg, 10, 20, 5),
+    Circle(canvas, 10, 20, 5),
+    Rectangle(svg, 0, 0, 100, 50),
+    Rectangle(canvas, 0, 0, 100, 50),
+]
+
+for shape in shapes:
+    print(shape.draw())
+```
+  </TabItem>
+  <TabItem label="TypeScript">
+```typescript
+// Implementation interface
+interface Renderer {
+  renderCircle(x: number, y: number, radius: number): string;
+  renderRectangle(x: number, y: number, w: number, h: number): string;
+}
+
+// Concrete implementations
+class SVGRenderer implements Renderer {
+  renderCircle(x: number, y: number, radius: number): string {
+    return `<circle cx="${x}" cy="${y}" r="${radius}" />`;
+  }
+
+  renderRectangle(x: number, y: number, w: number, h: number): string {
+    return `<rect x="${x}" y="${y}" width="${w}" height="${h}" />`;
+  }
+}
+
+class CanvasRenderer implements Renderer {
+  renderCircle(x: number, y: number, radius: number): string {
+    return `ctx.arc(${x}, ${y}, ${radius}, 0, 2 * Math.PI); ctx.fill();`;
+  }
+
+  renderRectangle(x: number, y: number, w: number, h: number): string {
+    return `ctx.fillRect(${x}, ${y}, ${w}, ${h});`;
+  }
+}
+
+// Abstraction
+abstract class Shape {
+  constructor(protected renderer: Renderer) {}
+  abstract draw(): string;
+}
+
+// Refined abstractions
+class Circle extends Shape {
+  constructor(
+    renderer: Renderer,
+    private x: number,
+    private y: number,
+    private radius: number,
+  ) {
+    super(renderer);
+  }
+
+  draw(): string {
+    return this.renderer.renderCircle(this.x, this.y, this.radius);
+  }
+}
+
+class Rectangle extends Shape {
+  constructor(
+    renderer: Renderer,
+    private x: number,
+    private y: number,
+    private w: number,
+    private h: number,
+  ) {
+    super(renderer);
+  }
+
+  draw(): string {
+    return this.renderer.renderRectangle(this.x, this.y, this.w, this.h);
+  }
+}
+
+// Usage -- mix any shape with any renderer
+const svg = new SVGRenderer();
+const canvas = new CanvasRenderer();
+
+const shapes: Shape[] = [
+  new Circle(svg, 10, 20, 5),
+  new Circle(canvas, 10, 20, 5),
+  new Rectangle(svg, 0, 0, 100, 50),
+  new Rectangle(canvas, 0, 0, 100, 50),
+];
+
+shapes.forEach(shape => console.log(shape.draw()));
+```
+  </TabItem>
+</Tabs>
+
+### When to Use
+
+- You want to avoid a class explosion from combining multiple dimensions of variation
+- Both the abstraction and implementation should be extensible independently
+- Changes in the implementation should not affect client code
+
+### Pros and Cons
+
+| Pros | Cons |
+|------|------|
+| Decouples interface from implementation | Increases complexity with indirection |
+| Both hierarchies can evolve independently | Can be overkill when there is only one implementation |
+| Open/Closed: extend both sides without breaking existing code | Harder to understand for simple cases |
+
+### Real-World Usage
+
+- **JDBC drivers**: Bridge between Java database API and vendor-specific implementations
+- **Remote controls + devices**: A remote (abstraction) controlling any device (implementation)
+- **Cross-platform rendering engines**: Separate rendering logic from platform APIs
+
+---
+
+## Composite
+
+### Intent
+
+Compose objects into **tree structures** to represent part-whole hierarchies. Composite lets clients treat individual objects and compositions of objects uniformly.
+
+### Problem
+
+A file system contains both files and directories. Directories can contain files and other directories. You need to calculate the total size, but individual files and directories require different handling without Composite.
+
+### Solution
+
+Define a common interface for both leaves (files) and composites (directories). The composite stores children and delegates operations to them.
+
+### Structure
+
+```
+┌──────────────────┐
+│   Component       │
+│   (interface)     │
+├──────────────────┤
+│ + operation()    │
+│ + get_size()     │
+└────────┬─────────┘
+         │
+  ┌──────┴─────────┐
+  │                 │
+┌─┴──────┐  ┌─────┴──────────┐
+│  Leaf   │  │   Composite     │
+│ (File)  │  │   (Directory)   │
+├─────────┤  ├────────────────┤
+│ + op()  │  │ - children[]   │
+└─────────┘  │ + add(child)   │
+             │ + remove(child)│
+             │ + op() {       │
+             │   for child:   │
+             │     child.op() │
+             │ }              │
+             └────────────────┘
+```
+
+### Code Examples
+
+<Tabs>
+  <TabItem label="Python">
+```python
+from abc import ABC, abstractmethod
+
+
+class FileSystemEntry(ABC):
+    """Component interface for files and directories."""
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+
+    @abstractmethod
+    def get_size(self) -> int:
+        pass
+
+    @abstractmethod
+    def display(self, indent: int = 0) -> str:
+        pass
+
+
+class File(FileSystemEntry):
+    """Leaf node -- an individual file."""
+
+    def __init__(self, name: str, size: int) -> None:
+        super().__init__(name)
+        self.size = size
+
+    def get_size(self) -> int:
+        return self.size
+
+    def display(self, indent: int = 0) -> str:
+        return f"{'  ' * indent}{self.name} ({self.size} bytes)"
+
+
+class Directory(FileSystemEntry):
+    """Composite node -- contains files and other directories."""
+
+    def __init__(self, name: str) -> None:
+        super().__init__(name)
+        self._children: list[FileSystemEntry] = []
+
+    def add(self, entry: FileSystemEntry) -> None:
+        self._children.append(entry)
+
+    def remove(self, entry: FileSystemEntry) -> None:
+        self._children.remove(entry)
+
+    def get_size(self) -> int:
+        return sum(child.get_size() for child in self._children)
+
+    def display(self, indent: int = 0) -> str:
+        lines = [f"{'  ' * indent}{self.name}/ ({self.get_size()} bytes)"]
+        for child in self._children:
+            lines.append(child.display(indent + 1))
+        return "\n".join(lines)
+
+
+# Usage
+root = Directory("project")
+src = Directory("src")
+src.add(File("main.py", 1200))
+src.add(File("utils.py", 800))
+
+tests = Directory("tests")
+tests.add(File("test_main.py", 600))
+
+root.add(src)
+root.add(tests)
+root.add(File("README.md", 300))
+
+print(root.display())
+# project/ (2900 bytes)
+#   src/ (2000 bytes)
+#     main.py (1200 bytes)
+#     utils.py (800 bytes)
+#   tests/ (600 bytes)
+#     test_main.py (600 bytes)
+#   README.md (300 bytes)
+
+print(f"\nTotal size: {root.get_size()} bytes")
+```
+  </TabItem>
+  <TabItem label="TypeScript">
+```typescript
+// Component interface
+interface FileSystemEntry {
+  name: string;
+  getSize(): number;
+  display(indent?: number): string;
+}
+
+// Leaf node -- an individual file
+class File implements FileSystemEntry {
+  constructor(
+    public name: string,
+    private size: number,
+  ) {}
+
+  getSize(): number {
+    return this.size;
+  }
+
+  display(indent = 0): string {
+    return `${"  ".repeat(indent)}${this.name} (${this.size} bytes)`;
+  }
+}
+
+// Composite node -- contains files and directories
+class Directory implements FileSystemEntry {
+  private children: FileSystemEntry[] = [];
+
+  constructor(public name: string) {}
+
+  add(entry: FileSystemEntry): void {
+    this.children.push(entry);
+  }
+
+  remove(entry: FileSystemEntry): void {
+    const index = this.children.indexOf(entry);
+    if (index !== -1) this.children.splice(index, 1);
+  }
+
+  getSize(): number {
+    return this.children.reduce((sum, child) => sum + child.getSize(), 0);
+  }
+
+  display(indent = 0): string {
+    const lines = [
+      `${"  ".repeat(indent)}${this.name}/ (${this.getSize()} bytes)`,
+    ];
+    for (const child of this.children) {
+      lines.push(child.display(indent + 1));
+    }
+    return lines.join("\n");
+  }
+}
+
+// Usage
+const root = new Directory("project");
+const src = new Directory("src");
+src.add(new File("main.ts", 1200));
+src.add(new File("utils.ts", 800));
+
+const tests = new Directory("tests");
+tests.add(new File("main.test.ts", 600));
+
+root.add(src);
+root.add(tests);
+root.add(new File("README.md", 300));
+
+console.log(root.display());
+console.log(`\nTotal size: ${root.getSize()} bytes`);
+```
+  </TabItem>
+</Tabs>
+
+### When to Use
+
+- You want to represent part-whole hierarchies as tree structures
+- You want clients to treat individual objects and compositions uniformly
+- You have recursive structures (files/folders, UI components, org charts)
+
+### Pros and Cons
+
+| Pros | Cons |
+|------|------|
+| Uniform treatment of simple and complex elements | Hard to restrict which components can be added |
+| Easy to add new component types | Design can become overly general |
+| Simplifies client code for tree operations | Type safety is harder to enforce at compile time |
+
+### Real-World Usage
+
+- **React component trees**: Components contain other components
+- **DOM**: Elements contain child elements and text nodes
+- **Python `ast` module**: AST nodes form a composite tree structure
+
+---
+
+## Decorator
+
+### Intent
+
+Attach additional responsibilities to an object **dynamically**. Decorators provide a flexible alternative to subclassing for extending functionality.
+
+### Problem
+
+You have a notification system. You want to add logging, rate limiting, and retry logic. Creating subclasses for every combination (LoggedRetryNotification, RateLimitedLoggedNotification, etc.) leads to a class explosion.
+
+### Solution
+
+Wrap the original object in decorator objects, each adding one behavior. Decorators implement the same interface as the original object, so they can be stacked in any combination.
+
+### Structure
+
+```
+┌────────────────────┐
+│    Component        │
+│    (interface)      │
+├────────────────────┤
+│ + execute()        │
+└─────────┬──────────┘
+          │
+   ┌──────┴──────────────┐
+   │                      │
+┌──┴──────────┐  ┌───────┴──────────┐
+│ Concrete     │  │  BaseDecorator    │
+│ Component    │  ├──────────────────┤
+└─────────────┘  │ - wrapped: Comp   │
+                 │ + execute()  ────►│ wrapped.execute()
+                 └───────┬──────────┘
+                         │
+              ┌──────────┴──────────┐
+              │                     │
+        ┌─────┴──────┐     ┌───────┴──────┐
+        │ DecoratorA  │     │  DecoratorB   │
+        │ (logging)   │     │  (retry)      │
+        └────────────┘     └──────────────┘
+```
+
+### Code Examples
+
+<Tabs>
+  <TabItem label="Python">
+```python
+from abc import ABC, abstractmethod
+import time
+import functools
+
+
+# Component interface
+class DataSource(ABC):
+    @abstractmethod
+    def write(self, data: str) -> str:
+        pass
+
+    @abstractmethod
+    def read(self) -> str:
+        pass
+
+
+# Concrete component
+class FileDataSource(DataSource):
+    def __init__(self, filename: str) -> None:
+        self.filename = filename
+        self._data = ""
+
+    def write(self, data: str) -> str:
+        self._data = data
+        return f"Wrote to {self.filename}"
+
+    def read(self) -> str:
+        return self._data
+
+
+# Base decorator
+class DataSourceDecorator(DataSource, ABC):
+    def __init__(self, source: DataSource) -> None:
+        self._wrapped = source
+
+    def write(self, data: str) -> str:
+        return self._wrapped.write(data)
+
+    def read(self) -> str:
+        return self._wrapped.read()
+
+
+# Concrete decorators
+class EncryptionDecorator(DataSourceDecorator):
+    """Adds encryption/decryption to any data source."""
+
+    def _encrypt(self, data: str) -> str:
+        # Simple Caesar cipher for demonstration
+        return "".join(chr(ord(c) + 3) for c in data)
+
+    def _decrypt(self, data: str) -> str:
+        return "".join(chr(ord(c) - 3) for c in data)
+
+    def write(self, data: str) -> str:
+        encrypted = self._encrypt(data)
+        return f"[Encrypted] {self._wrapped.write(encrypted)}"
+
+    def read(self) -> str:
+        return self._decrypt(self._wrapped.read())
+
+
+class CompressionDecorator(DataSourceDecorator):
+    """Adds compression/decompression to any data source."""
+
+    def _compress(self, data: str) -> str:
+        # Simple run-length encoding for demonstration
+        return f"compressed({len(data)}chars):{data[:20]}..."
+
+    def write(self, data: str) -> str:
+        compressed = self._compress(data)
+        return f"[Compressed] {self._wrapped.write(compressed)}"
+
+    def read(self) -> str:
+        return f"[Decompressed] {self._wrapped.read()}"
+
+
+class LoggingDecorator(DataSourceDecorator):
+    """Adds logging to any data source."""
+
+    def write(self, data: str) -> str:
+        print(f"LOG: Writing {len(data)} characters")
+        result = self._wrapped.write(data)
+        print(f"LOG: Write complete")
+        return result
+
+    def read(self) -> str:
+        print(f"LOG: Reading data")
+        result = self._wrapped.read()
+        print(f"LOG: Read {len(result)} characters")
+        return result
+
+
+# Usage -- stack decorators in any combination
+source = FileDataSource("data.txt")
+
+# Add encryption + logging
+encrypted_logged = LoggingDecorator(EncryptionDecorator(source))
+result = encrypted_logged.write("Hello, World!")
+print(result)
+
+# Add compression + encryption + logging
+full_stack = LoggingDecorator(CompressionDecorator(EncryptionDecorator(
+    FileDataSource("secure.dat")
+)))
+full_stack.write("Sensitive data here")
+```
+  </TabItem>
+  <TabItem label="TypeScript">
+```typescript
+// Component interface
+interface DataSource {
+  write(data: string): string;
+  read(): string;
+}
+
+// Concrete component
+class FileDataSource implements DataSource {
+  private data = "";
+
+  constructor(private filename: string) {}
+
+  write(data: string): string {
+    this.data = data;
+    return `Wrote to ${this.filename}`;
+  }
+
+  read(): string {
+    return this.data;
+  }
+}
+
+// Base decorator
+abstract class DataSourceDecorator implements DataSource {
+  constructor(protected wrapped: DataSource) {}
+
+  write(data: string): string {
+    return this.wrapped.write(data);
+  }
+
+  read(): string {
+    return this.wrapped.read();
+  }
+}
+
+// Concrete decorators
+class EncryptionDecorator extends DataSourceDecorator {
+  private encrypt(data: string): string {
+    return data
+      .split("")
+      .map(c => String.fromCharCode(c.charCodeAt(0) + 3))
+      .join("");
+  }
+
+  private decrypt(data: string): string {
+    return data
+      .split("")
+      .map(c => String.fromCharCode(c.charCodeAt(0) - 3))
+      .join("");
+  }
+
+  write(data: string): string {
+    return `[Encrypted] ${this.wrapped.write(this.encrypt(data))}`;
+  }
+
+  read(): string {
+    return this.decrypt(this.wrapped.read());
+  }
+}
+
+class CompressionDecorator extends DataSourceDecorator {
+  private compress(data: string): string {
+    return `compressed(${data.length}chars):${data.slice(0, 20)}...`;
+  }
+
+  write(data: string): string {
+    return `[Compressed] ${this.wrapped.write(this.compress(data))}`;
+  }
+
+  read(): string {
+    return `[Decompressed] ${this.wrapped.read()}`;
+  }
+}
+
+class LoggingDecorator extends DataSourceDecorator {
+  write(data: string): string {
+    console.log(`LOG: Writing ${data.length} characters`);
+    const result = this.wrapped.write(data);
+    console.log(`LOG: Write complete`);
+    return result;
+  }
+
+  read(): string {
+    console.log(`LOG: Reading data`);
+    const result = this.wrapped.read();
+    console.log(`LOG: Read ${result.length} characters`);
+    return result;
+  }
+}
+
+// Usage -- stack decorators in any combination
+const source = new FileDataSource("data.txt");
+
+const encryptedLogged = new LoggingDecorator(
+  new EncryptionDecorator(source)
+);
+console.log(encryptedLogged.write("Hello, World!"));
+
+const fullStack = new LoggingDecorator(
+  new CompressionDecorator(
+    new EncryptionDecorator(
+      new FileDataSource("secure.dat")
+    )
+  )
+);
+fullStack.write("Sensitive data here");
+```
+  </TabItem>
+</Tabs>
+
+### When to Use
+
+- You want to add responsibilities to individual objects dynamically and transparently
+- You need to combine behaviors in many different permutations
+- Extension by subclassing is impractical (too many combinations)
+
+### Pros and Cons
+
+| Pros | Cons |
+|------|------|
+| More flexible than static inheritance | Many small objects that look alike |
+| Combine behaviors at runtime | Decorator stack order can matter and cause bugs |
+| Single Responsibility: each decorator does one thing | Hard to remove a specific wrapper from the stack |
+| Open/Closed: add new decorators without changing existing code | Initial configuration can be complex |
+
+### Real-World Usage
+
+- **Python `functools.wraps`**: Function decorators wrapping other functions
+- **Java I/O streams**: `BufferedInputStream(FileInputStream(file))`
+- **Express/Koa middleware**: Each middleware decorates the request handler
+
+---
+
+## Facade
+
+### Intent
+
+Provide a **simplified interface** to a complex subsystem. Facade defines a higher-level interface that makes the subsystem easier to use.
+
+### Problem
+
+A video conversion system involves dozens of classes: codec managers, audio mixers, bitrate analyzers, format converters, buffer managers. Client code should not need to understand all these components to convert a video.
+
+### Solution
+
+Create a facade class that provides a simple interface to the complex subsystem. The facade delegates client requests to appropriate subsystem objects.
+
+### Structure
+
+```
+┌──────────────┐
+│   Client      │
+└──────┬───────┘
+       │ simple API
+       ▼
+┌──────────────────────────────────────┐
+│            Facade                     │
+│                                       │
+│  + convert_video(file, format)        │
+│  + extract_audio(file)                │
+└──────┬──────────┬──────────┬─────────┘
+       │          │          │
+       ▼          ▼          ▼
+  ┌────────┐ ┌────────┐ ┌────────┐
+  │ Codec  │ │ Audio  │ │ Format │
+  │ Manager│ │ Mixer  │ │ Convert│
+  └────────┘ └────────┘ └────────┘
+     Complex Subsystem Classes
+```
+
+### Code Examples
+
+<Tabs>
+  <TabItem label="Python">
+```python
+class AccountVerifier:
+    """Subsystem: verifies account exists and is in good standing."""
+
+    def verify(self, account_id: str) -> bool:
+        print(f"  Verifying account {account_id}...")
+        return True  # Simplified
+
+
+class FraudDetector:
+    """Subsystem: checks for suspicious activity."""
+
+    def check(self, account_id: str, amount: float) -> bool:
+        print(f"  Running fraud check for ${amount:.2f}...")
+        return amount < 10000  # Flag large transactions
+
+
+class BalanceManager:
+    """Subsystem: manages account balances."""
+
+    def __init__(self) -> None:
+        self._balances: dict[str, float] = {"ACC001": 5000, "ACC002": 3000}
+
+    def has_sufficient_funds(self, account_id: str, amount: float) -> bool:
+        balance = self._balances.get(account_id, 0)
+        return balance >= amount
+
+    def debit(self, account_id: str, amount: float) -> None:
+        self._balances[account_id] -= amount
+        print(f"  Debited ${amount:.2f} from {account_id}")
+
+    def credit(self, account_id: str, amount: float) -> None:
+        self._balances[account_id] = self._balances.get(account_id, 0) + amount
+        print(f"  Credited ${amount:.2f} to {account_id}")
+
+
+class TransactionLogger:
+    """Subsystem: logs all transactions for audit."""
+
+    def log(self, from_acc: str, to_acc: str, amount: float, status: str) -> None:
+        print(f"  LOG: {from_acc} -> {to_acc}: ${amount:.2f} [{status}]")
+
+
+class NotificationService:
+    """Subsystem: sends notifications to account holders."""
+
+    def notify(self, account_id: str, message: str) -> None:
+        print(f"  Notification to {account_id}: {message}")
+
+
+# Facade -- simple interface to the complex banking subsystem
+class BankingFacade:
+    """
+    Provides simple transfer operations without exposing
+    the complexity of verification, fraud detection,
+    balance management, logging, and notifications.
+    """
+
+    def __init__(self) -> None:
+        self._verifier = AccountVerifier()
+        self._fraud = FraudDetector()
+        self._balance = BalanceManager()
+        self._logger = TransactionLogger()
+        self._notifier = NotificationService()
+
+    def transfer(self, from_acc: str, to_acc: str, amount: float) -> bool:
+        """Simple interface: transfer money between accounts."""
+        print(f"\nTransferring ${amount:.2f} from {from_acc} to {to_acc}")
+
+        # Step 1: Verify both accounts
+        if not (self._verifier.verify(from_acc) and
+                self._verifier.verify(to_acc)):
+            self._logger.log(from_acc, to_acc, amount, "FAILED-VERIFICATION")
+            return False
+
+        # Step 2: Fraud check
+        if not self._fraud.check(from_acc, amount):
+            self._logger.log(from_acc, to_acc, amount, "BLOCKED-FRAUD")
+            self._notifier.notify(from_acc, "Suspicious activity detected")
+            return False
+
+        # Step 3: Check sufficient funds
+        if not self._balance.has_sufficient_funds(from_acc, amount):
+            self._logger.log(from_acc, to_acc, amount, "FAILED-BALANCE")
+            self._notifier.notify(from_acc, "Insufficient funds")
+            return False
+
+        # Step 4: Execute transfer
+        self._balance.debit(from_acc, amount)
+        self._balance.credit(to_acc, amount)
+
+        # Step 5: Log and notify
+        self._logger.log(from_acc, to_acc, amount, "SUCCESS")
+        self._notifier.notify(from_acc, f"Sent ${amount:.2f} to {to_acc}")
+        self._notifier.notify(to_acc, f"Received ${amount:.2f} from {from_acc}")
+
+        return True
+
+
+# Usage -- client only uses the simple facade
+bank = BankingFacade()
+bank.transfer("ACC001", "ACC002", 500.00)
+bank.transfer("ACC001", "ACC002", 15000.00)  # Blocked by fraud check
+```
+  </TabItem>
+  <TabItem label="TypeScript">
+```typescript
+class AccountVerifier {
+  verify(accountId: string): boolean {
+    console.log(`  Verifying account ${accountId}...`);
+    return true;
+  }
+}
+
+class FraudDetector {
+  check(accountId: string, amount: number): boolean {
+    console.log(`  Running fraud check for $${amount.toFixed(2)}...`);
+    return amount < 10000;
+  }
+}
+
+class BalanceManager {
+  private balances = new Map<string, number>([
+    ["ACC001", 5000],
+    ["ACC002", 3000],
+  ]);
+
+  hasSufficientFunds(accountId: string, amount: number): boolean {
+    return (this.balances.get(accountId) ?? 0) >= amount;
+  }
+
+  debit(accountId: string, amount: number): void {
+    this.balances.set(accountId, (this.balances.get(accountId) ?? 0) - amount);
+    console.log(`  Debited $${amount.toFixed(2)} from ${accountId}`);
+  }
+
+  credit(accountId: string, amount: number): void {
+    this.balances.set(accountId, (this.balances.get(accountId) ?? 0) + amount);
+    console.log(`  Credited $${amount.toFixed(2)} to ${accountId}`);
+  }
+}
+
+class TransactionLogger {
+  log(from: string, to: string, amount: number, status: string): void {
+    console.log(`  LOG: ${from} -> ${to}: $${amount.toFixed(2)} [${status}]`);
+  }
+}
+
+class NotificationService {
+  notify(accountId: string, message: string): void {
+    console.log(`  Notification to ${accountId}: ${message}`);
+  }
+}
+
+// Facade
+class BankingFacade {
+  private verifier = new AccountVerifier();
+  private fraud = new FraudDetector();
+  private balance = new BalanceManager();
+  private logger = new TransactionLogger();
+  private notifier = new NotificationService();
+
+  transfer(fromAcc: string, toAcc: string, amount: number): boolean {
+    console.log(`\nTransferring $${amount.toFixed(2)} from ${fromAcc} to ${toAcc}`);
+
+    if (!this.verifier.verify(fromAcc) || !this.verifier.verify(toAcc)) {
+      this.logger.log(fromAcc, toAcc, amount, "FAILED-VERIFICATION");
+      return false;
+    }
+
+    if (!this.fraud.check(fromAcc, amount)) {
+      this.logger.log(fromAcc, toAcc, amount, "BLOCKED-FRAUD");
+      this.notifier.notify(fromAcc, "Suspicious activity detected");
+      return false;
+    }
+
+    if (!this.balance.hasSufficientFunds(fromAcc, amount)) {
+      this.logger.log(fromAcc, toAcc, amount, "FAILED-BALANCE");
+      this.notifier.notify(fromAcc, "Insufficient funds");
+      return false;
+    }
+
+    this.balance.debit(fromAcc, amount);
+    this.balance.credit(toAcc, amount);
+
+    this.logger.log(fromAcc, toAcc, amount, "SUCCESS");
+    this.notifier.notify(fromAcc, `Sent $${amount.toFixed(2)} to ${toAcc}`);
+    this.notifier.notify(toAcc, `Received $${amount.toFixed(2)} from ${fromAcc}`);
+
+    return true;
+  }
+}
+
+// Usage
+const bank = new BankingFacade();
+bank.transfer("ACC001", "ACC002", 500.0);
+bank.transfer("ACC001", "ACC002", 15000.0); // Blocked
+```
+  </TabItem>
+</Tabs>
+
+### When to Use
+
+- You want to provide a simple interface to a complex subsystem
+- You need to layer your subsystems and define entry points
+- You want to decouple clients from subsystem implementation details
+
+### Pros and Cons
+
+| Pros | Cons |
+|------|------|
+| Isolates clients from subsystem complexity | Can become a god object if too much logic accumulates |
+| Promotes weak coupling between client and subsystem | May limit access to advanced subsystem features |
+| Easy to use for common scenarios | Additional abstraction layer adds indirection |
+
+### Real-World Usage
+
+- **jQuery**: `$(selector)` is a facade over complex DOM APIs
+- **Python `requests` library**: Simple API over `urllib`, `http.client`, cookies, etc.
+- **AWS SDK high-level resources**: Simplified interface over low-level API calls
+
+---
+
+## Proxy
+
+### Intent
+
+Provide a surrogate or placeholder for another object to **control access** to it.
+
+### Problem
+
+You have a heavy object (large image, remote service, database connection) that is expensive to create or access. You want to defer creation until needed, add access control, or cache results -- all without modifying the original class.
+
+### Solution
+
+Create a proxy class with the same interface as the original. The proxy controls access by adding logic before or after forwarding requests to the real object.
+
+### Structure
+
+```
+┌──────────────┐
+│   Client      │
+└──────┬───────┘
+       │ uses interface
+       ▼
+┌──────────────────┐
+│   Subject         │
+│   (interface)     │
+├──────────────────┤
+│ + request()      │
+└────────┬─────────┘
+         │
+  ┌──────┴──────────┐
+  │                  │
+┌─┴──────────┐ ┌───┴──────────┐
+│ RealSubject │ │    Proxy      │
+├────────────┤ ├──────────────┤
+│ + request()│ │ - real: Subj  │
+└────────────┘ │ + request() { │
+               │   // check    │
+               │   // delegate │
+               │   real.req()  │
+               │ }             │
+               └──────────────┘
+```
+
+### Code Examples
+
+<Tabs>
+  <TabItem label="Python">
+```python
+from abc import ABC, abstractmethod
+import time
+from functools import lru_cache
+
+
+# Subject interface
+class Database(ABC):
+    @abstractmethod
+    def query(self, sql: str) -> list[dict]:
+        pass
+
+
+# Real subject -- actual database connection
+class RealDatabase(Database):
+    def __init__(self, connection_string: str) -> None:
+        self._connection_string = connection_string
+        self._connect()
+
+    def _connect(self) -> None:
+        print(f"Connecting to database: {self._connection_string}")
+        time.sleep(0.1)  # Simulate connection delay
+
+    def query(self, sql: str) -> list[dict]:
+        print(f"Executing: {sql}")
+        # Simulated query result
+        return [{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}]
+
+
+# Lazy initialization proxy
+class LazyDatabaseProxy(Database):
+    """Defers database connection until the first query."""
+
+    def __init__(self, connection_string: str) -> None:
+        self._connection_string = connection_string
+        self._real_db: RealDatabase | None = None
+
+    def _get_db(self) -> RealDatabase:
+        if self._real_db is None:
+            self._real_db = RealDatabase(self._connection_string)
+        return self._real_db
+
+    def query(self, sql: str) -> list[dict]:
+        return self._get_db().query(sql)
+
+
+# Caching proxy
+class CachingDatabaseProxy(Database):
+    """Caches query results to avoid repeated database hits."""
+
+    def __init__(self, real_db: Database, ttl: float = 60.0) -> None:
+        self._real_db = real_db
+        self._cache: dict[str, tuple[float, list[dict]]] = {}
+        self._ttl = ttl
+
+    def query(self, sql: str) -> list[dict]:
+        now = time.time()
+
+        if sql in self._cache:
+            cached_time, result = self._cache[sql]
+            if now - cached_time < self._ttl:
+                print(f"Cache hit for: {sql}")
+                return result
+
+        print(f"Cache miss for: {sql}")
+        result = self._real_db.query(sql)
+        self._cache[sql] = (now, result)
+        return result
+
+
+# Access control proxy
+class AccessControlProxy(Database):
+    """Restricts access based on user role."""
+
+    def __init__(self, real_db: Database, user_role: str) -> None:
+        self._real_db = real_db
+        self._user_role = user_role
+        self._restricted = {"DROP", "DELETE", "TRUNCATE", "ALTER"}
+
+    def query(self, sql: str) -> list[dict]:
+        first_word = sql.strip().split()[0].upper()
+        if first_word in self._restricted and self._user_role != "admin":
+            raise PermissionError(
+                f"User role '{self._user_role}' cannot execute {first_word}"
+            )
+        return self._real_db.query(sql)
+
+
+# Usage -- stack proxies for combined behavior
+lazy_db = LazyDatabaseProxy("postgresql://localhost/mydb")
+print("Database proxy created (not connected yet)")
+
+cached_db = CachingDatabaseProxy(lazy_db)
+secured_db = AccessControlProxy(cached_db, user_role="reader")
+
+# First query: connects + executes + caches
+result = secured_db.query("SELECT * FROM users")
+
+# Second query: served from cache
+result = secured_db.query("SELECT * FROM users")
+
+# Blocked by access control
+try:
+    secured_db.query("DROP TABLE users")
+except PermissionError as e:
+    print(f"Blocked: {e}")
+```
+  </TabItem>
+  <TabItem label="TypeScript">
+```typescript
+// Subject interface
+interface Database {
+  query(sql: string): Record<string, unknown>[];
+}
+
+// Real subject
+class RealDatabase implements Database {
+  constructor(private connectionString: string) {
+    console.log(`Connecting to database: ${connectionString}`);
+  }
+
+  query(sql: string): Record<string, unknown>[] {
+    console.log(`Executing: ${sql}`);
+    return [
+      { id: 1, name: "Alice" },
+      { id: 2, name: "Bob" },
+    ];
+  }
+}
+
+// Lazy initialization proxy
+class LazyDatabaseProxy implements Database {
+  private realDb: RealDatabase | null = null;
+
+  constructor(private connectionString: string) {}
+
+  private getDb(): RealDatabase {
+    if (!this.realDb) {
+      this.realDb = new RealDatabase(this.connectionString);
+    }
+    return this.realDb;
+  }
+
+  query(sql: string): Record<string, unknown>[] {
+    return this.getDb().query(sql);
+  }
+}
+
+// Caching proxy
+class CachingDatabaseProxy implements Database {
+  private cache = new Map<string, {
+    time: number;
+    result: Record<string, unknown>[];
+  }>();
+
+  constructor(
+    private realDb: Database,
+    private ttlMs = 60000,
+  ) {}
+
+  query(sql: string): Record<string, unknown>[] {
+    const now = Date.now();
+    const cached = this.cache.get(sql);
+
+    if (cached && now - cached.time < this.ttlMs) {
+      console.log(`Cache hit for: ${sql}`);
+      return cached.result;
+    }
+
+    console.log(`Cache miss for: ${sql}`);
+    const result = this.realDb.query(sql);
+    this.cache.set(sql, { time: now, result });
+    return result;
+  }
+}
+
+// Access control proxy
+class AccessControlProxy implements Database {
+  private restricted = new Set(["DROP", "DELETE", "TRUNCATE", "ALTER"]);
+
+  constructor(
+    private realDb: Database,
+    private userRole: string,
+  ) {}
+
+  query(sql: string): Record<string, unknown>[] {
+    const firstWord = sql.trim().split(/\s+/)[0].toUpperCase();
+
+    if (this.restricted.has(firstWord) && this.userRole !== "admin") {
+      throw new Error(
+        `User role '${this.userRole}' cannot execute ${firstWord}`
+      );
+    }
+
+    return this.realDb.query(sql);
+  }
+}
+
+// Usage -- stack proxies for combined behavior
+const lazyDb = new LazyDatabaseProxy("postgresql://localhost/mydb");
+console.log("Database proxy created (not connected yet)");
+
+const cachedDb = new CachingDatabaseProxy(lazyDb);
+const securedDb = new AccessControlProxy(cachedDb, "reader");
+
+securedDb.query("SELECT * FROM users");  // Connect + execute + cache
+securedDb.query("SELECT * FROM users");  // Cache hit
+
+try {
+  securedDb.query("DROP TABLE users");   // Blocked
+} catch (e) {
+  console.log(`Blocked: ${(e as Error).message}`);
+}
+```
+  </TabItem>
+</Tabs>
+
+### When to Use
+
+- Lazy initialization of a heavy object (virtual proxy)
+- Access control to a sensitive object (protection proxy)
+- Caching repeated results (caching proxy)
+- Logging, monitoring, or rate limiting (logging proxy)
+- Local representative of a remote object (remote proxy)
+
+### Pros and Cons
+
+| Pros | Cons |
+|------|------|
+| Control access without modifying the real object | Added indirection and latency |
+| Lazy initialization saves resources | Can be confused with Decorator (different intent) |
+| Open/Closed: add new proxies without changing the subject | Response from proxy might differ from direct access |
+| Transparent to the client | |
+
+### Real-World Usage
+
+- **Python `__getattr__`**: Lazy attribute access acts like a virtual proxy
+- **ES6 `Proxy` object**: Built-in language support for the proxy pattern
+- **ORMs (SQLAlchemy, TypeORM)**: Lazy-loaded relationships are proxy objects
+
+---
+
+## Pattern Comparison
+
+| Pattern | What It Does | Key Difference |
+|---------|-------------|----------------|
+| **Adapter** | Makes incompatible interfaces compatible | Changes the interface of an existing object |
+| **Bridge** | Separates abstraction from implementation | Designed up-front to decouple hierarchies |
+| **Composite** | Treats individuals and groups uniformly | Creates tree structures |
+| **Decorator** | Adds new behavior dynamically | Wraps and enhances without changing interface |
+| **Facade** | Simplifies a complex subsystem | Provides a new, simpler interface |
+| **Proxy** | Controls access to an object | Same interface, different purpose (access control) |
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="Creational Patterns"
+    href="/design-patterns/creational/"
+    description="Learn Singleton, Factory Method, Abstract Factory, Builder, and Prototype"
+  />
+  <LinkCard
+    title="Behavioral Patterns"
+    href="/design-patterns/behavioral/"
+    description="Learn Observer, Strategy, Command, State, Iterator, and Template Method"
+  />
+</CardGrid>

@@ -1,0 +1,199 @@
+---
+title: Interview Preparation
+description: Comprehensive guide to ace software engineering interviews
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+Landing a software engineering role at a top company requires more than just knowing how to code. It demands structured preparation across multiple dimensions: algorithmic problem-solving, system design thinking, behavioral communication, and cultural alignment.
+
+This section provides a battle-tested framework used by engineers who have successfully navigated interviews at Google, Meta, Amazon, Apple, Netflix, Microsoft, and dozens of other leading technology companies.
+
+## The Software Engineering Interview Process
+
+Most companies follow a variation of this pipeline:
+
+```
+Application --> Recruiter Screen --> Technical Phone Screen --> On-Site Loop --> Offer
+   |               |                      |                       |
+   |            30 min               45-60 min              4-6 rounds
+   |          Non-technical         1-2 coding             Mix of all
+   v           + logistics          problems               interview types
+Resume/
+Referral
+```
+
+### Typical On-Site Interview Loop
+
+| Round | Type | Duration | What They Assess |
+|-------|------|----------|-----------------|
+| 1 | Coding | 45-60 min | Problem-solving, data structures, algorithms |
+| 2 | Coding | 45-60 min | Different pattern, complexity analysis |
+| 3 | System Design | 45-60 min | Architecture, scalability, trade-offs |
+| 4 | Behavioral | 45-60 min | Leadership, collaboration, conflict resolution |
+| 5 | Culture Fit / Manager | 30-45 min | Team fit, career goals, motivation |
+
+:::note
+Some companies (e.g., Google) have a separate "Googleyness" round. Others (e.g., Amazon) weave Leadership Principles into every round. Research your target company's specific format before interviewing.
+:::
+
+## Types of Interviews
+
+<CardGrid>
+  <Card title="Coding Interviews" icon="seti:python">
+    Solve algorithmic problems in real time. Demonstrate mastery of data structures, patterns, and complexity analysis. Usually 1-2 problems per 45-minute session.
+
+    [Coding Interview Guide -->](/interview-prep/coding-interviews/)
+  </Card>
+  <Card title="Behavioral Interviews" icon="comment-alt">
+    Tell stories about your past experiences using structured frameworks. Show leadership, ownership, and the ability to navigate ambiguity and conflict.
+
+    [Behavioral Interview Guide -->](/interview-prep/behavioral/)
+  </Card>
+  <Card title="System Design" icon="setting">
+    Design large-scale distributed systems from scratch. Demonstrate understanding of trade-offs, scalability patterns, and real-world architecture.
+
+    *Coming soon*
+  </Card>
+  <Card title="Problem Bank" icon="list-format">
+    A curated list of 76 must-solve problems organized by topic and pattern. Track your progress and ensure complete coverage before your interview.
+
+    [View Problem Bank -->](/interview-prep/problem-bank/)
+  </Card>
+</CardGrid>
+
+## Study Plan: 8-Week Interview Preparation Timeline
+
+This plan assumes 2-3 hours of daily practice. Adjust based on your experience level and timeline.
+
+### Phase 1: Foundation Building (Weeks 1-2)
+
+| Day | Focus | Activities |
+|-----|-------|-----------|
+| Mon-Tue | Arrays and Strings | Two pointers, sliding window, prefix sums |
+| Wed-Thu | Hash Maps and Sets | Frequency counting, two-sum patterns, grouping |
+| Fri | Linked Lists | Fast/slow pointers, reversal, merge techniques |
+| Sat | Review and Practice | Solve 3-5 easy problems from the week's topics |
+| Sun | Behavioral Prep | Draft 5 STAR stories from your experience |
+
+**Goal**: Solve 15-20 easy problems. Build fluency with basic patterns.
+
+### Phase 2: Core Patterns (Weeks 3-4)
+
+| Day | Focus | Activities |
+|-----|-------|-----------|
+| Mon-Tue | Trees and BST | DFS, BFS, traversals, BST properties |
+| Wed-Thu | Graphs | BFS, DFS, topological sort, connected components |
+| Fri | Stacks and Queues | Monotonic stack, BFS with queue, parentheses |
+| Sat | Binary Search | Standard, on answer space, rotated arrays |
+| Sun | Review + Behavioral | Solve 3-5 medium problems. Refine 5 more stories |
+
+**Goal**: Solve 20-25 medium problems. Recognize patterns instantly.
+
+### Phase 3: Advanced Techniques (Weeks 5-6)
+
+| Day | Focus | Activities |
+|-----|-------|-----------|
+| Mon-Tue | Dynamic Programming | 1D DP, 2D DP, knapsack, LCS, LIS |
+| Wed-Thu | Backtracking | Subsets, permutations, combinations, N-Queens |
+| Fri | Greedy and Intervals | Activity selection, merge intervals, scheduling |
+| Sat | Heaps and Priority Queues | Top-K, merge K lists, median finding |
+| Sun | System Design Intro | Study 1 design problem end-to-end |
+
+**Goal**: Solve 15-20 medium/hard problems. Handle DP with confidence.
+
+### Phase 4: Polish and Mock Interviews (Weeks 7-8)
+
+| Day | Focus | Activities |
+|-----|-------|-----------|
+| Mon | Timed Practice | 2 medium problems in 45 minutes |
+| Tue | Weak Areas | Revisit topics where you struggled |
+| Wed | Mock Interview | Full coding interview simulation with a peer |
+| Thu | System Design | Practice designing 1-2 systems |
+| Fri | Mock Interview | Full behavioral interview simulation |
+| Sat | Review All | Revisit your problem bank, review mistakes |
+| Sun | Rest | Light review only. Mental preparation |
+
+**Goal**: Consistent performance under time pressure. No surprises.
+
+## Tips for Success
+
+### Before the Interview
+
+1. **Research the company** -- Understand their products, engineering blog posts, and interview format
+2. **Practice on a whiteboard or shared editor** -- The environment matters; do not only practice in your IDE
+3. **Mock interviews are essential** -- Practice with a friend, use Pramp, or hire a coach
+4. **Sleep well** -- Cognitive performance drops significantly with poor sleep
+5. **Prepare your setup** -- For virtual interviews, test your camera, microphone, and internet connection
+
+### During the Interview
+
+1. **Clarify before coding** -- Ask about edge cases, constraints, and expected input size
+2. **Think out loud** -- The interviewer wants to see your thought process, not just the final answer
+3. **Start with brute force** -- Mention the naive approach, analyze its complexity, then optimize
+4. **Write clean code** -- Use descriptive variable names, modular functions, and consistent style
+5. **Test your solution** -- Walk through examples manually. Check edge cases before declaring "done"
+
+### Common Mistakes to Avoid
+
+| Mistake | Why It Hurts | What to Do Instead |
+|---------|-------------|-------------------|
+| Jumping into code immediately | Misses edge cases, wrong approach | Spend 5-10 min planning |
+| Silent problem-solving | Interviewer cannot assess your thinking | Narrate your thought process |
+| Ignoring time/space complexity | Shows incomplete understanding | State complexity after each approach |
+| Not testing your code | Bugs undermine an otherwise correct solution | Trace through 2-3 examples |
+| Giving up on hard problems | Signals low resilience | Break the problem down, ask for hints |
+| Over-engineering | Wastes precious interview time | Start simple, optimize if time permits |
+
+## Evaluation Criteria
+
+Most companies assess candidates across these dimensions:
+
+```
+                    ┌─────────────────────────────┐
+                    │     HIRING DECISION          │
+                    └──────────┬──────────────────┘
+                               │
+         ┌─────────────────────┼─────────────────────┐
+         │                     │                      │
+    ┌────▼────┐          ┌─────▼─────┐          ┌─────▼─────┐
+    │Technical│          │ Problem   │          │Behavioral │
+    │  Skill  │          │ Solving   │          │  & Culture│
+    └────┬────┘          └─────┬─────┘          └─────┬─────┘
+         │                     │                      │
+    - Correctness         - Approach             - Communication
+    - Code quality        - Optimization          - Collaboration
+    - Edge cases          - Pattern recognition   - Leadership
+    - Complexity          - Creativity            - Growth mindset
+      analysis
+```
+
+### Scoring Rubric (Typical)
+
+| Score | Label | Description |
+|-------|-------|-------------|
+| 1 | Strong No Hire | Could not solve basic problems, poor communication |
+| 2 | Lean No Hire | Solved with significant hints, gaps in fundamentals |
+| 3 | Lean Hire | Solved with minor hints, adequate communication |
+| 4 | Hire | Clean solution, good communication, handled follow-ups |
+| 5 | Strong Hire | Optimal solution, excellent communication, insightful |
+
+## Ready to Start?
+
+<CardGrid>
+  <LinkCard
+    title="Coding Interview Guide"
+    href="/interview-prep/coding-interviews/"
+    description="Master the 15 essential coding patterns with templates and examples"
+  />
+  <LinkCard
+    title="Behavioral Interview Guide"
+    href="/interview-prep/behavioral/"
+    description="Learn the STAR method and prepare answers to top 20 questions"
+  />
+  <LinkCard
+    title="Problem Bank"
+    href="/interview-prep/problem-bank/"
+    description="76 must-solve problems organized by topic and difficulty"
+  />
+</CardGrid>

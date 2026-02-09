@@ -1,0 +1,368 @@
+---
+title: Strings
+description: Master string manipulation techniques and common string algorithms
+difficulty: beginner
+prerequisites: ["Arrays", "Big O Notation"]
+timeToRead: "20 min"
+topics: ["strings", "data-structures"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+Strings are sequences of characters. Many array techniques apply to strings, but strings also have unique properties and algorithms.
+
+## String Basics
+
+### Immutability
+
+In many languages, strings are **immutable** - they cannot be changed after creation.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+s = "hello"
+# s[0] = 'H'  # ERROR: strings are immutable
+
+# Create new string instead
+s = 'H' + s[1:]  # "Hello"
+
+# Or convert to list for modifications
+chars = list(s)
+chars[0] = 'h'
+s = ''.join(chars)  # "hello"
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+let s = "hello";
+// s[0] = 'H';  // Doesn't work (no error, but no change)
+
+// Create new string instead
+s = 'H' + s.slice(1);  // "Hello"
+
+// Or use split/join
+let chars = s.split('');
+chars[0] = 'h';
+s = chars.join('');  // "hello"
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+String s = "hello";
+// s.charAt(0) = 'H';  // ERROR: strings are immutable
+
+// Create new string
+s = "H" + s.substring(1);  // "Hello"
+
+// Or use StringBuilder for modifications
+StringBuilder sb = new StringBuilder(s);
+sb.setCharAt(0, 'h');
+s = sb.toString();  // "hello"
+```
+  </TabItem>
+</Tabs>
+
+### String Operations Complexity
+
+| Operation | Python | JavaScript | Java |
+|-----------|--------|------------|------|
+| Access char | O(1) | O(1) | O(1) |
+| Concatenation | O(n) | O(n) | O(n) |
+| Substring | O(k) | O(k) | O(k) |
+| Search | O(n×m) | O(n×m) | O(n×m) |
+| Length | O(1) | O(1) | O(1) |
+
+**Warning:** String concatenation in a loop is O(n²):
+```python
+# Bad: O(n²)
+s = ""
+for char in chars:
+    s += char  # Creates new string each time
+
+# Good: O(n)
+s = ''.join(chars)
+```
+
+## Common String Techniques
+
+### 1. Two Pointers
+
+Perfect for palindromes and in-place operations.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def is_palindrome(s: str) -> bool:
+    """Check if string is palindrome (alphanumeric only)."""
+    s = ''.join(c.lower() for c in s if c.isalnum())
+    left, right = 0, len(s) - 1
+
+    while left < right:
+        if s[left] != s[right]:
+            return False
+        left += 1
+        right -= 1
+
+    return True
+
+print(is_palindrome("A man, a plan, a canal: Panama"))  # True
+print(is_palindrome("race a car"))  # False
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function isPalindrome(s) {
+    s = s.toLowerCase().replace(/[^a-z0-9]/g, '');
+    let left = 0;
+    let right = s.length - 1;
+
+    while (left < right) {
+        if (s[left] !== s[right]) return false;
+        left++;
+        right--;
+    }
+
+    return true;
+}
+
+console.log(isPalindrome("A man, a plan, a canal: Panama"));  // true
+console.log(isPalindrome("race a car"));  // false
+```
+  </TabItem>
+</Tabs>
+
+### 2. Sliding Window
+
+For substring problems.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def longest_unique_substring(s: str) -> int:
+    """Find length of longest substring without repeating characters."""
+    char_set = set()
+    left = 0
+    max_len = 0
+
+    for right in range(len(s)):
+        while s[right] in char_set:
+            char_set.remove(s[left])
+            left += 1
+        char_set.add(s[right])
+        max_len = max(max_len, right - left + 1)
+
+    return max_len
+
+print(longest_unique_substring("abcabcbb"))  # 3 ("abc")
+print(longest_unique_substring("bbbbb"))     # 1 ("b")
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function longestUniqueSubstring(s) {
+    const charSet = new Set();
+    let left = 0;
+    let maxLen = 0;
+
+    for (let right = 0; right < s.length; right++) {
+        while (charSet.has(s[right])) {
+            charSet.delete(s[left]);
+            left++;
+        }
+        charSet.add(s[right]);
+        maxLen = Math.max(maxLen, right - left + 1);
+    }
+
+    return maxLen;
+}
+
+console.log(longestUniqueSubstring("abcabcbb"));  // 3
+console.log(longestUniqueSubstring("bbbbb"));     // 1
+```
+  </TabItem>
+</Tabs>
+
+### 3. Hash Map for Character Counting
+
+<Tabs>
+  <TabItem label="Python">
+```python
+from collections import Counter
+
+def are_anagrams(s1: str, s2: str) -> bool:
+    """Check if two strings are anagrams."""
+    return Counter(s1) == Counter(s2)
+
+def first_unique_char(s: str) -> int:
+    """Find index of first non-repeating character."""
+    count = Counter(s)
+    for i, char in enumerate(s):
+        if count[char] == 1:
+            return i
+    return -1
+
+print(are_anagrams("listen", "silent"))  # True
+print(first_unique_char("leetcode"))      # 0 ('l')
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function areAnagrams(s1, s2) {
+    if (s1.length !== s2.length) return false;
+
+    const count = {};
+    for (const char of s1) {
+        count[char] = (count[char] || 0) + 1;
+    }
+    for (const char of s2) {
+        if (!count[char]) return false;
+        count[char]--;
+    }
+    return true;
+}
+
+function firstUniqueChar(s) {
+    const count = {};
+    for (const char of s) {
+        count[char] = (count[char] || 0) + 1;
+    }
+    for (let i = 0; i < s.length; i++) {
+        if (count[s[i]] === 1) return i;
+    }
+    return -1;
+}
+
+console.log(areAnagrams("listen", "silent"));  // true
+console.log(firstUniqueChar("leetcode"));       // 0
+```
+  </TabItem>
+</Tabs>
+
+## String Reversal Techniques
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# Method 1: Slicing
+s = "hello"
+reversed_s = s[::-1]  # "olleh"
+
+# Method 2: reversed() + join
+reversed_s = ''.join(reversed(s))
+
+# Method 3: Two pointers (for list of chars)
+chars = list(s)
+left, right = 0, len(chars) - 1
+while left < right:
+    chars[left], chars[right] = chars[right], chars[left]
+    left += 1
+    right -= 1
+reversed_s = ''.join(chars)
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// Method 1: Split + reverse + join
+let s = "hello";
+let reversed = s.split('').reverse().join('');  // "olleh"
+
+// Method 2: Array.from + reverse
+reversed = Array.from(s).reverse().join('');
+
+// Method 3: Loop
+let result = '';
+for (let i = s.length - 1; i >= 0; i--) {
+    result += s[i];
+}
+```
+  </TabItem>
+</Tabs>
+
+## Common String Problems
+
+### Reverse Words in a String
+
+```python
+def reverse_words(s: str) -> str:
+    """Reverse the order of words."""
+    words = s.split()
+    return ' '.join(words[::-1])
+
+print(reverse_words("the sky is blue"))  # "blue is sky the"
+```
+
+### Valid Parentheses (String + Stack)
+
+```python
+def is_valid(s: str) -> bool:
+    """Check if parentheses are balanced."""
+    stack = []
+    pairs = {')': '(', '}': '{', ']': '['}
+
+    for char in s:
+        if char in pairs:
+            if not stack or stack[-1] != pairs[char]:
+                return False
+            stack.pop()
+        else:
+            stack.append(char)
+
+    return len(stack) == 0
+
+print(is_valid("()[]{}"))   # True
+print(is_valid("([)]"))     # False
+print(is_valid("{[]}"))     # True
+```
+
+### Longest Common Prefix
+
+```python
+def longest_common_prefix(strs: list[str]) -> str:
+    """Find longest common prefix among strings."""
+    if not strs:
+        return ""
+
+    prefix = strs[0]
+    for s in strs[1:]:
+        while not s.startswith(prefix):
+            prefix = prefix[:-1]
+            if not prefix:
+                return ""
+    return prefix
+
+print(longest_common_prefix(["flower", "flow", "flight"]))  # "fl"
+```
+
+## Practice Problems
+
+| Problem | Difficulty | Technique |
+|---------|------------|-----------|
+| Valid Palindrome | Easy | Two Pointers |
+| Valid Anagram | Easy | Hash Map |
+| Longest Substring No Repeat | Medium | Sliding Window |
+| Group Anagrams | Medium | Hash Map + Sort |
+| Longest Palindromic Substring | Medium | Expand Around Center |
+| Minimum Window Substring | Hard | Sliding Window |
+
+## Key Takeaways
+
+1. **Strings are often immutable** - use StringBuilder/list for modifications
+2. **Concatenation in loops is O(n²)** - use join() instead
+3. **Two pointers** work well for palindromes
+4. **Sliding window** is ideal for substring problems
+5. **Hash maps** are essential for counting and anagram problems
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="Pattern Matching"
+    href="/dsa/strings/pattern-matching/"
+    description="Learn KMP and other pattern matching algorithms"
+  />
+  <LinkCard
+    title="Linked Lists"
+    href="/dsa/linked-lists/"
+    description="Continue to the next data structure"
+  />
+</CardGrid>

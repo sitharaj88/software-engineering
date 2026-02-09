@@ -1,0 +1,876 @@
+---
+title: System Design Case Studies
+description: Complete design walkthroughs for URL Shortener, Chat System, and News Feed
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+The best way to learn system design is by working through real problems. This page presents three classic system design case studies, each following the structured interview framework: requirements gathering, estimation, high-level design, detailed design, and scaling considerations.
+
+<CardGrid>
+  <Card title="URL Shortener" icon="open-book">
+    Design a service like bit.ly that converts long URLs into short, unique links and redirects users. Covers hashing, base62 encoding, and read-heavy optimization.
+  </Card>
+  <Card title="Chat System" icon="puzzle">
+    Design a real-time messaging system like WhatsApp supporting 1:1 and group chat. Covers WebSockets, message delivery guarantees, and presence detection.
+  </Card>
+  <Card title="News Feed" icon="list-format">
+    Design a social media feed like Twitter's home timeline. Covers fan-out strategies, ranking algorithms, and feed generation at scale.
+  </Card>
+</CardGrid>
+
+---
+
+## Case Study 1: Design a URL Shortener (like bit.ly)
+
+### Step 1: Requirements Clarification
+
+**Functional Requirements**:
+- Given a long URL, generate a short, unique URL
+- When users visit the short URL, redirect them to the original URL
+- Users can optionally create custom short URLs
+- Links expire after a configurable time (default: 5 years)
+- Analytics: track click count per URL
+
+**Non-Functional Requirements**:
+- Very high availability (reads must always work)
+- Low latency redirects (under 100ms)
+- Short URLs should not be guessable (not sequential)
+
+**Out of Scope**: User accounts, rate limiting per user, link preview generation.
+
+### Step 2: Estimation
+
+```
+Traffic:
+- 100M new URLs created per month (writes)
+- Read:Write ratio = 100:1
+- 10B redirects per month (reads)
+- Writes: 100M / (30 * 24 * 3600) ≈ 40 URLs/sec
+- Reads:  10B / (30 * 24 * 3600) ≈ 3,800 reads/sec
+
+Storage:
+- Each URL record: ~500 bytes (short URL, long URL, timestamps, metadata)
+- 100M * 500 bytes = 50 GB/month
+- 5 years: 50 * 60 = 3 TB total
+
+Memory (caching top 20%):
+- 10B requests/month → 330M requests/day
+- Cache top 20% of daily URLs: 66M * 500 bytes ≈ 33 GB
+- Fits in a single Redis instance or small cluster
+```
+
+### Step 3: High-Level Design
+
+```
+┌──────────┐        ┌──────────────┐        ┌──────────────┐
+│          │  POST  │              │        │              │
+│  Client  │───────►│   API        │───────►│  Database    │
+│          │        │   Server     │        │  (URL Store) │
+│          │  GET   │              │   ┌───►│              │
+│          │───────►│              │   │    └──────────────┘
+│          │◄───────│              │───┘
+│          │  302   │              │◄──────►┌──────────────┐
+└──────────┘        └──────────────┘        │    Cache     │
+                                            │   (Redis)    │
+                                            └──────────────┘
+```
+
+**API Design**:
+
+```
+POST /api/v1/shorten
+  Request:  { "long_url": "https://...", "custom_alias": "my-link", "expiry": "2029-01-01" }
+  Response: { "short_url": "https://short.ly/aB3xK9", "expires_at": "2029-01-01T00:00:00Z" }
+
+GET /{short_code}
+  Response: 302 Redirect to original URL
+  Headers:  Location: https://original-long-url.com/path
+
+GET /api/v1/stats/{short_code}
+  Response: { "short_url": "...", "long_url": "...", "clicks": 12345, "created_at": "..." }
+```
+
+### Step 4: Detailed Design
+
+#### URL Shortening Algorithm
+
+We need to generate a unique, short string for each URL. A 7-character base62 string provides 62^7 = 3.5 trillion unique combinations — more than enough.
+
+**Approach 1: Hash + Truncate**
+
+```
+long_url = "https://www.example.com/very/long/path?query=value"
+hash     = MD5(long_url) = "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6"
+take first 7 chars → "d41d8cd"   (but this is hex, not base62)
+convert to base62  → "aB3xK9p"
+
+Problem: Hash collisions are possible with truncation.
+Solution: Check database. If collision, append a counter and rehash.
+```
+
+**Approach 2: Counter-Based with Base62 Encoding**
+
+```python
+import string
+
+ALPHABET = string.digits + string.ascii_lowercase + string.ascii_uppercase
+BASE = len(ALPHABET)  # 62
+
+def encode_base62(num: int) -> str:
+    """Convert a number to base62 string."""
+    if num == 0:
+        return ALPHABET[0]
+    result = []
+    while num > 0:
+        result.append(ALPHABET[num % BASE])
+        num //= BASE
+    return ''.join(reversed(result))
+
+def decode_base62(s: str) -> int:
+    """Convert a base62 string back to a number."""
+    num = 0
+    for char in s:
+        num = num * BASE + ALPHABET.index(char)
+    return num
+
+# Examples:
+# encode_base62(1000000) → "4c92"
+# encode_base62(56800235584) → "aB3xK9p" (7 chars)
+```
+
+**Approach 3: Pre-Generated Key Service (Recommended)**
+
+```
+┌──────────────┐     ┌──────────────────────┐
+│   Key Gen    │────►│  Key Database         │
+│   Service    │     │                      │
+│              │     │  Used:  [aB3, xK9...]│
+│  Pre-generates     │  Unused: [pQ7, mN2..]│
+│  millions of │     └──────────────────────┘
+│  unique keys │
+└──────┬───────┘
+       │
+       │ Batch of unused keys
+       ▼
+┌──────────────┐
+│  App Server  │  Takes a key from local batch
+│  (in-memory  │  when creating new short URL.
+│   key batch) │  Requests new batch when running low.
+└──────────────┘
+```
+
+- Pre-generate unique 7-character keys and store them in a database
+- Application servers fetch batches of unused keys
+- No collision checking needed — keys are guaranteed unique
+- If a server crashes, its unused keys are simply lost (acceptable given 3.5 trillion possible keys)
+
+#### Database Schema
+
+```sql
+CREATE TABLE urls (
+    id          BIGSERIAL PRIMARY KEY,
+    short_code  VARCHAR(7) UNIQUE NOT NULL,
+    long_url    TEXT NOT NULL,
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expires_at  TIMESTAMP,
+    click_count BIGINT DEFAULT 0,
+    user_id     BIGINT  -- optional, for registered users
+);
+
+CREATE INDEX idx_expires_at ON urls(expires_at) WHERE expires_at IS NOT NULL;
+```
+
+**Database choice**: Use a NoSQL key-value store (DynamoDB or Cassandra) for the URL mapping since the access pattern is simple key-value lookup. Use a relational database for analytics if complex queries are needed.
+
+#### Read Path (Redirect)
+
+```
+1. Client requests GET /aB3xK9p
+2. Check Redis cache for key "aB3xK9p"
+3. Cache HIT → redirect immediately (< 10ms)
+4. Cache MISS → query database → store in cache → redirect
+5. Increment click counter (async, via message queue)
+
+┌────────┐   GET /aB3xK9p   ┌──────────┐
+│ Client │──────────────────►│ App Svr  │
+│        │                   │          │
+│        │                   │ 1. Check │──►┌───────┐
+│        │                   │    cache │   │ Redis │
+│        │                   │          │◄──│       │
+│        │                   │          │   └───────┘
+│        │                   │          │
+│        │   302 Redirect    │ 2. (miss)│──►┌──────┐
+│        │◄──────────────────│    query │   │  DB  │
+│        │   Location: ...   │    DB    │◄──│      │
+└────────┘                   └──────────┘   └──────┘
+```
+
+#### 301 vs 302 Redirect
+
+| Code | Meaning | Browser Behavior | Use When |
+|------|---------|-----------------|----------|
+| **301** | Moved Permanently | Browser caches redirect | You want to reduce server load |
+| **302** | Found (Temporary) | Browser asks server every time | You need accurate click analytics |
+
+For a URL shortener, use **302** if analytics are important (so every click hits the server), or **301** for better performance.
+
+### Step 5: Scaling Considerations
+
+```
+Full Architecture at Scale:
+
+┌──────────┐        ┌──────────┐
+│ Clients  │───────►│   CDN    │ (cache 302 redirects)
+└──────────┘        └────┬─────┘
+                         │
+                    ┌────▼─────┐
+                    │   Load   │
+                    │ Balancer │
+                    └────┬─────┘
+              ┌──────────┼──────────┐
+              ▼          ▼          ▼
+         ┌────────┐ ┌────────┐ ┌────────┐
+         │App Svr │ │App Svr │ │App Svr │
+         │  + Key │ │  + Key │ │  + Key │
+         │  Batch │ │  Batch │ │  Batch │
+         └───┬────┘ └───┬────┘ └───┬────┘
+             │          │          │
+        ┌────┴──────────┴──────────┴────┐
+        │       Redis Cluster            │
+        │   (cache hot short URLs)       │
+        └───────────────┬────────────────┘
+                        │ (cache miss)
+              ┌─────────┼──────────┐
+              ▼         ▼          ▼
+         ┌────────┐ ┌────────┐ ┌────────┐
+         │DB Shard│ │DB Shard│ │DB Shard│
+         │   1    │ │   2    │ │   3    │
+         └────────┘ └────────┘ └────────┘
+                        │
+                   ┌────▼────┐
+                   │  Kafka  │──► Analytics Pipeline
+                   │ (clicks)│──► Click Aggregation
+                   └─────────┘
+```
+
+**Scaling strategies**:
+- **Cache heavily**: 80/20 rule — 20% of URLs generate 80% of traffic. Cache these in Redis.
+- **Shard the database**: Shard by hash of short_code for even distribution.
+- **Separate analytics**: Use a message queue (Kafka) to asynchronously record clicks. Aggregate counts in a separate analytics store.
+- **Key generation service**: Run multiple instances with non-overlapping key ranges to avoid coordination.
+
+---
+
+## Case Study 2: Design a Chat System (like WhatsApp)
+
+### Step 1: Requirements Clarification
+
+**Functional Requirements**:
+- 1:1 messaging between users
+- Group chat (up to 500 members)
+- Online/offline status (presence indicators)
+- Message delivery receipts (sent, delivered, read)
+- Message history and persistence
+- Support for text messages (media support is out of scope)
+
+**Non-Functional Requirements**:
+- Real-time delivery (under 500ms for 1:1 messages)
+- High availability — messaging should never go down
+- Messages must not be lost (durability)
+- Message ordering must be preserved within a conversation
+
+### Step 2: Estimation
+
+```
+Users: 500M monthly active users, 100M daily active
+Messages: 50 messages/day per user
+- 100M * 50 = 5B messages/day
+- 5B / 86400 ≈ 58,000 messages/sec
+
+Storage per message: ~200 bytes (text + metadata)
+- 5B * 200 bytes = 1 TB/day
+- 365 TB/year
+
+Connections: 100M concurrent WebSocket connections
+- Each connection: ~10KB memory
+- Total: 100M * 10KB = 1 TB memory for connections
+- Need ~1000 servers (each handling 100K connections)
+```
+
+### Step 3: High-Level Design
+
+```
+┌──────────┐  WebSocket  ┌──────────────┐      ┌──────────────┐
+│  User A  │◄───────────►│   Chat       │◄────►│  Message     │
+│ (sender) │             │   Server     │      │  Queue       │
+└──────────┘             │   Cluster    │      │  (Kafka)     │
+                         └──────┬───────┘      └──────┬───────┘
+                                │                      │
+                         ┌──────▼───────┐      ┌──────▼───────┐
+┌──────────┐  WebSocket  │   Chat       │      │  Message     │
+│  User B  │◄───────────►│   Server     │      │  Store       │
+│(receiver)│             │   Cluster    │      │  (Cassandra) │
+└──────────┘             └──────────────┘      └──────────────┘
+```
+
+### Step 4: Detailed Design
+
+#### Connection Management
+
+Each user maintains a persistent **WebSocket** connection to a chat server. A **connection registry** tracks which user is connected to which server.
+
+```
+┌──────┐  WS  ┌──────────┐              ┌──────────┐  WS  ┌──────┐
+│User A│◄────►│Chat Svr 1│              │Chat Svr 2│◄────►│User B│
+└──────┘      └────┬─────┘              └────┬─────┘      └──────┘
+                   │                         │
+                   ▼                         ▼
+              ┌──────────────────────────────────┐
+              │     Connection Registry (Redis)   │
+              │                                   │
+              │  user_A → chat_server_1           │
+              │  user_B → chat_server_2           │
+              │  user_C → chat_server_1           │
+              └──────────────────────────────────┘
+```
+
+#### 1:1 Message Flow
+
+```
+User A sends "Hello" to User B:
+
+1. User A ──(WebSocket)──► Chat Server 1
+2. Chat Server 1:
+   a. Generate message_id (timestamp + sequence)
+   b. Store message in database
+   c. Look up User B's connection in registry
+   d. User B is on Chat Server 2
+3. Chat Server 1 ──(message queue)──► Chat Server 2
+4. Chat Server 2 ──(WebSocket)──► User B
+5. User B sends delivery ACK ──► Chat Server 2
+6. Chat Server 2 ──► Update message status to "delivered"
+
+Timeline:
+User A                Server               User B
+  │                     │                     │
+  │── msg "Hello" ─────►│                     │
+  │                     │── store in DB       │
+  │◄── ACK (sent) ──────│                     │
+  │                     │── forward ─────────►│
+  │                     │                     │
+  │                     │◄── ACK (delivered) ──│
+  │◄── delivered ───────│                     │
+  │                     │                     │
+  │                     │◄── ACK (read) ──────│
+  │◄── read ────────────│                     │
+```
+
+#### Group Chat
+
+For group messages, the message is sent once and **fanned out** to all group members.
+
+```
+User A sends "Hi everyone" to Group (A, B, C, D):
+
+┌────────┐                              ┌────────┐
+│ User A │──► Chat Svr 1 ──► Kafka ───► │ User B │ (online, on Svr 2)
+└────────┘                         ├──► │ User C │ (online, on Svr 3)
+                                   └──► │ User D │ (offline → push notification)
+                                        └────────┘
+
+Small groups (< 500):
+  → Fan-out on write: send to each member's queue
+
+Large groups / channels (500+):
+  → Fan-out on read: members pull when they come online
+```
+
+#### Message Storage
+
+```sql
+-- Messages table (in Cassandra for write-heavy workload)
+-- Partition key: conversation_id (ensures all messages in a
+-- conversation are on the same partition for efficient reads)
+-- Clustering key: message_id (sorted by timestamp)
+
+CREATE TABLE messages (
+    conversation_id UUID,
+    message_id      TIMEUUID,    -- timestamp-based UUID
+    sender_id       UUID,
+    content         TEXT,
+    message_type    TEXT,         -- 'text', 'image', 'system'
+    status          TEXT,         -- 'sent', 'delivered', 'read'
+    created_at      TIMESTAMP,
+    PRIMARY KEY (conversation_id, message_id)
+) WITH CLUSTERING ORDER BY (message_id DESC);
+
+-- Conversation list per user
+CREATE TABLE user_conversations (
+    user_id           UUID,
+    conversation_id   UUID,
+    last_message_at   TIMESTAMP,
+    last_message_text TEXT,
+    unread_count      INT,
+    PRIMARY KEY (user_id, last_message_at)
+) WITH CLUSTERING ORDER BY (last_message_at DESC);
+```
+
+**Why Cassandra?**
+- Excellent write throughput (append-only, LSM tree)
+- Partition by conversation_id keeps related messages together
+- Time-series ordering within a partition
+- Linear horizontal scalability
+- Tunable consistency (write to quorum for durability)
+
+#### Presence Detection (Online/Offline Status)
+
+```
+Approach: Heartbeat-based detection
+
+User A connects:
+  → Set "user_A:status" = "online" in Redis (with 30s TTL)
+  → Client sends heartbeat every 10 seconds
+  → Each heartbeat resets the TTL
+
+User A disconnects (graceful):
+  → Delete "user_A:status" from Redis
+  → Notify relevant users via pub/sub
+
+User A disconnects (crash/network loss):
+  → Heartbeat stops
+  → TTL expires after 30 seconds
+  → Status automatically becomes "offline"
+
+┌──────────┐  heartbeat   ┌──────────┐          ┌───────┐
+│  User A  │──(every 10s)─►│ Chat Svr │──SETEX──►│ Redis │
+│          │               │          │  30s TTL │       │
+└──────────┘               └──────────┘          └───────┘
+```
+
+#### Handling Offline Users
+
+When a user is offline, messages are stored and delivered when they reconnect:
+
+```
+1. User B sends message to User A (offline)
+2. Chat Server stores message in database with status = "sent"
+3. Send push notification to User A's mobile device
+4. When User A comes online:
+   a. Query all messages with status = "sent" for User A's conversations
+   b. Deliver all pending messages via WebSocket
+   c. Update status to "delivered"
+```
+
+### Step 5: Scaling Considerations
+
+```
+Full Architecture:
+
+                         ┌──────────────────┐
+                         │    API Gateway    │
+                         │  (REST for auth,  │
+Mobile ─────────────────►│   profile, etc.)  │
+ Apps                    └────────┬─────────┘
+                                 │
+                         ┌───────▼──────────┐
+  WebSocket ────────────►│  WS Load Balancer│ (sticky sessions by user)
+  Connections            └───┬────┬────┬────┘
+                             │    │    │
+                    ┌────────┘    │    └────────┐
+                    ▼             ▼             ▼
+              ┌──────────┐ ┌──────────┐ ┌──────────┐
+              │Chat Svr 1│ │Chat Svr 2│ │Chat Svr N│
+              │ (100K    │ │ (100K    │ │ (100K    │
+              │  conns)  │ │  conns)  │ │  conns)  │
+              └─────┬────┘ └────┬─────┘ └────┬─────┘
+                    │           │             │
+               ┌────▼───────────▼─────────────▼────┐
+               │       Redis Cluster                │
+               │  (connection registry + presence)  │
+               └────────────────┬──────────────────┘
+                                │
+               ┌────────────────▼──────────────────┐
+               │          Kafka Cluster             │
+               │  (message routing between servers) │
+               └────────────────┬──────────────────┘
+                                │
+               ┌────────────────▼──────────────────┐
+               │       Cassandra Cluster            │
+               │    (message persistence)           │
+               │                                    │
+               │  Shard by conversation_id          │
+               │  RF=3 for durability               │
+               └───────────────────────────────────┘
+                                │
+               ┌────────────────▼──────────────────┐
+               │    Push Notification Service       │
+               │  (APNs for iOS, FCM for Android)   │
+               └───────────────────────────────────┘
+```
+
+**Key scaling decisions**:
+- **WebSocket servers**: Each handles ~100K connections. Scale horizontally. Use consistent hashing to route users to servers.
+- **Message ordering**: Use Kafka partitions keyed by conversation_id to ensure messages within a conversation are processed in order.
+- **Group chat fan-out**: For small groups (< 500), fan-out on write. For large channels, fan-out on read.
+- **End-to-end encryption**: Messages are encrypted on the sender's device and decrypted on the receiver's device. The server never sees plaintext content.
+
+---
+
+## Case Study 3: Design a News Feed (like Twitter)
+
+### Step 1: Requirements Clarification
+
+**Functional Requirements**:
+- Users can publish posts (tweets)
+- Users follow other users
+- Users see a personalized feed of posts from people they follow
+- Feed is sorted by relevance (not purely chronological)
+- Support for likes, retweets, and replies
+
+**Non-Functional Requirements**:
+- Feed generation must be fast (under 500ms p99)
+- High availability — the feed should always load
+- Eventual consistency is acceptable (a new post can take a few seconds to appear in followers' feeds)
+- Support for users with millions of followers (celebrities)
+
+### Step 2: Estimation
+
+```
+Users: 500M monthly active, 200M daily active
+Posts: 10M new posts per day
+Follows: Average user follows 200 people
+Feed: Each user views feed ~10 times/day
+
+Feed generation:
+- 200M users * 10 views = 2B feed requests/day
+- 2B / 86400 ≈ 23,000 feed requests/sec
+
+Post writes:
+- 10M posts/day = ~115 posts/sec
+
+Storage per post: ~1KB (text, metadata, references)
+- 10M * 1KB = 10 GB/day
+- 3.65 TB/year
+```
+
+### Step 3: High-Level Design
+
+```
+┌──────────┐        ┌──────────────┐      ┌──────────────┐
+│  Client  │───────►│ Post Service │─────►│  Post Store  │
+│          │  POST  │              │      │              │
+│          │        └──────┬───────┘      └──────────────┘
+│          │               │
+│          │          ┌────▼──────┐
+│          │          │  Fan-out  │
+│          │          │  Service  │
+│          │          └────┬──────┘
+│          │               │
+│          │        ┌──────▼───────┐      ┌──────────────┐
+│          │───────►│ Feed Service │─────►│  Feed Cache  │
+│          │  GET   │              │      │   (Redis)    │
+└──────────┘        └──────────────┘      └──────────────┘
+```
+
+### Step 4: Detailed Design
+
+#### The Fan-Out Problem
+
+When a user publishes a post, how do we get it into all their followers' feeds?
+
+**Approach 1: Fan-Out on Write (Push Model)**
+
+When a post is created, immediately push it to every follower's feed cache.
+
+```
+Alice posts "Hello world!" (Alice has 1000 followers)
+
+1. Store post in posts table
+2. Fetch Alice's follower list: [Bob, Carol, Dave, ... 997 more]
+3. For each follower, prepend post to their feed cache:
+   - LPUSH feed:Bob  post_id_123
+   - LPUSH feed:Carol post_id_123
+   - LPUSH feed:Dave  post_id_123
+   - ... (1000 operations)
+
+┌───────┐   Post    ┌──────────┐   Fan-out   ┌────────────────┐
+│ Alice │──────────►│ Post Svc │────────────►│ Feed Cache     │
+└───────┘           └──────────┘             │                │
+                                             │ feed:Bob   [123, 120, 118...]│
+                                             │ feed:Carol [123, 122, 115...]│
+                                             │ feed:Dave  [123, 119, 117...]│
+                                             └────────────────┘
+```
+
+**Pros**: Feed reads are instant (pre-computed), simple read path
+**Cons**: Write amplification for users with millions of followers, wasted work for inactive users
+
+**Approach 2: Fan-Out on Read (Pull Model)**
+
+When a user opens their feed, fetch posts from all the people they follow and merge them.
+
+```
+Bob opens his feed (Bob follows 200 people):
+
+1. Fetch Bob's following list: [Alice, Charlie, Eve, ... 197 more]
+2. For each followed user, fetch their recent posts:
+   - SELECT * FROM posts WHERE user_id = Alice ORDER BY created_at DESC LIMIT 20
+   - SELECT * FROM posts WHERE user_id = Charlie ORDER BY created_at DESC LIMIT 20
+   - ... (200 queries)
+3. Merge all posts and sort by relevance/time
+4. Return top 20
+
+┌─────┐  GET /feed  ┌──────────┐  200 queries  ┌──────────┐
+│ Bob │────────────►│ Feed Svc │──────────────►│  Post DB │
+│     │◄────────────│ (merge)  │◄──────────────│          │
+└─────┘  sorted feed└──────────┘               └──────────┘
+```
+
+**Pros**: No write amplification, no wasted work for inactive users
+**Cons**: Slow feed reads (many queries to merge), high read latency
+
+**Approach 3: Hybrid (Recommended)**
+
+Use fan-out on write for most users, fan-out on read for celebrities (users with millions of followers).
+
+```
+Hybrid Strategy:
+
+Post by regular user (< 10K followers):
+  → Fan-out on write (push to all follower feeds)
+
+Post by celebrity (> 10K followers):
+  → Do NOT fan-out on write
+  → When a user fetches their feed:
+    1. Read pre-computed feed from cache (regular users' posts)
+    2. Fetch recent posts from followed celebrities
+    3. Merge and rank
+
+┌───────────────────────────────────────────────────────┐
+│                   Feed Generation                      │
+│                                                       │
+│  User opens feed:                                     │
+│  1. Get pre-built feed from cache     ──► [P1, P3, P5]│
+│  2. Get celebrity posts (fan-out read) ──► [P2, P4]   │
+│  3. Merge + Rank                      ──► [P2, P1, P4, P3, P5]│
+│  4. Return top 20 posts                              │
+└───────────────────────────────────────────────────────┘
+```
+
+#### Data Model
+
+```sql
+-- Users table
+CREATE TABLE users (
+    user_id     BIGSERIAL PRIMARY KEY,
+    username    VARCHAR(50) UNIQUE NOT NULL,
+    display_name VARCHAR(100),
+    follower_count BIGINT DEFAULT 0,
+    is_celebrity BOOLEAN DEFAULT FALSE  -- true if follower_count > 10K
+);
+
+-- Posts table
+CREATE TABLE posts (
+    post_id     BIGSERIAL PRIMARY KEY,
+    user_id     BIGINT REFERENCES users(user_id),
+    content     TEXT NOT NULL,
+    media_urls  TEXT[],
+    like_count  BIGINT DEFAULT 0,
+    retweet_count BIGINT DEFAULT 0,
+    reply_count BIGINT DEFAULT 0,
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_posts_user_time ON posts(user_id, created_at DESC);
+
+-- Follows table (who follows whom)
+CREATE TABLE follows (
+    follower_id BIGINT,
+    followee_id BIGINT,
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (follower_id, followee_id)
+);
+
+CREATE INDEX idx_followee ON follows(followee_id);
+```
+
+#### Feed Cache Structure (Redis)
+
+```
+Key: "feed:{user_id}"
+Value: Sorted Set of post_ids scored by timestamp (or relevance score)
+
+ZADD feed:bob 1700000001 "post_123"
+ZADD feed:bob 1700000050 "post_456"
+ZADD feed:bob 1700000100 "post_789"
+
+# Fetch feed (latest 20 posts)
+ZREVRANGE feed:bob 0 19
+
+# Trim old entries (keep last 1000)
+ZREMRANGEBYRANK feed:bob 0 -1001
+```
+
+#### Feed Ranking
+
+A simple chronological feed is straightforward, but a ranked feed improves engagement. A basic ranking formula:
+
+```python
+def calculate_relevance_score(post, user):
+    """Score a post for a specific user's feed."""
+    score = 0.0
+
+    # Recency (decays over time)
+    age_hours = (now() - post.created_at).total_seconds() / 3600
+    recency_score = 1.0 / (1.0 + age_hours)
+    score += recency_score * 40  # weight: 40%
+
+    # Engagement signals
+    engagement = (
+        post.like_count * 1.0 +
+        post.retweet_count * 2.0 +
+        post.reply_count * 3.0
+    )
+    engagement_score = math.log(1 + engagement)
+    score += engagement_score * 30  # weight: 30%
+
+    # Relationship strength (how often user interacts with author)
+    interaction_count = get_interaction_count(user.id, post.author_id)
+    relationship_score = math.log(1 + interaction_count)
+    score += relationship_score * 20  # weight: 20%
+
+    # Content type boost
+    if post.has_media:
+        score += 5  # weight: 10%
+    if post.is_thread:
+        score += 3
+
+    return score
+```
+
+#### Post Publishing Flow
+
+```
+1. User creates post via API
+2. Post Service:
+   a. Validate content (length, prohibited content)
+   b. Store in posts table
+   c. Upload media to object storage (S3)
+   d. Publish event to Kafka topic "new_posts"
+3. Fan-out Service (consumes from Kafka):
+   a. Check if author is celebrity (follower_count > 10K)
+   b. If regular user: fetch follower list, push to each feed cache
+   c. If celebrity: skip fan-out (handled at read time)
+4. Notification Service (consumes from Kafka):
+   a. Send push notifications to users with notifications enabled
+5. Search Indexing Service (consumes from Kafka):
+   a. Index post in Elasticsearch for search
+
+┌─────────┐  POST    ┌──────────┐  Event   ┌─────────┐
+│  User   │─────────►│ Post Svc │────────►│  Kafka  │
+└─────────┘          └──────────┘          └────┬────┘
+                                           ┌────┼────────────┐
+                                           ▼    ▼            ▼
+                                      ┌────────┐┌─────────┐┌──────────┐
+                                      │Fan-out ││Notif.   ││Search    │
+                                      │Service ││Service  ││Indexer   │
+                                      └───┬────┘└─────────┘└──────────┘
+                                          │
+                                     Push to follower
+                                     feed caches
+                                          │
+                                     ┌────▼──────────┐
+                                     │  Redis Cluster │
+                                     │  (feed caches) │
+                                     └───────────────┘
+```
+
+### Step 5: Scaling Considerations
+
+```
+Full Architecture:
+
+┌──────────────────────────────────────────────────────────────┐
+│                        Clients                                │
+│   (Mobile Apps, Web Browsers, Third-Party via API)           │
+└────────────────────────┬─────────────────────────────────────┘
+                         │
+                    ┌────▼─────┐
+                    │   CDN    │ (images, videos, static assets)
+                    └────┬─────┘
+                         │
+                    ┌────▼─────┐
+                    │ API GW / │ (auth, rate limiting, routing)
+                    │ Load Bal │
+                    └────┬─────┘
+              ┌──────────┼──────────────────────┐
+              ▼          ▼                      ▼
+        ┌──────────┐ ┌──────────┐        ┌──────────┐
+        │ Post Svc │ │ Feed Svc │        │ User Svc │
+        │          │ │          │        │          │
+        └────┬─────┘ └────┬─────┘        └────┬─────┘
+             │            │                    │
+        ┌────▼────┐  ┌────▼──────┐       ┌────▼─────┐
+        │Post DB  │  │Redis Feed │       │ User DB  │
+        │(sharded)│  │Cache Cluster│     │(sharded) │
+        └─────────┘  └───────────┘       └──────────┘
+             │
+        ┌────▼─────┐
+        │  Kafka   │──► Fan-out Workers (auto-scaled)
+        │  Cluster │──► Notification Workers
+        │          │──► Search Index Workers
+        └──────────┘──► Analytics Pipeline
+                              │
+                         ┌────▼──────────┐
+                         │ Elasticsearch │ (post search)
+                         └───────────────┘
+```
+
+**Key scaling decisions**:
+
+| Component | Strategy | Rationale |
+|-----------|----------|-----------|
+| **Post DB** | Shard by user_id | Co-locate a user's posts for efficient retrieval |
+| **Feed cache** | Redis Cluster, shard by user_id | Even distribution of feed data |
+| **Fan-out workers** | Auto-scale based on Kafka lag | Handle spikes when celebrities post |
+| **Celebrity detection** | Threshold-based (> 10K followers) | Avoid massive fan-out for celebrities |
+| **Feed TTL** | Keep last 1000 posts per user, expire after 7 days | Bound memory usage |
+| **Media storage** | S3 + CDN | Scalable blob storage with global delivery |
+| **Search** | Elasticsearch cluster | Full-text search across all posts |
+
+**Hot partition mitigation**: When a celebrity with 50M followers posts, the fan-out on read approach means followers query the celebrity's posts table partition. Solve this by caching the celebrity's recent posts in Redis and replicating across multiple read replicas.
+
+---
+
+## Cross-Cutting Concerns
+
+These topics apply to all three case studies and most system design problems:
+
+<CardGrid>
+  <Card title="Monitoring and Alerting" icon="setting">
+    Every system needs metrics (latency p50/p95/p99, error rates, throughput), logs (structured, searchable), and alerts (PagerDuty, Slack). Use tools like Prometheus, Grafana, Datadog, and ELK stack.
+  </Card>
+  <Card title="Security" icon="approve-check">
+    Authentication (OAuth 2.0, JWT), authorization (RBAC), input validation, rate limiting, encryption in transit (TLS) and at rest (AES-256), and protection against common attacks (SQL injection, XSS, CSRF).
+  </Card>
+  <Card title="Deployment and CI/CD" icon="rocket">
+    Blue-green deployments, canary releases, feature flags, automated testing pipelines, infrastructure as code (Terraform), and containerization (Docker, Kubernetes).
+  </Card>
+  <Card title="Data Privacy and Compliance" icon="open-book">
+    GDPR, CCPA, data retention policies, right to deletion, data anonymization, audit logging, and geographic data residency requirements.
+  </Card>
+</CardGrid>
+
+---
+
+## Practice Tips
+
+1. **Time yourself**: Practice each case study in 35-40 minutes to simulate real interviews
+2. **Draw diagrams**: Always sketch the architecture before diving into details
+3. **State trade-offs explicitly**: "I chose X over Y because..."
+4. **Start simple, then scale**: Begin with a single-server design, then add complexity
+5. **Ask clarifying questions**: Do not assume requirements — ask
+6. **Use real numbers**: Back-of-the-envelope estimation drives design decisions
+7. **Consider failure modes**: What happens when each component fails?
+8. **Practice explaining out loud**: System design is as much about communication as technical knowledge

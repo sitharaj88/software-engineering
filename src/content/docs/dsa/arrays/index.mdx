@@ -1,0 +1,323 @@
+---
+title: Arrays
+description: Master array operations and common patterns for solving array-based problems
+difficulty: beginner
+prerequisites: ["Big O Notation"]
+timeToRead: "20 min"
+topics: ["arrays", "data-structures"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+Arrays are the most fundamental data structure in programming. They store elements in contiguous memory locations, allowing constant-time access by index.
+
+## What is an Array?
+
+An array is a collection of elements stored at contiguous memory locations. Each element can be accessed directly using its index.
+
+```
+Index:    0    1    2    3    4
+        ┌────┬────┬────┬────┬────┐
+Array:  │ 10 │ 20 │ 30 │ 40 │ 50 │
+        └────┴────┴────┴────┴────┘
+```
+
+## Time Complexity
+
+| Operation | Average | Worst |
+|-----------|---------|-------|
+| Access | O(1) | O(1) |
+| Search | O(n) | O(n) |
+| Insert (end) | O(1)* | O(n) |
+| Insert (middle) | O(n) | O(n) |
+| Delete | O(n) | O(n) |
+
+*Amortized for dynamic arrays
+
+## Basic Operations
+
+### Creating and Accessing Arrays
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# Creating arrays
+arr = [1, 2, 3, 4, 5]
+empty = []
+sized = [0] * 10  # [0, 0, 0, ..., 0]
+
+# Accessing elements
+first = arr[0]      # 1
+last = arr[-1]      # 5
+middle = arr[2]     # 3
+
+# Slicing
+first_three = arr[:3]    # [1, 2, 3]
+last_two = arr[-2:]      # [4, 5]
+reversed_arr = arr[::-1] # [5, 4, 3, 2, 1]
+
+# Length
+length = len(arr)  # 5
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// Creating arrays
+const arr = [1, 2, 3, 4, 5];
+const empty = [];
+const sized = new Array(10).fill(0);
+
+// Accessing elements
+const first = arr[0];           // 1
+const last = arr[arr.length-1]; // 5
+const middle = arr[2];          // 3
+
+// Slicing
+const firstThree = arr.slice(0, 3);  // [1, 2, 3]
+const lastTwo = arr.slice(-2);       // [4, 5]
+const reversed = [...arr].reverse(); // [5, 4, 3, 2, 1]
+
+// Length
+const length = arr.length;  // 5
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+// Creating arrays
+int[] arr = {1, 2, 3, 4, 5};
+int[] empty = new int[0];
+int[] sized = new int[10];  // Filled with 0s
+
+// Accessing elements
+int first = arr[0];              // 1
+int last = arr[arr.length - 1];  // 5
+int middle = arr[2];             // 3
+
+// Java doesn't have built-in slicing
+// Use Arrays.copyOfRange()
+int[] firstThree = Arrays.copyOfRange(arr, 0, 3);
+
+// Length
+int length = arr.length;  // 5
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+#include <vector>
+#include <algorithm>
+using namespace std;
+
+// Creating arrays
+vector<int> arr = {1, 2, 3, 4, 5};
+vector<int> empty;
+vector<int> sized(10, 0);  // 10 zeros
+
+// Accessing elements
+int first = arr[0];            // 1
+int last = arr[arr.size()-1];  // 5
+int middle = arr[2];           // 3
+
+// Slicing
+vector<int> firstThree(arr.begin(), arr.begin() + 3);
+
+// Reverse
+reverse(arr.begin(), arr.end());
+
+// Length
+int length = arr.size();  // 5
+```
+  </TabItem>
+</Tabs>
+
+### Modifying Arrays
+
+<Tabs>
+  <TabItem label="Python">
+```python
+arr = [1, 2, 3]
+
+# Adding elements
+arr.append(4)         # [1, 2, 3, 4]
+arr.insert(0, 0)      # [0, 1, 2, 3, 4]
+arr.extend([5, 6])    # [0, 1, 2, 3, 4, 5, 6]
+
+# Removing elements
+arr.pop()             # Removes 6, returns 6
+arr.pop(0)            # Removes 0, returns 0
+arr.remove(3)         # Removes first occurrence of 3
+
+# Modifying
+arr[0] = 10           # Change first element
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+let arr = [1, 2, 3];
+
+// Adding elements
+arr.push(4);           // [1, 2, 3, 4]
+arr.unshift(0);        // [0, 1, 2, 3, 4]
+arr = [...arr, 5, 6];  // [0, 1, 2, 3, 4, 5, 6]
+
+// Removing elements
+arr.pop();             // Removes 6, returns 6
+arr.shift();           // Removes 0, returns 0
+arr.splice(2, 1);      // Removes element at index 2
+
+// Modifying
+arr[0] = 10;           // Change first element
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+// Use ArrayList for dynamic arrays
+ArrayList<Integer> arr = new ArrayList<>(Arrays.asList(1, 2, 3));
+
+// Adding elements
+arr.add(4);            // [1, 2, 3, 4]
+arr.add(0, 0);         // [0, 1, 2, 3, 4]
+arr.addAll(Arrays.asList(5, 6));
+
+// Removing elements
+arr.remove(arr.size() - 1);  // Remove last
+arr.remove(0);               // Remove first
+arr.remove(Integer.valueOf(3)); // Remove value 3
+
+// Modifying
+arr.set(0, 10);        // Change first element
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+vector<int> arr = {1, 2, 3};
+
+// Adding elements
+arr.push_back(4);           // [1, 2, 3, 4]
+arr.insert(arr.begin(), 0); // [0, 1, 2, 3, 4]
+
+// Removing elements
+arr.pop_back();             // Remove last
+arr.erase(arr.begin());     // Remove first
+arr.erase(arr.begin() + 2); // Remove at index 2
+
+// Modifying
+arr[0] = 10;                // Change first element
+```
+  </TabItem>
+</Tabs>
+
+## Common Patterns
+
+### 1. Two Pointers
+
+Use two pointers moving towards each other or in the same direction.
+
+```python
+def two_sum_sorted(arr, target):
+    """Find two numbers that sum to target in sorted array"""
+    left, right = 0, len(arr) - 1
+
+    while left < right:
+        current_sum = arr[left] + arr[right]
+        if current_sum == target:
+            return [left, right]
+        elif current_sum < target:
+            left += 1
+        else:
+            right -= 1
+
+    return [-1, -1]
+```
+
+[Learn more about Two Pointers →](/dsa/arrays/two-pointers/)
+
+### 2. Sliding Window
+
+Maintain a window of elements as you iterate.
+
+```python
+def max_sum_subarray(arr, k):
+    """Find max sum of subarray of size k"""
+    if len(arr) < k:
+        return 0
+
+    # Initial window sum
+    window_sum = sum(arr[:k])
+    max_sum = window_sum
+
+    # Slide the window
+    for i in range(k, len(arr)):
+        window_sum += arr[i] - arr[i - k]
+        max_sum = max(max_sum, window_sum)
+
+    return max_sum
+```
+
+[Learn more about Sliding Window →](/dsa/arrays/sliding-window/)
+
+### 3. Prefix Sum
+
+Precompute cumulative sums for range queries.
+
+```python
+def build_prefix_sum(arr):
+    """Build prefix sum array"""
+    prefix = [0] * (len(arr) + 1)
+    for i in range(len(arr)):
+        prefix[i + 1] = prefix[i] + arr[i]
+    return prefix
+
+def range_sum(prefix, left, right):
+    """Get sum of elements from left to right (inclusive)"""
+    return prefix[right + 1] - prefix[left]
+```
+
+[Learn more about Prefix Sum →](/dsa/arrays/prefix-sum/)
+
+## Practice Problems
+
+### Easy
+| Problem | Pattern | Companies |
+|---------|---------|-----------|
+| Two Sum | Hash Table | Amazon, Google, Meta |
+| Best Time to Buy/Sell Stock | One Pass | Amazon, Meta |
+| Contains Duplicate | Hash Set | Amazon, Apple |
+| Maximum Subarray | Kadane's | Amazon, Microsoft |
+
+### Medium
+| Problem | Pattern | Companies |
+|---------|---------|-----------|
+| 3Sum | Two Pointers | Amazon, Google, Meta |
+| Container With Most Water | Two Pointers | Amazon, Google |
+| Product of Array Except Self | Prefix/Suffix | Amazon, Meta |
+| Maximum Product Subarray | DP | Amazon, Microsoft |
+
+### Hard
+| Problem | Pattern | Companies |
+|---------|---------|-----------|
+| Trapping Rain Water | Two Pointers/Stack | Amazon, Google, Meta |
+| First Missing Positive | Index Marking | Amazon, Google |
+| Sliding Window Maximum | Monotonic Deque | Amazon, Google |
+
+## Key Takeaways
+
+1. **Arrays provide O(1) access** - Use index-based access when possible
+2. **Insertions/deletions are O(n)** - Consider linked lists for frequent modifications
+3. **Use built-in methods** - They're optimized and less error-prone
+4. **Watch for off-by-one errors** - Common source of bugs
+5. **Consider space-time tradeoffs** - Extra arrays can reduce time complexity
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="Two Pointers"
+    href="/dsa/arrays/two-pointers/"
+    description="Master the two pointers technique for array problems"
+  />
+  <LinkCard
+    title="Sliding Window"
+    href="/dsa/arrays/sliding-window/"
+    description="Learn to solve subarray problems efficiently"
+  />
+</CardGrid>

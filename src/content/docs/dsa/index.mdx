@@ -1,0 +1,184 @@
+---
+title: Data Structures & Algorithms
+description: Master the fundamentals of computer science with interactive visualizations and multi-language code examples
+difficulty: beginner
+---
+
+import { LinkCard, CardGrid } from '@astrojs/starlight/components';
+import PatternMatcher from '../../../components/interactive/PatternMatcher';
+import ProgressTracker from '../../../components/interactive/ProgressTracker';
+import QuizSystem from '../../../components/interactive/QuizSystem';
+
+Data Structures and Algorithms (DSA) form the foundation of computer science and software engineering. Understanding these concepts is essential for:
+
+- Writing efficient code
+- Passing technical interviews
+- Solving complex problems
+- Building scalable systems
+
+## Track Your Progress
+
+Mark topics as completed as you work through the curriculum. Your progress is saved automatically.
+
+<ProgressTracker client:load />
+
+## Roadmap
+
+Follow this recommended learning path:
+
+### Phase 1: Foundations (Week 1-2)
+- [Big O Notation](/dsa/fundamentals/big-o-notation/) - Analyze algorithm efficiency
+- [Time Complexity](/dsa/fundamentals/time-complexity/) - Measure execution time
+- [Space Complexity](/dsa/fundamentals/space-complexity/) - Measure memory usage
+
+### Phase 2: Linear Data Structures (Week 3-5)
+- [Arrays](/dsa/arrays/) - Sequential storage, two pointers, sliding window
+- [Strings](/dsa/strings/) - Text manipulation, pattern matching
+- [Linked Lists](/dsa/linked-lists/) - Dynamic node-based storage
+- [Stacks](/dsa/stacks/) - LIFO operations, monotonic stacks
+- [Queues](/dsa/queues/) - FIFO operations, priority queues
+
+### Phase 3: Non-Linear Data Structures (Week 6-8)
+- [Hash Tables](/dsa/hash-tables/) - Key-value storage, O(1) lookups
+- [Trees](/dsa/trees/) - Hierarchical data, BST, traversals
+- [Heaps](/dsa/heaps/) - Priority operations, top-k problems
+- [Graphs](/dsa/graphs/) - Networks, paths, connectivity
+
+### Phase 4: Algorithms (Week 9-12)
+- [Sorting](/dsa/sorting/) - Bubble, merge, quick, heap sort
+- [Searching](/dsa/searching/binary-search/) - Binary search and variations
+- [Recursion](/dsa/recursion/) - Divide and conquer
+- [Backtracking](/dsa/backtracking/) - Exhaustive search with pruning
+- [Dynamic Programming](/dsa/dynamic-programming/) - Optimal substructure
+- [Greedy](/dsa/greedy/) - Local optimal choices
+
+## Algorithm Pattern Matcher
+
+Describe your problem to instantly identify the right algorithmic pattern. Try typing "find pair with target sum" or "shortest path in grid".
+
+<PatternMatcher client:load />
+
+## Complexity Cheatsheet
+
+| Data Structure | Access | Search | Insert | Delete |
+|---------------|--------|--------|--------|--------|
+| Array | O(1) | O(n) | O(n) | O(n) |
+| Linked List | O(n) | O(n) | O(1)* | O(1)* |
+| Stack | O(n) | O(n) | O(1) | O(1) |
+| Queue | O(n) | O(n) | O(1) | O(1) |
+| Hash Table | - | O(1)* | O(1)* | O(1)* |
+| BST | O(log n)* | O(log n)* | O(log n)* | O(log n)* |
+| Heap | - | O(n) | O(log n) | O(log n) |
+
+*Average case. Worst case may differ. Linked list insert/delete is O(1) only with a reference to the node; O(n) to find the position first.
+
+| Algorithm | Best | Average | Worst | Space |
+|-----------|------|---------|-------|-------|
+| Bubble Sort | O(n) | O(n²) | O(n²) | O(1) |
+| Merge Sort | O(n log n) | O(n log n) | O(n log n) | O(n) |
+| Quick Sort | O(n log n) | O(n log n) | O(n²) | O(log n) |
+| Binary Search | O(1) | O(log n) | O(log n) | O(1) |
+| BFS/DFS | O(V+E) | O(V+E) | O(V+E) | O(V) |
+
+## Knowledge Check
+
+Test your understanding of DSA fundamentals.
+
+<QuizSystem client:load title="DSA Fundamentals Quiz" questions={[
+  {
+    id: "q1",
+    question: "What is the time complexity of accessing an element in an array by index?",
+    options: ["O(n)", "O(1)", "O(log n)", "O(n²)"],
+    correct: 1,
+    explanation: "Array access by index is O(1) because arrays store elements in contiguous memory locations, allowing direct calculation of the memory address using the index.",
+    difficulty: "easy",
+    topic: "Arrays"
+  },
+  {
+    id: "q2",
+    question: "Which data structure would you use to check if parentheses are balanced?",
+    options: ["Queue", "Array", "Stack", "Hash Table"],
+    correct: 2,
+    explanation: "A Stack (LIFO) is ideal for matching parentheses. Push opening brackets and pop when you encounter closing brackets. If the stack is empty at the end and all brackets matched, the expression is balanced.",
+    difficulty: "easy",
+    topic: "Stacks"
+  },
+  {
+    id: "q3",
+    question: "What is the worst-case time complexity of Quick Sort?",
+    options: ["O(n log n)", "O(n)", "O(n²)", "O(2ⁿ)"],
+    correct: 2,
+    explanation: "Quick Sort degrades to O(n²) when the pivot is always the smallest or largest element (e.g., already sorted array with first/last element as pivot). This creates unbalanced partitions.",
+    difficulty: "medium",
+    topic: "Sorting"
+  },
+  {
+    id: "q4",
+    question: "In a hash table, what is a collision?",
+    options: ["When the table is full", "When two keys hash to the same index", "When a key is not found", "When the hash function fails"],
+    correct: 1,
+    explanation: "A collision occurs when two different keys produce the same hash value (index). Common resolution strategies include chaining (linked lists at each index) and open addressing (probing for next empty slot).",
+    difficulty: "easy",
+    topic: "Hash Tables"
+  },
+  {
+    id: "q5",
+    question: "What is the time complexity of BFS on a graph with V vertices and E edges?",
+    options: ["O(V)", "O(E)", "O(V + E)", "O(V × E)"],
+    correct: 2,
+    explanation: "BFS visits each vertex once O(V) and examines each edge once O(E), giving a total time complexity of O(V + E). This applies to adjacency list representation.",
+    difficulty: "medium",
+    topic: "Graphs"
+  },
+  {
+    id: "q6",
+    question: "Which sorting algorithm is stable and guarantees O(n log n) in all cases?",
+    options: ["Quick Sort", "Heap Sort", "Merge Sort", "Insertion Sort"],
+    correct: 2,
+    explanation: "Merge Sort is both stable (preserves relative order of equal elements) and guarantees O(n log n) in best, average, and worst cases. Quick Sort is O(n²) worst case, Heap Sort is not stable, and Insertion Sort is O(n²).",
+    difficulty: "medium",
+    topic: "Sorting"
+  },
+  {
+    id: "q7",
+    question: "What traversal of a BST gives elements in sorted order?",
+    options: ["Pre-order", "Post-order", "In-order", "Level-order"],
+    correct: 2,
+    explanation: "In-order traversal (Left → Root → Right) of a Binary Search Tree visits nodes in ascending sorted order because the left subtree always contains smaller values and the right subtree contains larger values.",
+    difficulty: "easy",
+    topic: "Trees"
+  },
+  {
+    id: "q8",
+    question: "What technique does Dynamic Programming use to avoid redundant computations?",
+    options: ["Greedy selection", "Divide and conquer", "Memoization / Tabulation", "Backtracking"],
+    correct: 2,
+    explanation: "Dynamic Programming stores results of subproblems to avoid recomputation. Memoization (top-down) uses recursion with caching, while Tabulation (bottom-up) fills a table iteratively.",
+    difficulty: "medium",
+    topic: "Dynamic Programming"
+  }
+]} />
+
+## How to Study DSA
+
+1. **Understand the concept** - Don't just memorize, understand WHY
+2. **Visualize** - Use our interactive visualizers to see algorithms in action
+3. **Implement from scratch** - Code it yourself without looking
+4. **Analyze complexity** - Always calculate Big O
+5. **Practice problems** - Apply concepts to real problems
+6. **Review and repeat** - Spaced repetition helps retention
+
+## Ready to Start?
+
+<CardGrid>
+  <LinkCard
+    title="Big O Notation"
+    href="/dsa/fundamentals/big-o-notation/"
+    description="Begin with understanding how to measure algorithm efficiency"
+  />
+  <LinkCard
+    title="Algorithm Pattern Matcher"
+    href="/interview-prep/coding-interviews/"
+    description="Learn the 15 essential patterns for solving coding problems"
+  />
+</CardGrid>

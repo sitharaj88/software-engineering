@@ -1,0 +1,1391 @@
+---
+title: Queues
+description: Master the First-In-First-Out (FIFO) data structure, deques, and priority queues
+difficulty: beginner
+prerequisites: ["Arrays", "Linked Lists"]
+timeToRead: "20 min"
+topics: ["queues", "data-structures", "fifo"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+import DataStructureVisualizer from '../../../../components/interactive/DataStructureVisualizer';
+
+A queue is a linear data structure that follows the **First-In-First-Out (FIFO)** principle. Think of it like a line at a store - the first person in line is the first to be served.
+
+## Interactive Queue Visualizer
+
+Enqueue and dequeue elements to see FIFO in action. Watch elements enter at the rear and leave from the front.
+
+<DataStructureVisualizer client:load defaultDS="queue" />
+
+## What is a Queue?
+
+A queue supports two primary operations:
+- **Enqueue**: Add an element to the back
+- **Dequeue**: Remove and return the front element
+
+```
+    Front                          Rear
+      ↓                              ↓
+    ┌────┬────┬────┬────┬────┐
+    │ 1  │ 3  │ 5  │ 8  │ 2  │
+    └────┴────┴────┴────┴────┘
+      ↑                    ↑
+   Dequeue              Enqueue
+```
+
+## Time Complexity
+
+| Operation | Average | Worst |
+|-----------|---------|-------|
+| Enqueue | O(1) | O(1) |
+| Dequeue | O(1) | O(1) |
+| Front/Peek | O(1) | O(1) |
+| Search | O(n) | O(n) |
+| isEmpty | O(1) | O(1) |
+
+## Basic Operations
+
+### Queue Implementation
+
+<Tabs>
+  <TabItem label="Python">
+```python
+from collections import deque
+
+# Using deque (recommended - O(1) for both ends)
+queue = deque()
+queue.append(1)      # Enqueue
+queue.append(2)
+front = queue.popleft()  # Dequeue: returns 1
+
+# Custom Queue class
+class Queue:
+    def __init__(self):
+        self.items = deque()
+
+    def enqueue(self, item):
+        """Add item to rear"""
+        self.items.append(item)
+
+    def dequeue(self):
+        """Remove and return front item"""
+        if self.is_empty():
+            raise IndexError("Dequeue from empty queue")
+        return self.items.popleft()
+
+    def front(self):
+        """Return front item without removing"""
+        if self.is_empty():
+            raise IndexError("Front from empty queue")
+        return self.items[0]
+
+    def rear(self):
+        """Return rear item without removing"""
+        if self.is_empty():
+            raise IndexError("Rear from empty queue")
+        return self.items[-1]
+
+    def is_empty(self):
+        return len(self.items) == 0
+
+    def size(self):
+        return len(self.items)
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// Simple queue using array (O(n) dequeue due to shift)
+const simpleQueue = [];
+simpleQueue.push(1);        // Enqueue
+const front = simpleQueue.shift();  // Dequeue
+
+// Efficient queue implementation
+class Queue {
+  constructor() {
+    this.items = {};
+    this.head = 0;
+    this.tail = 0;
+  }
+
+  enqueue(item) {
+    this.items[this.tail] = item;
+    this.tail++;
+  }
+
+  dequeue() {
+    if (this.isEmpty()) {
+      throw new Error("Dequeue from empty queue");
+    }
+    const item = this.items[this.head];
+    delete this.items[this.head];
+    this.head++;
+    return item;
+  }
+
+  front() {
+    if (this.isEmpty()) {
+      throw new Error("Front from empty queue");
+    }
+    return this.items[this.head];
+  }
+
+  isEmpty() {
+    return this.tail === this.head;
+  }
+
+  size() {
+    return this.tail - this.head;
+  }
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+import java.util.LinkedList;
+import java.util.Queue;
+
+// Using LinkedList as Queue
+Queue<Integer> queue = new LinkedList<>();
+queue.offer(1);          // Enqueue
+queue.offer(2);
+int front = queue.poll();  // Dequeue: returns 1
+int peek = queue.peek();   // Peek: returns 2
+
+// Custom implementation
+class MyQueue<T> {
+    private LinkedList<T> items = new LinkedList<>();
+
+    public void enqueue(T item) {
+        items.addLast(item);
+    }
+
+    public T dequeue() {
+        if (isEmpty()) {
+            throw new NoSuchElementException();
+        }
+        return items.removeFirst();
+    }
+
+    public T front() {
+        if (isEmpty()) {
+            throw new NoSuchElementException();
+        }
+        return items.getFirst();
+    }
+
+    public T rear() {
+        if (isEmpty()) {
+            throw new NoSuchElementException();
+        }
+        return items.getLast();
+    }
+
+    public boolean isEmpty() {
+        return items.isEmpty();
+    }
+
+    public int size() {
+        return items.size();
+    }
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+#include <queue>
+#include <deque>
+#include <stdexcept>
+using namespace std;
+
+// Using STL queue
+queue<int> q;
+q.push(1);          // Enqueue
+q.push(2);
+int front = q.front();  // Peek: 1
+q.pop();             // Dequeue (doesn't return)
+
+// Custom implementation using deque
+template<typename T>
+class MyQueue {
+private:
+    deque<T> items;
+
+public:
+    void enqueue(const T& item) {
+        items.push_back(item);
+    }
+
+    T dequeue() {
+        if (isEmpty()) {
+            throw runtime_error("Dequeue from empty queue");
+        }
+        T item = items.front();
+        items.pop_front();
+        return item;
+    }
+
+    T front() const {
+        if (isEmpty()) {
+            throw runtime_error("Front from empty queue");
+        }
+        return items.front();
+    }
+
+    T rear() const {
+        if (isEmpty()) {
+            throw runtime_error("Rear from empty queue");
+        }
+        return items.back();
+    }
+
+    bool isEmpty() const {
+        return items.empty();
+    }
+
+    size_t size() const {
+        return items.size();
+    }
+};
+```
+  </TabItem>
+</Tabs>
+
+## Queue Variants
+
+### Circular Queue
+
+Fixed-size queue that wraps around, efficient for buffering.
+
+```python
+class CircularQueue:
+    def __init__(self, capacity: int):
+        self.capacity = capacity
+        self.items = [None] * capacity
+        self.head = 0
+        self.tail = 0
+        self.size = 0
+
+    def enqueue(self, item):
+        if self.is_full():
+            raise Exception("Queue is full")
+        self.items[self.tail] = item
+        self.tail = (self.tail + 1) % self.capacity
+        self.size += 1
+
+    def dequeue(self):
+        if self.is_empty():
+            raise Exception("Queue is empty")
+        item = self.items[self.head]
+        self.head = (self.head + 1) % self.capacity
+        self.size -= 1
+        return item
+
+    def is_empty(self):
+        return self.size == 0
+
+    def is_full(self):
+        return self.size == self.capacity
+```
+
+### Deque (Double-Ended Queue)
+
+Supports add/remove from both ends in O(1).
+
+<Tabs>
+  <TabItem label="Python">
+```python
+from collections import deque
+
+dq = deque()
+
+# Add elements
+dq.append(1)       # Add to right: [1]
+dq.append(2)       # Add to right: [1, 2]
+dq.appendleft(0)   # Add to left: [0, 1, 2]
+
+# Remove elements
+right = dq.pop()        # Remove from right: 2
+left = dq.popleft()     # Remove from left: 0
+
+# Access without removing
+first = dq[0]           # Left element
+last = dq[-1]           # Right element
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// JavaScript doesn't have built-in deque
+// Use array with caution (shift is O(n))
+class Deque {
+  constructor() {
+    this.items = {};
+    this.head = 0;
+    this.tail = 0;
+  }
+
+  addFront(item) {
+    this.head--;
+    this.items[this.head] = item;
+  }
+
+  addRear(item) {
+    this.items[this.tail] = item;
+    this.tail++;
+  }
+
+  removeFront() {
+    if (this.isEmpty()) throw new Error("Empty");
+    const item = this.items[this.head];
+    delete this.items[this.head];
+    this.head++;
+    return item;
+  }
+
+  removeRear() {
+    if (this.isEmpty()) throw new Error("Empty");
+    this.tail--;
+    const item = this.items[this.tail];
+    delete this.items[this.tail];
+    return item;
+  }
+
+  isEmpty() {
+    return this.head === this.tail;
+  }
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+import java.util.ArrayDeque;
+import java.util.Deque;
+
+Deque<Integer> dq = new ArrayDeque<>();
+
+// Add elements
+dq.addLast(1);       // Add to right: [1]
+dq.addLast(2);       // Add to right: [1, 2]
+dq.addFirst(0);      // Add to left: [0, 1, 2]
+
+// Remove elements
+int right = dq.removeLast();   // Remove from right: 2
+int left = dq.removeFirst();   // Remove from left: 0
+
+// Peek without removing
+int first = dq.peekFirst();    // Left element
+int last = dq.peekLast();      // Right element
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+#include <deque>
+using namespace std;
+
+deque<int> dq;
+
+// Add elements
+dq.push_back(1);       // Add to right: [1]
+dq.push_back(2);       // Add to right: [1, 2]
+dq.push_front(0);      // Add to left: [0, 1, 2]
+
+// Remove elements
+dq.pop_back();         // Remove from right
+dq.pop_front();        // Remove from left
+
+// Access elements
+int first = dq.front();  // Left element
+int last = dq.back();    // Right element
+```
+  </TabItem>
+</Tabs>
+
+### Priority Queue
+
+Elements are dequeued based on priority, not insertion order.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+import heapq
+
+# Min-heap (smallest first)
+min_heap = []
+heapq.heappush(min_heap, 3)
+heapq.heappush(min_heap, 1)
+heapq.heappush(min_heap, 2)
+smallest = heapq.heappop(min_heap)  # Returns 1
+
+# Max-heap (largest first) - negate values
+max_heap = []
+heapq.heappush(max_heap, -3)
+heapq.heappush(max_heap, -1)
+heapq.heappush(max_heap, -2)
+largest = -heapq.heappop(max_heap)  # Returns 3
+
+# With custom objects
+from heapq import heappush, heappop
+
+tasks = []
+heappush(tasks, (2, "low priority"))
+heappush(tasks, (1, "high priority"))
+heappush(tasks, (3, "lowest priority"))
+_, next_task = heappop(tasks)  # "high priority"
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// JavaScript lacks built-in heap
+// Simple implementation using array
+class MinPriorityQueue {
+  constructor() {
+    this.heap = [];
+  }
+
+  enqueue(val, priority) {
+    this.heap.push({ val, priority });
+    this.bubbleUp(this.heap.length - 1);
+  }
+
+  dequeue() {
+    if (this.isEmpty()) return null;
+    const min = this.heap[0];
+    const last = this.heap.pop();
+    if (this.heap.length > 0) {
+      this.heap[0] = last;
+      this.sinkDown(0);
+    }
+    return min.val;
+  }
+
+  bubbleUp(idx) {
+    while (idx > 0) {
+      const parent = Math.floor((idx - 1) / 2);
+      if (this.heap[parent].priority <= this.heap[idx].priority) break;
+      [this.heap[parent], this.heap[idx]] = [this.heap[idx], this.heap[parent]];
+      idx = parent;
+    }
+  }
+
+  sinkDown(idx) {
+    const length = this.heap.length;
+    while (true) {
+      let smallest = idx;
+      const left = 2 * idx + 1;
+      const right = 2 * idx + 2;
+      if (left < length && this.heap[left].priority < this.heap[smallest].priority) {
+        smallest = left;
+      }
+      if (right < length && this.heap[right].priority < this.heap[smallest].priority) {
+        smallest = right;
+      }
+      if (smallest === idx) break;
+      [this.heap[smallest], this.heap[idx]] = [this.heap[idx], this.heap[smallest]];
+      idx = smallest;
+    }
+  }
+
+  isEmpty() {
+    return this.heap.length === 0;
+  }
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+import java.util.PriorityQueue;
+
+// Min-heap (default)
+PriorityQueue<Integer> minHeap = new PriorityQueue<>();
+minHeap.offer(3);
+minHeap.offer(1);
+minHeap.offer(2);
+int smallest = minHeap.poll();  // Returns 1
+
+// Max-heap
+PriorityQueue<Integer> maxHeap = new PriorityQueue<>(
+    Collections.reverseOrder()
+);
+maxHeap.offer(3);
+maxHeap.offer(1);
+maxHeap.offer(2);
+int largest = maxHeap.poll();  // Returns 3
+
+// Custom comparator
+PriorityQueue<int[]> tasks = new PriorityQueue<>(
+    (a, b) -> a[0] - b[0]  // Sort by first element
+);
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+#include <queue>
+using namespace std;
+
+// Max-heap (default)
+priority_queue<int> maxHeap;
+maxHeap.push(3);
+maxHeap.push(1);
+maxHeap.push(2);
+int largest = maxHeap.top();  // 3
+maxHeap.pop();
+
+// Min-heap
+priority_queue<int, vector<int>, greater<int>> minHeap;
+minHeap.push(3);
+minHeap.push(1);
+minHeap.push(2);
+int smallest = minHeap.top();  // 1
+minHeap.pop();
+
+// Custom comparator
+auto cmp = [](pair<int,string>& a, pair<int,string>& b) {
+    return a.first > b.first;  // Min by first
+};
+priority_queue<pair<int,string>, vector<pair<int,string>>, decltype(cmp)> pq(cmp);
+```
+  </TabItem>
+</Tabs>
+
+## Common Patterns
+
+### 1. BFS (Breadth-First Search)
+
+Queue is essential for level-order traversal. BFS explores all neighbors at the current depth before moving to nodes at the next depth level.
+
+**Algorithm Visualization:**
+```
+Graph:     A ── B ── D
+           │    │
+           C    E
+           │
+           F
+
+BFS from A:
+Queue: [A]         → Process A, add B,C      → Result: [A]
+Queue: [B, C]      → Process B, add D,E      → Result: [A, B]
+Queue: [C, D, E]   → Process C, add F        → Result: [A, B, C]
+Queue: [D, E, F]   → Process D (no neighbors)→ Result: [A, B, C, D]
+Queue: [E, F]      → Process E (no neighbors)→ Result: [A, B, C, D, E]
+Queue: [F]         → Process F (no neighbors)→ Result: [A, B, C, D, E, F]
+```
+
+<Tabs>
+  <TabItem label="Python">
+```python
+from collections import deque
+
+def bfs(graph, start):
+    """
+    Traverse graph in breadth-first order.
+
+    BFS uses a queue (FIFO) to process nodes level by level.
+    We mark nodes as visited when we ADD them to the queue
+    (not when we process them) to avoid duplicates.
+
+    Time Complexity: O(V + E) - visit each vertex and edge once
+    Space Complexity: O(V) - queue can hold all vertices
+
+    Args:
+        graph: Adjacency list representation {node: [neighbors]}
+        start: Starting node for traversal
+
+    Returns:
+        List of nodes in BFS order
+    """
+    visited = set([start])  # Mark visited when ADDING to queue
+    queue = deque([start])
+    result = []
+
+    while queue:
+        node = queue.popleft()  # FIFO: process oldest first
+        result.append(node)
+
+        for neighbor in graph[node]:
+            if neighbor not in visited:
+                visited.add(neighbor)  # Mark visited immediately
+                queue.append(neighbor)
+
+    return result
+
+# Example usage
+graph = {
+    'A': ['B', 'C'],
+    'B': ['D', 'E'],
+    'C': ['F'],
+    'D': [], 'E': [], 'F': []
+}
+print(bfs(graph, 'A'))  # ['A', 'B', 'C', 'D', 'E', 'F']
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+/**
+ * BFS traversal of a graph.
+ *
+ * Time: O(V + E), Space: O(V)
+ */
+function bfs(graph, start) {
+  const visited = new Set([start]);
+  const queue = [start];
+  const result = [];
+
+  while (queue.length > 0) {
+    const node = queue.shift(); // Dequeue from front
+    result.push(node);
+
+    for (const neighbor of graph[node] || []) {
+      if (!visited.has(neighbor)) {
+        visited.add(neighbor);
+        queue.push(neighbor);
+      }
+    }
+  }
+
+  return result;
+}
+
+// Example
+const graph = {
+  'A': ['B', 'C'],
+  'B': ['D', 'E'],
+  'C': ['F'],
+  'D': [], 'E': [], 'F': []
+};
+console.log(bfs(graph, 'A')); // ['A', 'B', 'C', 'D', 'E', 'F']
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+import java.util.*;
+
+public class BFS {
+    /**
+     * BFS traversal of a graph.
+     *
+     * Time: O(V + E), Space: O(V)
+     */
+    public List<String> bfs(Map<String, List<String>> graph, String start) {
+        Set<String> visited = new HashSet<>();
+        Queue<String> queue = new LinkedList<>();
+        List<String> result = new ArrayList<>();
+
+        visited.add(start);
+        queue.offer(start);
+
+        while (!queue.isEmpty()) {
+            String node = queue.poll();
+            result.add(node);
+
+            for (String neighbor : graph.getOrDefault(node, new ArrayList<>())) {
+                if (!visited.contains(neighbor)) {
+                    visited.add(neighbor);
+                    queue.offer(neighbor);
+                }
+            }
+        }
+
+        return result;
+    }
+
+    public static void main(String[] args) {
+        BFS bfs = new BFS();
+        Map<String, List<String>> graph = new HashMap<>();
+        graph.put("A", Arrays.asList("B", "C"));
+        graph.put("B", Arrays.asList("D", "E"));
+        graph.put("C", Arrays.asList("F"));
+        graph.put("D", new ArrayList<>());
+        graph.put("E", new ArrayList<>());
+        graph.put("F", new ArrayList<>());
+
+        System.out.println(bfs.bfs(graph, "A"));
+        // [A, B, C, D, E, F]
+    }
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+#include <vector>
+#include <queue>
+#include <unordered_set>
+#include <unordered_map>
+using namespace std;
+
+/**
+ * BFS traversal of a graph.
+ *
+ * Time: O(V + E), Space: O(V)
+ */
+vector<string> bfs(unordered_map<string, vector<string>>& graph,
+                   const string& start) {
+    unordered_set<string> visited;
+    queue<string> q;
+    vector<string> result;
+
+    visited.insert(start);
+    q.push(start);
+
+    while (!q.empty()) {
+        string node = q.front();
+        q.pop();
+        result.push_back(node);
+
+        for (const string& neighbor : graph[node]) {
+            if (visited.find(neighbor) == visited.end()) {
+                visited.insert(neighbor);
+                q.push(neighbor);
+            }
+        }
+    }
+
+    return result;
+}
+
+// Usage
+int main() {
+    unordered_map<string, vector<string>> graph;
+    graph["A"] = {"B", "C"};
+    graph["B"] = {"D", "E"};
+    graph["C"] = {"F"};
+    graph["D"] = {};
+    graph["E"] = {};
+    graph["F"] = {};
+
+    vector<string> result = bfs(graph, "A");
+    // result: ["A", "B", "C", "D", "E", "F"]
+    return 0;
+}
+```
+  </TabItem>
+</Tabs>
+
+### 2. Level Order Traversal
+
+Process tree nodes level by level. This is BFS applied to trees, where we group nodes by their depth.
+
+**Visualization:**
+```
+Tree:        1
+           /   \
+          2     3
+         / \     \
+        4   5     6
+
+Level 0: [1]
+Level 1: [2, 3]
+Level 2: [4, 5, 6]
+
+Output: [[1], [2, 3], [4, 5, 6]]
+```
+
+<Tabs>
+  <TabItem label="Python">
+```python
+from collections import deque
+
+def level_order(root):
+    """
+    Return nodes grouped by level.
+
+    Key insight: Process all nodes at current level before
+    moving to the next level by tracking level_size.
+
+    Time: O(n) - visit each node once
+    Space: O(n) - queue can hold entire level (worst: n/2 nodes)
+    """
+    if not root:
+        return []
+
+    result = []
+    queue = deque([root])
+
+    while queue:
+        level_size = len(queue)  # Nodes at current level
+        current_level = []
+
+        # Process exactly level_size nodes
+        for _ in range(level_size):
+            node = queue.popleft()
+            current_level.append(node.val)
+
+            # Add children for next level
+            if node.left:
+                queue.append(node.left)
+            if node.right:
+                queue.append(node.right)
+
+        result.append(current_level)
+
+    return result
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function levelOrder(root) {
+  if (!root) return [];
+
+  const result = [];
+  const queue = [root];
+
+  while (queue.length > 0) {
+    const levelSize = queue.length;
+    const currentLevel = [];
+
+    for (let i = 0; i < levelSize; i++) {
+      const node = queue.shift();
+      currentLevel.push(node.val);
+
+      if (node.left) queue.push(node.left);
+      if (node.right) queue.push(node.right);
+    }
+
+    result.push(currentLevel);
+  }
+
+  return result;
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+public List<List<Integer>> levelOrder(TreeNode root) {
+    List<List<Integer>> result = new ArrayList<>();
+    if (root == null) return result;
+
+    Queue<TreeNode> queue = new LinkedList<>();
+    queue.offer(root);
+
+    while (!queue.isEmpty()) {
+        int levelSize = queue.size();
+        List<Integer> currentLevel = new ArrayList<>();
+
+        for (int i = 0; i < levelSize; i++) {
+            TreeNode node = queue.poll();
+            currentLevel.add(node.val);
+
+            if (node.left != null) queue.offer(node.left);
+            if (node.right != null) queue.offer(node.right);
+        }
+
+        result.add(currentLevel);
+    }
+
+    return result;
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+vector<vector<int>> levelOrder(TreeNode* root) {
+    vector<vector<int>> result;
+    if (!root) return result;
+
+    queue<TreeNode*> q;
+    q.push(root);
+
+    while (!q.empty()) {
+        int levelSize = q.size();
+        vector<int> currentLevel;
+
+        for (int i = 0; i < levelSize; i++) {
+            TreeNode* node = q.front();
+            q.pop();
+            currentLevel.push_back(node->val);
+
+            if (node->left) q.push(node->left);
+            if (node->right) q.push(node->right);
+        }
+
+        result.push_back(currentLevel);
+    }
+
+    return result;
+}
+```
+  </TabItem>
+</Tabs>
+
+### 3. Sliding Window Maximum
+
+Find the maximum in each sliding window of size k. Uses a **monotonic deque** to achieve O(n) time.
+
+**Key Insight:** Maintain a deque where elements are in decreasing order. The front is always the maximum of the current window.
+
+```
+nums = [1, 3, -1, -3, 5, 3, 6, 7], k = 3
+
+Window [1,3,-1]:   max=3   deque stores indices of [3,-1]
+Window [3,-1,-3]:  max=3   deque stores indices of [3,-1,-3]
+Window [-1,-3,5]:  max=5   deque stores indices of [5]
+Window [-3,5,3]:   max=5   deque stores indices of [5,3]
+Window [5,3,6]:    max=6   deque stores indices of [6]
+Window [3,6,7]:    max=7   deque stores indices of [7]
+
+Output: [3, 3, 5, 5, 6, 7]
+```
+
+<Tabs>
+  <TabItem label="Python">
+```python
+from collections import deque
+
+def max_sliding_window(nums: list, k: int) -> list:
+    """
+    Find maximum in each sliding window of size k.
+
+    Uses monotonic decreasing deque:
+    - Front of deque is always the maximum
+    - Remove elements smaller than current (they can't be max)
+    - Remove elements outside the window
+
+    Time: O(n) - each element added and removed at most once
+    Space: O(k) - deque holds at most k elements
+    """
+    result = []
+    dq = deque()  # Store INDICES, not values
+
+    for i, num in enumerate(nums):
+        # Remove indices that are outside the current window
+        while dq and dq[0] < i - k + 1:
+            dq.popleft()
+
+        # Remove indices of elements smaller than current
+        # They can never be the maximum while current is in window
+        while dq and nums[dq[-1]] < num:
+            dq.pop()
+
+        dq.append(i)
+
+        # Window is fully formed starting at index k-1
+        if i >= k - 1:
+            result.append(nums[dq[0]])  # Front is the max
+
+    return result
+
+# Example
+nums = [1, 3, -1, -3, 5, 3, 6, 7]
+print(max_sliding_window(nums, 3))  # [3, 3, 5, 5, 6, 7]
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function maxSlidingWindow(nums, k) {
+  const result = [];
+  const deque = []; // Store indices
+
+  for (let i = 0; i < nums.length; i++) {
+    // Remove indices outside window
+    while (deque.length && deque[0] < i - k + 1) {
+      deque.shift();
+    }
+
+    // Remove smaller elements
+    while (deque.length && nums[deque[deque.length - 1]] < nums[i]) {
+      deque.pop();
+    }
+
+    deque.push(i);
+
+    if (i >= k - 1) {
+      result.push(nums[deque[0]]);
+    }
+  }
+
+  return result;
+}
+
+console.log(maxSlidingWindow([1,3,-1,-3,5,3,6,7], 3));
+// [3, 3, 5, 5, 6, 7]
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+public int[] maxSlidingWindow(int[] nums, int k) {
+    int n = nums.length;
+    int[] result = new int[n - k + 1];
+    Deque<Integer> deque = new ArrayDeque<>(); // Store indices
+
+    for (int i = 0; i < n; i++) {
+        // Remove indices outside window
+        while (!deque.isEmpty() && deque.peekFirst() < i - k + 1) {
+            deque.pollFirst();
+        }
+
+        // Remove smaller elements
+        while (!deque.isEmpty() && nums[deque.peekLast()] < nums[i]) {
+            deque.pollLast();
+        }
+
+        deque.offerLast(i);
+
+        if (i >= k - 1) {
+            result[i - k + 1] = nums[deque.peekFirst()];
+        }
+    }
+
+    return result;
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+vector<int> maxSlidingWindow(vector<int>& nums, int k) {
+    vector<int> result;
+    deque<int> dq; // Store indices
+
+    for (int i = 0; i < nums.size(); i++) {
+        // Remove indices outside window
+        while (!dq.empty() && dq.front() < i - k + 1) {
+            dq.pop_front();
+        }
+
+        // Remove smaller elements
+        while (!dq.empty() && nums[dq.back()] < nums[i]) {
+            dq.pop_back();
+        }
+
+        dq.push_back(i);
+
+        if (i >= k - 1) {
+            result.push_back(nums[dq.front()]);
+        }
+    }
+
+    return result;
+}
+```
+  </TabItem>
+</Tabs>
+
+### 4. Implement Stack using Queues
+
+Classic interview problem demonstrating understanding of both data structures.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+from collections import deque
+
+class StackUsingQueues:
+    """
+    Implement stack using a single queue.
+
+    Push: O(n) - rotate queue to put new element at front
+    Pop/Top: O(1)
+    """
+    def __init__(self):
+        self.q = deque()
+
+    def push(self, x: int):
+        self.q.append(x)
+        # Rotate queue: move all elements before x to after x
+        for _ in range(len(self.q) - 1):
+            self.q.append(self.q.popleft())
+
+    def pop(self) -> int:
+        return self.q.popleft()
+
+    def top(self) -> int:
+        return self.q[0]
+
+    def empty(self) -> bool:
+        return len(self.q) == 0
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+class StackUsingQueues {
+  constructor() {
+    this.queue = [];
+  }
+
+  push(x) {
+    this.queue.push(x);
+    // Rotate to put new element at front
+    for (let i = 0; i < this.queue.length - 1; i++) {
+      this.queue.push(this.queue.shift());
+    }
+  }
+
+  pop() {
+    return this.queue.shift();
+  }
+
+  top() {
+    return this.queue[0];
+  }
+
+  empty() {
+    return this.queue.length === 0;
+  }
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+class StackUsingQueues {
+    private Queue<Integer> queue = new LinkedList<>();
+
+    public void push(int x) {
+        queue.offer(x);
+        for (int i = 0; i < queue.size() - 1; i++) {
+            queue.offer(queue.poll());
+        }
+    }
+
+    public int pop() {
+        return queue.poll();
+    }
+
+    public int top() {
+        return queue.peek();
+    }
+
+    public boolean empty() {
+        return queue.isEmpty();
+    }
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+class StackUsingQueues {
+private:
+    queue<int> q;
+
+public:
+    void push(int x) {
+        q.push(x);
+        for (int i = 0; i < q.size() - 1; i++) {
+            q.push(q.front());
+            q.pop();
+        }
+    }
+
+    int pop() {
+        int val = q.front();
+        q.pop();
+        return val;
+    }
+
+    int top() {
+        return q.front();
+    }
+
+    bool empty() {
+        return q.empty();
+    }
+};
+```
+  </TabItem>
+</Tabs>
+
+### 5. Rotting Oranges (Multi-source BFS)
+
+A classic BFS problem where we start from multiple sources simultaneously.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+from collections import deque
+
+def oranges_rotting(grid):
+    """
+    Find minimum time to rot all oranges.
+    Multi-source BFS: start from all rotten oranges at once.
+
+    Time: O(m*n), Space: O(m*n)
+    """
+    rows, cols = len(grid), len(grid[0])
+    queue = deque()
+    fresh = 0
+
+    # Find all rotten oranges and count fresh
+    for r in range(rows):
+        for c in range(cols):
+            if grid[r][c] == 2:
+                queue.append((r, c, 0))  # (row, col, time)
+            elif grid[r][c] == 1:
+                fresh += 1
+
+    directions = [(0, 1), (0, -1), (1, 0), (-1, 0)]
+    time = 0
+
+    while queue:
+        r, c, time = queue.popleft()
+
+        for dr, dc in directions:
+            nr, nc = r + dr, c + dc
+            if 0 <= nr < rows and 0 <= nc < cols and grid[nr][nc] == 1:
+                grid[nr][nc] = 2
+                fresh -= 1
+                queue.append((nr, nc, time + 1))
+
+    return time if fresh == 0 else -1
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+function orangesRotting(grid) {
+  const rows = grid.length, cols = grid[0].length;
+  const queue = [];
+  let fresh = 0;
+
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (grid[r][c] === 2) queue.push([r, c, 0]);
+      else if (grid[r][c] === 1) fresh++;
+    }
+  }
+
+  const dirs = [[0,1], [0,-1], [1,0], [-1,0]];
+  let time = 0;
+
+  while (queue.length) {
+    const [r, c, t] = queue.shift();
+    time = t;
+
+    for (const [dr, dc] of dirs) {
+      const nr = r + dr, nc = c + dc;
+      if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && grid[nr][nc] === 1) {
+        grid[nr][nc] = 2;
+        fresh--;
+        queue.push([nr, nc, t + 1]);
+      }
+    }
+  }
+
+  return fresh === 0 ? time : -1;
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+public int orangesRotting(int[][] grid) {
+    int rows = grid.length, cols = grid[0].length;
+    Queue<int[]> queue = new LinkedList<>();
+    int fresh = 0;
+
+    for (int r = 0; r < rows; r++) {
+        for (int c = 0; c < cols; c++) {
+            if (grid[r][c] == 2) queue.offer(new int[]{r, c, 0});
+            else if (grid[r][c] == 1) fresh++;
+        }
+    }
+
+    int[][] dirs = {{0,1}, {0,-1}, {1,0}, {-1,0}};
+    int time = 0;
+
+    while (!queue.isEmpty()) {
+        int[] curr = queue.poll();
+        int r = curr[0], c = curr[1];
+        time = curr[2];
+
+        for (int[] d : dirs) {
+            int nr = r + d[0], nc = c + d[1];
+            if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && grid[nr][nc] == 1) {
+                grid[nr][nc] = 2;
+                fresh--;
+                queue.offer(new int[]{nr, nc, time + 1});
+            }
+        }
+    }
+
+    return fresh == 0 ? time : -1;
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+int orangesRotting(vector<vector<int>>& grid) {
+    int rows = grid.size(), cols = grid[0].size();
+    queue<tuple<int, int, int>> q;
+    int fresh = 0;
+
+    for (int r = 0; r < rows; r++) {
+        for (int c = 0; c < cols; c++) {
+            if (grid[r][c] == 2) q.push({r, c, 0});
+            else if (grid[r][c] == 1) fresh++;
+        }
+    }
+
+    vector<pair<int,int>> dirs = {{0,1}, {0,-1}, {1,0}, {-1,0}};
+    int time = 0;
+
+    while (!q.empty()) {
+        auto [r, c, t] = q.front();
+        q.pop();
+        time = t;
+
+        for (auto [dr, dc] : dirs) {
+            int nr = r + dr, nc = c + dc;
+            if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && grid[nr][nc] == 1) {
+                grid[nr][nc] = 2;
+                fresh--;
+                q.push({nr, nc, t + 1});
+            }
+        }
+    }
+
+    return fresh == 0 ? time : -1;
+}
+```
+  </TabItem>
+</Tabs>
+
+## Applications
+
+1. **BFS Traversal** - Graphs, trees, shortest path in unweighted graphs
+2. **Task Scheduling** - CPU scheduling, print spooling
+3. **Message Queues** - Kafka, RabbitMQ, async processing
+4. **Buffering** - IO buffers, streaming data
+5. **Caching** - LRU cache implementation
+6. **Rate Limiting** - Request throttling
+
+## Practice Problems
+
+### Easy
+| Problem | Pattern | Companies |
+|---------|---------|-----------|
+| Implement Queue using Stacks | Two Stacks | Amazon, Apple |
+| Number of Recent Calls | Sliding Window | Amazon |
+| Moving Average from Data Stream | Circular Queue | Meta, Google |
+
+### Medium
+| Problem | Pattern | Companies |
+|---------|---------|-----------|
+| Design Circular Queue | Circular Buffer | Amazon |
+| Task Scheduler | Priority Queue | Meta, Amazon |
+| Rotting Oranges | Multi-source BFS | Amazon, Microsoft |
+| Open the Lock | BFS | Google, Amazon |
+
+### Hard
+| Problem | Pattern | Companies |
+|---------|---------|-----------|
+| Sliding Window Maximum | Monotonic Deque | Amazon, Google |
+| Design Hit Counter | Circular Queue | Meta, Google |
+| Shortest Path in Grid with Obstacles | BFS + State | Google |
+
+## Key Takeaways
+
+1. **FIFO principle** - First in, first out
+2. **Use deque** - Avoid O(n) shift operations with arrays
+3. **BFS foundation** - Essential for level-order traversal
+4. **Circular queue** - Fixed-size buffer with wraparound
+5. **Priority queue** - Process by importance, not order
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="Hash Tables"
+    href="/dsa/hash-tables/"
+    description="Learn about O(1) lookups with hash functions"
+  />
+  <LinkCard
+    title="Graphs"
+    href="/dsa/graphs/"
+    description="Apply BFS for graph traversal and shortest paths"
+  />
+</CardGrid>

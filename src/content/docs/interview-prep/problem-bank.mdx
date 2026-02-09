@@ -1,0 +1,281 @@
+---
+title: Problem Bank
+description: 76 must-solve coding problems organized by topic, difficulty, and pattern with key insights for each
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+This curated list of 76 problems covers the most frequently tested topics and patterns in software engineering interviews. Solving these problems will give you strong coverage of the concepts that appear at Google, Meta, Amazon, Apple, Microsoft, and other top companies.
+
+## How to Use This Problem Bank
+
+1. **Work through topics in order** -- they build on each other
+2. **Solve Easy problems first** within each topic before attempting Medium
+3. **For each problem**: read the description, try it yourself for 20-30 minutes, then study the solution
+4. **Note the pattern** -- connecting problems to patterns is more valuable than memorizing solutions
+5. **Revisit problems** you struggled with after 3 days, then again after 7 days
+
+### Difficulty Guide
+
+| Difficulty | Target Time | What It Tests |
+|-----------|------------|---------------|
+| **Easy** | 10-15 min | Core concept, single pattern |
+| **Medium** | 20-30 min | Pattern combination, edge cases, optimization |
+| **Hard** | 30-45 min | Multiple patterns, complex logic, creative insight |
+
+### Progress Tracker
+
+| Topic | Total | Easy | Medium | Hard |
+|-------|-------|------|--------|------|
+| Arrays and Hashing | 9 | 3 | 5 | 1 |
+| Two Pointers | 5 | 1 | 3 | 1 |
+| Sliding Window | 4 | 1 | 2 | 1 |
+| Stack | 4 | 1 | 2 | 1 |
+| Binary Search | 5 | 1 | 3 | 1 |
+| Linked Lists | 6 | 2 | 3 | 1 |
+| Trees | 9 | 3 | 4 | 2 |
+| Graphs | 7 | 0 | 5 | 2 |
+| Dynamic Programming | 11 | 2 | 6 | 3 |
+| Backtracking | 4 | 0 | 3 | 1 |
+| Greedy | 4 | 1 | 3 | 0 |
+| Intervals | 3 | 1 | 2 | 0 |
+| Heap / Priority Queue | 2 | 0 | 1 | 1 |
+| Bit Manipulation | 2 | 2 | 0 | 0 |
+| **Total** | **76** | **18** | **43** | **15** |
+
+---
+
+## Arrays and Hashing
+
+| # | Problem | Difficulty | Pattern | Key Insight |
+|---|---------|-----------|---------|-------------|
+| 1 | Two Sum | Easy | Hash Map | Store complement in a hash map for O(1) lookup. One-pass: check before inserting. |
+| 2 | Contains Duplicate | Easy | Hash Set | Insert into a set; if insertion fails, a duplicate exists. O(n) time, O(n) space. |
+| 3 | Valid Anagram | Easy | Hash Map / Sorting | Compare character frequency counts. Sorting works in O(n log n); counting in O(n). |
+| 4 | Group Anagrams | Medium | Hash Map | Use sorted characters (or character count tuple) as the hash key to group words. |
+| 5 | Top K Frequent Elements | Medium | Hash Map + Heap | Count frequencies with a hash map, then use a min-heap of size k or bucket sort for O(n). |
+| 6 | Product of Array Except Self | Medium | Prefix/Suffix | Build prefix products left-to-right, then suffix products right-to-left. Avoids division. |
+| 7 | Encode and Decode Strings | Medium | String Encoding | Use a length-prefixed encoding like "4#word" to handle any character, including delimiters. |
+| 8 | Longest Consecutive Sequence | Medium | Hash Set | Put all numbers in a set. For each number that has no predecessor (num-1 not in set), count the streak. |
+| 9 | First Missing Positive | Hard | Index as Hash | Place each number at its correct index (num at index num-1). Then scan for the first mismatch. |
+
+---
+
+## Two Pointers
+
+| # | Problem | Difficulty | Pattern | Key Insight |
+|---|---------|-----------|---------|-------------|
+| 10 | Valid Palindrome | Easy | Two Pointers (inward) | Compare characters from both ends, skipping non-alphanumeric characters. |
+| 11 | Two Sum II (Sorted) | Medium | Two Pointers (inward) | Left and right pointers move inward. Sum too small? Move left. Too large? Move right. |
+| 12 | 3Sum | Medium | Sort + Two Pointers | Sort the array. Fix one element, use two pointers for the remaining pair. Skip duplicates carefully. |
+| 13 | Container With Most Water | Medium | Two Pointers (inward) | Start at widest container. Move the shorter wall inward since that is the only way to potentially increase area. |
+| 14 | Trapping Rain Water | Hard | Two Pointers / Stack | Track max-left and max-right as you move inward. Water at each position = min(maxL, maxR) - height. |
+
+---
+
+## Sliding Window
+
+| # | Problem | Difficulty | Pattern | Key Insight |
+|---|---------|-----------|---------|-------------|
+| 15 | Best Time to Buy and Sell Stock | Easy | Sliding Window / Kadane | Track the minimum price so far. At each price, check if selling yields a new max profit. |
+| 16 | Longest Substring Without Repeating Characters | Medium | Variable Window + Set | Expand right. When a duplicate is found, shrink left until the window is valid again. |
+| 17 | Longest Repeating Character Replacement | Medium | Variable Window + Count | Window is valid when `window_size - max_frequency <= k`. Shrink left when invalid. |
+| 18 | Minimum Window Substring | Hard | Variable Window + Map | Expand right to include all required characters, then shrink left to find the minimum valid window. |
+
+---
+
+## Stack
+
+| # | Problem | Difficulty | Pattern | Key Insight |
+|---|---------|-----------|---------|-------------|
+| 19 | Valid Parentheses | Easy | Stack | Push opening brackets. Pop and compare for closing brackets. Stack must be empty at the end. |
+| 20 | Min Stack | Medium | Two Stacks | Maintain a parallel stack tracking the minimum at each level. O(1) getMin. |
+| 21 | Daily Temperatures | Medium | Monotonic Stack | Maintain a decreasing stack of indices. When a warmer day is found, pop and calculate distance. |
+| 22 | Largest Rectangle in Histogram | Hard | Monotonic Stack | Maintain an increasing stack of heights. When a shorter bar is found, calculate areas by popping. |
+
+---
+
+## Binary Search
+
+| # | Problem | Difficulty | Pattern | Key Insight |
+|---|---------|-----------|---------|-------------|
+| 23 | Binary Search | Easy | Standard Binary Search | Classic `left <= right` loop. Compare mid with target. Adjust left or right accordingly. |
+| 24 | Search a 2D Matrix | Medium | Binary Search | Treat the 2D matrix as a flattened 1D array. Convert index with row = mid // cols, col = mid % cols. |
+| 25 | Koko Eating Bananas | Medium | Binary Search on Answer | Binary search on eating speed k from 1 to max(piles). Check if she can finish in h hours at speed k. |
+| 26 | Search in Rotated Sorted Array | Medium | Modified Binary Search | Determine which half is sorted. Check if target lies in the sorted half. Adjust pointers. |
+| 27 | Median of Two Sorted Arrays | Hard | Binary Search on Partition | Binary search on the shorter array. Partition both arrays so left halves contain the smaller elements. |
+
+---
+
+## Linked Lists
+
+| # | Problem | Difficulty | Pattern | Key Insight |
+|---|---------|-----------|---------|-------------|
+| 28 | Reverse Linked List | Easy | Iterative Reversal | Maintain three pointers: prev, curr, next. Redirect arrows one by one. |
+| 29 | Merge Two Sorted Lists | Easy | Dummy Head + Compare | Use a dummy node to simplify edge cases. Compare heads, attach the smaller one, advance that pointer. |
+| 30 | Linked List Cycle | Medium | Fast/Slow Pointers | Fast moves 2 steps, slow moves 1. If they meet, there is a cycle. If fast reaches null, no cycle. |
+| 31 | Reorder List | Medium | Find Middle + Reverse + Merge | Split at middle using fast/slow. Reverse the second half. Interleave the two halves. |
+| 32 | Remove Nth Node From End | Medium | Two Pointers with Gap | Advance fast pointer n steps ahead. Then move both until fast reaches the end. Slow is at the target. |
+| 33 | Merge K Sorted Lists | Hard | Heap + Merge | Push the head of each list into a min-heap. Pop the smallest, add its next to the heap. |
+
+---
+
+## Trees
+
+| # | Problem | Difficulty | Pattern | Key Insight |
+|---|---------|-----------|---------|-------------|
+| 34 | Invert Binary Tree | Easy | DFS (Recursive) | Swap left and right children at every node, then recurse on both subtrees. |
+| 35 | Maximum Depth of Binary Tree | Easy | DFS | Base case: null node returns 0. Return 1 + max(depth of left, depth of right). |
+| 36 | Same Tree | Easy | DFS (Simultaneous) | Compare values at each node. Recurse on left-left and right-right. Both null = equal, one null = not equal. |
+| 37 | Subtree of Another Tree | Medium | DFS + Same Tree | For each node in the main tree, check if the subtree rooted there is identical to the target tree. |
+| 38 | Lowest Common Ancestor of BST | Medium | BST Property | If both values are smaller, go left. Both larger, go right. Otherwise, current node is the LCA. |
+| 39 | Binary Tree Level Order Traversal | Medium | BFS | Use a queue. Process all nodes at current level, then add their children for the next level. |
+| 40 | Validate BST | Medium | DFS + Range | Pass min/max bounds down. Each node must be within its valid range. Update bounds on recursion. |
+| 41 | Binary Tree Maximum Path Sum | Hard | DFS + Global Max | At each node, compute the max "arm" (node + best child). Update global max with node + both arms. |
+| 42 | Serialize and Deserialize Binary Tree | Hard | BFS or Preorder DFS | Use preorder with null markers. Serialize: DFS writing values. Deserialize: read values and rebuild. |
+
+---
+
+## Graphs
+
+| # | Problem | Difficulty | Pattern | Key Insight |
+|---|---------|-----------|---------|-------------|
+| 43 | Number of Islands | Medium | DFS/BFS on Grid | For each unvisited land cell, run DFS/BFS to mark the entire island. Count the number of DFS/BFS calls. |
+| 44 | Clone Graph | Medium | BFS/DFS + Hash Map | Use a hash map from original node to clone. BFS/DFS: clone neighbors lazily, linking clones together. |
+| 45 | Pacific Atlantic Water Flow | Medium | Reverse DFS/BFS | Instead of flowing from each cell, start BFS from ocean borders. Find cells reachable from both oceans. |
+| 46 | Course Schedule | Medium | Topological Sort / DFS | Model courses as a directed graph. If a cycle exists (via DFS coloring or topo sort failure), return false. |
+| 47 | Course Schedule II | Medium | Topological Sort (Kahn) | BFS with in-degree tracking. Process nodes with in-degree 0. If all nodes processed, return the order. |
+| 48 | Word Ladder | Hard | BFS | Each word is a node. Connect words differing by one letter. BFS from beginWord finds the shortest path. |
+| 49 | Alien Dictionary | Hard | Topological Sort | Compare adjacent words to extract ordering edges. Run topological sort. Detect cycles for invalid orderings. |
+
+---
+
+## Dynamic Programming
+
+| # | Problem | Difficulty | Pattern | Key Insight |
+|---|---------|-----------|---------|-------------|
+| 50 | Climbing Stairs | Easy | 1D DP (Fibonacci) | dp[i] = dp[i-1] + dp[i-2]. You can reach step i from step i-1 or i-2. |
+| 51 | House Robber | Easy | 1D DP | dp[i] = max(dp[i-1], dp[i-2] + nums[i]). At each house, choose to rob it or skip it. |
+| 52 | Coin Change | Medium | 1D DP (Unbounded Knapsack) | dp[amount] = min coins to make that amount. For each coin, dp[a] = min(dp[a], dp[a-coin] + 1). |
+| 53 | Longest Increasing Subsequence | Medium | 1D DP / Binary Search | DP: dp[i] = longest ending at i. O(n log n): maintain a tails array and binary search for insertion point. |
+| 54 | Word Break | Medium | 1D DP + Set | dp[i] = true if s[0:i] can be segmented. Check all `j < i`: dp[j] and s[j:i] in dictionary. |
+| 55 | Unique Paths | Medium | 2D DP | dp[i][j] = dp[i-1][j] + dp[i][j-1]. Only move right or down. Can optimize to 1D array. |
+| 56 | Longest Common Subsequence | Medium | 2D DP | If chars match, dp[i][j] = dp[i-1][j-1] + 1. Else, dp[i][j] = max(dp[i-1][j], dp[i][j-1]). |
+| 57 | Decode Ways | Medium | 1D DP | dp[i] = ways to decode s[0:i]. Single digit valid? Add dp[i-1]. Two digits valid? Add dp[i-2]. |
+| 58 | 0/1 Knapsack | Medium | 2D DP | dp[i][w] = max value using first i items with capacity w. Include or exclude each item. |
+| 59 | Edit Distance | Hard | 2D DP | dp[i][j] = min ops to convert word1[0:i] to word2[0:j]. Insert, delete, or replace are the three choices. |
+| 60 | Longest Palindromic Substring | Hard | 2D DP / Expand Around Center | Expand around each center (single char and between chars). Track the longest found. O(n^2) time, O(1) space. |
+| 61 | Burst Balloons | Hard | Interval DP | dp[l][r] = max coins from popping balloons between l and r. Choose the last balloon to pop in the range. |
+
+---
+
+## Backtracking
+
+| # | Problem | Difficulty | Pattern | Key Insight |
+|---|---------|-----------|---------|-------------|
+| 62 | Subsets | Medium | Backtracking | At each element, choose to include or exclude it. Generates all 2^n subsets. |
+| 63 | Combination Sum | Medium | Backtracking + Pruning | Sort candidates. For each candidate, either use it again (allow reuse) or move to next. Prune when sum exceeds target. |
+| 64 | Permutations | Medium | Backtracking | At each position, try every unused element. Swap or use a visited set to track used elements. |
+| 65 | Word Search | Hard | DFS Backtracking on Grid | From each cell matching the first letter, DFS in 4 directions. Mark cells visited during search, unmark on backtrack. |
+
+---
+
+## Greedy
+
+| # | Problem | Difficulty | Pattern | Key Insight |
+|---|---------|-----------|---------|-------------|
+| 66 | Maximum Subarray (Kadane) | Easy | Greedy / DP | At each element, either extend the current subarray or start a new one. current = max(num, current + num). |
+| 67 | Jump Game | Medium | Greedy | Track the farthest reachable index. If you reach a position beyond farthest, return false. |
+| 68 | Gas Station | Medium | Greedy | If total gas >= total cost, a solution exists. Start from the station after the one where running sum goes negative. |
+| 69 | Hand of Straights | Medium | Greedy + Hash Map | Sort cards. For each smallest card, try to form a group of W consecutive. Use a frequency map to check availability. |
+
+---
+
+## Intervals
+
+| # | Problem | Difficulty | Pattern | Key Insight |
+|---|---------|-----------|---------|-------------|
+| 70 | Meeting Rooms | Easy | Sort + Scan | Sort by start time. If any interval overlaps with the previous one, return false. |
+| 71 | Merge Intervals | Medium | Sort + Merge | Sort by start time. If current overlaps with last merged, extend the end. Otherwise, add a new interval. |
+| 72 | Non-Overlapping Intervals | Medium | Greedy | Sort by end time. Greedily keep intervals with earliest end. Count removed overlaps. |
+
+---
+
+## Heap / Priority Queue
+
+| # | Problem | Difficulty | Pattern | Key Insight |
+|---|---------|-----------|---------|-------------|
+| 73 | Kth Largest Element in Array | Medium | Min-Heap of Size K | Maintain a min-heap of size k. After processing all elements, the heap top is the kth largest. Also solvable with Quickselect in O(n) average. |
+| 74 | Find Median from Data Stream | Hard | Two Heaps | Use a max-heap for the lower half and a min-heap for the upper half. Balance sizes so they differ by at most 1. Median is the top of the larger heap (or average of both tops). |
+
+---
+
+## Bit Manipulation
+
+| # | Problem | Difficulty | Pattern | Key Insight |
+|---|---------|-----------|---------|-------------|
+| 75 | Single Number | Easy | XOR | XOR all elements. Pairs cancel out (a ^ a = 0). The remaining value is the unique element. |
+| 76 | Number of 1 Bits | Easy | Bit Clearing | Use n & (n-1) to clear the lowest set bit. Count iterations until n becomes 0. |
+
+---
+
+## Study Order Recommendation
+
+For maximum efficiency, solve the problems in this order. Each phase builds on the skills developed in the previous one.
+
+### Phase 1: Fundamentals (Week 1-2)
+
+Solve problems 1-9 (Arrays and Hashing), 10-14 (Two Pointers), and 15-18 (Sliding Window). These patterns form the foundation and appear in nearly every interview.
+
+### Phase 2: Core Data Structures (Week 3-4)
+
+Solve problems 19-22 (Stack), 23-27 (Binary Search), and 28-33 (Linked Lists). These test your ability to use data structures appropriately and implement pointer manipulation.
+
+### Phase 3: Trees and Graphs (Week 5-6)
+
+Solve problems 34-42 (Trees) and 43-49 (Graphs). Tree and graph problems are the most frequently tested category at top companies. Master DFS, BFS, and topological sort.
+
+### Phase 4: Advanced Patterns (Week 7-8)
+
+Solve problems 50-61 (Dynamic Programming), 62-65 (Backtracking), and 66-76 (Greedy, Intervals, Heap, Bit Manipulation). DP is the hardest category. Start with easy DP problems and work up gradually.
+
+---
+
+## Patterns by Frequency in Interviews
+
+Based on aggregated data from interview reports, here is how often each pattern appears:
+
+| Pattern | Frequency | Priority |
+|---------|-----------|----------|
+| Arrays + Hash Map | Very High | Must master first |
+| Trees (DFS/BFS) | Very High | Must master |
+| Two Pointers | High | Must master |
+| Sliding Window | High | Must master |
+| Binary Search | High | Must master |
+| Dynamic Programming | High | Must master (medium problems at minimum) |
+| Graphs | Medium-High | Important for top companies |
+| Stack | Medium | Important |
+| Linked Lists | Medium | Important |
+| Backtracking | Medium | Important for combinations/permutations |
+| Greedy | Medium | Important |
+| Heap | Medium | Focus on Top-K problems |
+| Intervals | Medium-Low | 2-3 problems are enough |
+| Bit Manipulation | Low | Know the basics |
+| Union-Find | Low | Know the template |
+
+---
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="Coding Interview Guide"
+    href="/interview-prep/coding-interviews/"
+    description="Study the 15 coding patterns with template code and detailed explanations"
+  />
+  <LinkCard
+    title="Behavioral Interview Guide"
+    href="/interview-prep/behavioral/"
+    description="Prepare STAR stories and practice the top 20 behavioral questions"
+  />
+</CardGrid>

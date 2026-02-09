@@ -1,0 +1,1174 @@
+---
+title: Creational Design Patterns
+description: Master Singleton, Factory Method, Abstract Factory, Builder, and Prototype patterns with Python and TypeScript examples
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+Creational patterns abstract the instantiation process. They help make a system independent of how its objects are created, composed, and represented. Instead of hard-coding which concrete classes get instantiated, creational patterns give you flexibility to decide what gets created, who creates it, how it gets created, and when.
+
+---
+
+## Singleton
+
+### Intent
+
+Ensure a class has exactly **one instance** and provide a global point of access to it.
+
+### Problem
+
+Some resources should exist as a single shared instance: a database connection pool, a logging service, an application configuration manager. If multiple instances were created, they could lead to conflicting state, wasted resources, or inconsistent behavior.
+
+### Solution
+
+Make the class itself responsible for tracking its sole instance. The class must ensure that no other instance can be created and provide a way to access the instance.
+
+### Structure
+
+```
+┌─────────────────────────────┐
+│         Singleton           │
+├─────────────────────────────┤
+│ - instance: Singleton       │
+├─────────────────────────────┤
+│ - __init__()                │
+│ + get_instance(): Singleton │
+│ + business_logic()          │
+└─────────────────────────────┘
+
+Client ────► Singleton.get_instance()
+                  │
+                  ▼
+          ┌───────────────┐
+          │ Same instance │
+          │ every time    │
+          └───────────────┘
+```
+
+### Code Examples
+
+<Tabs>
+  <TabItem label="Python">
+```python
+import threading
+
+
+class Singleton:
+    """Thread-safe Singleton using a lock."""
+    _instance = None
+    _lock = threading.Lock()
+
+    def __new__(cls, *args, **kwargs):
+        if cls._instance is None:
+            with cls._lock:
+                # Double-checked locking pattern
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
+        return cls._instance
+
+    def __init__(self):
+        # Guard against re-initialization
+        if not hasattr(self, '_initialized'):
+            self._initialized = True
+            self.settings = {}
+
+    def set(self, key: str, value: str) -> None:
+        self.settings[key] = value
+
+    def get(self, key: str) -> str | None:
+        return self.settings.get(key)
+
+
+# Usage
+config_a = Singleton()
+config_b = Singleton()
+config_a.set("db_host", "localhost")
+print(config_b.get("db_host"))  # "localhost"
+print(config_a is config_b)     # True
+
+
+# Alternative: Module-level singleton (Pythonic approach)
+# Simply use a module-level instance. Python modules are
+# imported once and cached, making them natural singletons.
+class _AppConfig:
+    def __init__(self):
+        self.settings = {}
+
+    def set(self, key: str, value: str) -> None:
+        self.settings[key] = value
+
+    def get(self, key: str) -> str | None:
+        return self.settings.get(key)
+
+app_config = _AppConfig()  # Module-level singleton
+```
+  </TabItem>
+  <TabItem label="TypeScript">
+```typescript
+class Singleton {
+  private static instance: Singleton;
+  private settings: Map<string, string>;
+
+  // Private constructor prevents direct instantiation
+  private constructor() {
+    this.settings = new Map();
+  }
+
+  public static getInstance(): Singleton {
+    if (!Singleton.instance) {
+      Singleton.instance = new Singleton();
+    }
+    return Singleton.instance;
+  }
+
+  public set(key: string, value: string): void {
+    this.settings.set(key, value);
+  }
+
+  public get(key: string): string | undefined {
+    return this.settings.get(key);
+  }
+}
+
+// Usage
+const configA = Singleton.getInstance();
+const configB = Singleton.getInstance();
+configA.set("db_host", "localhost");
+console.log(configB.get("db_host")); // "localhost"
+console.log(configA === configB);     // true
+
+
+// Alternative: Module-level singleton (idiomatic TypeScript)
+// Export a single instance from a module. ES modules are
+// evaluated once, so the instance is naturally a singleton.
+class AppConfig {
+  private settings = new Map<string, string>();
+
+  set(key: string, value: string): void {
+    this.settings.set(key, value);
+  }
+
+  get(key: string): string | undefined {
+    return this.settings.get(key);
+  }
+}
+
+export const appConfig = new AppConfig();
+```
+  </TabItem>
+</Tabs>
+
+### Thread Safety Considerations
+
+| Approach | Thread-Safe? | Performance |
+|----------|-------------|-------------|
+| Eager initialization | Yes | Instance created even if unused |
+| Lazy with lock | Yes | Lock overhead on every access |
+| Double-checked locking | Yes | Lock only on first creation |
+| Module-level (Python/TS) | Yes* | Best -- language handles it |
+
+*Python's GIL provides some protection, but explicit locking is still recommended for complex initialization.
+
+### When to Use
+
+- Exactly one instance of a class is required (config, logging, cache)
+- Controlled access to a shared resource (connection pool, thread pool)
+- You need a global access point but want to avoid global variables
+
+### Pros and Cons
+
+| Pros | Cons |
+|------|------|
+| Controlled access to sole instance | Violates Single Responsibility Principle |
+| Reduced namespace pollution vs globals | Makes unit testing harder (global state) |
+| Lazy initialization is possible | Can mask poor design (hidden dependencies) |
+| Subclassing allows flexible configuration | Tight coupling to the Singleton class |
+
+### Real-World Usage
+
+- **Python `logging`**: The `logging.getLogger(name)` returns the same logger instance for the same name
+- **Database connection pools**: SQLAlchemy's `create_engine` with pooling
+- **TypeScript/Node.js**: Module exports are cached singletons by default
+
+---
+
+## Factory Method
+
+### Intent
+
+Define an interface for creating an object, but **let subclasses decide** which class to instantiate. Factory Method lets a class defer instantiation to subclasses.
+
+### Problem
+
+A logistics application initially only handles truck transport. Over time, you need to add sea transport, air transport, etc. If creation logic is embedded directly in business code, adding each new transport type requires modifying existing code, violating the Open/Closed Principle.
+
+### Solution
+
+Replace direct object construction calls with calls to a special factory method. Subclasses can override the factory method to change the class of objects being created.
+
+### Structure
+
+```
+┌──────────────────────┐       ┌──────────────────┐
+│    Creator           │       │    Product        │
+│  (abstract)          │       │  (interface)      │
+├──────────────────────┤       ├──────────────────┤
+│ + factory_method()   │──────►│ + operation()    │
+│ + some_operation()   │       └──────────────────┘
+└──────────┬───────────┘               ▲
+           │                           │
+    ┌──────┴──────┐             ┌──────┴──────┐
+    │             │             │             │
+┌───┴────┐  ┌────┴───┐   ┌────┴───┐  ┌─────┴────┐
+│ConcreteA│  │ConcreteB│   │ProductA│  │ ProductB │
+│Creator │  │Creator  │   │        │  │          │
+└────────┘  └────────┘   └────────┘  └──────────┘
+```
+
+### Code Examples
+
+<Tabs>
+  <TabItem label="Python">
+```python
+from abc import ABC, abstractmethod
+
+
+# Product interface
+class Notification(ABC):
+    @abstractmethod
+    def send(self, message: str) -> str:
+        pass
+
+
+# Concrete products
+class EmailNotification(Notification):
+    def __init__(self, recipient: str):
+        self.recipient = recipient
+
+    def send(self, message: str) -> str:
+        return f"Email to {self.recipient}: {message}"
+
+
+class SMSNotification(Notification):
+    def __init__(self, phone: str):
+        self.phone = phone
+
+    def send(self, message: str) -> str:
+        return f"SMS to {self.phone}: {message}"
+
+
+class PushNotification(Notification):
+    def __init__(self, device_id: str):
+        self.device_id = device_id
+
+    def send(self, message: str) -> str:
+        return f"Push to {self.device_id}: {message}"
+
+
+# Creator (abstract)
+class NotificationFactory(ABC):
+    @abstractmethod
+    def create_notification(self, target: str) -> Notification:
+        """Factory method -- subclasses decide what to create."""
+        pass
+
+    def notify(self, target: str, message: str) -> str:
+        """Business logic that uses the factory method."""
+        notification = self.create_notification(target)
+        return notification.send(message)
+
+
+# Concrete creators
+class EmailFactory(NotificationFactory):
+    def create_notification(self, target: str) -> Notification:
+        return EmailNotification(target)
+
+
+class SMSFactory(NotificationFactory):
+    def create_notification(self, target: str) -> Notification:
+        return SMSNotification(target)
+
+
+class PushFactory(NotificationFactory):
+    def create_notification(self, target: str) -> Notification:
+        return PushNotification(target)
+
+
+# Usage
+factories = {
+    "email": EmailFactory(),
+    "sms": SMSFactory(),
+    "push": PushFactory(),
+}
+
+channel = "email"
+result = factories[channel].notify("user@example.com", "Hello!")
+print(result)  # "Email to user@example.com: Hello!"
+```
+  </TabItem>
+  <TabItem label="TypeScript">
+```typescript
+// Product interface
+interface Notification {
+  send(message: string): string;
+}
+
+// Concrete products
+class EmailNotification implements Notification {
+  constructor(private recipient: string) {}
+
+  send(message: string): string {
+    return `Email to ${this.recipient}: ${message}`;
+  }
+}
+
+class SMSNotification implements Notification {
+  constructor(private phone: string) {}
+
+  send(message: string): string {
+    return `SMS to ${this.phone}: ${message}`;
+  }
+}
+
+class PushNotification implements Notification {
+  constructor(private deviceId: string) {}
+
+  send(message: string): string {
+    return `Push to ${this.deviceId}: ${message}`;
+  }
+}
+
+// Creator (abstract)
+abstract class NotificationFactory {
+  // Factory method -- subclasses decide what to create
+  abstract createNotification(target: string): Notification;
+
+  // Business logic that uses the factory method
+  notify(target: string, message: string): string {
+    const notification = this.createNotification(target);
+    return notification.send(message);
+  }
+}
+
+// Concrete creators
+class EmailFactory extends NotificationFactory {
+  createNotification(target: string): Notification {
+    return new EmailNotification(target);
+  }
+}
+
+class SMSFactory extends NotificationFactory {
+  createNotification(target: string): Notification {
+    return new SMSNotification(target);
+  }
+}
+
+class PushFactory extends NotificationFactory {
+  createNotification(target: string): Notification {
+    return new PushNotification(target);
+  }
+}
+
+// Usage
+const factories: Record<string, NotificationFactory> = {
+  email: new EmailFactory(),
+  sms: new SMSFactory(),
+  push: new PushFactory(),
+};
+
+const channel = "email";
+const result = factories[channel].notify("user@example.com", "Hello!");
+console.log(result); // "Email to user@example.com: Hello!"
+```
+  </TabItem>
+</Tabs>
+
+### When to Use
+
+- You do not know in advance which exact type of object your code should create
+- You want to provide users of your library a way to extend its internal components
+- You want to decouple object creation from the code that uses the object
+- You need to follow the Open/Closed Principle for adding new product types
+
+### Pros and Cons
+
+| Pros | Cons |
+|------|------|
+| Avoids tight coupling between creator and products | Can lead to many subclasses |
+| Single Responsibility: creation code in one place | Requires a parallel class hierarchy |
+| Open/Closed: new products without breaking existing code | Slightly more complex than direct construction |
+
+### Real-World Usage
+
+- **React.createElement**: Factory method for creating React elements
+- **Python's `collections.namedtuple`**: Factory that creates new tuple subclasses
+- **Django REST Framework serializers**: Serializer classes act as factories for validated data
+
+---
+
+## Abstract Factory
+
+### Intent
+
+Provide an interface for creating **families of related objects** without specifying their concrete classes.
+
+### Problem
+
+A UI toolkit must support multiple platforms (Windows, macOS, Linux). Each platform has its own look and feel for buttons, checkboxes, and text fields. The client code should not be tied to any specific platform.
+
+### Solution
+
+Declare interfaces for each type of product in the family, then create a factory interface that returns all product types. Each platform gets its own concrete factory.
+
+### Structure
+
+```
+┌──────────────────────────┐
+│    AbstractFactory        │
+├──────────────────────────┤
+│ + create_button()         │
+│ + create_checkbox()       │
+│ + create_text_field()     │
+└─────────┬────────────────┘
+          │
+   ┌──────┴──────────┐
+   │                  │
+┌──┴──────────┐ ┌────┴─────────┐
+│ WindowsFactory│ │ MacFactory   │
+├─────────────┤ ├──────────────┤
+│create_button│ │create_button │
+│create_check │ │create_check  │
+└─────────────┘ └──────────────┘
+   │                  │
+   ▼                  ▼
+WindowsButton      MacButton
+WindowsCheckbox    MacCheckbox
+```
+
+### Code Examples
+
+<Tabs>
+  <TabItem label="Python">
+```python
+from abc import ABC, abstractmethod
+
+
+# Abstract products
+class Button(ABC):
+    @abstractmethod
+    def render(self) -> str:
+        pass
+
+class Checkbox(ABC):
+    @abstractmethod
+    def render(self) -> str:
+        pass
+
+class TextField(ABC):
+    @abstractmethod
+    def render(self) -> str:
+        pass
+
+
+# Windows family
+class WindowsButton(Button):
+    def render(self) -> str:
+        return "[Windows Button]"
+
+class WindowsCheckbox(Checkbox):
+    def render(self) -> str:
+        return "[Windows Checkbox]"
+
+class WindowsTextField(TextField):
+    def render(self) -> str:
+        return "[Windows TextField]"
+
+
+# macOS family
+class MacButton(Button):
+    def render(self) -> str:
+        return "(Mac Button)"
+
+class MacCheckbox(Checkbox):
+    def render(self) -> str:
+        return "(Mac Checkbox)"
+
+class MacTextField(TextField):
+    def render(self) -> str:
+        return "(Mac TextField)"
+
+
+# Abstract factory
+class UIFactory(ABC):
+    @abstractmethod
+    def create_button(self) -> Button:
+        pass
+
+    @abstractmethod
+    def create_checkbox(self) -> Checkbox:
+        pass
+
+    @abstractmethod
+    def create_text_field(self) -> TextField:
+        pass
+
+
+# Concrete factories
+class WindowsFactory(UIFactory):
+    def create_button(self) -> Button:
+        return WindowsButton()
+
+    def create_checkbox(self) -> Checkbox:
+        return WindowsCheckbox()
+
+    def create_text_field(self) -> TextField:
+        return WindowsTextField()
+
+
+class MacFactory(UIFactory):
+    def create_button(self) -> Button:
+        return MacButton()
+
+    def create_checkbox(self) -> Checkbox:
+        return MacCheckbox()
+
+    def create_text_field(self) -> TextField:
+        return MacTextField()
+
+
+# Client code -- works with any factory
+def build_form(factory: UIFactory) -> list[str]:
+    button = factory.create_button()
+    checkbox = factory.create_checkbox()
+    text_field = factory.create_text_field()
+    return [button.render(), checkbox.render(), text_field.render()]
+
+
+# Usage
+import platform
+
+os_name = platform.system()
+factory = MacFactory() if os_name == "Darwin" else WindowsFactory()
+form = build_form(factory)
+print(form)
+# macOS: ["(Mac Button)", "(Mac Checkbox)", "(Mac TextField)"]
+```
+  </TabItem>
+  <TabItem label="TypeScript">
+```typescript
+// Abstract products
+interface Button {
+  render(): string;
+}
+
+interface Checkbox {
+  render(): string;
+}
+
+interface TextField {
+  render(): string;
+}
+
+// Windows family
+class WindowsButton implements Button {
+  render(): string { return "[Windows Button]"; }
+}
+
+class WindowsCheckbox implements Checkbox {
+  render(): string { return "[Windows Checkbox]"; }
+}
+
+class WindowsTextField implements TextField {
+  render(): string { return "[Windows TextField]"; }
+}
+
+// macOS family
+class MacButton implements Button {
+  render(): string { return "(Mac Button)"; }
+}
+
+class MacCheckbox implements Checkbox {
+  render(): string { return "(Mac Checkbox)"; }
+}
+
+class MacTextField implements TextField {
+  render(): string { return "(Mac TextField)"; }
+}
+
+// Abstract factory
+interface UIFactory {
+  createButton(): Button;
+  createCheckbox(): Checkbox;
+  createTextField(): TextField;
+}
+
+// Concrete factories
+class WindowsFactory implements UIFactory {
+  createButton(): Button { return new WindowsButton(); }
+  createCheckbox(): Checkbox { return new WindowsCheckbox(); }
+  createTextField(): TextField { return new WindowsTextField(); }
+}
+
+class MacFactory implements UIFactory {
+  createButton(): Button { return new MacButton(); }
+  createCheckbox(): Checkbox { return new MacCheckbox(); }
+  createTextField(): TextField { return new MacTextField(); }
+}
+
+// Client code -- works with any factory
+function buildForm(factory: UIFactory): string[] {
+  const button = factory.createButton();
+  const checkbox = factory.createCheckbox();
+  const textField = factory.createTextField();
+  return [button.render(), checkbox.render(), textField.render()];
+}
+
+// Usage
+const factory: UIFactory = process.platform === "darwin"
+  ? new MacFactory()
+  : new WindowsFactory();
+
+const form = buildForm(factory);
+console.log(form);
+```
+  </TabItem>
+</Tabs>
+
+### When to Use
+
+- Your system must work with multiple families of related products
+- You want to enforce that products from the same family are used together
+- You want to provide a library of products revealing only their interfaces
+
+### Pros and Cons
+
+| Pros | Cons |
+|------|------|
+| Products from one factory are compatible | Adding new product types requires changing all factories |
+| Avoids coupling between client and concrete products | Can result in many classes |
+| Single Responsibility: product creation centralized | Increased complexity for simple scenarios |
+
+### Real-World Usage
+
+- **Java Swing / AWT**: Platform-specific look-and-feel factories
+- **Django database backends**: Each backend provides related cursor, connection, and operations objects
+- **React Native**: Platform-specific component rendering (iOS vs Android)
+
+---
+
+## Builder
+
+### Intent
+
+Separate the construction of a complex object from its representation so that the **same construction process** can create different representations.
+
+### Problem
+
+Creating an object with many optional parameters leads to "telescoping constructors" -- constructors with many parameter combinations. For example, building an HTTP request with method, URL, headers, body, timeout, retries, and authentication options.
+
+### Solution
+
+Extract the construction code into a separate Builder class. The builder provides methods for each construction step, and the steps can be called in any order. A Director class can define the order of steps for common configurations.
+
+### Structure
+
+```
+┌────────────┐        ┌────────────────────┐
+│  Director   │───────►│   Builder          │
+├────────────┤        │   (interface)      │
+│ construct()│        ├────────────────────┤
+└────────────┘        │ + set_method()     │
+                      │ + set_url()        │
+                      │ + set_headers()    │
+                      │ + set_body()       │
+                      │ + build()          │
+                      └────────┬───────────┘
+                               │
+                    ┌──────────┴──────────┐
+                    │                     │
+              ┌─────┴──────┐     ┌───────┴────────┐
+              │ HttpRequest │     │ Product:       │
+              │ Builder     │────►│ HttpRequest    │
+              └────────────┘     └────────────────┘
+```
+
+### Code Examples
+
+<Tabs>
+  <TabItem label="Python">
+```python
+from __future__ import annotations
+from dataclasses import dataclass, field
+
+
+@dataclass
+class HttpRequest:
+    """The product -- an immutable HTTP request."""
+    method: str = "GET"
+    url: str = ""
+    headers: dict[str, str] = field(default_factory=dict)
+    body: str | None = None
+    timeout: int = 30
+    retries: int = 0
+    auth: tuple[str, str] | None = None
+
+
+class HttpRequestBuilder:
+    """Builds HttpRequest step by step."""
+
+    def __init__(self) -> None:
+        self._method = "GET"
+        self._url = ""
+        self._headers: dict[str, str] = {}
+        self._body: str | None = None
+        self._timeout = 30
+        self._retries = 0
+        self._auth: tuple[str, str] | None = None
+
+    def method(self, method: str) -> HttpRequestBuilder:
+        self._method = method
+        return self
+
+    def url(self, url: str) -> HttpRequestBuilder:
+        self._url = url
+        return self
+
+    def header(self, key: str, value: str) -> HttpRequestBuilder:
+        self._headers[key] = value
+        return self
+
+    def body(self, body: str) -> HttpRequestBuilder:
+        self._body = body
+        return self
+
+    def timeout(self, seconds: int) -> HttpRequestBuilder:
+        self._timeout = seconds
+        return self
+
+    def retries(self, count: int) -> HttpRequestBuilder:
+        self._retries = count
+        return self
+
+    def basic_auth(self, user: str, password: str) -> HttpRequestBuilder:
+        self._auth = (user, password)
+        return self
+
+    def build(self) -> HttpRequest:
+        if not self._url:
+            raise ValueError("URL is required")
+        return HttpRequest(
+            method=self._method,
+            url=self._url,
+            headers=self._headers,
+            body=self._body,
+            timeout=self._timeout,
+            retries=self._retries,
+            auth=self._auth,
+        )
+
+
+# Usage -- fluent API with method chaining
+request = (
+    HttpRequestBuilder()
+    .method("POST")
+    .url("https://api.example.com/users")
+    .header("Content-Type", "application/json")
+    .header("Accept", "application/json")
+    .body('{"name": "Alice"}')
+    .timeout(10)
+    .retries(3)
+    .basic_auth("admin", "secret")
+    .build()
+)
+
+print(request.method)   # "POST"
+print(request.url)      # "https://api.example.com/users"
+print(request.retries)  # 3
+```
+  </TabItem>
+  <TabItem label="TypeScript">
+```typescript
+// The product -- an immutable HTTP request
+interface HttpRequest {
+  readonly method: string;
+  readonly url: string;
+  readonly headers: Record<string, string>;
+  readonly body?: string;
+  readonly timeout: number;
+  readonly retries: number;
+  readonly auth?: { user: string; password: string };
+}
+
+// Builder with fluent API
+class HttpRequestBuilder {
+  private _method = "GET";
+  private _url = "";
+  private _headers: Record<string, string> = {};
+  private _body?: string;
+  private _timeout = 30;
+  private _retries = 0;
+  private _auth?: { user: string; password: string };
+
+  method(method: string): this {
+    this._method = method;
+    return this;
+  }
+
+  url(url: string): this {
+    this._url = url;
+    return this;
+  }
+
+  header(key: string, value: string): this {
+    this._headers[key] = value;
+    return this;
+  }
+
+  body(body: string): this {
+    this._body = body;
+    return this;
+  }
+
+  timeout(seconds: number): this {
+    this._timeout = seconds;
+    return this;
+  }
+
+  retries(count: number): this {
+    this._retries = count;
+    return this;
+  }
+
+  basicAuth(user: string, password: string): this {
+    this._auth = { user, password };
+    return this;
+  }
+
+  build(): HttpRequest {
+    if (!this._url) {
+      throw new Error("URL is required");
+    }
+
+    return Object.freeze({
+      method: this._method,
+      url: this._url,
+      headers: { ...this._headers },
+      body: this._body,
+      timeout: this._timeout,
+      retries: this._retries,
+      auth: this._auth ? { ...this._auth } : undefined,
+    });
+  }
+}
+
+// Usage -- fluent API with method chaining
+const request = new HttpRequestBuilder()
+  .method("POST")
+  .url("https://api.example.com/users")
+  .header("Content-Type", "application/json")
+  .header("Accept", "application/json")
+  .body('{"name": "Alice"}')
+  .timeout(10)
+  .retries(3)
+  .basicAuth("admin", "secret")
+  .build();
+
+console.log(request.method);  // "POST"
+console.log(request.url);     // "https://api.example.com/users"
+console.log(request.retries); // 3
+```
+  </TabItem>
+</Tabs>
+
+### When to Use
+
+- Constructing objects with many optional parameters
+- You need to create different representations of the same product
+- You want to enforce step-by-step construction and validation
+- You want immutable objects that cannot be partially constructed
+
+### Pros and Cons
+
+| Pros | Cons |
+|------|------|
+| Construct objects step by step | More code than a simple constructor |
+| Reuse construction code for various representations | Requires a separate builder class |
+| Single Responsibility: isolate construction logic | Overkill for simple objects with few parameters |
+| Fluent API improves readability | |
+
+### Real-World Usage
+
+- **SQLAlchemy Query Builder**: Chains `.filter()`, `.order_by()`, `.limit()` to build queries
+- **Java StringBuilder**: Builds strings efficiently step by step
+- **TypeScript Prisma ORM**: Fluent API for building database queries
+
+---
+
+## Prototype
+
+### Intent
+
+Specify the kinds of objects to create using a **prototypical instance**, and create new objects by copying this prototype.
+
+### Problem
+
+Creating objects from scratch is expensive when they require complex initialization: loading data from a database, parsing configuration files, or performing heavy computations. If you need many similar objects, creating each one from scratch wastes time and resources.
+
+### Solution
+
+Delegate the cloning process to the objects themselves. All objects that support cloning implement a common interface with a `clone` method. This lets you create new objects by copying existing ones without coupling your code to their concrete classes.
+
+### Structure
+
+```
+┌─────────────────────┐
+│    Prototype         │
+│    (interface)       │
+├─────────────────────┤
+│ + clone(): Prototype │
+└─────────┬───────────┘
+          │
+   ┌──────┴──────────┐
+   │                  │
+┌──┴──────────┐ ┌────┴─────────┐
+│ ConcreteProto│ │ ConcreteProto│
+│      A       │ │       B      │
+├─────────────┤ ├──────────────┤
+│ + clone()   │ │ + clone()    │
+└─────────────┘ └──────────────┘
+
+Client: new_obj = prototype.clone()
+        new_obj.customize(...)
+```
+
+### Code Examples
+
+<Tabs>
+  <TabItem label="Python">
+```python
+import copy
+from typing import Self
+
+
+class GameEntity:
+    """Prototype for game entities with expensive initialization."""
+
+    def __init__(
+        self,
+        name: str,
+        position: list[float],
+        health: int,
+        inventory: list[str],
+        sprite_data: bytes | None = None,
+    ):
+        self.name = name
+        self.position = position
+        self.health = health
+        self.inventory = inventory
+        # Simulate expensive resource loading
+        self.sprite_data = sprite_data or self._load_sprite(name)
+
+    def _load_sprite(self, name: str) -> bytes:
+        """Simulates expensive sprite loading from disk."""
+        print(f"Loading sprite for {name}... (expensive)")
+        return b"sprite_data_placeholder"
+
+    def clone(self) -> Self:
+        """Create a deep copy -- avoids expensive _load_sprite."""
+        return copy.deepcopy(self)
+
+    def __repr__(self) -> str:
+        return (
+            f"GameEntity(name={self.name!r}, pos={self.position}, "
+            f"health={self.health}, inv={self.inventory})"
+        )
+
+
+# Prototype registry
+class EntityRegistry:
+    """Stores prototypes for quick cloning."""
+
+    def __init__(self) -> None:
+        self._prototypes: dict[str, GameEntity] = {}
+
+    def register(self, key: str, entity: GameEntity) -> None:
+        self._prototypes[key] = entity
+
+    def create(self, key: str) -> GameEntity:
+        prototype = self._prototypes.get(key)
+        if prototype is None:
+            raise KeyError(f"No prototype registered for '{key}'")
+        return prototype.clone()
+
+
+# Usage
+registry = EntityRegistry()
+
+# Register prototypes (expensive initialization happens once)
+registry.register("goblin", GameEntity(
+    name="Goblin",
+    position=[0.0, 0.0],
+    health=50,
+    inventory=["club"],
+))
+
+registry.register("dragon", GameEntity(
+    name="Dragon",
+    position=[0.0, 0.0],
+    health=500,
+    inventory=["fire_breath"],
+))
+
+# Clone entities cheaply (no sprite loading)
+goblin_1 = registry.create("goblin")
+goblin_1.position = [10.0, 20.0]
+
+goblin_2 = registry.create("goblin")
+goblin_2.position = [30.0, 40.0]
+goblin_2.inventory.append("shield")
+
+print(goblin_1)  # pos=[10.0, 20.0], inv=["club"]
+print(goblin_2)  # pos=[30.0, 40.0], inv=["club", "shield"]
+# goblin_1 and goblin_2 are independent deep copies
+```
+  </TabItem>
+  <TabItem label="TypeScript">
+```typescript
+// Prototype interface
+interface Cloneable<T> {
+  clone(): T;
+}
+
+class GameEntity implements Cloneable<GameEntity> {
+  name: string;
+  position: [number, number];
+  health: number;
+  inventory: string[];
+  private spriteData: Uint8Array;
+
+  constructor(
+    name: string,
+    position: [number, number],
+    health: number,
+    inventory: string[],
+    spriteData?: Uint8Array,
+  ) {
+    this.name = name;
+    this.position = [...position];
+    this.health = health;
+    this.inventory = [...inventory];
+    // Simulate expensive resource loading
+    this.spriteData = spriteData ?? this.loadSprite(name);
+  }
+
+  private loadSprite(name: string): Uint8Array {
+    console.log(`Loading sprite for ${name}... (expensive)`);
+    return new Uint8Array([0, 1, 2, 3]);
+  }
+
+  clone(): GameEntity {
+    // Deep copy without expensive sprite loading
+    return new GameEntity(
+      this.name,
+      [...this.position],
+      this.health,
+      [...this.inventory],
+      new Uint8Array(this.spriteData), // Copy existing data
+    );
+  }
+
+  toString(): string {
+    return `GameEntity(${this.name}, pos=${this.position}, ` +
+           `hp=${this.health}, inv=${this.inventory})`;
+  }
+}
+
+// Prototype registry
+class EntityRegistry {
+  private prototypes = new Map<string, GameEntity>();
+
+  register(key: string, entity: GameEntity): void {
+    this.prototypes.set(key, entity);
+  }
+
+  create(key: string): GameEntity {
+    const prototype = this.prototypes.get(key);
+    if (!prototype) {
+      throw new Error(`No prototype registered for '${key}'`);
+    }
+    return prototype.clone();
+  }
+}
+
+// Usage
+const registry = new EntityRegistry();
+
+registry.register("goblin", new GameEntity(
+  "Goblin", [0, 0], 50, ["club"],
+));
+
+registry.register("dragon", new GameEntity(
+  "Dragon", [0, 0], 500, ["fire_breath"],
+));
+
+// Clone entities cheaply
+const goblin1 = registry.create("goblin");
+goblin1.position = [10, 20];
+
+const goblin2 = registry.create("goblin");
+goblin2.position = [30, 40];
+goblin2.inventory.push("shield");
+
+console.log(goblin1.toString());
+console.log(goblin2.toString());
+```
+  </TabItem>
+</Tabs>
+
+### When to Use
+
+- Object creation is expensive (I/O, computation, network calls)
+- You need many instances that differ only slightly from a base configuration
+- You want to avoid subclassing just to change initialization parameters
+- Objects are determined at runtime, not compile time
+
+### Pros and Cons
+
+| Pros | Cons |
+|------|------|
+| Clone objects without coupling to concrete classes | Deep copying complex objects with circular refs is hard |
+| Avoid expensive initialization repeatedly | Each class must implement clone correctly |
+| Produce complex objects more conveniently | Shallow vs deep copy must be carefully managed |
+
+### Real-World Usage
+
+- **Python `copy.deepcopy`**: Built-in prototype support
+- **JavaScript `Object.assign` / spread**: Shallow cloning built into the language
+- **Game engines**: Entity prefabs are prototypes that get cloned and customized
+
+---
+
+## Pattern Comparison
+
+| Pattern | Creates | Key Mechanism | Complexity |
+|---------|---------|---------------|------------|
+| **Singleton** | One shared instance | Static instance + private constructor | Low |
+| **Factory Method** | One product via subclass | Virtual creation method | Medium |
+| **Abstract Factory** | Families of products | Factory for families of related products | High |
+| **Builder** | Complex object step-by-step | Fluent construction API | Medium |
+| **Prototype** | Copy of existing object | Clone method | Low |
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="Structural Patterns"
+    href="/design-patterns/structural/"
+    description="Learn Adapter, Bridge, Composite, Decorator, Facade, and Proxy"
+  />
+  <LinkCard
+    title="Behavioral Patterns"
+    href="/design-patterns/behavioral/"
+    description="Learn Observer, Strategy, Command, State, Iterator, and Template Method"
+  />
+</CardGrid>
