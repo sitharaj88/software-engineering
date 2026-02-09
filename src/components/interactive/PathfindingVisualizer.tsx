@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 
 type CellType = 'empty' | 'wall' | 'start' | 'end' | 'visited' | 'path' | 'current';
 type Algorithm = 'bfs' | 'dfs' | 'dijkstra' | 'astar';
@@ -29,6 +29,18 @@ function createGrid(): CellType[][] {
   return grid;
 }
 
+function useIsMobile(breakpoint = 640) {
+  const [mobile, setMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width: ${breakpoint}px)`);
+    setMobile(mq.matches);
+    const h = (e: MediaQueryListEvent) => setMobile(e.matches);
+    mq.addEventListener('change', h);
+    return () => mq.removeEventListener('change', h);
+  }, [breakpoint]);
+  return mobile;
+}
+
 export default function PathfindingVisualizer() {
   const [grid, setGrid] = useState<CellType[][]>(createGrid);
   const [algorithm, setAlgorithm] = useState<Algorithm>('bfs');
@@ -38,6 +50,7 @@ export default function PathfindingVisualizer() {
   const [done, setDone] = useState(false);
   const stopRef = useRef(false);
   const mouseDownRef = useRef(false);
+  const isMobile = useIsMobile();
 
   const findCell = (type: CellType): [number, number] | null => {
     for (let r = 0; r < ROWS; r++)
@@ -288,18 +301,63 @@ export default function PathfindingVisualizer() {
     setRunning(false);
   }, [algorithm, grid]);
 
+  const drawTools = [['wall', 'Wall', '#374151'], ['start', 'Start', '#10b981'], ['end', 'End', '#ef4444'], ['erase', 'Erase', '#6b7280']] as const;
+
   return (
-    <div style={{ border: '1px solid var(--sl-color-gray-5)', borderRadius: '0.75rem', overflow: 'hidden', margin: '1.5rem 0' }}>
-      <div style={{ padding: '0.75rem 1.25rem', borderBottom: '1px solid var(--sl-color-gray-5)', background: 'var(--sl-color-gray-6)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+    <div style={{
+      border: '1px solid var(--sl-color-gray-5)',
+      borderRadius: 12,
+      overflow: 'hidden',
+      margin: '1.5rem 0',
+    }}>
+      {/* Header */}
+      <div style={{
+        padding: '0.75rem 1.25rem',
+        borderBottom: '1px solid var(--sl-color-gray-5)',
+        background: 'var(--sl-color-gray-6)',
+      }}>
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: isMobile ? 'flex-start' : 'center',
+          flexDirection: isMobile ? 'column' : 'row',
+          gap: '0.5rem',
+        }}>
           <div>
             <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700 }}>Pathfinding Visualizer</h3>
             <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--sl-color-gray-3)' }}>{ALGO_INFO[algorithm].guarantees}</p>
           </div>
-          <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+          <div style={{
+            display: 'flex',
+            gap: '0.4rem',
+            ...(isMobile ? {
+              overflowX: 'auto' as const,
+              width: '100%',
+              WebkitOverflowScrolling: 'touch' as const,
+              paddingBottom: '0.25rem',
+            } : {
+              flexWrap: 'wrap' as const,
+            }),
+          }}>
             {(Object.keys(ALGO_INFO) as Algorithm[]).map((algo) => (
-              <button key={algo} onClick={() => !running && setAlgorithm(algo)} disabled={running}
-                style={{ padding: '0.3rem 0.7rem', borderRadius: '0.375rem', border: algorithm === algo ? '2px solid #0066cc' : '1px solid var(--sl-color-gray-4)', background: algorithm === algo ? '#0066cc' : 'transparent', color: algorithm === algo ? '#fff' : 'var(--sl-color-text)', cursor: running ? 'not-allowed' : 'pointer', fontSize: '0.75rem', fontWeight: 600 }}>
+              <button
+                key={algo}
+                onClick={() => !running && setAlgorithm(algo)}
+                disabled={running}
+                style={{
+                  padding: '0.5rem 0.9rem',
+                  borderRadius: 6,
+                  border: algorithm === algo ? '2px solid #0066cc' : '1px solid var(--sl-color-gray-4)',
+                  background: algorithm === algo ? '#0066cc' : 'transparent',
+                  color: algorithm === algo ? '#fff' : 'var(--sl-color-text)',
+                  cursor: running ? 'not-allowed' : 'pointer',
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  minHeight: 44,
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
+                }}
+              >
                 {ALGO_INFO[algo].name}
               </button>
             ))}
@@ -307,15 +365,106 @@ export default function PathfindingVisualizer() {
         </div>
       </div>
 
-      {/* Tools */}
-      <div style={{ padding: '0.5rem 1.25rem', borderBottom: '1px solid var(--sl-color-gray-5)', display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
-        <span style={{ fontSize: '0.75rem', color: 'var(--sl-color-gray-3)', marginRight: '0.25rem' }}>Draw:</span>
-        {([['wall', 'Wall', '#374151'], ['start', 'Start', '#10b981'], ['end', 'End', '#ef4444'], ['erase', 'Erase', '#6b7280']] as const).map(([mode, label, color]) => (
-          <button key={mode} onClick={() => setDrawMode(mode)}
-            style={{ padding: '0.25rem 0.5rem', borderRadius: '0.25rem', border: drawMode === mode ? `2px solid ${color}` : '1px solid var(--sl-color-gray-4)', background: drawMode === mode ? `${color}20` : 'transparent', color: drawMode === mode ? color : 'var(--sl-color-text)', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 600 }}>
-            {label}
-          </button>
-        ))}
+      {/* Tools Bar */}
+      <div style={{
+        padding: '0.75rem 1.25rem',
+        borderBottom: '1px solid var(--sl-color-gray-5)',
+        background: 'var(--sl-color-gray-6)',
+      }}>
+        {isMobile ? (
+          <div>
+            <span style={{
+              fontSize: '0.75rem',
+              fontWeight: 700,
+              color: 'var(--sl-color-gray-2)',
+              display: 'block',
+              marginBottom: '0.4rem',
+            }}>Draw Tool</span>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(4, 1fr)',
+              gap: '0.4rem',
+            }}>
+              {drawTools.map(([mode, label, color]) => (
+                <button
+                  key={mode}
+                  onClick={() => setDrawMode(mode)}
+                  style={{
+                    padding: '0.55rem 0.5rem',
+                    borderRadius: 6,
+                    border: drawMode === mode ? `2.5px solid ${color}` : '1px solid var(--sl-color-gray-4)',
+                    background: drawMode === mode ? `${color}30` : 'transparent',
+                    color: drawMode === mode ? color : 'var(--sl-color-text)',
+                    cursor: 'pointer',
+                    fontSize: '0.72rem',
+                    fontWeight: drawMode === mode ? 700 : 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.3rem',
+                    minHeight: 44,
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <span style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: '50%',
+                    background: color,
+                    display: 'inline-block',
+                    flexShrink: 0,
+                    border: mode === 'erase' ? '1.5px solid var(--sl-color-gray-3)' : 'none',
+                    boxSizing: 'border-box',
+                  }} />
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <span style={{
+              fontSize: '0.78rem',
+              color: 'var(--sl-color-gray-2)',
+              marginRight: '0.25rem',
+              fontWeight: 700,
+              letterSpacing: '0.01em',
+            }}>Draw Tool:</span>
+            {drawTools.map(([mode, label, color]) => (
+              <button
+                key={mode}
+                onClick={() => setDrawMode(mode)}
+                style={{
+                  padding: drawMode === mode ? '0.3rem 0.7rem' : '0.25rem 0.6rem',
+                  borderRadius: 6,
+                  border: drawMode === mode ? `2.5px solid ${color}` : '1px solid var(--sl-color-gray-4)',
+                  background: drawMode === mode ? `${color}30` : 'transparent',
+                  color: drawMode === mode ? color : 'var(--sl-color-text)',
+                  cursor: 'pointer',
+                  fontSize: '0.72rem',
+                  fontWeight: drawMode === mode ? 700 : 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  transition: 'all 0.15s ease',
+                  boxShadow: drawMode === mode ? `0 0 0 1px ${color}20` : 'none',
+                }}
+              >
+                <span style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  background: color,
+                  display: 'inline-block',
+                  flexShrink: 0,
+                  border: mode === 'erase' ? '1.5px solid var(--sl-color-gray-3)' : 'none',
+                  boxSizing: 'border-box',
+                }} />
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Grid */}
@@ -336,8 +485,8 @@ export default function PathfindingVisualizer() {
                   fontSize: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff',
                 }}
               >
-                {cell === 'start' && '▶'}
-                {cell === 'end' && '◎'}
+                {cell === 'start' && '\u25B6'}
+                {cell === 'end' && '\u25CE'}
               </div>
             ))
           )}
@@ -345,37 +494,254 @@ export default function PathfindingVisualizer() {
       </div>
 
       {/* Controls */}
-      <div style={{ padding: '0.75rem 1.25rem', borderTop: '1px solid var(--sl-color-gray-5)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <button onClick={startVisualization} disabled={running}
-            style={{ padding: '0.5rem 1.2rem', borderRadius: '0.375rem', border: 'none', background: '#10b981', color: '#fff', cursor: running ? 'not-allowed' : 'pointer', fontWeight: 600, fontSize: '0.85rem' }}>
-            {running ? '⏳ Running...' : '▶ Visualize'}
-          </button>
-          <button onClick={clearPath} disabled={running}
-            style={{ padding: '0.5rem 1rem', borderRadius: '0.375rem', border: '1px solid var(--sl-color-gray-4)', background: 'transparent', color: 'var(--sl-color-text)', cursor: 'pointer', fontSize: '0.85rem' }}>
-            Clear Path
-          </button>
-          <button onClick={generateMaze} disabled={running}
-            style={{ padding: '0.5rem 1rem', borderRadius: '0.375rem', border: '1px solid var(--sl-color-gray-4)', background: 'transparent', color: 'var(--sl-color-text)', cursor: 'pointer', fontSize: '0.85rem' }}>
-            Random Maze
-          </button>
-          <button onClick={resetGrid}
-            style={{ padding: '0.5rem 1rem', borderRadius: '0.375rem', border: '1px solid var(--sl-color-gray-4)', background: 'transparent', color: 'var(--sl-color-text)', cursor: 'pointer', fontSize: '0.85rem' }}>
-            ↺ Reset
-          </button>
-        </div>
-        <div style={{ display: 'flex', gap: '1rem', fontSize: '0.8rem' }}>
-          <span>Cells Visited: <strong>{stats.visited}</strong></span>
-          <span>Path Length: <strong>{stats.pathLength || '–'}</strong></span>
-          {done && <span style={{ color: stats.pathLength > 0 ? '#10b981' : '#ef4444', fontWeight: 700 }}>{stats.pathLength > 0 ? 'Path Found!' : 'No Path'}</span>}
-        </div>
+      <div style={{
+        padding: '0.75rem 1.25rem',
+        borderTop: '1px solid var(--sl-color-gray-5)',
+        background: 'var(--sl-color-gray-6)',
+      }}>
+        {isMobile ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+            {/* Row 1: Primary Action */}
+            <button
+              onClick={startVisualization}
+              disabled={running}
+              style={{
+                width: '100%',
+                padding: '0.7rem',
+                borderRadius: 8,
+                border: 'none',
+                background: running ? '#6b7280' : '#10b981',
+                color: '#fff',
+                cursor: running ? 'not-allowed' : 'pointer',
+                fontWeight: 700,
+                fontSize: '0.9rem',
+                boxShadow: running ? 'none' : '0 2px 8px rgba(16, 185, 129, 0.3)',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              {running ? 'Running...' : 'Visualize'}
+            </button>
+
+            {/* Row 2: Secondary Actions */}
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button
+                onClick={clearPath}
+                disabled={running}
+                style={{
+                  flex: 1,
+                  padding: '0.55rem',
+                  borderRadius: 6,
+                  border: '1px solid var(--sl-color-gray-4)',
+                  background: 'transparent',
+                  color: 'var(--sl-color-text)',
+                  cursor: running ? 'not-allowed' : 'pointer',
+                  fontSize: '0.78rem',
+                  fontWeight: 500,
+                  opacity: running ? 0.5 : 1,
+                  transition: 'opacity 0.15s ease',
+                }}
+              >
+                Clear Path
+              </button>
+              <button
+                onClick={generateMaze}
+                disabled={running}
+                style={{
+                  flex: 1,
+                  padding: '0.55rem',
+                  borderRadius: 6,
+                  border: '1px solid var(--sl-color-gray-4)',
+                  background: 'transparent',
+                  color: 'var(--sl-color-text)',
+                  cursor: running ? 'not-allowed' : 'pointer',
+                  fontSize: '0.78rem',
+                  fontWeight: 500,
+                  opacity: running ? 0.5 : 1,
+                  transition: 'opacity 0.15s ease',
+                }}
+              >
+                Random Maze
+              </button>
+              <button
+                onClick={resetGrid}
+                style={{
+                  flex: 1,
+                  padding: '0.55rem',
+                  borderRadius: 6,
+                  border: '1px solid var(--sl-color-gray-4)',
+                  background: 'transparent',
+                  color: 'var(--sl-color-text)',
+                  cursor: 'pointer',
+                  fontSize: '0.78rem',
+                  fontWeight: 500,
+                }}
+              >
+                Reset
+              </button>
+            </div>
+
+            {/* Row 3: Stats */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              fontSize: '0.78rem',
+              color: 'var(--sl-color-gray-2)',
+              alignItems: 'center',
+            }}>
+              <span>Visited: <strong style={{ color: 'var(--sl-color-text)' }}>{stats.visited}</strong></span>
+              <span>Path: <strong style={{ color: 'var(--sl-color-text)' }}>{stats.pathLength || '\u2013'}</strong></span>
+              {done && (
+                <span style={{
+                  color: stats.pathLength > 0 ? '#10b981' : '#ef4444',
+                  fontWeight: 700,
+                  fontSize: '0.78rem',
+                  padding: '0.15rem 0.5rem',
+                  borderRadius: 4,
+                  background: stats.pathLength > 0 ? '#10b98118' : '#ef444418',
+                }}>
+                  {stats.pathLength > 0 ? 'Found!' : 'No Path'}
+                </span>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: '0.75rem',
+            flexWrap: 'wrap',
+          }}>
+            {/* Left group */}
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <button
+                onClick={startVisualization}
+                disabled={running}
+                style={{
+                  padding: '0.55rem 1.4rem',
+                  borderRadius: 8,
+                  border: 'none',
+                  background: running ? '#6b7280' : '#10b981',
+                  color: '#fff',
+                  cursor: running ? 'not-allowed' : 'pointer',
+                  fontWeight: 700,
+                  fontSize: '0.9rem',
+                  boxShadow: running ? 'none' : '0 2px 8px rgba(16, 185, 129, 0.3)',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                {running ? 'Running...' : 'Visualize'}
+              </button>
+
+              {/* Separator */}
+              <div style={{
+                width: 1,
+                height: 28,
+                background: 'var(--sl-color-gray-4)',
+                margin: '0 0.25rem',
+                flexShrink: 0,
+              }} />
+
+              <button
+                onClick={clearPath}
+                disabled={running}
+                style={{
+                  padding: '0.4rem 0.85rem',
+                  borderRadius: 6,
+                  border: '1px solid var(--sl-color-gray-4)',
+                  background: 'transparent',
+                  color: 'var(--sl-color-text)',
+                  cursor: running ? 'not-allowed' : 'pointer',
+                  fontSize: '0.8rem',
+                  fontWeight: 500,
+                  opacity: running ? 0.5 : 1,
+                  transition: 'opacity 0.15s ease',
+                }}
+              >
+                Clear Path
+              </button>
+              <button
+                onClick={generateMaze}
+                disabled={running}
+                style={{
+                  padding: '0.4rem 0.85rem',
+                  borderRadius: 6,
+                  border: '1px solid var(--sl-color-gray-4)',
+                  background: 'transparent',
+                  color: 'var(--sl-color-text)',
+                  cursor: running ? 'not-allowed' : 'pointer',
+                  fontSize: '0.8rem',
+                  fontWeight: 500,
+                  opacity: running ? 0.5 : 1,
+                  transition: 'opacity 0.15s ease',
+                }}
+              >
+                Random Maze
+              </button>
+              <button
+                onClick={resetGrid}
+                style={{
+                  padding: '0.4rem 0.85rem',
+                  borderRadius: 6,
+                  border: '1px solid var(--sl-color-gray-4)',
+                  background: 'transparent',
+                  color: 'var(--sl-color-text)',
+                  cursor: 'pointer',
+                  fontSize: '0.8rem',
+                  fontWeight: 500,
+                }}
+              >
+                Reset
+              </button>
+            </div>
+
+            {/* Right group: Stats */}
+            <div style={{
+              display: 'flex',
+              gap: '0.75rem',
+              fontSize: '0.8rem',
+              alignItems: 'center',
+              color: 'var(--sl-color-gray-2)',
+            }}>
+              <span>Cells Visited: <strong style={{ color: 'var(--sl-color-text)' }}>{stats.visited}</strong></span>
+              <span style={{ color: 'var(--sl-color-gray-4)' }}>|</span>
+              <span>Path Length: <strong style={{ color: 'var(--sl-color-text)' }}>{stats.pathLength || '\u2013'}</strong></span>
+              {done && (
+                <>
+                  <span style={{ color: 'var(--sl-color-gray-4)' }}>|</span>
+                  <span style={{
+                    color: stats.pathLength > 0 ? '#10b981' : '#ef4444',
+                    fontWeight: 700,
+                    fontSize: '0.82rem',
+                  }}>
+                    {stats.pathLength > 0 ? 'Path Found!' : 'No Path'}
+                  </span>
+                </>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Legend */}
-      <div style={{ padding: '0.5rem 1.25rem', borderTop: '1px solid var(--sl-color-gray-5)', display: 'flex', gap: '1rem', flexWrap: 'wrap', fontSize: '0.72rem' }}>
+      <div style={{
+        padding: isMobile ? '0.75rem 1.25rem' : '0.5rem 1.25rem',
+        borderTop: '1px solid var(--sl-color-gray-5)',
+        display: 'flex',
+        gap: isMobile ? '0.75rem' : '1rem',
+        flexWrap: 'wrap',
+        fontSize: isMobile ? '0.75rem' : '0.72rem',
+      }}>
         {Object.entries(CELL_COLORS).filter(([k]) => k !== 'current').map(([state, color]) => (
           <span key={state} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-            <span style={{ width: 12, height: 12, borderRadius: 2, background: color || 'var(--sl-color-gray-5)', border: color === 'transparent' ? '1px solid var(--sl-color-gray-4)' : 'none', display: 'inline-block' }} />
+            <span style={{
+              width: 12,
+              height: 12,
+              borderRadius: 2,
+              background: color || 'var(--sl-color-gray-5)',
+              border: color === 'transparent' ? '1px solid var(--sl-color-gray-4)' : 'none',
+              display: 'inline-block',
+            }} />
             {state.charAt(0).toUpperCase() + state.slice(1)}
           </span>
         ))}
