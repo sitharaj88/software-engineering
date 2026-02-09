@@ -385,6 +385,19 @@ html {
   color: white;
 }
 
+/* Always show theme toggle in header on mobile */
+@media (max-width: 49.99rem) {
+  header .right-group {
+    display: flex !important;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  header .right-group .social-icons {
+    display: none;
+  }
+}
+
 /* Sidebar enhancements */
 nav.sidebar .top-level > li > details > summary,
 nav.sidebar .top-level > li > a {

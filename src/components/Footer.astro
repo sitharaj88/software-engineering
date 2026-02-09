@@ -1,0 +1,199 @@
+---
+/**
+ * Custom footer with personal links.
+ * Overrides the default Starlight Footer component.
+ */
+import type { Props } from '@astrojs/starlight/props';
+
+const { editUrl, labels, pagination } = Astro.props;
+---
+
+{pagination.prev || pagination.next ? (
+  <div class="pagination-links">
+    {pagination.prev && (
+      <a href={pagination.prev.href} rel="prev" class="pagination-link prev">
+        <span class="link-label">&laquo; Previous</span>
+        <span class="link-title">{pagination.prev.label}</span>
+      </a>
+    )}
+    {pagination.next && (
+      <a href={pagination.next.href} rel="next" class="pagination-link next">
+        <span class="link-label">Next &raquo;</span>
+        <span class="link-title">{pagination.next.label}</span>
+      </a>
+    )}
+  </div>
+) : null}
+
+<footer class="site-footer">
+  <div class="footer-content">
+    <div class="footer-main">
+      <p class="footer-author">
+        Built with <span class="heart">&hearts;</span> by <a href="https://sitharaj.in" target="_blank" rel="noopener noreferrer">Sitharaj Seenivasan</a>
+      </p>
+    </div>
+
+    <div class="footer-links">
+      <a href="https://sitharaj.in" target="_blank" rel="noopener noreferrer" class="footer-link" aria-label="Website">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+        <span>Website</span>
+      </a>
+      <a href="https://github.com/sitharaj88" target="_blank" rel="noopener noreferrer" class="footer-link" aria-label="GitHub">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg>
+        <span>GitHub</span>
+      </a>
+      <a href="https://linkedin.com/in/sitharaj08" target="_blank" rel="noopener noreferrer" class="footer-link" aria-label="LinkedIn">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"></path><rect x="2" y="9" width="4" height="12"></rect><circle cx="4" cy="4" r="2"></circle></svg>
+        <span>LinkedIn</span>
+      </a>
+      <a href="https://buymeacoffee.com/sitharaj88" target="_blank" rel="noopener noreferrer" class="footer-link coffee-link" aria-label="Buy Me a Coffee">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path><line x1="6" y1="1" x2="6" y2="4"></line><line x1="10" y1="1" x2="10" y2="4"></line><line x1="14" y1="1" x2="14" y2="4"></line></svg>
+        <span>Buy Me a Coffee</span>
+      </a>
+    </div>
+
+    <p class="footer-copyright">
+      &copy; {new Date().getFullYear()} Sitharaj Seenivasan. All rights reserved.
+    </p>
+  </div>
+</footer>
+
+<style>
+  .pagination-links {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(18rem, 100%), 1fr));
+    gap: 1rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--sl-color-gray-5);
+    margin-bottom: 1.5rem;
+  }
+
+  .pagination-link {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 0.5rem;
+    text-decoration: none;
+    color: var(--sl-color-text);
+    transition: border-color 0.2s, background-color 0.2s;
+  }
+
+  .pagination-link:hover {
+    border-color: var(--sl-color-accent);
+    background-color: var(--sl-color-accent-low);
+  }
+
+  .pagination-link.next {
+    text-align: right;
+  }
+
+  .link-label {
+    font-size: 0.75rem;
+    color: var(--sl-color-gray-3);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+  }
+
+  .link-title {
+    font-weight: 600;
+    color: var(--sl-color-accent);
+    font-size: 0.95rem;
+  }
+
+  .site-footer {
+    margin-top: 2rem;
+    padding: 2rem 0 1.5rem;
+    border-top: 1px solid var(--sl-color-gray-5);
+  }
+
+  .footer-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    text-align: center;
+  }
+
+  .footer-main {
+    font-size: 0.95rem;
+    color: var(--sl-color-text);
+  }
+
+  .footer-author a {
+    color: var(--sl-color-accent);
+    text-decoration: none;
+    font-weight: 600;
+  }
+
+  .footer-author a:hover {
+    text-decoration: underline;
+  }
+
+  .heart {
+    color: #ef4444;
+    display: inline-block;
+    animation: heartbeat 1.5s ease-in-out infinite;
+  }
+
+  @keyframes heartbeat {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.15); }
+  }
+
+  .footer-links {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.75rem;
+  }
+
+  .footer-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.4rem 0.75rem;
+    border-radius: 0.5rem;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--sl-color-text);
+    text-decoration: none;
+    border: 1px solid var(--sl-color-gray-5);
+    transition: all 0.2s;
+  }
+
+  .footer-link:hover {
+    border-color: var(--sl-color-accent);
+    color: var(--sl-color-accent);
+    background-color: var(--sl-color-accent-low);
+    transform: translateY(-1px);
+  }
+
+  .footer-link.coffee-link:hover {
+    border-color: #ffdd00;
+    color: #946200;
+    background-color: #ffdd0020;
+  }
+
+  .footer-copyright {
+    font-size: 0.75rem;
+    color: var(--sl-color-gray-3);
+    margin-top: 0.25rem;
+  }
+
+  @media (max-width: 640px) {
+    .footer-links {
+      gap: 0.5rem;
+    }
+
+    .footer-link span {
+      display: none;
+    }
+
+    .footer-link {
+      padding: 0.5rem;
+    }
+  }
+</style>

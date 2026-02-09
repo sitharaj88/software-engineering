@@ -14,6 +14,10 @@ export default defineConfig({
       social: {
         github: 'https://github.com/sitharaj88/software-engineering',
       },
+      components: {
+        ThemeSelect: './src/components/ThemeSelect.astro',
+        Footer: './src/components/Footer.astro',
+      },
       customCss: ['./src/styles/custom.css'],
       sidebar: [
         {
