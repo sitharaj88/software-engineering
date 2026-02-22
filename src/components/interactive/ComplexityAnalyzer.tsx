@@ -155,7 +155,7 @@ export default function ComplexityAnalyzer() {
           <h4 style={{ fontSize: '0.95rem', fontWeight: 700, marginBottom: '0.5rem' }}>Common Operations Reference</h4>
           <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
             {categories.map((cat) => (
-              <button key={cat} onClick={() => setFilterCat(cat)} style={{ padding: '0.25rem 0.6rem', borderRadius: '999px', border: filterCat === cat ? '2px solid #0066cc' : '1px solid var(--sl-color-gray-4)', background: filterCat === cat ? '#0066cc' : 'transparent', color: filterCat === cat ? '#fff' : 'var(--sl-color-text)', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 600 }}>
+              <button key={cat} onClick={() => setFilterCat(cat)} style={{ height: '1.75rem', padding: '0 0.75rem', minWidth: '3.5rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: '999px', border: filterCat === cat ? '2px solid #0066cc' : '2px solid var(--sl-color-gray-4)', background: filterCat === cat ? '#0066cc' : 'transparent', color: filterCat === cat ? '#fff' : 'var(--sl-color-text)', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 600, lineHeight: 1 }}>
                 {cat}
               </button>
             ))}

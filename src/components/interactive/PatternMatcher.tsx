@@ -177,7 +177,7 @@ export default function PatternMatcher() {
         <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
           {categories.map((cat) => (
             <button key={cat} onClick={() => setSelectedCategory(cat)}
-              style={{ padding: '0.25rem 0.6rem', borderRadius: '999px', border: selectedCategory === cat ? '2px solid #0066cc' : '1px solid var(--sl-color-gray-4)', background: selectedCategory === cat ? '#0066cc' : 'transparent', color: selectedCategory === cat ? '#fff' : 'var(--sl-color-text)', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600 }}>
+              style={{ height: '1.75rem', padding: '0 0.75rem', minWidth: '3.5rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: '999px', border: selectedCategory === cat ? '2px solid #0066cc' : '2px solid var(--sl-color-gray-4)', background: selectedCategory === cat ? '#0066cc' : 'transparent', color: selectedCategory === cat ? '#fff' : 'var(--sl-color-text)', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, lineHeight: 1 }}>
               {cat}
             </button>
           ))}
