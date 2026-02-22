@@ -104,7 +104,7 @@ GraphQL APIs are defined by a **schema** that describes every type, field, query
 # A complete blog schema
 
 type Query {
-  posts(first: Int, after: String): PostConnection!
+  posts(first: Int, after: String, featured: Boolean): PostConnection!
   post(id: ID!): Post
   user(id: ID!): User
   searchPosts(query: String!): [Post!]!

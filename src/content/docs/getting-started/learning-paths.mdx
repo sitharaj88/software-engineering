@@ -3,9 +3,11 @@ title: Learning Paths
 description: Choose a structured learning journey based on your goals and experience level
 ---
 
+import { LinkCard, CardGrid } from '@astrojs/starlight/components';
+
 Select a learning path that matches your goals. Each path is designed to build knowledge progressively.
 
-## Beginner Path
+## Beginner Path — Data Structures & Algorithms
 
 **Duration:** 8-10 weeks | **Prerequisites:** Basic programming knowledge
 
@@ -30,14 +32,65 @@ Perfect for those new to data structures and algorithms.
 
 ### Week 7-8: Trees & Basic Algorithms
 - [ ] [Trees Introduction](/software-engineering/dsa/trees/) - Hierarchical data
-- [ ] [Binary Search Trees](/software-engineering/dsa/trees/)
 - [ ] [Sorting Algorithms](/software-engineering/dsa/sorting/) - Basic sorts
 - [ ] [Binary Search](/software-engineering/dsa/searching/binary-search/)
 
 ### Week 9-10: Recursion & Graphs
 - [ ] [Recursion](/software-engineering/dsa/recursion/) - Recursive thinking
 - [ ] [Graphs Introduction](/software-engineering/dsa/graphs/) - Networks and connections
-- [ ] [BFS & DFS](/software-engineering/dsa/graphs/) - Graph traversal
+
+---
+
+## Software Engineering Fundamentals Path
+
+**Duration:** 10-12 weeks | **Prerequisites:** Basic programming knowledge
+
+Build a solid foundation in core software engineering concepts beyond algorithms.
+
+### Week 1-2: Object-Oriented Programming
+- [ ] [OOP & SOLID Overview](/software-engineering/oop-solid/) - Why OOP matters
+- [ ] [Four Pillars of OOP](/software-engineering/oop-solid/four-pillars/) - Encapsulation, Abstraction, Inheritance, Polymorphism
+- [ ] [SOLID Principles](/software-engineering/oop-solid/solid-principles/) - Writing maintainable code
+- [ ] [Composition vs Inheritance](/software-engineering/oop-solid/composition-vs-inheritance/) - When to use each
+- [ ] [Design Smells](/software-engineering/oop-solid/design-smells/) - Recognizing and fixing bad code
+
+### Week 3-4: Version Control & Testing
+- [ ] [Version Control Overview](/software-engineering/version-control/) - Why version control matters
+- [ ] [Git Fundamentals](/software-engineering/version-control/git-fundamentals/) - Essential commands
+- [ ] [Branching Strategies](/software-engineering/version-control/branching-strategies/) - Git Flow, GitHub Flow, Trunk-Based
+- [ ] [Code Review](/software-engineering/version-control/code-review/) - Review best practices
+- [ ] [Testing Overview](/software-engineering/testing/) - Testing pyramid and principles
+- [ ] [Unit Testing](/software-engineering/testing/unit-testing/) - Writing effective unit tests
+
+### Week 5-6: Operating Systems & Concurrency
+- [ ] [Operating Systems Overview](/software-engineering/operating-systems/) - Core OS concepts
+- [ ] [Processes & Threads](/software-engineering/operating-systems/processes-threads/) - Process management
+- [ ] [CPU Scheduling](/software-engineering/operating-systems/cpu-scheduling/) - Scheduling algorithms
+- [ ] [Memory Management](/software-engineering/operating-systems/memory-management/) - Virtual memory and paging
+- [ ] [Concurrency Overview](/software-engineering/concurrency/) - Threads vs parallelism
+- [ ] [Threads & Synchronization](/software-engineering/concurrency/threads-synchronization/) - Mutexes, semaphores, locks
+
+### Week 7-8: Computer Networks & Databases
+- [ ] [Computer Networks Overview](/software-engineering/computer-networks/) - How the internet works
+- [ ] [OSI Model & TCP/IP](/software-engineering/computer-networks/osi-tcp-ip/) - Protocol layers
+- [ ] [HTTP & HTTPS](/software-engineering/computer-networks/http-https/) - Web protocols
+- [ ] [Database Engineering Overview](/software-engineering/database-engineering/) - SQL vs NoSQL
+- [ ] [SQL Fundamentals](/software-engineering/database-engineering/sql-fundamentals/) - Queries, joins, aggregations
+- [ ] [Normalization & Schema Design](/software-engineering/database-engineering/normalization-schema/) - Efficient schema design
+
+### Week 9-10: Security & Software Design
+- [ ] [Security Overview](/software-engineering/security/) - CIA triad, threat modeling
+- [ ] [OWASP Top 10](/software-engineering/security/owasp-top-10/) - Common vulnerabilities
+- [ ] [Secure Coding](/software-engineering/security/secure-coding/) - Writing safe code
+- [ ] [Design Patterns Overview](/software-engineering/design-patterns/) - Common patterns
+- [ ] [Software Architecture Overview](/software-engineering/software-architecture/) - Architectural styles
+
+### Week 11-12: Engineering Practices
+- [ ] [API Design Overview](/software-engineering/api-design/) - REST, GraphQL, gRPC
+- [ ] [REST APIs](/software-engineering/api-design/rest-apis/) - RESTful design
+- [ ] [SDLC & Agile Overview](/software-engineering/sdlc-agile/) - Development methodologies
+- [ ] [DevOps Overview](/software-engineering/devops/) - CI/CD and deployment
+- [ ] [TDD & Mocking](/software-engineering/testing/tdd-mocking/) - Test-driven development
 
 ---
 
@@ -79,56 +132,54 @@ Focused preparation for technical interviews at top companies.
 
 **Target:** 20 problems | **Companies:** All top companies
 
-### Week 5: System Design Basics
-- [ ] Scalability fundamentals
-- [ ] Load balancing
-- [ ] Caching strategies
-- [ ] Database design
+### Week 5: System Design & Architecture
+- [ ] [System Design Fundamentals](/software-engineering/system-design/fundamentals/) - Core concepts
+- [ ] [Scalability](/software-engineering/system-design/scalability/) - Scaling patterns
+- [ ] [Microservices](/software-engineering/software-architecture/microservices/) - Distributed systems
+- [ ] [Database Design](/software-engineering/system-design/databases/) - Data layer decisions
 
 **Target:** 5 system design problems
 
-### Week 6: Mock Interviews
-- [ ] Behavioral interview prep
+### Week 6: Mock Interviews & Breadth
+- [ ] [Behavioral Interviews](/software-engineering/interview-prep/behavioral/) - STAR method
 - [ ] Coding interview simulation
 - [ ] System design practice
-- [ ] Company-specific preparation
+- [ ] [Problem Bank](/software-engineering/interview-prep/problem-bank/) - Practice problems
 
 ---
 
-## Advanced Path
+## Advanced Path — Deep Dives
 
-**Duration:** 12+ weeks | **Prerequisites:** Solid DSA foundation
+**Duration:** 12+ weeks | **Prerequisites:** Solid DSA and SE fundamentals
 
-Deep dive into complex algorithms and optimization techniques.
+Deep dive into advanced topics across the full stack.
 
-### Weeks 1-3: Advanced Trees
-- [ ] AVL Trees
-- [ ] Red-Black Trees
-- [ ] Segment Trees
-- [ ] Fenwick Trees (BIT)
-- [ ] Tries and applications
+### Weeks 1-3: Advanced Algorithms
+- [ ] [Dynamic Programming](/software-engineering/dsa/dynamic-programming/) - Advanced DP patterns
+- [ ] [Backtracking](/software-engineering/dsa/backtracking/) - Constraint satisfaction
+- [ ] [Greedy Algorithms](/software-engineering/dsa/greedy/) - Optimization techniques
+- [ ] [Heaps](/software-engineering/dsa/heaps/) - Priority queues and applications
 
-### Weeks 4-6: Advanced Graph Algorithms
-- [ ] Dijkstra's Algorithm
-- [ ] Bellman-Ford Algorithm
-- [ ] Floyd-Warshall Algorithm
-- [ ] Minimum Spanning Trees
-- [ ] Topological Sort
-- [ ] Strongly Connected Components
+### Weeks 4-6: Software Architecture
+- [ ] [Clean Architecture](/software-engineering/software-architecture/clean-architecture/) - Hexagonal, Onion, Clean
+- [ ] [Microservices](/software-engineering/software-architecture/microservices/) - Service decomposition
+- [ ] [Event-Driven Architecture](/software-engineering/software-architecture/event-driven/) - Event sourcing, CQRS
+- [ ] [Domain-Driven Design](/software-engineering/software-architecture/ddd/) - Strategic and tactical patterns
 
-### Weeks 7-9: Advanced DP
-- [ ] Bitmask DP
-- [ ] Digit DP
-- [ ] DP on Trees
-- [ ] DP with Probability
-- [ ] Game Theory DP
+### Weeks 7-9: Advanced Infrastructure
+- [ ] [Async Programming](/software-engineering/concurrency/async-programming/) - Event loops and coroutines
+- [ ] [Race Conditions & Deadlocks](/software-engineering/concurrency/race-conditions/) - Concurrency bugs
+- [ ] [Containers & Docker](/software-engineering/devops/containers-docker/) - Containerization
+- [ ] [Kubernetes](/software-engineering/devops/kubernetes/) - Orchestration
+- [ ] [Monitoring & IaC](/software-engineering/devops/monitoring-iac/) - Observability
 
-### Weeks 10-12: Specialized Topics
-- [ ] Number Theory
-- [ ] Computational Geometry
-- [ ] String Algorithms (KMP, Z-algorithm, Suffix Arrays)
-- [ ] Network Flow
-- [ ] NP-Complete Problems
+### Weeks 10-12: Advanced APIs & Data
+- [ ] [GraphQL](/software-engineering/api-design/graphql/) - Flexible queries
+- [ ] [gRPC & Protocol Buffers](/software-engineering/api-design/grpc-protobuf/) - High-performance APIs
+- [ ] [Indexing & Performance](/software-engineering/database-engineering/indexing-performance/) - Query optimization
+- [ ] [Transactions & NoSQL](/software-engineering/database-engineering/transactions-nosql/) - ACID, CAP, and beyond
+- [ ] [Auth & Encryption](/software-engineering/security/auth-encryption/) - OAuth, JWT, TLS
+- [ ] [Integration & E2E Testing](/software-engineering/testing/integration-e2e/) - Full testing strategy
 
 ---
 
@@ -148,10 +199,15 @@ Not every path fits every learner. Feel free to:
 - Mix elements from different paths
 - Create your own order based on your needs
 
-import { LinkCard } from '@astrojs/starlight/components';
-
-<LinkCard
-  title="Start with Big O Notation"
-  href="/software-engineering/dsa/fundamentals/big-o-notation/"
-  description="Begin your journey with the foundation of algorithm analysis"
-/>
+<CardGrid>
+  <LinkCard
+    title="Start with Big O Notation"
+    href="/software-engineering/dsa/fundamentals/big-o-notation/"
+    description="Begin your DSA journey with algorithm analysis"
+  />
+  <LinkCard
+    title="Start with OOP & SOLID"
+    href="/software-engineering/oop-solid/"
+    description="Begin your SE journey with object-oriented design"
+  />
+</CardGrid>

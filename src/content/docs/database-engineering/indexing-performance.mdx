@@ -29,7 +29,7 @@ Without Index (Full Table Scan)          With Index (B-tree Lookup)
 │                          │             │  → Direct to matching    │
 │ Time: O(N)               │             │    rows on disk          │
 │ 10M rows = 10M checks    │             │  Time: O(log N)          │
-└──────────────────────────┘             │  10M rows ≈ 23 checks   │
+└──────────────────────────┘             │  10M rows ≈ 3-4 lookups │
                                          └──────────────────────────┘
 ```
 

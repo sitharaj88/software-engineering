@@ -503,7 +503,7 @@ def test_exception_assertions():
   </TabItem>
   <TabItem label="JavaScript">
 ```javascript
-test('exception assertions', () => {
+test('exception assertions', async () => {
   expect(() => withdraw(-100)).toThrow('negative');
   expect(() => withdraw(-100)).toThrow(Error);
 
@@ -625,7 +625,7 @@ def test_to_uppercase(input_str, expected):
     pytest.param(-1, 1, 0, id="negative and positive"),
     pytest.param(0, 0, 0, id="both zero"),
     pytest.param(-5, -3, -8, id="both negative"),
-], ids=str)
+])
 def test_add(a, b, expected):
     assert add(a, b) == expected
 ```

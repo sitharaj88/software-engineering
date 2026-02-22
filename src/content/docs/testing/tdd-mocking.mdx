@@ -330,7 +330,8 @@ class FakeUserDatabase:
 <Tabs>
   <TabItem label="Python">
 ```python
-from unittest.mock import patch, MagicMock, PropertyMock
+from unittest.mock import patch, MagicMock
+from datetime import datetime
 import pytest
 from order_service import OrderService
 from payment_gateway import PaymentGateway
