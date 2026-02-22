@@ -1,0 +1,585 @@
+---
+title: "CPU Scheduling"
+description: "Explore CPU scheduling algorithms including FCFS, SJF, Round Robin, and Priority scheduling"
+difficulty: "intermediate"
+prerequisites: ["Processes & Threads"]
+timeToRead: "22 min"
+topics: ["scheduling", "fcfs", "sjf", "round-robin", "priority", "mlfq"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+import ProcessSchedulingVisualizer from '../../../components/interactive/ProcessSchedulingVisualizer';
+
+**CPU scheduling** is the mechanism by which the operating system decides which process in the ready queue gets to use the CPU next. Since only one process can run on a single CPU core at a time, the scheduler must make intelligent decisions to maximize performance and fairness. Scheduling is one of the most heavily studied and tested topics in operating systems courses and interviews.
+
+## Scheduling Criteria
+
+Before comparing algorithms, we need to understand what "good scheduling" means. The OS tries to optimize several (often conflicting) criteria:
+
+| Criterion | Definition | Goal |
+|-----------|-----------|------|
+| **CPU Utilization** | Percentage of time the CPU is busy | Maximize (ideally 40-90%) |
+| **Throughput** | Number of processes completed per unit time | Maximize |
+| **Turnaround Time** | Total time from process submission to completion (finish - arrival) | Minimize |
+| **Waiting Time** | Total time a process spends in the ready queue | Minimize |
+| **Response Time** | Time from submission to first response (first scheduled - arrival) | Minimize |
+
+**Turnaround Time** = Completion Time - Arrival Time
+
+**Waiting Time** = Turnaround Time - Burst Time
+
+---
+
+## Interactive Scheduler
+
+Experiment with different CPU scheduling algorithms below. Add processes with custom arrival times, burst times, and priorities, then watch the Gantt chart build in real time.
+
+<ProcessSchedulingVisualizer client:load />
+
+---
+
+## Preemptive vs Non-Preemptive Scheduling
+
+| Type | Description | Pros | Cons |
+|------|-------------|------|------|
+| **Non-Preemptive** | Once a process gets the CPU, it runs until it voluntarily releases (finishes or blocks on I/O) | Simple, no context-switch overhead during execution | A long process can starve others |
+| **Preemptive** | The OS can forcibly take the CPU away from a running process (e.g., when a higher-priority process arrives or a time quantum expires) | Better responsiveness, prevents monopolization | More context switches, needs careful synchronization |
+
+---
+
+## First Come, First Served (FCFS)
+
+The simplest scheduling algorithm. Processes are executed in the order they arrive in the ready queue. Non-preemptive.
+
+**How it works**: Maintain a FIFO queue. When the CPU is free, pick the process at the front of the queue.
+
+### Example
+
+Processes: P1 (burst 24), P2 (burst 3), P3 (burst 3). All arrive at time 0 in order P1, P2, P3.
+
+```
+Gantt Chart:
+┌────────────────────────────┬─────┬─────┐
+│            P1              │ P2  │ P3  │
+└────────────────────────────┴─────┴─────┘
+0                           24    27    30
+```
+
+| Process | Arrival | Burst | Completion | Turnaround | Waiting |
+|---------|---------|-------|------------|------------|---------|
+| P1 | 0 | 24 | 24 | 24 | 0 |
+| P2 | 0 | 3 | 27 | 27 | 24 |
+| P3 | 0 | 3 | 30 | 30 | 27 |
+
+**Average Waiting Time** = (0 + 24 + 27) / 3 = **17.0**
+
+**Average Turnaround Time** = (24 + 27 + 30) / 3 = **27.0**
+
+### Pros and Cons
+
+| Pros | Cons |
+|------|------|
+| Very simple to implement | Suffers from the **convoy effect**: short processes stuck behind long ones |
+| No starvation | Poor average waiting time |
+| Fair in arrival order | Not suitable for interactive systems |
+
+---
+
+## Shortest Job First (SJF) -- Non-Preemptive
+
+Selects the process with the **smallest burst time**. Provably optimal for minimizing average waiting time among non-preemptive algorithms.
+
+**How it works**: When the CPU is free, look at all processes in the ready queue and choose the one with the shortest burst time. If two processes have the same burst time, use FCFS to break ties.
+
+### Example
+
+| Process | Arrival | Burst |
+|---------|---------|-------|
+| P1 | 0 | 6 |
+| P2 | 0 | 8 |
+| P3 | 0 | 7 |
+| P4 | 0 | 3 |
+
+```
+Gantt Chart:
+┌─────┬──────────┬───────────┬────────────┐
+│ P4  │    P1    │    P3     │     P2     │
+└─────┴──────────┴───────────┴────────────┘
+0     3          9          16           24
+```
+
+| Process | Arrival | Burst | Completion | Turnaround | Waiting |
+|---------|---------|-------|------------|------------|---------|
+| P4 | 0 | 3 | 3 | 3 | 0 |
+| P1 | 0 | 6 | 9 | 9 | 3 |
+| P3 | 0 | 7 | 16 | 16 | 9 |
+| P2 | 0 | 8 | 24 | 24 | 16 |
+
+**Average Waiting Time** = (0 + 3 + 9 + 16) / 4 = **7.0**
+
+**Average Turnaround Time** = (3 + 9 + 16 + 24) / 4 = **13.0**
+
+### Pros and Cons
+
+| Pros | Cons |
+|------|------|
+| Optimal average waiting time (non-preemptive) | Requires knowing burst time in advance (often estimated) |
+| Good throughput | **Starvation**: long processes may never execute if short ones keep arriving |
+
+---
+
+## Shortest Remaining Time First (SRTF) -- Preemptive SJF
+
+The preemptive version of SJF. Whenever a new process arrives, the scheduler compares its burst time with the **remaining time** of the currently running process. If the new process has a shorter remaining time, it preempts the running process.
+
+### Example
+
+| Process | Arrival | Burst |
+|---------|---------|-------|
+| P1 | 0 | 8 |
+| P2 | 1 | 4 |
+| P3 | 2 | 9 |
+| P4 | 3 | 5 |
+
+```
+Gantt Chart:
+┌────┬──────────┬───────────┬────────────────┬───────────────────┐
+│ P1 │    P2    │    P4     │      P1        │       P3          │
+└────┴──────────┴───────────┴────────────────┴───────────────────┘
+0    1          5          10               17                  26
+```
+
+Step-by-step:
+- **t=0**: Only P1 available. P1 runs. Remaining: P1=8.
+- **t=1**: P2 arrives (burst=4). P1 remaining=7. Since 4 < 7, P2 preempts P1. Remaining: P1=7, P2=4.
+- **t=2**: P3 arrives (burst=9). P2 remaining=3. Since 3 < 7 < 9, P2 continues.
+- **t=3**: P4 arrives (burst=5). P2 remaining=2. Since 2 < 5, P2 continues.
+- **t=5**: P2 finishes. Ready: P1(7), P3(9), P4(5). P4 is shortest. P4 runs.
+- **t=10**: P4 finishes. Ready: P1(7), P3(9). P1 runs.
+- **t=17**: P1 finishes. P3 runs.
+- **t=26**: P3 finishes.
+
+| Process | Arrival | Burst | Completion | Turnaround | Waiting |
+|---------|---------|-------|------------|------------|---------|
+| P1 | 0 | 8 | 17 | 17 | 9 |
+| P2 | 1 | 4 | 5 | 4 | 0 |
+| P3 | 2 | 9 | 26 | 24 | 15 |
+| P4 | 3 | 5 | 10 | 7 | 2 |
+
+**Average Waiting Time** = (9 + 0 + 15 + 2) / 4 = **6.5**
+
+**Average Turnaround Time** = (17 + 4 + 24 + 7) / 4 = **13.0**
+
+---
+
+## Round Robin (RR)
+
+Each process gets a fixed **time quantum** (time slice). If a process does not finish within its quantum, it is preempted and placed at the back of the ready queue. Round Robin is the foundation of modern time-sharing systems.
+
+**How it works**: Maintain a circular FIFO queue. Give each process at the front up to `q` time units. If it finishes, remove it. If not, move it to the back.
+
+### Example (Time Quantum = 4)
+
+| Process | Arrival | Burst |
+|---------|---------|-------|
+| P1 | 0 | 5 |
+| P2 | 0 | 3 |
+| P3 | 0 | 8 |
+
+```
+Gantt Chart (q=4):
+┌──────┬─────┬──────┬────┬──────┐
+│  P1  │ P2  │  P3  │ P1 │  P3  │
+└──────┴─────┴──────┴────┴──────┘
+0      4     7     11   12     16
+```
+
+Step-by-step:
+- **t=0-4**: P1 runs for 4 (remaining 1). P1 goes to back.
+- **t=4-7**: P2 runs for 3 (finishes).
+- **t=7-11**: P3 runs for 4 (remaining 4). P3 goes to back.
+- **t=11-12**: P1 runs for 1 (finishes).
+- **t=12-16**: P3 runs for 4 (finishes).
+
+| Process | Arrival | Burst | Completion | Turnaround | Waiting |
+|---------|---------|-------|------------|------------|---------|
+| P1 | 0 | 5 | 12 | 12 | 7 |
+| P2 | 0 | 3 | 7 | 7 | 4 |
+| P3 | 0 | 8 | 16 | 16 | 8 |
+
+**Average Waiting Time** = (7 + 4 + 8) / 3 = **6.33**
+
+**Average Turnaround Time** = (12 + 7 + 16) / 3 = **11.67**
+
+### Choosing the Time Quantum
+
+The time quantum `q` has a major impact on performance:
+
+- **q too large** (e.g., 100ms): Degenerates into FCFS. Poor response time.
+- **q too small** (e.g., 1ms): Excessive context switches. High overhead.
+- **Rule of thumb**: 80% of CPU bursts should be shorter than the time quantum. Typical values: 10-100ms.
+
+```
+Effect of Time Quantum:
+
+q = infinity  ───>  Becomes FCFS
+q = 100ms     ───>  Good balance for most systems
+q = 10ms      ───>  Very responsive, moderate overhead
+q = 1ms       ───>  Too many context switches (overhead > useful work)
+```
+
+### Pros and Cons
+
+| Pros | Cons |
+|------|------|
+| Fair: every process gets equal CPU time | Higher average turnaround than SJF |
+| Good response time | Performance depends heavily on time quantum |
+| No starvation | More context switches than FCFS/SJF |
+| Simple to implement | |
+
+---
+
+## Priority Scheduling
+
+Each process is assigned a **priority number**. The CPU is allocated to the process with the highest priority (lowest number = highest priority is the common convention, though this varies).
+
+**How it works**: Always run the highest-priority ready process. Can be preemptive (a new higher-priority process preempts) or non-preemptive.
+
+### Example (Non-Preemptive, lower number = higher priority)
+
+| Process | Arrival | Burst | Priority |
+|---------|---------|-------|----------|
+| P1 | 0 | 10 | 3 |
+| P2 | 0 | 1 | 1 |
+| P3 | 0 | 2 | 4 |
+| P4 | 0 | 1 | 5 |
+| P5 | 0 | 5 | 2 |
+
+```
+Gantt Chart:
+┌────┬───────────┬────────────────┬─────┬────┐
+│ P2 │    P5     │       P1       │ P3  │ P4 │
+└────┴───────────┴────────────────┴─────┴────┘
+0    1           6               16    18   19
+```
+
+| Process | Arrival | Burst | Priority | Completion | Turnaround | Waiting |
+|---------|---------|-------|----------|------------|------------|---------|
+| P2 | 0 | 1 | 1 | 1 | 1 | 0 |
+| P5 | 0 | 5 | 2 | 6 | 6 | 1 |
+| P1 | 0 | 10 | 3 | 16 | 16 | 6 |
+| P3 | 0 | 2 | 4 | 18 | 18 | 16 |
+| P4 | 0 | 1 | 5 | 19 | 19 | 18 |
+
+**Average Waiting Time** = (0 + 1 + 6 + 16 + 18) / 5 = **8.2**
+
+### The Starvation Problem and Aging
+
+Low-priority processes may **starve** (never execute) if higher-priority processes keep arriving. The solution is **aging**: gradually increase the priority of waiting processes over time.
+
+```
+Aging Example:
+  Process P_low starts with priority 50
+  Every 1 second in ready queue: priority += 1
+
+  After 30 seconds waiting: priority = 80 (high enough to run)
+```
+
+### Pros and Cons
+
+| Pros | Cons |
+|------|------|
+| Important processes run first | **Starvation** of low-priority processes |
+| Flexible priority assignment | Priority inversion (low-priority holds resource needed by high-priority) |
+| Can model real-world importance | Requires aging to prevent starvation |
+
+---
+
+## Multilevel Queue Scheduling
+
+Processes are permanently assigned to one of several queues, each with its own scheduling algorithm.
+
+```
+┌─────────────────────────────────────────────┐
+│  System processes         (highest priority) │  ──> Priority scheduling
+├─────────────────────────────────────────────┤
+│  Interactive processes                       │  ──> Round Robin (q=8)
+├─────────────────────────────────────────────┤
+│  Batch processes                             │  ──> FCFS
+├─────────────────────────────────────────────┤
+│  Student processes        (lowest priority)  │  ──> FCFS
+└─────────────────────────────────────────────┘
+
+Scheduling between queues: Fixed priority or time-slice
+  Example: System gets 40%, Interactive gets 40%, Batch gets 20%
+```
+
+**Problem**: Processes cannot move between queues. A process classified as "batch" stays batch forever, even if its behavior changes.
+
+---
+
+## Multilevel Feedback Queue (MLFQ)
+
+The most sophisticated and widely used scheduling algorithm in real-world operating systems (used by Linux, Windows, macOS in various forms). Processes can **move between queues** based on their observed behavior.
+
+### MLFQ Rules
+
+1. If Priority(A) > Priority(B), A runs.
+2. If Priority(A) = Priority(B), A and B run in Round Robin.
+3. A new process enters at the highest-priority queue.
+4. If a process uses up its entire time quantum, it is demoted (moved to a lower-priority queue).
+5. If a process gives up the CPU before its quantum expires (e.g., for I/O), it stays at the same level.
+6. Periodically, all processes are boosted to the highest-priority queue (prevents starvation).
+
+```
+Queue 0 (highest priority): RR with q=8ms
+┌──────────────────────────────────────┐
+│  New processes start here            │
+│  If process uses full quantum → Q1   │
+│  If process blocks on I/O → stay Q0  │
+└──────────────────────────────────────┘
+                │ (demotion)
+                v
+Queue 1 (medium priority): RR with q=16ms
+┌──────────────────────────────────────┐
+│  Processes that used full quantum    │
+│  at Q0 run here with larger slice    │
+│  If process uses full quantum → Q2   │
+└──────────────────────────────────────┘
+                │ (demotion)
+                v
+Queue 2 (lowest priority): FCFS
+┌──────────────────────────────────────┐
+│  Long-running CPU-bound processes    │
+│  Get lowest priority but largest     │
+│  time slices                         │
+└──────────────────────────────────────┘
+
+       ↑ Priority Boost (periodically move all to Q0)
+```
+
+### Why MLFQ Works Well
+
+- **Interactive (I/O-bound) processes** stay in the high-priority queue because they frequently give up the CPU before the quantum expires
+- **CPU-bound processes** naturally sink to lower queues where they get larger time slices (fewer context switches)
+- **Priority boosting** prevents starvation and adapts to changing process behavior
+
+---
+
+## Algorithm Comparison
+
+| Algorithm | Type | Preemptive | Starvation | Convoy Effect | Optimal Waiting Time |
+|-----------|------|------------|------------|---------------|---------------------|
+| **FCFS** | Non-preemptive | No | No | Yes | No |
+| **SJF** | Non-preemptive | No | Yes | No | Yes (non-preemptive) |
+| **SRTF** | Preemptive | Yes | Yes | No | Yes (overall) |
+| **Round Robin** | Preemptive | Yes | No | No | No |
+| **Priority** | Both | Configurable | Yes (without aging) | No | No |
+| **Multilevel Queue** | Both | Configurable | Yes | No | No |
+| **MLFQ** | Preemptive | Yes | No (with boosting) | No | Approximates SJF |
+
+---
+
+## Practice Problems
+
+### Problem 1: FCFS with Different Arrival Times
+
+| Process | Arrival | Burst |
+|---------|---------|-------|
+| P1 | 0 | 5 |
+| P2 | 1 | 3 |
+| P3 | 2 | 8 |
+| P4 | 3 | 6 |
+
+**Solution:**
+
+```
+Gantt Chart:
+┌───────────┬─────────┬──────────────────┬────────────────┐
+│    P1     │   P2    │       P3         │      P4        │
+└───────────┴─────────┴──────────────────┴────────────────┘
+0           5         8                 16               22
+```
+
+| Process | Arrival | Burst | Completion | Turnaround | Waiting |
+|---------|---------|-------|------------|------------|---------|
+| P1 | 0 | 5 | 5 | 5 | 0 |
+| P2 | 1 | 3 | 8 | 7 | 4 |
+| P3 | 2 | 8 | 16 | 14 | 6 |
+| P4 | 3 | 6 | 22 | 19 | 13 |
+
+**Average Waiting Time** = (0 + 4 + 6 + 13) / 4 = **5.75**
+
+**Average Turnaround Time** = (5 + 7 + 14 + 19) / 4 = **11.25**
+
+---
+
+### Problem 2: SJF (Non-Preemptive) with Different Arrival Times
+
+| Process | Arrival | Burst |
+|---------|---------|-------|
+| P1 | 0 | 7 |
+| P2 | 2 | 4 |
+| P3 | 4 | 1 |
+| P4 | 5 | 4 |
+
+**Solution:**
+
+```
+Gantt Chart:
+┌─────────────────┬────┬──────────┬──────────┐
+│       P1        │ P3 │    P2    │    P4    │
+└─────────────────┴────┴──────────┴──────────┘
+0                 7    8         12         16
+```
+
+Step-by-step:
+- **t=0**: Only P1 is available. P1 runs (burst=7).
+- **t=7**: P1 finishes. Ready: P2(burst=4), P3(burst=1), P4(burst=4). Shortest is P3.
+- **t=8**: P3 finishes. Ready: P2(4), P4(4). FCFS tie-break: P2 arrived first.
+- **t=12**: P2 finishes. P4 runs.
+- **t=16**: Done.
+
+| Process | Arrival | Burst | Completion | Turnaround | Waiting |
+|---------|---------|-------|------------|------------|---------|
+| P1 | 0 | 7 | 7 | 7 | 0 |
+| P2 | 2 | 4 | 12 | 10 | 6 |
+| P3 | 4 | 1 | 8 | 4 | 3 |
+| P4 | 5 | 4 | 16 | 11 | 7 |
+
+**Average Waiting Time** = (0 + 6 + 3 + 7) / 4 = **4.0**
+
+**Average Turnaround Time** = (7 + 10 + 4 + 11) / 4 = **8.0**
+
+---
+
+### Problem 3: Round Robin (q=3)
+
+| Process | Arrival | Burst |
+|---------|---------|-------|
+| P1 | 0 | 4 |
+| P2 | 0 | 6 |
+| P3 | 0 | 2 |
+
+**Solution:**
+
+```
+Gantt Chart (q=3):
+┌─────────┬─────────┬─────┬────┬─────────┐
+│   P1    │   P2    │ P3  │ P1 │   P2    │
+└─────────┴─────────┴─────┴────┴─────────┘
+0         3         6     8    9        12
+```
+
+Step-by-step:
+- **t=0-3**: P1 runs for 3 (remaining 1). Queue: [P2, P3, P1].
+- **t=3-6**: P2 runs for 3 (remaining 3). Queue: [P3, P1, P2].
+- **t=6-8**: P3 runs for 2 (finishes). Queue: [P1, P2].
+- **t=8-9**: P1 runs for 1 (finishes). Queue: [P2].
+- **t=9-12**: P2 runs for 3 (finishes).
+
+| Process | Arrival | Burst | Completion | Turnaround | Waiting |
+|---------|---------|-------|------------|------------|---------|
+| P1 | 0 | 4 | 9 | 9 | 5 |
+| P2 | 0 | 6 | 12 | 12 | 6 |
+| P3 | 0 | 2 | 8 | 8 | 6 |
+
+**Average Waiting Time** = (5 + 6 + 6) / 3 = **5.67**
+
+**Average Turnaround Time** = (9 + 12 + 8) / 3 = **9.67**
+
+---
+
+### Problem 4: SRTF with Arrivals
+
+| Process | Arrival | Burst |
+|---------|---------|-------|
+| P1 | 0 | 6 |
+| P2 | 2 | 2 |
+| P3 | 4 | 4 |
+
+**Solution:**
+
+```
+Gantt Chart:
+┌─────┬─────┬──────────┬──────────┐
+│ P1  │ P2  │    P1    │    P3    │
+└─────┴─────┴──────────┴──────────┘
+0     2     4          8         12
+```
+
+Step-by-step:
+- **t=0**: P1 starts (remaining=6).
+- **t=2**: P2 arrives (burst=2). P1 remaining=4. Since 2 < 4, P2 preempts P1.
+- **t=4**: P2 finishes. P3 arrives (burst=4). P1 remaining=4. Tie: FCFS favors P1. P1 runs.
+- **t=8**: P1 finishes. P3 runs.
+- **t=12**: P3 finishes.
+
+| Process | Arrival | Burst | Completion | Turnaround | Waiting |
+|---------|---------|-------|------------|------------|---------|
+| P1 | 0 | 6 | 8 | 8 | 2 |
+| P2 | 2 | 2 | 4 | 2 | 0 |
+| P3 | 4 | 4 | 12 | 8 | 4 |
+
+**Average Waiting Time** = (2 + 0 + 4) / 3 = **2.0**
+
+**Average Turnaround Time** = (8 + 2 + 8) / 3 = **6.0**
+
+---
+
+## Real-World Scheduling
+
+### Linux: Completely Fair Scheduler (CFS)
+
+Linux uses the **CFS**, which models an ideal multitasking CPU where each process gets an equal fraction of CPU time. Key ideas:
+
+- Uses a **red-black tree** sorted by "virtual runtime" (vruntime)
+- The process with the smallest vruntime is scheduled next
+- Higher-priority processes accumulate vruntime more slowly, so they get more CPU time
+- No fixed time quantum -- the time slice adapts based on the number of runnable processes
+
+### Windows: Priority-Based Preemptive Scheduling
+
+Windows uses a **multilevel feedback queue** with 32 priority levels (0-31):
+- Levels 16-31: Real-time priorities
+- Levels 1-15: Variable priorities (dynamically adjusted based on behavior)
+- Level 0: System idle thread
+
+---
+
+## Key Takeaways
+
+1. **FCFS** is simple but suffers from the convoy effect -- short processes wait behind long ones
+2. **SJF/SRTF** gives optimal average waiting time but requires knowing burst times and can cause starvation
+3. **Round Robin** is fair and has good response time; its performance depends heavily on the time quantum
+4. **Priority Scheduling** serves important processes first but needs aging to prevent starvation
+5. **MLFQ** is the practical choice -- it approximates SJF behavior without requiring burst time estimates
+6. No single algorithm is best for all scenarios; real-world schedulers combine multiple approaches
+7. When solving scheduling problems: draw the Gantt chart first, then calculate completion, turnaround, and waiting times
+
+---
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="Memory Management"
+    href="/software-engineering/operating-systems/memory-management/"
+    description="Understand virtual memory, paging, and page replacement algorithms"
+  />
+  <LinkCard
+    title="Deadlocks & Synchronization"
+    href="/software-engineering/operating-systems/deadlocks/"
+    description="Learn about synchronization primitives and how deadlocks occur and are resolved"
+  />
+  <LinkCard
+    title="Processes & Threads"
+    href="/software-engineering/operating-systems/processes-threads/"
+    description="Review process lifecycle, threading models, and IPC mechanisms"
+  />
+  <LinkCard
+    title="Operating Systems Overview"
+    href="/software-engineering/operating-systems/"
+    description="Return to the OS overview for the complete topic map"
+  />
+</CardGrid>

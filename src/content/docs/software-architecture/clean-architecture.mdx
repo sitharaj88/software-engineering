@@ -1,0 +1,939 @@
+---
+title: "Clean & Layered Architecture"
+description: "Design maintainable applications using layered, hexagonal, and clean architecture patterns"
+difficulty: "intermediate"
+prerequisites: ["Software Architecture Overview", "SOLID Principles"]
+timeToRead: "20 min"
+topics: ["clean-architecture", "hexagonal", "ports-adapters", "layered", "dependency-rule"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+Layered and clean architecture patterns address a fundamental challenge in software engineering: **how do you organize code so that the business logic remains independent of frameworks, databases, and delivery mechanisms?** Getting this right makes your application easier to test, maintain, and adapt to changing requirements.
+
+---
+
+## Traditional Layered Architecture
+
+The most common starting point for structuring an application is a **three-tier layered architecture**. Each layer has a specific responsibility and depends only on the layer directly below it.
+
+```
+┌──────────────────────────────────────────────┐
+│            Presentation Layer                 │
+│  (Controllers, Views, API endpoints, CLI)    │
+├──────────────────────────────────────────────┤
+│              ▼ depends on ▼                  │
+├──────────────────────────────────────────────┤
+│           Business Logic Layer               │
+│  (Services, Domain models, Use cases)        │
+├──────────────────────────────────────────────┤
+│              ▼ depends on ▼                  │
+├──────────────────────────────────────────────┤
+│            Data Access Layer                 │
+│  (Repositories, ORM, Database queries)       │
+└──────────────────────────────────────────────┘
+                     │
+                     ▼
+              ┌─────────────┐
+              │  Database    │
+              └─────────────┘
+```
+
+### How It Works
+
+- **Presentation Layer**: Handles HTTP requests, renders views, or formats API responses. It delegates all work to the business logic layer.
+- **Business Logic Layer**: Contains the core rules and processes. It orchestrates operations and enforces domain constraints.
+- **Data Access Layer**: Manages persistence. It reads from and writes to databases, file systems, or external APIs.
+
+### Benefits
+
+- **Separation of concerns**: Each layer has a clear, well-defined responsibility
+- **Ease of understanding**: Developers can quickly locate where a change belongs
+- **Team organization**: Different developers or teams can work on different layers
+
+### Problems with Naive Layering
+
+While simple layered architecture is a good starting point, it suffers from several issues in practice:
+
+1. **Business logic depends on infrastructure**: The business layer directly references the data access layer. If you want to swap databases, you must change the business layer too.
+2. **Testing is difficult**: Testing business logic requires a real database (or complex mocks of database-specific interfaces).
+3. **Domain model leaks**: Database entities often become the domain model, coupling business rules to the persistence schema.
+4. **Transitive dependency trap**: Changes in the database layer ripple upward through the business layer to the presentation layer.
+
+:::caution[The Big Ball of Mud]
+In poorly maintained layered architectures, developers often bypass layers for convenience -- a controller might directly call the database, or business logic might leak into the presentation layer. Over time, this creates a "big ball of mud" where everything depends on everything.
+:::
+
+---
+
+## Hexagonal Architecture (Ports and Adapters)
+
+Hexagonal architecture, introduced by **Alistair Cockburn** in 2005, solves the dependency problem by **inverting the relationship** between business logic and infrastructure. The core idea: the application defines **ports** (interfaces), and the outside world connects through **adapters**.
+
+```
+                    ┌─────────────────┐
+                    │   REST Adapter   │
+                    │  (Controller)    │
+                    └────────┬────────┘
+                             │
+                    ┌────────▼────────┐
+                    │   Input Port     │
+                    │  (Interface)     │
+         ┌──────── ├──────────────────┤ ────────┐
+         │         │                  │         │
+         │         │   APPLICATION    │         │
+         │         │     CORE         │         │
+  ┌──────┴──────┐  │                  │  ┌──────┴──────┐
+  │  CLI        │  │  Domain Models   │  │  Message    │
+  │  Adapter    │──│  Use Cases       │──│  Queue      │
+  │             │  │  Business Rules  │  │  Adapter    │
+  └─────────────┘  │                  │  └─────────────┘
+         │         │                  │         │
+         │         ├──────────────────┤         │
+         │         │  Output Port     │         │
+         └──────── │  (Interface)     │ ────────┘
+                    └────────┬────────┘
+                             │
+                    ┌────────▼────────┐
+                    │  Database        │
+                    │  Adapter (Repo)  │
+                    └─────────────────┘
+```
+
+### Key Concepts
+
+- **Application Core**: Contains all business logic, domain models, and use cases. It has **zero dependencies** on external frameworks or infrastructure.
+- **Ports**: Interfaces defined by the core that describe what it needs from the outside world.
+  - **Input ports** (driving ports): Define how the outside world can interact with the core (e.g., `CreateOrderUseCase`)
+  - **Output ports** (driven ports): Define what infrastructure the core needs (e.g., `OrderRepository`, `PaymentGateway`)
+- **Adapters**: Concrete implementations that connect external systems to the ports.
+  - **Input adapters** (driving adapters): REST controllers, CLI handlers, GraphQL resolvers
+  - **Output adapters** (driven adapters): PostgreSQL repositories, Stripe payment adapters, SMTP email senders
+
+### The Inversion
+
+In traditional layered architecture, **business logic depends on the database layer**. In hexagonal architecture, **the database adapter depends on the business logic** (through the output port interface). This inversion is the key insight -- it keeps the core clean and testable.
+
+```
+Traditional:   Controller ──► Service ──► Repository (concrete)
+                                              │
+                                          Database
+
+Hexagonal:     Controller ──► UseCase ◄── RepositoryPort (interface)
+               (adapter)     (core)              ▲
+                                                 │
+                                          RepositoryAdapter ──► Database
+                                          (implements port)
+```
+
+---
+
+## Clean Architecture
+
+**Robert C. Martin (Uncle Bob)** synthesized ideas from hexagonal architecture, onion architecture, and others into **Clean Architecture** in 2012. It organizes code into concentric layers with a strict **dependency rule**.
+
+```
+┌───────────────────────────────────────────────────────────┐
+│                  Frameworks & Drivers                      │
+│  (Web framework, Database driver, UI, External APIs)      │
+│                                                           │
+│   ┌───────────────────────────────────────────────────┐   │
+│   │              Interface Adapters                    │   │
+│   │  (Controllers, Presenters, Gateways, Repos)       │   │
+│   │                                                   │   │
+│   │   ┌───────────────────────────────────────────┐   │   │
+│   │   │           Application Layer               │   │   │
+│   │   │       (Use Cases / Application            │   │   │
+│   │   │        Services / Interactors)            │   │   │
+│   │   │                                           │   │   │
+│   │   │   ┌───────────────────────────────────┐   │   │   │
+│   │   │   │         Enterprise Layer          │   │   │   │
+│   │   │   │    (Entities / Domain Models /    │   │   │   │
+│   │   │   │     Business Rules)               │   │   │   │
+│   │   │   └───────────────────────────────────┘   │   │   │
+│   │   │                                           │   │   │
+│   │   └───────────────────────────────────────────┘   │   │
+│   │                                                   │   │
+│   └───────────────────────────────────────────────────┘   │
+│                                                           │
+└───────────────────────────────────────────────────────────┘
+```
+
+### The Four Layers
+
+#### 1. Entities (Enterprise Business Rules)
+
+The innermost layer contains the **core business objects** and the rules that govern them. Entities encapsulate the most general, high-level business rules -- rules that would exist even if there were no software system.
+
+- Domain models with business logic methods
+- Value objects with validation rules
+- Domain exceptions and enumerations
+
+#### 2. Use Cases (Application Business Rules)
+
+This layer contains **application-specific business rules**. Each use case orchestrates the flow of data to and from entities, directing them to apply their business rules to achieve a specific goal.
+
+- One class per use case (e.g., `PlaceOrderUseCase`, `CancelOrderUseCase`)
+- Defines input/output DTOs (Data Transfer Objects)
+- Orchestrates entity interactions
+- Defines repository and service interfaces (output ports)
+
+#### 3. Interface Adapters
+
+This layer **converts data** between the format most convenient for the use cases and the format required by external systems.
+
+- Controllers that parse HTTP requests and call use cases
+- Presenters that format use case output for the view
+- Repository implementations that convert domain entities to database rows
+- Gateway implementations for external APIs
+
+#### 4. Frameworks & Drivers
+
+The outermost layer contains **frameworks, tools, and delivery mechanisms**. This is where the "details" live -- the web framework, the database driver, the UI rendering engine.
+
+- Web frameworks (Flask, Spring, Express)
+- Database engines (PostgreSQL, MongoDB)
+- Message queue clients (Kafka, RabbitMQ)
+- External service SDKs
+
+### The Dependency Rule
+
+:::note[The Dependency Rule]
+**Source code dependencies must point only inward.** Nothing in an inner circle can know anything about something in an outer circle. This includes functions, classes, variables, or any named software entity. The inner layers define interfaces; the outer layers implement them.
+:::
+
+This rule ensures that:
+- **Entities** know nothing about use cases, controllers, or databases
+- **Use cases** know nothing about controllers or frameworks -- they only reference entity classes and port interfaces
+- **Adapters** know about use cases (to call them) but not about frameworks
+- **Frameworks** know about adapters but are kept at the outer edge
+
+### Crossing Boundaries with Dependency Injection
+
+When a use case needs to call a repository, it does **not** import the concrete implementation. Instead, it depends on an **interface** (port) defined in the use case layer. The concrete implementation in the outer layer is injected at runtime.
+
+```
+Use Case Layer:                    Interface Adapters Layer:
+┌─────────────────────┐            ┌────────────────────────────┐
+│ PlaceOrderUseCase   │            │ PostgresOrderRepository    │
+│                     │            │                            │
+│ - repo: OrderRepo   │◄─ injects ─│ implements OrderRepo       │
+│   (interface)       │            │ uses SQLAlchemy / psycopg2 │
+│                     │            │                            │
+│ + execute(input)    │            │ + save(order)              │
+│   self.repo.save()  │            │ + find_by_id(id)           │
+└─────────────────────┘            └────────────────────────────┘
+```
+
+---
+
+## Code Examples: Clean Architecture in Practice
+
+### Folder Structure
+
+<Tabs>
+  <TabItem label="Python">
+```
+order_service/
+├── domain/                      # Entities (innermost layer)
+│   ├── __init__.py
+│   ├── order.py                 # Order entity with business rules
+│   ├── order_item.py            # OrderItem value object
+│   └── exceptions.py            # Domain-specific exceptions
+│
+├── application/                 # Use Cases
+│   ├── __init__.py
+│   ├── ports/                   # Interfaces (output ports)
+│   │   ├── __init__.py
+│   │   ├── order_repository.py  # Abstract repository interface
+│   │   └── payment_gateway.py   # Abstract payment interface
+│   ├── place_order.py           # PlaceOrderUseCase
+│   └── cancel_order.py          # CancelOrderUseCase
+│
+├── adapters/                    # Interface Adapters
+│   ├── __init__.py
+│   ├── api/                     # Input adapters (driving)
+│   │   ├── __init__.py
+│   │   ├── order_controller.py  # REST controller
+│   │   └── schemas.py           # Request/Response schemas
+│   └── persistence/             # Output adapters (driven)
+│       ├── __init__.py
+│       ├── postgres_order_repo.py
+│       └── models.py            # SQLAlchemy models
+│
+├── infrastructure/              # Frameworks & Drivers
+│   ├── __init__.py
+│   ├── config.py                # App configuration
+│   ├── database.py              # DB connection setup
+│   └── container.py             # Dependency injection container
+│
+└── main.py                      # Application entry point
+```
+  </TabItem>
+  <TabItem label="Java">
+```
+com.example.orderservice/
+├── domain/                         // Entities (innermost layer)
+│   ├── model/
+│   │   ├── Order.java              // Order entity
+│   │   ├── OrderItem.java          // Value object
+│   │   ├── OrderStatus.java        // Enum
+│   │   └── Money.java              // Value object
+│   └── exception/
+│       └── InsufficientStockException.java
+│
+├── application/                    // Use Cases
+│   ├── port/
+│   │   ├── in/                     // Input ports (driving)
+│   │   │   ├── PlaceOrderUseCase.java
+│   │   │   └── CancelOrderUseCase.java
+│   │   └── out/                    // Output ports (driven)
+│   │       ├── OrderRepository.java
+│   │       └── PaymentGateway.java
+│   ├── service/
+│   │   ├── PlaceOrderService.java  // Implements PlaceOrderUseCase
+│   │   └── CancelOrderService.java
+│   └── dto/
+│       ├── PlaceOrderCommand.java
+│       └── OrderResponse.java
+│
+├── adapter/                        // Interface Adapters
+│   ├── in/
+│   │   └── web/
+│   │       ├── OrderController.java
+│   │       └── OrderRequestDto.java
+│   └── out/
+│       └── persistence/
+│           ├── JpaOrderRepository.java
+│           ├── OrderJpaEntity.java
+│           └── OrderMapper.java
+│
+└── infrastructure/                 // Frameworks & Drivers
+    ├── config/
+    │   ├── BeanConfiguration.java
+    │   └── DatabaseConfiguration.java
+    └── OrderServiceApplication.java
+```
+  </TabItem>
+</Tabs>
+
+### Entity (Domain Layer)
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# domain/order.py
+from dataclasses import dataclass, field
+from datetime import datetime
+from enum import Enum
+from typing import List
+from uuid import UUID, uuid4
+
+from domain.exceptions import (
+    EmptyOrderError,
+    OrderAlreadyCancelledError,
+)
+
+
+class OrderStatus(Enum):
+    PENDING = "pending"
+    CONFIRMED = "confirmed"
+    SHIPPED = "shipped"
+    CANCELLED = "cancelled"
+
+
+@dataclass
+class OrderItem:
+    """Value object representing a line item in an order."""
+    product_id: str
+    product_name: str
+    quantity: int
+    unit_price: float
+
+    def __post_init__(self):
+        if self.quantity <= 0:
+            raise ValueError("Quantity must be positive")
+        if self.unit_price < 0:
+            raise ValueError("Unit price cannot be negative")
+
+    @property
+    def subtotal(self) -> float:
+        return self.quantity * self.unit_price
+
+
+@dataclass
+class Order:
+    """Entity: the aggregate root for orders."""
+    id: UUID = field(default_factory=uuid4)
+    customer_id: str = ""
+    items: List[OrderItem] = field(default_factory=list)
+    status: OrderStatus = OrderStatus.PENDING
+    created_at: datetime = field(default_factory=datetime.utcnow)
+
+    @property
+    def total(self) -> float:
+        return sum(item.subtotal for item in self.items)
+
+    def add_item(self, item: OrderItem) -> None:
+        self.items.append(item)
+
+    def place(self) -> None:
+        """Business rule: an order must have at least one item."""
+        if not self.items:
+            raise EmptyOrderError("Cannot place an order with no items")
+        self.status = OrderStatus.CONFIRMED
+
+    def cancel(self) -> None:
+        """Business rule: only pending/confirmed orders can be cancelled."""
+        if self.status == OrderStatus.CANCELLED:
+            raise OrderAlreadyCancelledError("Order is already cancelled")
+        if self.status == OrderStatus.SHIPPED:
+            raise OrderAlreadyCancelledError("Cannot cancel a shipped order")
+        self.status = OrderStatus.CANCELLED
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+// domain/model/Order.java
+package com.example.orderservice.domain.model;
+
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.UUID;
+
+public class Order {
+
+    private final UUID id;
+    private final String customerId;
+    private final List<OrderItem> items;
+    private OrderStatus status;
+    private final Instant createdAt;
+
+    public Order(String customerId) {
+        this.id = UUID.randomUUID();
+        this.customerId = customerId;
+        this.items = new ArrayList<>();
+        this.status = OrderStatus.PENDING;
+        this.createdAt = Instant.now();
+    }
+
+    public Money getTotal() {
+        return items.stream()
+            .map(OrderItem::getSubtotal)
+            .reduce(Money.ZERO, Money::add);
+    }
+
+    public void addItem(OrderItem item) {
+        this.items.add(item);
+    }
+
+    /** Business rule: an order must have at least one item. */
+    public void place() {
+        if (items.isEmpty()) {
+            throw new IllegalStateException(
+                "Cannot place an order with no items"
+            );
+        }
+        this.status = OrderStatus.CONFIRMED;
+    }
+
+    /** Business rule: only pending/confirmed orders can be cancelled. */
+    public void cancel() {
+        if (this.status == OrderStatus.CANCELLED) {
+            throw new IllegalStateException("Order is already cancelled");
+        }
+        if (this.status == OrderStatus.SHIPPED) {
+            throw new IllegalStateException("Cannot cancel a shipped order");
+        }
+        this.status = OrderStatus.CANCELLED;
+    }
+
+    // Getters
+    public UUID getId() { return id; }
+    public String getCustomerId() { return customerId; }
+    public List<OrderItem> getItems() {
+        return Collections.unmodifiableList(items);
+    }
+    public OrderStatus getStatus() { return status; }
+    public Instant getCreatedAt() { return createdAt; }
+}
+```
+  </TabItem>
+</Tabs>
+
+### Use Case (Application Layer)
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# application/ports/order_repository.py
+from abc import ABC, abstractmethod
+from typing import Optional
+from uuid import UUID
+
+from domain.order import Order
+
+
+class OrderRepository(ABC):
+    """Output port: defines what the use case needs from persistence."""
+
+    @abstractmethod
+    def save(self, order: Order) -> None:
+        ...
+
+    @abstractmethod
+    def find_by_id(self, order_id: UUID) -> Optional[Order]:
+        ...
+
+
+# application/place_order.py
+from dataclasses import dataclass
+from typing import List
+
+from domain.order import Order, OrderItem
+from application.ports.order_repository import OrderRepository
+
+
+@dataclass
+class PlaceOrderInput:
+    customer_id: str
+    items: List[dict]  # [{"product_id": ..., "quantity": ..., ...}]
+
+
+@dataclass
+class PlaceOrderOutput:
+    order_id: str
+    total: float
+    status: str
+
+
+class PlaceOrderUseCase:
+    """Application service: orchestrates placing an order."""
+
+    def __init__(self, order_repo: OrderRepository):
+        # Depends on the INTERFACE, not a concrete implementation
+        self._order_repo = order_repo
+
+    def execute(self, input_data: PlaceOrderInput) -> PlaceOrderOutput:
+        order = Order(customer_id=input_data.customer_id)
+
+        for item_data in input_data.items:
+            order.add_item(OrderItem(
+                product_id=item_data["product_id"],
+                product_name=item_data["product_name"],
+                quantity=item_data["quantity"],
+                unit_price=item_data["unit_price"],
+            ))
+
+        order.place()  # Validates business rules
+        self._order_repo.save(order)
+
+        return PlaceOrderOutput(
+            order_id=str(order.id),
+            total=order.total,
+            status=order.status.value,
+        )
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+// application/port/out/OrderRepository.java
+package com.example.orderservice.application.port.out;
+
+import com.example.orderservice.domain.model.Order;
+import java.util.Optional;
+import java.util.UUID;
+
+public interface OrderRepository {
+    void save(Order order);
+    Optional<Order> findById(UUID orderId);
+}
+
+
+// application/service/PlaceOrderService.java
+package com.example.orderservice.application.service;
+
+import com.example.orderservice.application.dto.PlaceOrderCommand;
+import com.example.orderservice.application.dto.OrderResponse;
+import com.example.orderservice.application.port.in.PlaceOrderUseCase;
+import com.example.orderservice.application.port.out.OrderRepository;
+import com.example.orderservice.domain.model.Order;
+import com.example.orderservice.domain.model.OrderItem;
+import com.example.orderservice.domain.model.Money;
+
+public class PlaceOrderService implements PlaceOrderUseCase {
+
+    private final OrderRepository orderRepository;
+
+    // Constructor injection -- depends on interface, not concrete class
+    public PlaceOrderService(OrderRepository orderRepository) {
+        this.orderRepository = orderRepository;
+    }
+
+    @Override
+    public OrderResponse execute(PlaceOrderCommand command) {
+        Order order = new Order(command.getCustomerId());
+
+        for (PlaceOrderCommand.ItemDto item : command.getItems()) {
+            order.addItem(new OrderItem(
+                item.getProductId(),
+                item.getProductName(),
+                item.getQuantity(),
+                new Money(item.getUnitPrice())
+            ));
+        }
+
+        order.place(); // Validates business rules
+        orderRepository.save(order);
+
+        return new OrderResponse(
+            order.getId().toString(),
+            order.getTotal().getAmount(),
+            order.getStatus().name()
+        );
+    }
+}
+```
+  </TabItem>
+</Tabs>
+
+### Adapter (Infrastructure Layer)
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# adapters/persistence/postgres_order_repo.py
+from typing import Optional
+from uuid import UUID
+
+from sqlalchemy.orm import Session
+
+from domain.order import Order, OrderItem, OrderStatus
+from application.ports.order_repository import OrderRepository
+from adapters.persistence.models import OrderModel, OrderItemModel
+
+
+class PostgresOrderRepository(OrderRepository):
+    """Output adapter: implements the repository port using PostgreSQL."""
+
+    def __init__(self, session: Session):
+        self._session = session
+
+    def save(self, order: Order) -> None:
+        model = OrderModel(
+            id=str(order.id),
+            customer_id=order.customer_id,
+            status=order.status.value,
+            created_at=order.created_at,
+            items=[
+                OrderItemModel(
+                    product_id=item.product_id,
+                    product_name=item.product_name,
+                    quantity=item.quantity,
+                    unit_price=item.unit_price,
+                )
+                for item in order.items
+            ],
+        )
+        self._session.merge(model)
+        self._session.commit()
+
+    def find_by_id(self, order_id: UUID) -> Optional[Order]:
+        model = self._session.query(OrderModel).get(str(order_id))
+        if model is None:
+            return None
+        return self._to_domain(model)
+
+    @staticmethod
+    def _to_domain(model: OrderModel) -> Order:
+        order = Order(
+            id=UUID(model.id),
+            customer_id=model.customer_id,
+            status=OrderStatus(model.status),
+            created_at=model.created_at,
+        )
+        for item_model in model.items:
+            order.add_item(OrderItem(
+                product_id=item_model.product_id,
+                product_name=item_model.product_name,
+                quantity=item_model.quantity,
+                unit_price=item_model.unit_price,
+            ))
+        return order
+
+
+# adapters/api/order_controller.py
+from flask import Blueprint, request, jsonify
+
+from application.place_order import PlaceOrderUseCase, PlaceOrderInput
+
+order_bp = Blueprint("orders", __name__)
+
+
+def create_order_controller(place_order: PlaceOrderUseCase):
+    """Input adapter: converts HTTP requests into use case calls."""
+
+    @order_bp.route("/orders", methods=["POST"])
+    def place_order_endpoint():
+        data = request.get_json()
+        input_data = PlaceOrderInput(
+            customer_id=data["customer_id"],
+            items=data["items"],
+        )
+        output = place_order.execute(input_data)
+        return jsonify({
+            "order_id": output.order_id,
+            "total": output.total,
+            "status": output.status,
+        }), 201
+
+    return order_bp
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+// adapter/out/persistence/JpaOrderRepository.java
+package com.example.orderservice.adapter.out.persistence;
+
+import com.example.orderservice.application.port.out.OrderRepository;
+import com.example.orderservice.domain.model.Order;
+import org.springframework.stereotype.Repository;
+import java.util.Optional;
+import java.util.UUID;
+
+@Repository
+public class JpaOrderRepository implements OrderRepository {
+
+    private final SpringDataOrderRepository springRepo;
+    private final OrderMapper mapper;
+
+    public JpaOrderRepository(
+        SpringDataOrderRepository springRepo,
+        OrderMapper mapper
+    ) {
+        this.springRepo = springRepo;
+        this.mapper = mapper;
+    }
+
+    @Override
+    public void save(Order order) {
+        OrderJpaEntity entity = mapper.toJpaEntity(order);
+        springRepo.save(entity);
+    }
+
+    @Override
+    public Optional<Order> findById(UUID orderId) {
+        return springRepo.findById(orderId)
+            .map(mapper::toDomainEntity);
+    }
+}
+
+
+// adapter/in/web/OrderController.java
+package com.example.orderservice.adapter.in.web;
+
+import com.example.orderservice.application.dto.OrderResponse;
+import com.example.orderservice.application.dto.PlaceOrderCommand;
+import com.example.orderservice.application.port.in.PlaceOrderUseCase;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/orders")
+public class OrderController {
+
+    private final PlaceOrderUseCase placeOrderUseCase;
+
+    public OrderController(PlaceOrderUseCase placeOrderUseCase) {
+        this.placeOrderUseCase = placeOrderUseCase;
+    }
+
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    public OrderResponse placeOrder(
+        @RequestBody OrderRequestDto requestDto
+    ) {
+        PlaceOrderCommand command = new PlaceOrderCommand(
+            requestDto.getCustomerId(),
+            requestDto.getItems()
+        );
+        return placeOrderUseCase.execute(command);
+    }
+}
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## Testing Benefits
+
+The dependency rule makes **unit testing the business logic trivial** because the core has no infrastructure dependencies. You can test use cases with simple in-memory fakes:
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# tests/test_place_order.py
+from application.place_order import PlaceOrderUseCase, PlaceOrderInput
+from application.ports.order_repository import OrderRepository
+from domain.order import Order
+from typing import Optional, Dict
+from uuid import UUID
+
+
+class InMemoryOrderRepository(OrderRepository):
+    """A simple fake for testing -- no database needed."""
+
+    def __init__(self):
+        self._store: Dict[str, Order] = {}
+
+    def save(self, order: Order) -> None:
+        self._store[str(order.id)] = order
+
+    def find_by_id(self, order_id: UUID) -> Optional[Order]:
+        return self._store.get(str(order_id))
+
+
+def test_place_order_creates_confirmed_order():
+    repo = InMemoryOrderRepository()
+    use_case = PlaceOrderUseCase(order_repo=repo)
+
+    result = use_case.execute(PlaceOrderInput(
+        customer_id="customer-123",
+        items=[{
+            "product_id": "prod-1",
+            "product_name": "Widget",
+            "quantity": 2,
+            "unit_price": 9.99,
+        }],
+    ))
+
+    assert result.status == "confirmed"
+    assert result.total == 19.98
+    assert len(repo._store) == 1
+
+
+def test_place_order_fails_with_empty_items():
+    repo = InMemoryOrderRepository()
+    use_case = PlaceOrderUseCase(order_repo=repo)
+
+    try:
+        use_case.execute(PlaceOrderInput(
+            customer_id="customer-123",
+            items=[],
+        ))
+        assert False, "Should have raised an error"
+    except Exception:
+        assert len(repo._store) == 0  # Nothing was saved
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+// test/PlaceOrderServiceTest.java
+class PlaceOrderServiceTest {
+
+    private InMemoryOrderRepository repository;
+    private PlaceOrderService service;
+
+    @BeforeEach
+    void setUp() {
+        repository = new InMemoryOrderRepository();
+        service = new PlaceOrderService(repository);
+    }
+
+    @Test
+    void shouldCreateConfirmedOrder() {
+        PlaceOrderCommand command = new PlaceOrderCommand(
+            "customer-123",
+            List.of(new PlaceOrderCommand.ItemDto(
+                "prod-1", "Widget", 2, 9.99
+            ))
+        );
+
+        OrderResponse response = service.execute(command);
+
+        assertEquals("CONFIRMED", response.getStatus());
+        assertEquals(19.98, response.getTotal(), 0.01);
+        assertEquals(1, repository.count());
+    }
+
+    @Test
+    void shouldRejectEmptyOrder() {
+        PlaceOrderCommand command = new PlaceOrderCommand(
+            "customer-123",
+            List.of()
+        );
+
+        assertThrows(IllegalStateException.class,
+            () -> service.execute(command));
+        assertEquals(0, repository.count());
+    }
+}
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## Comparing the Three Approaches
+
+| Aspect | Traditional Layered | Hexagonal (Ports & Adapters) | Clean Architecture |
+|--------|-------------------|-------------------------------|-------------------|
+| **Dependency direction** | Top-down (presentation to data) | Inward (adapters depend on core) | Inward (dependency rule) |
+| **Business logic isolation** | Partial -- depends on data layer | Full -- core has no infrastructure deps | Full -- entities are the innermost layer |
+| **Testability** | Requires mocking infrastructure | Easy -- swap adapters with fakes | Easy -- inner layers are pure logic |
+| **Complexity** | Low | Medium | Medium-High |
+| **When to use** | Simple CRUD apps, prototypes | Medium-complexity apps with multiple I/O | Complex domains with rich business rules |
+| **Key insight** | Separate concerns by layer | Define ports, plug in adapters | Dependency rule with concentric layers |
+
+---
+
+## Practical Guidelines
+
+### When to Use Clean / Hexagonal Architecture
+
+- The application has **complex business rules** that need protection from infrastructure changes
+- You need to **support multiple delivery mechanisms** (REST, GraphQL, CLI, message queues)
+- **Testability** is a high priority
+- The **data storage** might change (e.g., migrating from SQL to NoSQL)
+- The project will be **maintained for years** by multiple teams
+
+### When to Keep It Simple
+
+- The application is a **simple CRUD** with little business logic
+- It is a **prototype** or proof of concept
+- The team is **small** and the domain is well-understood
+- The added indirection would **slow down development** without proportional benefit
+
+:::tip[Start Simple, Evolve as Needed]
+You do not have to adopt full clean architecture from day one. Start with a simple layered structure, and as complexity grows, introduce ports and adapters where the pain is greatest -- typically at the database and external service boundaries.
+:::
+
+---
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="Microservices Architecture"
+    href="/software-engineering/software-architecture/microservices/"
+    description="Learn how to decompose systems into independently deployable services"
+  />
+  <LinkCard
+    title="Domain-Driven Design"
+    href="/software-engineering/software-architecture/ddd/"
+    description="Model complex business domains with bounded contexts and aggregates"
+  />
+  <LinkCard
+    title="Event-Driven Architecture"
+    href="/software-engineering/software-architecture/event-driven/"
+    description="Build reactive systems with events, message brokers, and event sourcing"
+  />
+  <LinkCard
+    title="Software Architecture Overview"
+    href="/software-engineering/software-architecture/"
+    description="Return to the architecture overview and quality attributes"
+  />
+</CardGrid>

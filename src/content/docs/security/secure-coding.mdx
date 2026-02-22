@@ -1,0 +1,856 @@
+---
+title: "Secure Coding Practices"
+description: "Write secure code by following best practices for input validation, secrets management, and dependency security"
+difficulty: "advanced"
+prerequisites: ["OWASP Top 10", "Authentication & Encryption"]
+timeToRead: "18 min"
+topics: ["secure-coding", "input-validation", "secrets-management", "dependency-scanning", "security-headers"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+Knowing about vulnerabilities is only half the battle. The other half is building **secure habits** into your daily development workflow so that vulnerabilities never make it into production in the first place. This page covers the practical techniques, tools, and checklists you need to write secure code consistently -- not just when you remember to think about security.
+
+---
+
+## Input Validation
+
+Every piece of data that crosses a trust boundary -- user input, API responses, file uploads, database results -- must be treated as **potentially malicious** until validated. Input validation is your first line of defense against injection attacks, buffer overflows, and business logic exploits.
+
+### Allowlisting vs Denylisting
+
+| Approach | Description | Effectiveness |
+|----------|-------------|---------------|
+| **Allowlisting** (preferred) | Define exactly what IS allowed and reject everything else | High -- new attack patterns are rejected by default |
+| **Denylisting** (fragile) | Define what is NOT allowed and accept everything else | Low -- attackers constantly find new patterns to bypass the list |
+
+**Always prefer allowlisting.** Denylists are inherently incomplete because you cannot enumerate every possible malicious input.
+
+```
+Denylist approach (fragile):
+  Block: <script>, javascript:, onerror=, onload=...
+  Problem: Attacker uses <SCRIPT>, <img src=x onerror=...>, or encoding tricks
+
+Allowlist approach (robust):
+  Allow: ^[a-zA-Z0-9 .,'-]{1,100}$
+  Problem: None -- anything not matching the pattern is rejected
+```
+
+### Validation in Practice
+
+<Tabs>
+  <TabItem label="Python">
+```python
+import re
+from dataclasses import dataclass
+from typing import Optional
+
+# Validation utilities
+def validate_email(email: str) -> str:
+    """Validate email format using a strict pattern."""
+    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    if not re.match(pattern, email) or len(email) > 254:
+        raise ValueError("Invalid email address")
+    return email.lower().strip()
+
+def validate_username(username: str) -> str:
+    """Validate username: alphanumeric, 3-30 chars."""
+    pattern = r'^[a-zA-Z0-9_-]{3,30}$'
+    if not re.match(pattern, username):
+        raise ValueError("Username must be 3-30 alphanumeric characters")
+    return username
+
+def validate_age(age_input: str) -> int:
+    """Validate age is a reasonable integer."""
+    try:
+        age = int(age_input)
+    except (ValueError, TypeError):
+        raise ValueError("Age must be a number")
+    if not (0 <= age <= 150):
+        raise ValueError("Age must be between 0 and 150")
+    return age
+
+
+# Using schema validation (recommended for complex inputs)
+from pydantic import BaseModel, validator, constr
+
+class CreateUserRequest(BaseModel):
+    username: constr(min_length=3, max_length=30, pattern=r'^[a-zA-Z0-9_-]+$')
+    email: constr(max_length=254)
+    age: int
+    bio: Optional[constr(max_length=500)] = None
+
+    @validator("email")
+    def validate_email(cls, v):
+        pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        if not re.match(pattern, v):
+            raise ValueError("Invalid email format")
+        return v.lower().strip()
+
+    @validator("age")
+    def validate_age(cls, v):
+        if not (0 <= v <= 150):
+            raise ValueError("Age must be between 0 and 150")
+        return v
+
+
+# Usage in an endpoint
+@app.route("/api/users", methods=["POST"])
+def create_user():
+    try:
+        data = CreateUserRequest(**request.json)
+    except ValidationError as e:
+        abort(400, description=str(e))
+
+    # data is now validated and safe to use
+    user = User(username=data.username, email=data.email, age=data.age)
+    db.session.add(user)
+    db.session.commit()
+    return jsonify(user.to_dict()), 201
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// Validation utilities
+function validateEmail(email) {
+  const pattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  if (!pattern.test(email) || email.length > 254) {
+    throw new Error("Invalid email address");
+  }
+  return email.toLowerCase().trim();
+}
+
+function validateUsername(username) {
+  const pattern = /^[a-zA-Z0-9_-]{3,30}$/;
+  if (!pattern.test(username)) {
+    throw new Error("Username must be 3-30 alphanumeric characters");
+  }
+  return username;
+}
+
+function validateAge(ageInput) {
+  const age = parseInt(ageInput, 10);
+  if (isNaN(age) || age < 0 || age > 150) {
+    throw new Error("Age must be a number between 0 and 150");
+  }
+  return age;
+}
+
+
+// Using schema validation with Zod (recommended for complex inputs)
+const { z } = require("zod");
+
+const CreateUserSchema = z.object({
+  username: z.string().min(3).max(30).regex(/^[a-zA-Z0-9_-]+$/,
+    "Username must be alphanumeric"),
+  email: z.string().max(254).email("Invalid email format")
+    .transform((val) => val.toLowerCase().trim()),
+  age: z.number().int().min(0).max(150),
+  bio: z.string().max(500).optional(),
+});
+
+
+// Usage in an endpoint
+app.post("/api/users", async (req, res) => {
+  const result = CreateUserSchema.safeParse(req.body);
+
+  if (!result.success) {
+    return res.status(400).json({
+      error: "Validation failed",
+      details: result.error.flatten(),
+    });
+  }
+
+  // result.data is validated and safe to use
+  const user = await User.create(result.data);
+  res.status(201).json(user);
+});
+```
+  </TabItem>
+</Tabs>
+
+### Parameterized Queries and ORM Usage
+
+**Never concatenate user input into SQL queries.** Use parameterized queries or an ORM:
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# BAD: String concatenation (SQL injection vulnerable)
+query = f"SELECT * FROM users WHERE name = '{name}' AND age > {age}"
+
+# GOOD: Parameterized query (raw SQL)
+cursor.execute("SELECT * FROM users WHERE name = %s AND age > %s", (name, age))
+
+# BEST: ORM (SQLAlchemy)
+users = User.query.filter(User.name == name, User.age > age).all()
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// BAD: String concatenation (SQL injection vulnerable)
+const query = `SELECT * FROM users WHERE name = '${name}' AND age > ${age}`;
+
+// GOOD: Parameterized query (pg library)
+const result = await pool.query(
+  "SELECT * FROM users WHERE name = $1 AND age > $2",
+  [name, age]
+);
+
+// BEST: ORM (Prisma)
+const users = await prisma.user.findMany({
+  where: { name, age: { gt: age } },
+});
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## Output Encoding
+
+Input validation prevents malicious data from entering your system. **Output encoding** prevents malicious data from being interpreted as code when rendered in a different context (HTML, JavaScript, URLs, SQL).
+
+### Context-Specific Encoding
+
+| Context | Encoding | Example |
+|---------|----------|---------|
+| **HTML body** | HTML entity encoding | `<script>` becomes `&lt;script&gt;` |
+| **HTML attribute** | HTML attribute encoding | `"onmouseover="alert(1)"` becomes `&quot;onmouseover=&quot;alert(1)&quot;` |
+| **JavaScript** | JavaScript encoding | Backslash-escape special characters |
+| **URL** | URL/percent encoding | `<script>` becomes `%3Cscript%3E` |
+| **CSS** | CSS hex encoding | Escape special CSS characters |
+
+### Best Practices
+
+- **Use template engines** that auto-escape output by default (Jinja2, React JSX, EJS with `<%= %>`)
+- **Never use `innerHTML`** or `dangerouslySetInnerHTML` with user data -- use `textContent` instead
+- **Encode for the correct context** -- HTML encoding in a JavaScript context does not prevent XSS
+- **Use Content Security Policy (CSP)** as an additional layer to block inline scripts
+
+---
+
+## Secrets Management
+
+Secrets -- API keys, database passwords, encryption keys, service account credentials -- are the keys to your kingdom. Mishandling them is one of the fastest paths to a catastrophic breach.
+
+### The Golden Rules
+
+1. **NEVER hardcode secrets in source code** -- they end up in version control and are exposed to everyone with repository access
+2. **NEVER commit secrets to version control** -- even if you delete them later, they remain in git history forever
+3. **NEVER log secrets** -- log files are often stored insecurely and accessed broadly
+4. **NEVER pass secrets via URL parameters** -- they appear in browser history, server logs, and referrer headers
+
+### Secrets Management Approaches (Least to Most Secure)
+
+| Approach | Security | When to Use |
+|----------|----------|-------------|
+| Hardcoded in source code | **None** | Never |
+| `.env` file (gitignored) | Low | Local development only |
+| Environment variables | Moderate | Simple deployments, CI/CD |
+| Encrypted config files | Good | When a vault is not available |
+| **Secrets manager (Vault, AWS Secrets Manager, GCP Secret Manager)** | **Best** | **Production systems** |
+
+### Practical Secrets Management
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# BAD: Hardcoded secret
+DATABASE_URL = "postgresql://admin:SuperSecret123@db.example.com/myapp"
+API_KEY = "sk_live_abc123def456"
+
+# GOOD: Environment variables (basic)
+import os
+
+DATABASE_URL = os.environ["DATABASE_URL"]  # Raises KeyError if missing
+API_KEY = os.environ.get("API_KEY")         # Returns None if missing
+
+# Fail fast if required secrets are not configured
+required_vars = ["DATABASE_URL", "API_KEY", "JWT_SECRET"]
+missing = [var for var in required_vars if var not in os.environ]
+if missing:
+    raise RuntimeError(f"Missing required environment variables: {', '.join(missing)}")
+
+
+# BEST: Using a secrets manager (AWS Secrets Manager example)
+import boto3
+import json
+
+def get_secret(secret_name: str) -> dict:
+    """Retrieve a secret from AWS Secrets Manager."""
+    client = boto3.client("secretsmanager")
+    response = client.get_secret_value(SecretId=secret_name)
+    return json.loads(response["SecretString"])
+
+# Secrets are fetched at startup, not hardcoded
+db_credentials = get_secret("prod/myapp/database")
+DATABASE_URL = (
+    f"postgresql://{db_credentials['username']}:{db_credentials['password']}"
+    f"@{db_credentials['host']}/{db_credentials['dbname']}"
+)
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// BAD: Hardcoded secret
+const DATABASE_URL = "postgresql://admin:SuperSecret123@db.example.com/myapp";
+const API_KEY = "sk_live_abc123def456";
+
+// GOOD: Environment variables (basic)
+require("dotenv").config(); // For local development (.env file)
+
+const DATABASE_URL = process.env.DATABASE_URL;
+const API_KEY = process.env.API_KEY;
+
+// Fail fast if required secrets are not configured
+const requiredVars = ["DATABASE_URL", "API_KEY", "JWT_SECRET"];
+const missing = requiredVars.filter((v) => !process.env[v]);
+if (missing.length > 0) {
+  throw new Error(`Missing required environment variables: ${missing.join(", ")}`);
+}
+
+
+// BEST: Using a secrets manager (AWS Secrets Manager example)
+const { SecretsManagerClient, GetSecretValueCommand } = require("@aws-sdk/client-secrets-manager");
+
+async function getSecret(secretName) {
+  const client = new SecretsManagerClient();
+  const command = new GetSecretValueCommand({ SecretId: secretName });
+  const response = await client.send(command);
+  return JSON.parse(response.SecretString);
+}
+
+// Secrets are fetched at startup, not hardcoded
+async function initializeApp() {
+  const dbCredentials = await getSecret("prod/myapp/database");
+  const databaseUrl = `postgresql://${dbCredentials.username}:${dbCredentials.password}@${dbCredentials.host}/${dbCredentials.dbname}`;
+
+  // Initialize database connection with the fetched credentials
+  const pool = new Pool({ connectionString: databaseUrl });
+}
+```
+  </TabItem>
+</Tabs>
+
+### Preventing Secrets from Leaking into Version Control
+
+```bash
+# .gitignore -- ALWAYS include these
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+credentials.json
+service-account.json
+```
+
+Use **pre-commit hooks** to scan for accidentally committed secrets:
+
+```bash
+# Install git-secrets (AWS) or gitleaks
+# gitleaks: https://github.com/gitleaks/gitleaks
+gitleaks detect --source=. --verbose
+
+# Or use pre-commit framework
+# .pre-commit-config.yaml
+# repos:
+#   - repo: https://github.com/gitleaks/gitleaks
+#     rev: v8.18.0
+#     hooks:
+#       - id: gitleaks
+```
+
+---
+
+## Dependency Security
+
+Modern applications depend on **hundreds of third-party packages**, and each one is a potential entry point for attackers. A single vulnerable transitive dependency can compromise your entire application.
+
+### Software Composition Analysis (SCA) Tools
+
+| Tool | Language | How to Run |
+|------|----------|-----------|
+| `npm audit` | JavaScript/Node.js | `npm audit` (built-in) |
+| `yarn audit` | JavaScript/Node.js | `yarn audit` (built-in) |
+| `pip-audit` | Python | `pip install pip-audit && pip-audit` |
+| `cargo audit` | Rust | `cargo install cargo-audit && cargo audit` |
+| `bundler-audit` | Ruby | `gem install bundler-audit && bundler-audit` |
+| **Snyk** | Multi-language | `snyk test` (free tier available) |
+| **Dependabot** | Multi-language | Built into GitHub (enable in repository settings) |
+| **Renovate** | Multi-language | GitHub App or self-hosted |
+
+### Dependency Security Best Practices
+
+<Tabs>
+  <TabItem label="Python">
+```bash
+# 1. Audit current dependencies for known vulnerabilities
+pip-audit
+
+# 2. Pin exact versions in requirements.txt (reproducible builds)
+pip freeze > requirements.txt
+# Or use pip-compile for better dependency management
+pip-compile requirements.in --generate-hashes
+
+# 3. Example requirements.txt with pinned versions
+# flask==3.0.0
+# sqlalchemy==2.0.23
+# bcrypt==4.1.2
+
+# 4. Use a virtual environment to isolate dependencies
+python -m venv venv
+source venv/bin/activate
+
+# 5. Regularly update and re-audit
+pip install --upgrade flask sqlalchemy bcrypt
+pip-audit
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```bash
+# 1. Audit current dependencies for known vulnerabilities
+npm audit
+
+# 2. Fix automatically where possible
+npm audit fix
+
+# 3. Review package-lock.json (always commit lockfiles)
+# package-lock.json ensures reproducible builds
+
+# 4. Check for unused dependencies (reduce attack surface)
+npx depcheck
+
+# 5. Use npm overrides to force-patch vulnerable transitive dependencies
+# package.json:
+# {
+#   "overrides": {
+#     "vulnerable-package": ">=2.0.0"
+#   }
+# }
+
+# 6. Regularly update and re-audit
+npm update
+npm audit
+```
+  </TabItem>
+</Tabs>
+
+### Automating Dependency Updates
+
+Set up **Dependabot** (GitHub) or **Renovate** to automatically create pull requests when new versions are available:
+
+```yaml
+# .github/dependabot.yml
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "security-team"
+
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+```
+
+---
+
+## Security Headers
+
+HTTP security headers instruct browsers to enable built-in security features. Missing headers leave your application exposed to XSS, clickjacking, MIME sniffing, and protocol downgrade attacks.
+
+### Essential Security Headers
+
+| Header | Value | Purpose |
+|--------|-------|---------|
+| **Content-Security-Policy** | `default-src 'self'; script-src 'self'` | Prevents XSS by controlling which resources can load |
+| **Strict-Transport-Security** | `max-age=63072000; includeSubDomains; preload` | Forces HTTPS, prevents protocol downgrade attacks |
+| **X-Frame-Options** | `DENY` or `SAMEORIGIN` | Prevents clickjacking by blocking iframe embedding |
+| **X-Content-Type-Options** | `nosniff` | Prevents MIME type sniffing attacks |
+| **Referrer-Policy** | `strict-origin-when-cross-origin` | Controls how much referrer info is sent with requests |
+| **Permissions-Policy** | `camera=(), microphone=(), geolocation=()` | Restricts browser feature access |
+
+### Implementing Security Headers
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# Flask: Using a middleware/after_request handler
+@app.after_request
+def add_security_headers(response):
+    # Prevent XSS -- restrict resource loading to same origin
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data: https:; "
+        "font-src 'self'; "
+        "connect-src 'self'; "
+        "frame-ancestors 'none';"
+    )
+
+    # Force HTTPS for 2 years, include subdomains
+    response.headers["Strict-Transport-Security"] = (
+        "max-age=63072000; includeSubDomains; preload"
+    )
+
+    # Prevent clickjacking
+    response.headers["X-Frame-Options"] = "DENY"
+
+    # Prevent MIME type sniffing
+    response.headers["X-Content-Type-Options"] = "nosniff"
+
+    # Control referrer information
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+
+    # Restrict browser features
+    response.headers["Permissions-Policy"] = (
+        "camera=(), microphone=(), geolocation=()"
+    )
+
+    return response
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// Express: Using the helmet middleware (recommended)
+const helmet = require("helmet");
+
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "https:"],
+      fontSrc: ["'self'"],
+      connectSrc: ["'self'"],
+      frameAncestors: ["'none'"],
+    },
+  },
+  hsts: {
+    maxAge: 63072000, // 2 years
+    includeSubDomains: true,
+    preload: true,
+  },
+  frameguard: { action: "deny" },
+  noSniff: true,
+  referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+  permittedCrossDomainPolicies: false,
+}));
+
+
+// Or set headers manually
+app.use((req, res, next) => {
+  res.setHeader("Content-Security-Policy",
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; " +
+    "img-src 'self' data: https:; font-src 'self'; connect-src 'self'; frame-ancestors 'none';"
+  );
+  res.setHeader("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  next();
+});
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## CORS Configuration
+
+Cross-Origin Resource Sharing (CORS) controls which domains can make requests to your API. Misconfigured CORS is a common security vulnerability.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# BAD: Allow all origins (disables CORS protection entirely)
+from flask_cors import CORS
+CORS(app, resources={r"/api/*": {"origins": "*"}})
+
+
+# GOOD: Restrict to specific trusted origins
+CORS(app, resources={r"/api/*": {
+    "origins": [
+        "https://myapp.com",
+        "https://staging.myapp.com",
+    ],
+    "methods": ["GET", "POST", "PUT", "DELETE"],
+    "allow_headers": ["Content-Type", "Authorization"],
+    "max_age": 3600,
+    "supports_credentials": True,
+}})
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// BAD: Allow all origins
+const cors = require("cors");
+app.use(cors()); // Defaults to Access-Control-Allow-Origin: *
+
+
+// GOOD: Restrict to specific trusted origins
+const allowedOrigins = [
+  "https://myapp.com",
+  "https://staging.myapp.com",
+];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, curl)
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  maxAge: 3600,
+  credentials: true,
+}));
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## Security Logging Best Practices
+
+Effective security logging is the difference between detecting a breach in minutes and discovering it months later.
+
+### What to Log
+
+| Event Category | Specific Events |
+|---------------|----------------|
+| **Authentication** | Login success, login failure, logout, password change, MFA enrollment/use |
+| **Authorization** | Access denied (403), privilege escalation attempts, role changes |
+| **Data access** | Sensitive data reads, bulk exports, unusual query patterns |
+| **Administrative** | User creation/deletion, permission changes, configuration changes |
+| **Input validation** | Rejected inputs, malformed requests, oversized payloads |
+| **System events** | Application start/stop, dependency failures, error spikes |
+
+### What NOT to Log
+
+| Never Log | Why |
+|-----------|-----|
+| Passwords (even failed attempts) | Log files become a breach target |
+| Full credit card numbers | PCI DSS violation |
+| Social Security Numbers / national IDs | Regulatory violation (GDPR, HIPAA) |
+| Session tokens or API keys | Attacker with log access gains session hijacking capability |
+| Personal health information | HIPAA violation |
+| Encryption keys or secrets | Defeats the purpose of encryption |
+
+### Structured Logging Example
+
+```json
+{
+  "timestamp": "2024-01-15T10:30:45.123Z",
+  "level": "warn",
+  "event": "authentication.failed",
+  "user_email": "user@example.com",
+  "ip_address": "203.0.113.42",
+  "user_agent": "Mozilla/5.0...",
+  "reason": "invalid_password",
+  "attempt_count": 3,
+  "request_id": "req_abc123",
+  "geo": "US-CA"
+}
+```
+
+---
+
+## SAST and DAST
+
+Static and dynamic analysis tools catch vulnerabilities automatically at different stages of the development lifecycle.
+
+### Static Application Security Testing (SAST)
+
+SAST tools analyze **source code** without executing it. They run early in the pipeline (on every commit or PR).
+
+| Tool | Language | Notes |
+|------|----------|-------|
+| **Bandit** | Python | Finds common security issues in Python code |
+| **ESLint security plugins** | JavaScript | `eslint-plugin-security`, `eslint-plugin-no-unsanitized` |
+| **Semgrep** | Multi-language | Custom rules, fast, open-source |
+| **SonarQube** | Multi-language | Comprehensive, includes code quality and security |
+| **CodeQL** | Multi-language | GitHub-native, powerful query language |
+
+### Dynamic Application Security Testing (DAST)
+
+DAST tools test a **running application** by sending crafted requests and analyzing responses.
+
+| Tool | Type | Notes |
+|------|------|-------|
+| **OWASP ZAP** | Open-source | Full-featured web app scanner |
+| **Burp Suite** | Commercial | Industry-standard for penetration testing |
+| **Nuclei** | Open-source | Template-based vulnerability scanner |
+
+### Integrating Security Testing into CI/CD
+
+```yaml
+# Example GitHub Actions workflow
+name: Security Checks
+on: [push, pull_request]
+
+jobs:
+  sast:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Semgrep
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: p/owasp-top-ten
+
+      - name: Run Bandit (Python)
+        run: |
+          pip install bandit
+          bandit -r src/ -f json -o bandit-report.json
+
+      - name: Run npm audit
+        run: npm audit --audit-level=high
+
+  dependency-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run pip-audit
+        run: |
+          pip install pip-audit
+          pip-audit
+
+      - name: Run Trivy (container scanning)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          severity: HIGH,CRITICAL
+```
+
+---
+
+## Secure Code Review Checklist
+
+Use this checklist during code reviews to systematically check for security issues.
+
+### Input & Output
+
+| Check | Question |
+|-------|----------|
+| Input validation | Is all user input validated using allowlists and length limits? |
+| Parameterized queries | Are all database queries using parameterized statements or ORM? |
+| Output encoding | Is output encoded for the correct context (HTML, JS, URL)? |
+| File uploads | Are file types validated, sizes limited, and files stored outside the web root? |
+| Deserialization | Is untrusted data ever deserialized using unsafe mechanisms (pickle, eval)? |
+
+### Authentication & Authorization
+
+| Check | Question |
+|-------|----------|
+| Password storage | Are passwords hashed with bcrypt or Argon2id (never MD5/SHA-1)? |
+| Authorization checks | Is authorization enforced on every endpoint, not just the UI? |
+| Session management | Do sessions expire, and are tokens invalidated on logout? |
+| Rate limiting | Are authentication endpoints protected against brute force? |
+| MFA | Is multi-factor authentication available for sensitive operations? |
+
+### Secrets & Configuration
+
+| Check | Question |
+|-------|----------|
+| No hardcoded secrets | Are there any API keys, passwords, or tokens in the source code? |
+| Environment config | Are secrets loaded from environment variables or a secrets manager? |
+| Debug mode | Is debug mode disabled in production configuration? |
+| Error messages | Do error responses avoid leaking stack traces or internal details? |
+| Security headers | Are CSP, HSTS, X-Frame-Options, and other headers configured? |
+
+### Dependencies & Infrastructure
+
+| Check | Question |
+|-------|----------|
+| Dependency audit | Has `npm audit` / `pip-audit` been run with no high/critical findings? |
+| Lockfile committed | Is the lockfile (`package-lock.json`, `Pipfile.lock`) committed? |
+| Minimal permissions | Do service accounts and database users follow least privilege? |
+| CORS configuration | Is CORS restricted to specific trusted origins (not `*`)? |
+| TLS | Is HTTPS enforced with TLS 1.2+ and strong cipher suites? |
+
+### Logging & Monitoring
+
+| Check | Question |
+|-------|----------|
+| Security events logged | Are authentication, authorization, and validation failures logged? |
+| No sensitive data in logs | Are passwords, tokens, PII, and secrets excluded from logs? |
+| Structured logging | Are logs in a parseable format (JSON) with consistent fields? |
+| Alerting | Are alerts configured for suspicious patterns (brute force, data exfiltration)? |
+
+---
+
+## Comprehensive Secure Coding Checklist
+
+This table summarizes all secure coding practices covered in this section. Use it as a quick reference during development and code reviews.
+
+| Category | Practice | Priority |
+|----------|----------|----------|
+| **Input** | Validate all input with allowlists | Critical |
+| **Input** | Use parameterized queries for all database operations | Critical |
+| **Input** | Set maximum lengths on all string inputs | High |
+| **Input** | Validate file uploads (type, size, content) | High |
+| **Output** | Encode output for the correct context (HTML, JS, URL) | Critical |
+| **Output** | Use template engines with auto-escaping | High |
+| **Output** | Implement Content Security Policy (CSP) | High |
+| **Auth** | Hash passwords with bcrypt or Argon2id | Critical |
+| **Auth** | Implement rate limiting on authentication endpoints | Critical |
+| **Auth** | Use short-lived tokens with refresh token rotation | High |
+| **Auth** | Enforce multi-factor authentication for sensitive operations | High |
+| **Auth** | Invalidate sessions on logout and password change | High |
+| **Secrets** | Never hardcode secrets in source code | Critical |
+| **Secrets** | Use a secrets manager in production | High |
+| **Secrets** | Use pre-commit hooks to detect accidental secret commits | High |
+| **Secrets** | Rotate secrets regularly | Medium |
+| **Dependencies** | Run `npm audit` / `pip-audit` in CI/CD | Critical |
+| **Dependencies** | Enable automated dependency updates (Dependabot/Renovate) | High |
+| **Dependencies** | Remove unused dependencies | Medium |
+| **Dependencies** | Commit lockfiles for reproducible builds | High |
+| **Headers** | Set HSTS with long max-age and includeSubDomains | Critical |
+| **Headers** | Configure CSP to restrict script and resource loading | High |
+| **Headers** | Set X-Frame-Options, X-Content-Type-Options | High |
+| **Headers** | Restrict CORS to trusted origins | High |
+| **Logging** | Log all authentication and authorization events | Critical |
+| **Logging** | Never log passwords, tokens, or PII | Critical |
+| **Logging** | Use structured logging (JSON) | High |
+| **Logging** | Set up alerting for suspicious patterns | High |
+| **Testing** | Run SAST tools (Semgrep, Bandit) in CI/CD | High |
+| **Testing** | Perform regular DAST scans (ZAP, Burp) | Medium |
+| **Testing** | Conduct periodic security code reviews | High |
+| **Testing** | Perform annual penetration testing | Medium |
+
+---
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="Security Fundamentals"
+    href="/software-engineering/security/"
+    description="Review the core security principles -- CIA triad, defense in depth, threat modeling, and the security mindset"
+  />
+  <LinkCard
+    title="OWASP Top 10"
+    href="/software-engineering/security/owasp-top-10/"
+    description="Deep dive into the most critical web application security vulnerabilities with code examples"
+  />
+  <LinkCard
+    title="Authentication, Authorization & Encryption"
+    href="/software-engineering/security/auth-encryption/"
+    description="Implement secure authentication patterns, OAuth 2.0, JWT, and encryption in your applications"
+  />
+</CardGrid>

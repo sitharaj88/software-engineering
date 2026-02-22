@@ -1,0 +1,282 @@
+---
+title: "Testing Fundamentals"
+description: "Learn the principles of software testing, the testing pyramid, and how to write effective tests"
+difficulty: "beginner"
+prerequisites: ["Basic programming knowledge"]
+timeToRead: "10 min"
+topics: ["testing", "testing-pyramid", "quality-assurance", "test-types"]
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+## Why Testing Matters
+
+Software testing is not an afterthought -- it is a fundamental engineering practice that separates professional software development from hacking together code and hoping for the best. Testing provides confidence that your code works as intended, catches regressions before they reach users, and serves as living documentation of how your system behaves.
+
+Consider the cost of a bug:
+
+| When Bug Is Found       | Relative Cost to Fix |
+|-------------------------|----------------------|
+| During development      | 1x                   |
+| During code review      | 2-5x                 |
+| During QA/testing phase | 10-15x               |
+| In production           | 50-100x              |
+
+The earlier you find defects, the cheaper they are to fix. Testing shifts defect discovery to the left, catching problems when they are easiest and cheapest to resolve.
+
+Beyond cost savings, testing provides several key benefits:
+
+- **Confidence in changes** -- Refactoring and adding features becomes safer when a comprehensive test suite guards against regressions.
+- **Design feedback** -- Code that is hard to test is often poorly designed. Writing tests pushes you toward better architecture.
+- **Documentation** -- Tests describe what the code actually does, not what someone intended it to do. Unlike comments, tests cannot become stale without failing.
+- **Collaboration** -- In team environments, tests let developers modify unfamiliar code with confidence that they have not broken existing behavior.
+
+---
+
+## Types of Tests
+
+Software testing encompasses many categories, each serving a distinct purpose. Understanding the different types helps you build a balanced testing strategy.
+
+### Unit Tests
+
+Unit tests verify the smallest testable pieces of code in isolation -- typically individual functions, methods, or classes. They run fast, have no external dependencies, and pinpoint exactly where a failure occurs.
+
+```python
+# Example: A unit test for a simple function
+def calculate_discount(price, percentage):
+    if percentage < 0 or percentage > 100:
+        raise ValueError("Percentage must be between 0 and 100")
+    return price * (1 - percentage / 100)
+
+def test_calculate_discount():
+    assert calculate_discount(100, 20) == 80.0
+    assert calculate_discount(50, 0) == 50.0
+    assert calculate_discount(200, 100) == 0.0
+```
+
+### Integration Tests
+
+Integration tests verify that multiple components work correctly together. They test the boundaries between modules -- database queries, API calls between services, or interactions between layers of your application.
+
+```python
+# Example: Testing that a service correctly interacts with a database
+def test_user_registration_saves_to_database(db_connection):
+    service = UserService(db_connection)
+    service.register("alice", "alice@example.com")
+
+    user = db_connection.query("SELECT * FROM users WHERE email = ?", "alice@example.com")
+    assert user is not None
+    assert user.name == "alice"
+```
+
+### End-to-End (E2E) Tests
+
+E2E tests validate entire user workflows from start to finish, exercising the full system stack. They simulate real user behavior by interacting with the application through its UI or public API.
+
+```javascript
+// Example: E2E test for a login flow
+test('user can log in and see dashboard', async ({ page }) => {
+  await page.goto('/login');
+  await page.fill('#email', 'user@example.com');
+  await page.fill('#password', 'securepassword');
+  await page.click('button[type="submit"]');
+
+  await expect(page).toHaveURL('/dashboard');
+  await expect(page.locator('h1')).toHaveText('Welcome back');
+});
+```
+
+### Performance Tests
+
+Performance tests measure how your system behaves under load. They help identify bottlenecks, ensure response times meet requirements, and verify the system can handle expected traffic.
+
+- **Load testing** -- Simulates expected concurrent users.
+- **Stress testing** -- Pushes beyond normal capacity to find breaking points.
+- **Spike testing** -- Tests sudden traffic surges.
+- **Soak testing** -- Runs under sustained load to find memory leaks and degradation.
+
+### Security Tests
+
+Security tests identify vulnerabilities before attackers do. They include:
+
+- **Static Application Security Testing (SAST)** -- Analyzes source code for vulnerabilities.
+- **Dynamic Application Security Testing (DAST)** -- Tests running applications for exploits.
+- **Dependency scanning** -- Checks third-party libraries for known vulnerabilities.
+- **Penetration testing** -- Simulates real-world attacks against the system.
+
+---
+
+## The Testing Pyramid
+
+The testing pyramid is a widely adopted strategy for balancing test types. It provides guidance on how many tests of each type you should write.
+
+```
+        /\
+       /  \        E2E Tests
+      /    \       (Few - Slow, Expensive, High Confidence)
+     /------\
+    /        \     Integration Tests
+   /          \    (Some - Moderate Speed and Cost)
+  /------------\
+ /              \  Unit Tests
+/________________\ (Many - Fast, Cheap, Focused)
+```
+
+### Why This Shape?
+
+**Unit tests form the base** because they are fast (milliseconds each), cheap to write and maintain, and provide precise failure feedback. A well-tested codebase might have thousands of unit tests that run in seconds.
+
+**Integration tests sit in the middle** because they verify component interactions that unit tests cannot catch, but they are slower (they may need databases, file systems, or network calls) and more complex to set up.
+
+**E2E tests sit at the top** because while they provide the highest confidence that the system works as a whole, they are slow, brittle, expensive to maintain, and provide vague failure messages. You should have relatively few of these, covering critical user journeys.
+
+### Anti-Patterns to Avoid
+
+- **The Ice Cream Cone** -- Many manual tests, many E2E tests, few unit tests. This leads to slow feedback and fragile test suites.
+- **The Hourglass** -- Many unit tests and many E2E tests, but few integration tests. This misses bugs at component boundaries.
+- **No Tests at All** -- Sometimes called "testing in production." Users become your QA team, which is neither kind nor professional.
+
+---
+
+## Test Anatomy: Arrange-Act-Assert
+
+Every well-structured test follows a three-phase pattern, commonly called **Arrange-Act-Assert** (AAA) or **Given-When-Then** (GWT).
+
+### Arrange (Given)
+
+Set up the preconditions and inputs for the test. Create objects, initialize state, and prepare any test data.
+
+### Act (When)
+
+Execute the behavior you are testing. This should typically be a single action -- one function call, one method invocation, one API request.
+
+### Assert (Then)
+
+Verify that the result matches your expectations. Check return values, state changes, side effects, or thrown exceptions.
+
+```python
+def test_shopping_cart_applies_bulk_discount():
+    # Arrange: Create a cart and add items exceeding the bulk threshold
+    cart = ShoppingCart()
+    cart.add_item(Item("Widget", price=10.00), quantity=15)
+
+    # Act: Calculate the total with discounts applied
+    total = cart.calculate_total()
+
+    # Assert: Verify the 10% bulk discount was applied
+    assert total == 135.00  # 15 * 10.00 * 0.90
+```
+
+Keeping this structure consistent across all tests makes them easier to read, understand, and maintain.
+
+---
+
+## What Makes a Good Test: F.I.R.S.T. Principles
+
+The best tests share five qualities, captured by the **F.I.R.S.T.** acronym.
+
+### Fast
+
+Tests should run quickly. A test suite that takes 30 minutes discourages developers from running it frequently. Unit tests should complete in milliseconds; your entire suite should finish in minutes at most.
+
+**Tip:** If a test is slow, it probably has hidden dependencies (network, filesystem, database) that should be replaced with test doubles.
+
+### Isolated (Independent)
+
+Each test should be self-contained. Tests must not depend on other tests running before them, and they must not leave behind state that affects subsequent tests. You should be able to run any test in any order and get the same result.
+
+```python
+# Bad: Tests share mutable state
+shared_list = []
+
+def test_add_item():
+    shared_list.append("item")
+    assert len(shared_list) == 1  # Passes alone, but fragile
+
+def test_list_is_empty():
+    assert len(shared_list) == 0  # Fails if test_add_item runs first
+```
+
+### Repeatable
+
+Tests must produce the same result every time they run, regardless of the environment. Flaky tests -- those that sometimes pass and sometimes fail -- erode trust in the entire test suite.
+
+Common sources of flakiness to avoid:
+- Relying on the current date/time.
+- Depending on network availability.
+- Using random data without a fixed seed.
+- Race conditions in concurrent code.
+
+### Self-Validating
+
+Tests should produce a clear pass or fail result with no human interpretation required. You should never need to read log output or inspect a database to determine whether a test passed.
+
+```python
+# Bad: Requires manual inspection
+def test_output():
+    result = process_data(input_data)
+    print(result)  # Developer must read the output to judge correctness
+
+# Good: Self-validating
+def test_output():
+    result = process_data(input_data)
+    assert result == expected_output
+```
+
+### Timely
+
+Tests should be written close in time to the code they test -- ideally before the code (TDD) or immediately after. Writing tests weeks later means you have already forgotten edge cases and may write tests that merely confirm existing (possibly broken) behavior.
+
+---
+
+## Testing Economics: The Cost of Late Bugs
+
+Testing is an investment, and like any investment, the returns depend on when and how you invest.
+
+### The Defect Cost Curve
+
+Research consistently shows that bugs become exponentially more expensive to fix the later they are discovered. A bug caught by a unit test during development might take 10 minutes to fix. The same bug caught in production might require:
+
+1. Incident response and triage.
+2. Debugging in a complex production environment.
+3. Writing a fix under pressure.
+4. Emergency code review and deployment.
+5. Customer communication and trust repair.
+6. Post-incident review and process changes.
+
+What could have been a 10-minute fix becomes a multi-day, multi-person effort.
+
+### Return on Testing Investment
+
+Not all tests provide equal return. Focus your testing effort where it matters most:
+
+- **High business value** -- Features that directly affect revenue or user safety deserve thorough testing.
+- **High complexity** -- Complex algorithms and business logic are more likely to contain bugs.
+- **High change frequency** -- Code that changes often benefits most from regression tests.
+- **Integration points** -- Boundaries between systems are where misunderstandings and contract violations live.
+
+Writing tests for trivial getters and setters provides little value. Writing tests for your payment processing pipeline provides enormous value.
+
+---
+
+## Next Steps
+
+Dive deeper into specific testing practices:
+
+<CardGrid>
+  <LinkCard
+    title="Unit Testing"
+    description="Write effective unit tests using popular testing frameworks across multiple languages."
+    href="/software-engineering/testing/unit-testing/"
+  />
+  <LinkCard
+    title="TDD & Mocking"
+    description="Practice Test-Driven Development and learn when and how to use mocks, stubs, and spies."
+    href="/software-engineering/testing/tdd-mocking/"
+  />
+  <LinkCard
+    title="Integration & E2E Testing"
+    description="Test how components work together with integration tests and end-to-end testing strategies."
+    href="/software-engineering/testing/integration-e2e/"
+  />
+</CardGrid>

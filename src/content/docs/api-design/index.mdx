@@ -1,0 +1,148 @@
+---
+title: "API Design"
+description: "Design robust, developer-friendly APIs using REST, GraphQL, and gRPC"
+difficulty: "beginner"
+prerequisites: ["Basic programming knowledge", "HTTP fundamentals"]
+timeToRead: "8 min"
+topics: ["api", "rest", "graphql", "grpc", "api-design"]
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+## What is an API?
+
+An **Application Programming Interface (API)** is a contract between two software systems that defines how they communicate with each other. APIs specify the requests that can be made, the data formats to use, and the conventions to follow. Think of an API as a waiter in a restaurant: you (the client) tell the waiter (the API) what you want, and the waiter brings back the food (the response) from the kitchen (the server).
+
+APIs are everywhere. When you check the weather on your phone, post to social media, or make an online payment, APIs are working behind the scenes to connect different systems together.
+
+### Types of APIs
+
+- **Web APIs** -- Communicate over HTTP/HTTPS between distributed systems
+- **Library APIs** -- Provide interfaces to code libraries and frameworks
+- **Operating System APIs** -- Allow applications to interact with the OS
+- **Database APIs** -- Enable applications to communicate with database systems
+
+This section focuses on **Web APIs**, the backbone of modern distributed systems, microservices, and mobile applications.
+
+---
+
+## Why Good API Design Matters
+
+A well-designed API is one of the most important assets a software team can produce. Poor API design leads to frustrated developers, increased support costs, and brittle integrations that break with every release.
+
+### Developer Experience (DX)
+
+APIs are products consumed by developers. A great API should be:
+
+- **Intuitive** -- Developers can guess how it works without reading every page of documentation
+- **Consistent** -- Similar operations behave the same way across the entire API surface
+- **Predictable** -- Error handling, pagination, and naming follow established patterns
+- **Well-documented** -- Every endpoint, parameter, and response is clearly described
+
+### Business Impact
+
+- **Adoption** -- Easy-to-use APIs attract more integrations and partnerships
+- **Velocity** -- Teams spend less time debugging and more time building features
+- **Stability** -- Well-designed APIs are easier to evolve without breaking changes
+- **Scalability** -- Thoughtful design choices prevent performance bottlenecks early
+
+> "A good API is not just easy to use but hard to misuse."
+> -- Josh Bloch, Former Chief Java Architect at Google
+
+---
+
+## API-First Development
+
+**API-first development** is an approach where the API is designed and agreed upon before any code is written. Instead of building the backend and then exposing whatever endpoints happen to exist, teams start by defining the contract.
+
+### The API-First Workflow
+
+1. **Design** -- Define endpoints, request/response schemas, and error formats using a specification language (e.g., OpenAPI, GraphQL SDL, Protocol Buffers)
+2. **Review** -- Stakeholders (frontend, backend, mobile, QA) review and iterate on the design
+3. **Mock** -- Generate mock servers so consumers can start building immediately
+4. **Build** -- Implement the API according to the agreed specification
+5. **Test** -- Validate the implementation against the contract
+6. **Document** -- Auto-generate documentation from the specification
+
+### Benefits of API-First
+
+- Frontend and backend teams can work in parallel
+- Breaking changes are caught during design review, not after deployment
+- Documentation is always in sync with the implementation
+- Automated testing can validate the contract at every stage
+
+---
+
+## REST vs GraphQL vs gRPC
+
+Modern web APIs generally follow one of three paradigms. Each has distinct strengths and trade-offs.
+
+| Feature | REST | GraphQL | gRPC |
+|---|---|---|---|
+| **Protocol** | HTTP/1.1 or HTTP/2 | HTTP/1.1 or HTTP/2 | HTTP/2 |
+| **Data Format** | JSON (typically) | JSON | Protocol Buffers (binary) |
+| **Schema/Contract** | OpenAPI (optional) | SDL (required) | .proto files (required) |
+| **Flexibility** | Fixed endpoints | Client-defined queries | Defined service methods |
+| **Over-fetching** | Common | Solved by design | Not applicable |
+| **Streaming** | Limited (SSE, WebSocket) | Subscriptions | Native bidirectional streaming |
+| **Browser Support** | Excellent | Excellent | Limited (needs gRPC-Web) |
+| **Learning Curve** | Low | Medium | Medium-High |
+| **Best For** | Public APIs, CRUD apps | Complex frontends, mobile | Microservices, low-latency |
+
+### When to Use What
+
+- **REST** -- Public-facing APIs, simple CRUD operations, broad client compatibility, and when cacheability matters
+- **GraphQL** -- Mobile apps needing bandwidth efficiency, complex frontends with varied data requirements, and APIs serving multiple client types
+- **gRPC** -- Internal microservice communication, real-time streaming, polyglot environments needing code generation, and performance-critical systems
+
+---
+
+## The Importance of API Documentation
+
+No matter how well an API is designed, it is only as good as its documentation. API documentation serves as the primary interface between an API and its consumers.
+
+### What Good API Documentation Includes
+
+- **Getting started guide** -- Authentication setup, first API call, quickstart examples
+- **Reference documentation** -- Every endpoint, parameter, request body, and response format
+- **Code examples** -- In multiple languages, showing real-world usage
+- **Error catalog** -- Every possible error code with causes and resolution steps
+- **Changelog** -- What changed between versions and migration guides
+- **Interactive playground** -- Try API calls directly from the browser (e.g., Swagger UI, GraphQL Playground)
+
+### Documentation Tools
+
+- **OpenAPI / Swagger** -- The industry standard for REST API documentation
+- **GraphQL Playground / GraphiQL** -- Interactive explorers for GraphQL APIs
+- **Buf / protoc-gen-doc** -- Documentation generators for Protocol Buffers
+- **Postman** -- API platform with built-in documentation and testing
+- **Redoc** -- Beautiful, auto-generated API reference from OpenAPI specs
+
+---
+
+## What You Will Learn
+
+This section covers the major API paradigms and cross-cutting concerns you need to design production-grade APIs.
+
+<CardGrid>
+  <LinkCard
+    title="RESTful API Design"
+    description="Design clean, consistent RESTful APIs following industry best practices including resource naming, status codes, pagination, and HATEOAS."
+    href="/software-engineering/api-design/rest-apis/"
+  />
+  <LinkCard
+    title="GraphQL"
+    description="Build flexible APIs with GraphQL schemas, queries, mutations, and subscriptions to solve over-fetching and under-fetching."
+    href="/software-engineering/api-design/graphql/"
+  />
+  <LinkCard
+    title="gRPC & Protocol Buffers"
+    description="Build high-performance APIs using gRPC and Protocol Buffers for efficient inter-service communication with streaming support."
+    href="/software-engineering/api-design/grpc-protobuf/"
+  />
+  <LinkCard
+    title="Auth, Versioning & Rate Limiting"
+    description="Secure your APIs with authentication, manage versions gracefully, and protect against abuse with rate limiting."
+    href="/software-engineering/api-design/api-auth-versioning/"
+  />
+</CardGrid>

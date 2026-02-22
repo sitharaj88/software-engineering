@@ -1,0 +1,345 @@
+---
+title: "Software Development Lifecycle"
+description: "Understand SDLC models and methodologies for delivering software projects successfully"
+difficulty: "beginner"
+prerequisites: ["Basic programming knowledge"]
+timeToRead: "10 min"
+topics: ["sdlc", "waterfall", "agile", "iterative", "methodology"]
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+The **Software Development Lifecycle (SDLC)** is a structured process that defines the stages involved in building software from initial concept through deployment and ongoing maintenance. Every piece of software you use -- from a mobile banking app to the operating system running on your laptop -- was built following some form of SDLC, whether formally documented or informally understood.
+
+Understanding the SDLC is fundamental for software engineers because it provides a shared vocabulary for planning, executing, and delivering projects. It answers the questions that every team faces: *What should we build? How should we build it? How do we know when it is done? How do we keep it running?*
+
+---
+
+## Why the SDLC Matters
+
+Without a defined process, software projects tend to drift toward chaos. Requirements get lost, developers build the wrong thing, testing is an afterthought, and releases are painful. The SDLC provides guardrails that help teams:
+
+- **Align stakeholders** -- Everyone agrees on what is being built and why
+- **Manage risk** -- Problems are identified early, when they are cheapest to fix
+- **Control quality** -- Structured testing and review gates prevent defects from reaching users
+- **Predict timelines** -- Defined phases make it possible to estimate effort and track progress
+- **Enable collaboration** -- Clear handoffs and responsibilities reduce confusion
+
+---
+
+## The Seven Phases of the SDLC
+
+Regardless of which model a team follows, every SDLC includes these core phases. The phases may overlap, repeat, or run in parallel depending on the chosen methodology, but the underlying activities are always present.
+
+### 1. Planning
+
+The planning phase defines the **scope, objectives, and feasibility** of the project. Key activities include:
+
+- Identifying the business problem or opportunity
+- Conducting feasibility studies (technical, economic, operational)
+- Defining high-level requirements and constraints
+- Estimating resources, timeline, and budget
+- Performing risk assessment
+
+**Output:** Project charter, feasibility report, high-level project plan
+
+### 2. Requirements Analysis
+
+During analysis, the team works with stakeholders to gather and document **detailed requirements**. This phase answers the question: *What exactly should the system do?*
+
+- Functional requirements (features and behaviors)
+- Non-functional requirements (performance, security, scalability, usability)
+- User personas and use cases
+- Acceptance criteria
+
+**Output:** Software Requirements Specification (SRS), use case diagrams, user stories
+
+### 3. System Design
+
+The design phase translates requirements into a **technical blueprint**. Architects and senior engineers define how the system will be structured and how components will interact.
+
+- **High-level design (HLD):** System architecture, technology stack, database design, integration points
+- **Low-level design (LLD):** Class diagrams, API contracts, data models, algorithms
+
+**Output:** Architecture documents, design specifications, data flow diagrams, ERDs
+
+### 4. Implementation (Coding)
+
+This is where the actual software is built. Developers write code according to the design specifications, following coding standards and best practices.
+
+- Writing production code
+- Unit testing individual components
+- Code reviews and pair programming
+- Version control and continuous integration
+
+**Output:** Working source code, unit tests, build artifacts
+
+### 5. Testing
+
+The testing phase verifies that the software **meets requirements and works correctly**. Testing can include:
+
+- **Unit testing** -- Individual functions and methods
+- **Integration testing** -- Interactions between components
+- **System testing** -- End-to-end behavior of the complete system
+- **User acceptance testing (UAT)** -- Validation by actual users or stakeholders
+- **Performance testing** -- Load, stress, and scalability checks
+- **Security testing** -- Vulnerability assessments and penetration tests
+
+**Output:** Test plans, test cases, defect reports, test summary
+
+### 6. Deployment
+
+Deployment delivers the software to users. Depending on the project, this may be a single release or a phased rollout.
+
+- Environment setup (staging, production)
+- Data migration
+- Release management
+- User training and documentation
+- Monitoring and alerting setup
+
+**Output:** Deployed application, release notes, deployment runbook
+
+### 7. Maintenance
+
+After deployment, the software enters its longest phase. Maintenance ensures the system continues to **function correctly and evolve** over time.
+
+- **Corrective maintenance** -- Fixing bugs discovered in production
+- **Adaptive maintenance** -- Updating for new environments, platforms, or regulations
+- **Perfective maintenance** -- Enhancing features and improving performance
+- **Preventive maintenance** -- Refactoring and updating dependencies to prevent future issues
+
+**Output:** Patches, updates, performance reports, change requests
+
+```
+┌───────────┐    ┌─────────────┐    ┌──────────┐    ┌────────────────┐
+│ Planning  │───►│  Analysis   │───►│  Design  │───►│ Implementation │
+└───────────┘    └─────────────┘    └──────────┘    └────────────────┘
+                                                            │
+                                                            ▼
+┌─────────────┐    ┌────────────┐    ┌───────────┐
+│ Maintenance │◄───│ Deployment │◄───│  Testing  │
+└─────────────┘    └────────────┘    └───────────┘
+```
+
+---
+
+## SDLC Models
+
+Different projects demand different approaches. A model defines **how the phases are organized** -- sequentially, iteratively, or in parallel. Choosing the right model depends on factors such as project size, risk tolerance, requirement stability, and team experience.
+
+### Waterfall Model
+
+The Waterfall model is the oldest and most straightforward SDLC model. Each phase is completed **fully before the next one begins**, with no going back.
+
+```
+Requirements ──► Design ──► Implementation ──► Testing ──► Deployment ──► Maintenance
+```
+
+**Characteristics:**
+- Strictly sequential -- each phase has a defined start and end
+- Heavy documentation at every stage
+- Changes are expensive once a phase is complete
+- Progress is easy to measure (percentage of phases completed)
+
+**When to use Waterfall:**
+- Requirements are well-understood and unlikely to change
+- The project is short and straightforward
+- Regulatory or contractual obligations require extensive documentation
+- The technology is mature and well-known
+
+**When to avoid Waterfall:**
+- Requirements are uncertain or likely to evolve
+- Stakeholders need to see working software early
+- The project involves new or unproven technology
+- The team needs flexibility to adapt to feedback
+
+### V-Model (Verification and Validation)
+
+The V-Model extends Waterfall by pairing each development phase with a corresponding **testing phase**. The left side of the "V" represents development; the right side represents testing.
+
+```
+Requirements  ─────────────────────────────  Acceptance Testing
+    │                                              ▲
+    ▼                                              │
+  System Design  ───────────────────  System Testing
+      │                                      ▲
+      ▼                                      │
+    Module Design  ─────────  Integration Testing
+        │                          ▲
+        ▼                          │
+      Implementation  ──►  Unit Testing
+```
+
+**Characteristics:**
+- Test planning happens in parallel with development, not as an afterthought
+- Clear traceability between requirements and test cases
+- Still sequential -- no room for iteration
+- Higher quality assurance compared to pure Waterfall
+
+**When to use the V-Model:**
+- Quality and reliability are critical (medical devices, aerospace, financial systems)
+- Requirements are stable and well-defined
+- Formal validation and verification are required by regulation
+
+### Iterative and Incremental Model
+
+Instead of delivering the entire system at once, this model builds the software in **repeated cycles (iterations)**. Each iteration produces a working version of the system with progressively more features.
+
+```
+Iteration 1: [Plan → Design → Build → Test] → Version 1.0 (core features)
+Iteration 2: [Plan → Design → Build → Test] → Version 2.0 (+ more features)
+Iteration 3: [Plan → Design → Build → Test] → Version 3.0 (+ refinements)
+```
+
+**Characteristics:**
+- Working software is produced early and improved over time
+- Feedback from each iteration informs the next
+- Risk is reduced because problems surface early
+- Requirements can evolve between iterations
+
+**When to use Iterative/Incremental:**
+- The system is large and can be delivered in functional slices
+- Stakeholders want to see progress early and provide feedback
+- Requirements are understood at a high level but details will emerge over time
+
+### Spiral Model
+
+The Spiral model combines iterative development with **formal risk analysis**. Each loop through the spiral represents a phase, and risk assessment drives decision-making at every stage.
+
+```
+        ┌──────────────────────────────────┐
+        │          1. Planning             │
+        │    (objectives, alternatives)    │
+        └──────────────┬───────────────────┘
+                       │
+        ┌──────────────▼───────────────────┐
+        │       2. Risk Analysis           │
+        │   (identify, evaluate risks)     │
+        └──────────────┬───────────────────┘
+                       │
+        ┌──────────────▼───────────────────┐
+        │       3. Engineering             │
+        │   (develop, test prototype)      │
+        └──────────────┬───────────────────┘
+                       │
+        ┌──────────────▼───────────────────┐
+        │       4. Evaluation              │
+        │  (customer review, next plan)    │
+        └──────────────┬───────────────────┘
+                       │
+                 (repeat spiral)
+```
+
+**Characteristics:**
+- Explicit risk management at every iteration
+- Prototyping is used to reduce uncertainty
+- Flexible -- accommodates changes between spirals
+- Best suited for large, complex, high-risk projects
+- Can be expensive due to extensive risk analysis
+
+**When to use the Spiral Model:**
+- The project carries significant technical or business risk
+- Requirements are complex and expected to change
+- The budget accommodates iterative prototyping and risk assessment
+
+### Agile Model
+
+Agile is not a single model but a **family of methodologies** (Scrum, Kanban, XP, and others) united by a shared set of values and principles. Agile emphasizes adaptive planning, rapid delivery of working software, and close collaboration between developers and stakeholders.
+
+```
+Product     Sprint 1        Sprint 2        Sprint 3
+Backlog ──► [2-4 weeks] ──► [2-4 weeks] ──► [2-4 weeks] ──► ...
+            │ Plan          │ Plan          │ Plan
+            │ Build         │ Build         │ Build
+            │ Test          │ Test          │ Test
+            │ Review        │ Review        │ Review
+            └► Increment    └► Increment    └► Increment
+```
+
+**Characteristics:**
+- Work is divided into short iterations (sprints) of 1-4 weeks
+- Working software is delivered at the end of every sprint
+- Requirements are captured as user stories and prioritized in a backlog
+- Daily collaboration through standups and regular retrospectives
+- Embraces change -- requirements can be reprioritized at any time
+- Lightweight documentation in favor of working software
+
+**When to use Agile:**
+- Requirements are expected to evolve based on user feedback
+- Time-to-market is a priority
+- The team is cross-functional and co-located (or effectively collaborates remotely)
+- Stakeholders are available for frequent feedback
+
+---
+
+## SDLC Models Comparison
+
+| Aspect | Waterfall | V-Model | Iterative | Spiral | Agile |
+|---|---|---|---|---|---|
+| **Approach** | Sequential | Sequential with testing | Repeated cycles | Risk-driven spirals | Adaptive sprints |
+| **Flexibility** | Very low | Very low | Moderate | High | Very high |
+| **Requirement stability** | Must be fixed upfront | Must be fixed upfront | Can evolve between iterations | Can evolve with risk analysis | Continuously evolving |
+| **Documentation** | Extensive | Extensive | Moderate | Moderate to extensive | Lightweight |
+| **Risk management** | Low -- risks found late | Moderate -- testing is planned early | Moderate -- risks surface iteratively | Very high -- explicit risk analysis | High -- fast feedback reduces risk |
+| **Feedback cycle** | End of project | End of project | End of each iteration | End of each spiral | End of each sprint (1-4 weeks) |
+| **Working software** | Only at the end | Only at the end | After each iteration | After each spiral (prototype) | After every sprint |
+| **Team size** | Any | Any | Medium to large | Large | Small to medium |
+| **Best for** | Stable, well-defined projects | Safety-critical systems | Large systems with known scope | High-risk, complex projects | Dynamic, user-facing products |
+| **Cost of change** | Very high | Very high | Moderate | Moderate | Low |
+
+:::tip[Choosing the Right Model]
+There is no universally "best" model. The right choice depends on your project's constraints:
+- **Known requirements + regulatory compliance** -- Waterfall or V-Model
+- **Large system + moderate uncertainty** -- Iterative or Spiral
+- **Evolving requirements + need for speed** -- Agile
+
+Many real-world teams use hybrid approaches, combining elements from multiple models. For example, a team might use Agile for development sprints while maintaining Waterfall-style documentation for compliance.
+:::
+
+---
+
+## How SDLC Connects to Other Topics
+
+```
+Software Development Lifecycle
+  │
+  ├── Agile & Scrum ──────────── Framework for iterative delivery
+  │     (sprints, user stories, ceremonies)
+  │
+  ├── Kanban & Lean ─────────── Flow-based process optimization
+  │     (WIP limits, waste elimination)
+  │
+  ├── Estimation & Planning ─── Predicting effort and scheduling work
+  │     (story points, velocity, roadmaps)
+  │
+  ├── Testing ───────────────── Quality assurance across all phases
+  │     (unit, integration, system, acceptance)
+  │
+  ├── Version Control ───────── Managing code changes throughout SDLC
+  │     (Git, branching, code review)
+  │
+  └── DevOps ────────────────── Automating deployment and operations
+        (CI/CD, infrastructure as code)
+```
+
+---
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="Agile & Scrum"
+    href="/software-engineering/sdlc-agile/agile-scrum/"
+    description="Master Agile principles and the Scrum framework for iterative, collaborative software delivery"
+  />
+  <LinkCard
+    title="Kanban & Lean"
+    href="/software-engineering/sdlc-agile/kanban-lean/"
+    description="Optimize workflow and reduce waste using Kanban boards and Lean principles"
+  />
+  <LinkCard
+    title="Estimation & Planning"
+    href="/software-engineering/sdlc-agile/estimation-planning/"
+    description="Estimate effort accurately and plan releases effectively using proven techniques"
+  />
+</CardGrid>

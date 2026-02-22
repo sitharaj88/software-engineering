@@ -1,0 +1,194 @@
+---
+title: "OOP & SOLID Principles"
+description: "Master object-oriented programming concepts and SOLID design principles for writing clean, maintainable code"
+difficulty: "beginner"
+prerequisites: ["Basic programming knowledge"]
+timeToRead: "10 min"
+topics: ["oop", "solid", "design-principles", "clean-code"]
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+Object-Oriented Programming (OOP) is one of the most widely adopted programming paradigms in software engineering. It organizes software around **objects** — self-contained units that bundle data and the behavior that operates on that data — rather than around functions and logic alone. Combined with the **SOLID principles**, OOP provides a battle-tested framework for building software that is easy to understand, extend, and maintain over time.
+
+Whether you are writing your first class or designing a large-scale enterprise system, understanding OOP and SOLID is essential. These concepts underpin virtually every modern language (Java, C#, Python, TypeScript, C++, Swift, Kotlin) and form the foundation upon which design patterns, software architecture, and clean code practices are built.
+
+## Why Learn OOP & SOLID?
+
+Understanding OOP and SOLID principles delivers concrete benefits at every stage of your career:
+
+### For Day-to-Day Development
+- **Manage complexity** — Break large problems into small, focused objects that are easier to reason about
+- **Write reusable code** — Design components that can be shared across projects without modification
+- **Reduce bugs** — Encapsulation limits the blast radius of changes, preventing unintended side effects
+- **Collaborate effectively** — Well-defined interfaces let team members work on separate objects independently
+
+### For Software Design
+- **Create flexible architectures** — SOLID principles ensure your code adapts to changing requirements without rewrites
+- **Apply design patterns confidently** — Every Gang of Four pattern relies on OOP concepts like polymorphism and abstraction
+- **Improve testability** — Loosely coupled objects are easy to unit test with mocks and stubs
+- **Communicate intent** — OOP models real-world relationships, making code self-documenting
+
+### For Career Growth
+- **Ace technical interviews** — OOP and SOLID questions appear in interviews at companies of every size
+- **Contribute to large codebases** — Enterprise systems are overwhelmingly object-oriented
+- **Progress into architecture roles** — SOLID is the gateway to understanding clean architecture, hexagonal architecture, and domain-driven design
+
+---
+
+## The Four Pillars of OOP
+
+Object-oriented programming rests on four foundational concepts. Each pillar addresses a specific challenge in software construction.
+
+<CardGrid>
+  <Card title="Encapsulation" icon="seti:lock">
+    Bundles data and the methods that operate on it into a single unit (a class), while **restricting direct access** to internal state. External code interacts with an object only through its public interface, shielding implementation details from the outside world. This reduces coupling and makes it safe to refactor internals without breaking consumers.
+  </Card>
+  <Card title="Abstraction" icon="seti:plan">
+    Exposes only the **essential characteristics** of an object while hiding unnecessary complexity. Abstraction lets you work with high-level concepts (e.g., "send a message") without worrying about low-level details (e.g., serialization, network protocols). Interfaces and abstract classes are the primary tools for achieving abstraction.
+  </Card>
+  <Card title="Inheritance" icon="seti:flow">
+    Allows a new class to **derive properties and behavior** from an existing class, establishing an "is-a" relationship. Inheritance promotes code reuse and creates natural hierarchies. However, deep inheritance trees can introduce tight coupling, which is why composition is often preferred for flexibility.
+  </Card>
+  <Card title="Polymorphism" icon="seti:gulp">
+    Enables objects of different types to be **treated through a common interface**. A single method call can produce different behavior depending on the actual type of the object at runtime. Polymorphism is the engine behind extensibility — you can add new types without modifying existing code.
+  </Card>
+</CardGrid>
+
+:::tip[Dive Deeper]
+Each pillar is covered in detail — with code examples in multiple languages, real-world analogies, and common pitfalls — on the [Four Pillars of OOP](/software-engineering/oop-solid/four-pillars/) page.
+:::
+
+---
+
+## The SOLID Principles
+
+SOLID is an acronym for five design principles introduced by Robert C. Martin (Uncle Bob). These principles guide you toward code that is **easy to extend, resistant to breakage, and simple to test**. While they were formulated in the context of OOP, their spirit applies to any programming paradigm.
+
+| Principle | Name | Core Idea |
+|-----------|------|-----------|
+| **S** | Single Responsibility | A class should have **one, and only one, reason to change** |
+| **O** | Open/Closed | Classes should be **open for extension but closed for modification** |
+| **L** | Liskov Substitution | Subtypes must be **substitutable for their base types** without altering correctness |
+| **I** | Interface Segregation | Clients should not be forced to depend on **interfaces they do not use** |
+| **D** | Dependency Inversion | High-level modules should depend on **abstractions, not concrete implementations** |
+
+### At a Glance
+
+- **Single Responsibility Principle (SRP)** — When a class does only one thing, changes to one concern cannot accidentally break another. A `UserRepository` handles data access; a `UserValidator` handles validation. Mixing them creates fragile, hard-to-test code.
+
+- **Open/Closed Principle (OCP)** — You should be able to add new behavior (by creating new classes or implementing new interfaces) without editing existing, tested code. Strategy and decorator patterns are direct applications of OCP.
+
+- **Liskov Substitution Principle (LSP)** — If `Square` extends `Rectangle`, every piece of code that works with a `Rectangle` must work correctly with a `Square`. Violations lead to subtle runtime bugs and broken polymorphism.
+
+- **Interface Segregation Principle (ISP)** — Instead of one large interface with ten methods, create several small, focused interfaces. A class implementing `Printable` should not be forced to implement `Scannable` if it only prints.
+
+- **Dependency Inversion Principle (DIP)** — High-level business logic should not import low-level infrastructure directly. Instead, both depend on abstractions (interfaces). This makes swapping implementations (e.g., switching from MySQL to PostgreSQL) trivial.
+
+:::tip[Dive Deeper]
+Full explanations with before-and-after code examples, UML diagrams, and violation detection strategies are on the [SOLID Principles](/software-engineering/oop-solid/solid-principles/) page.
+:::
+
+---
+
+## Beyond the Basics: Composition and Code Quality
+
+Once you understand the pillars and principles, two additional topics round out your OOP knowledge:
+
+### Composition vs Inheritance
+
+Inheritance is powerful but often overused. The classic advice "favor composition over inheritance" exists because:
+
+- Composition provides **runtime flexibility** — you can swap behaviors by injecting different objects
+- Inheritance creates **compile-time coupling** — changes to a parent class ripple through every descendant
+- Many "is-a" relationships are better modeled as "has-a" relationships
+
+Knowing **when** to use each approach is a skill that separates junior from senior developers.
+
+### Code Smells and Refactoring
+
+Even well-intentioned OOP code can deteriorate over time. Learning to recognize **code smells** — symptoms like God classes, feature envy, long parameter lists, and shotgun surgery — lets you catch design problems early. Refactoring techniques give you systematic ways to fix these problems without introducing bugs.
+
+---
+
+## Recommended Learning Path
+
+<CardGrid stagger>
+  <Card title="Phase 1: Foundations" icon="open-book">
+    **Duration**: 3-5 days
+
+    Start with the four pillars of OOP. Focus on understanding encapsulation and polymorphism deeply, as they are used constantly in practice.
+
+    **Goal**: Be able to model a real-world domain using classes, interfaces, and inheritance hierarchies.
+  </Card>
+  <Card title="Phase 2: SOLID Principles" icon="star">
+    **Duration**: 1 week
+
+    Study each SOLID principle individually. For each one, practice identifying violations in existing code and refactoring to comply.
+
+    **Goal**: Write new code that follows SOLID by default, and recognize violations in code reviews.
+  </Card>
+  <Card title="Phase 3: Composition and Trade-offs" icon="setting">
+    **Duration**: 3-5 days
+
+    Learn when to prefer composition over inheritance. Study real-world examples from popular frameworks and libraries.
+
+    **Goal**: Make informed decisions about class relationships based on flexibility requirements.
+  </Card>
+  <Card title="Phase 4: Code Quality" icon="rocket">
+    **Duration**: 1 week
+
+    Learn to identify code smells and apply targeted refactoring techniques. Practice on legacy codebases or open-source projects.
+
+    **Goal**: Confidently refactor problematic OOP code into clean, maintainable designs.
+  </Card>
+</CardGrid>
+
+---
+
+## How OOP & SOLID Connect to Other Topics
+
+Understanding OOP and SOLID is not an end in itself — it is the foundation for more advanced software engineering concepts:
+
+```
+OOP & SOLID Principles
+  │
+  ├── Design Patterns ──────── Apply OOP to solve recurring problems
+  │     (Strategy, Observer, Factory, Decorator, etc.)
+  │
+  ├── Software Architecture ── Scale OOP principles to system-level design
+  │     (Clean Architecture, Hexagonal, DDD)
+  │
+  ├── Testing ──────────────── SOLID code is inherently testable
+  │     (Unit testing, mocking, dependency injection)
+  │
+  └── Code Reviews ─────────── SOLID violations are top review findings
+        (Maintainability, readability, extensibility)
+```
+
+---
+
+## Start Learning
+
+<CardGrid>
+  <LinkCard
+    title="Four Pillars of OOP"
+    href="/software-engineering/oop-solid/four-pillars/"
+    description="Encapsulation, Abstraction, Inheritance, and Polymorphism explained with code examples"
+  />
+  <LinkCard
+    title="SOLID Principles"
+    href="/software-engineering/oop-solid/solid-principles/"
+    description="Five design principles for writing clean, extensible, and maintainable object-oriented code"
+  />
+  <LinkCard
+    title="Composition vs Inheritance"
+    href="/software-engineering/oop-solid/composition-vs-inheritance/"
+    description="When to use 'has-a' vs 'is-a' relationships and how to favor flexibility over hierarchy"
+  />
+  <LinkCard
+    title="Code Smells & Refactoring"
+    href="/software-engineering/oop-solid/design-smells/"
+    description="Recognize common design problems and apply systematic refactoring techniques to fix them"
+  />
+</CardGrid>

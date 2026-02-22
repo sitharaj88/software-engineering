@@ -1,0 +1,649 @@
+---
+title: "Microservices Architecture"
+description: "Design and build distributed systems using microservices patterns and best practices"
+difficulty: "advanced"
+prerequisites: ["Clean & Layered Architecture", "API Design"]
+timeToRead: "22 min"
+topics: ["microservices", "monolith", "decomposition", "saga", "service-mesh", "cqrs"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+Microservices architecture structures an application as a collection of **small, autonomous services**, each running in its own process, owning its own data, and communicating over the network. It enables large organizations to scale development across many teams -- but it comes with significant operational complexity that must be carefully weighed against its benefits.
+
+---
+
+## Monolith vs. Microservices
+
+Before adopting microservices, it is critical to understand what you are moving away from and why.
+
+### The Monolith
+
+A monolithic application is deployed as a **single unit**. All features share the same codebase, process, and database.
+
+```
+┌─────────────────────────────────────────────────┐
+│                   Monolith                       │
+│                                                 │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐      │
+│  │  User     │  │  Order   │  │ Inventory│      │
+│  │  Module   │  │  Module  │  │  Module  │      │
+│  └────┬─────┘  └────┬─────┘  └────┬─────┘      │
+│       │              │              │            │
+│       └──────────────┼──────────────┘            │
+│                      │                           │
+│              ┌───────▼───────┐                   │
+│              │  Shared       │                   │
+│              │  Database     │                   │
+│              └───────────────┘                   │
+└─────────────────────────────────────────────────┘
+```
+
+### Microservices
+
+A microservices application is deployed as **multiple independent services**, each with its own database and deployment pipeline.
+
+```
+┌────────────┐    ┌────────────┐    ┌────────────┐
+│   User      │    │   Order     │    │  Inventory  │
+│   Service   │    │   Service   │    │   Service   │
+│             │    │             │    │             │
+│  ┌────────┐ │    │  ┌────────┐ │    │  ┌────────┐ │
+│  │  DB    │ │    │  │  DB    │ │    │  │  DB    │ │
+│  └────────┘ │    │  └────────┘ │    │  └────────┘ │
+└──────┬──────┘    └──────┬──────┘    └──────┬──────┘
+       │                  │                  │
+       └──────────┬───────┴──────────────────┘
+                  │
+           ┌──────▼──────┐
+           │  API Gateway │
+           └──────┬──────┘
+                  │
+           ┌──────▼──────┐
+           │   Client     │
+           └─────────────┘
+```
+
+### Comparison Table
+
+| Aspect | Monolith | Microservices |
+|--------|----------|---------------|
+| **Deployment** | Single deployable unit | Each service deployed independently |
+| **Scaling** | Scale the entire application | Scale individual services as needed |
+| **Technology** | Single technology stack | Each service can use different tech |
+| **Data management** | Single shared database | Database per service |
+| **Team structure** | Teams organized by layer (frontend, backend, DB) | Teams organized by business capability |
+| **Development speed (early)** | Faster -- no network complexity | Slower -- distributed system overhead |
+| **Development speed (at scale)** | Slower -- large codebase, merge conflicts | Faster -- small, independent codebases |
+| **Testing** | Simple end-to-end testing | Complex integration and contract testing |
+| **Fault isolation** | One bug can bring down everything | Failures are contained to individual services |
+| **Operational complexity** | Low -- one process to monitor | High -- many services to deploy, monitor, debug |
+| **Latency** | In-process function calls (nanoseconds) | Network calls between services (milliseconds) |
+| **Data consistency** | ACID transactions across the whole DB | Eventual consistency, distributed transactions |
+| **Best for** | Small teams, early-stage products, simple domains | Large teams, complex domains, independent scaling needs |
+
+:::caution[Microservices Are Not Always the Answer]
+"Don't even consider microservices unless you have a system that's too complex to manage as a monolith." -- Martin Fowler. Start with a **well-structured monolith** (a "modular monolith") and extract services only when you have a clear reason: independent scaling, team autonomy, or different technology needs.
+:::
+
+---
+
+## Decomposition Strategies
+
+The hardest part of microservices is deciding **where to draw the boundaries**. Poor boundaries create "distributed monoliths" -- all the complexity of microservices with none of the benefits.
+
+### By Business Capability
+
+Align services with **what the business does**. Each service maps to a business function.
+
+```
+E-Commerce Business Capabilities:
+
+┌────────────────┐  ┌────────────────┐  ┌────────────────┐
+│  User           │  │  Product       │  │  Order          │
+│  Management     │  │  Catalog       │  │  Management     │
+│                 │  │                │  │                 │
+│ - Registration  │  │ - Browsing     │  │ - Placement     │
+│ - Authentication│  │ - Search       │  │ - Tracking      │
+│ - Profiles      │  │ - Categories   │  │ - History       │
+└────────────────┘  └────────────────┘  └────────────────┘
+
+┌────────────────┐  ┌────────────────┐  ┌────────────────┐
+│  Inventory      │  │  Payment       │  │  Notification   │
+│  Management     │  │  Processing    │  │  Service        │
+│                 │  │                │  │                 │
+│ - Stock levels  │  │ - Charges      │  │ - Email         │
+│ - Warehouses    │  │ - Refunds      │  │ - SMS           │
+│ - Reservations  │  │ - Invoices     │  │ - Push          │
+└────────────────┘  └────────────────┘  └────────────────┘
+```
+
+### By Subdomain (DDD Approach)
+
+Use **Domain-Driven Design** to identify bounded contexts. Each bounded context becomes a candidate for a service.
+
+```
+Subdomains → Bounded Contexts → Services
+
+Core Domain:        Order Processing    →  Order Service
+                    Product Catalog     →  Catalog Service
+
+Supporting Domain:  Inventory Tracking  →  Inventory Service
+                    Customer Support    →  Support Service
+
+Generic Domain:     Payment Processing  →  Payment Service (or 3rd party)
+                    Email/SMS           →  Notification Service (or SaaS)
+```
+
+### Guidelines for Good Boundaries
+
+- **High cohesion**: Everything inside a service is closely related
+- **Loose coupling**: Services interact through well-defined APIs, not shared databases
+- **Single responsibility**: Each service owns one business capability
+- **Independent deployability**: You can deploy one service without redeploying others
+- **Data ownership**: Each service owns its data and exposes it only through its API
+
+---
+
+## Inter-Service Communication
+
+Services must communicate, and there are two fundamental approaches: **synchronous** (request-response) and **asynchronous** (event-based messaging).
+
+### Synchronous Communication
+
+The caller sends a request and **waits for a response**. Common protocols include REST over HTTP and gRPC.
+
+<Tabs>
+  <TabItem label="REST (HTTP/JSON)">
+```python
+# Order Service calls Inventory Service via REST
+import httpx
+
+class InventoryClient:
+    def __init__(self, base_url: str):
+        self._base_url = base_url
+
+    def check_stock(self, product_id: str, quantity: int) -> bool:
+        response = httpx.get(
+            f"{self._base_url}/inventory/{product_id}",
+            timeout=5.0,
+        )
+        response.raise_for_status()
+        available = response.json()["available_quantity"]
+        return available >= quantity
+
+    def reserve_stock(self, product_id: str, quantity: int) -> str:
+        response = httpx.post(
+            f"{self._base_url}/inventory/reservations",
+            json={
+                "product_id": product_id,
+                "quantity": quantity,
+            },
+            timeout=5.0,
+        )
+        response.raise_for_status()
+        return response.json()["reservation_id"]
+```
+
+**Pros**: Simple, widely understood, easy to debug with tools like curl.
+
+**Cons**: Tight temporal coupling (both services must be running), latency accumulates with call chains, cascading failures.
+  </TabItem>
+  <TabItem label="gRPC">
+```protobuf
+// inventory.proto
+syntax = "proto3";
+
+service InventoryService {
+  rpc CheckStock(StockRequest) returns (StockResponse);
+  rpc ReserveStock(ReservationRequest) returns (ReservationResponse);
+}
+
+message StockRequest {
+  string product_id = 1;
+  int32 quantity = 2;
+}
+
+message StockResponse {
+  bool available = 1;
+  int32 available_quantity = 2;
+}
+
+message ReservationRequest {
+  string product_id = 1;
+  int32 quantity = 2;
+}
+
+message ReservationResponse {
+  string reservation_id = 1;
+  bool success = 2;
+}
+```
+
+**Pros**: High performance (binary protocol, HTTP/2), strongly typed contracts, code generation, bidirectional streaming.
+
+**Cons**: Less human-readable, requires protobuf tooling, harder to test with standard HTTP tools.
+  </TabItem>
+</Tabs>
+
+### Asynchronous Communication
+
+The caller sends a message and **does not wait** for a response. The message is delivered through a **message broker** (Kafka, RabbitMQ, SQS).
+
+```
+┌──────────┐    publish     ┌──────────────┐    consume    ┌──────────────┐
+│  Order    │──────────────►│   Message     │─────────────►│  Inventory   │
+│  Service  │  OrderPlaced  │   Broker      │  OrderPlaced │  Service     │
+└──────────┘    event       │  (Kafka /     │  event       └──────────────┘
+                            │   RabbitMQ)   │
+                            └──────┬───────┘
+                                   │ consume
+                                   ▼
+                            ┌──────────────┐
+                            │ Notification  │
+                            │ Service       │
+                            └──────────────┘
+```
+
+**Pros**: Loose temporal coupling (services do not need to be running at the same time), better fault tolerance, natural load leveling.
+
+**Cons**: Eventual consistency, harder to debug, complex error handling, message ordering challenges.
+
+### When to Use Each
+
+| Scenario | Recommendation |
+|----------|---------------|
+| Need an immediate response (e.g., "is this item in stock?") | Synchronous (REST/gRPC) |
+| Fire-and-forget notifications | Asynchronous messaging |
+| Long-running processes (order fulfillment) | Asynchronous with saga pattern |
+| Real-time data streaming | Asynchronous (Kafka) |
+| Simple CRUD queries across services | Synchronous (REST) |
+| Cross-service data consistency | Asynchronous with eventual consistency |
+
+---
+
+## API Gateway Pattern
+
+An API gateway sits between clients and services, providing a **single entry point** for all client requests.
+
+```
+┌───────┐ ┌───────┐ ┌───────┐
+│ Web   │ │Mobile │ │ IoT   │
+│ App   │ │ App   │ │Device │
+└───┬───┘ └───┬───┘ └───┬───┘
+    │         │         │
+    └─────────┼─────────┘
+              │
+     ┌────────▼────────┐
+     │   API Gateway    │
+     │                  │
+     │ - Authentication │
+     │ - Rate limiting  │
+     │ - Load balancing │
+     │ - Request routing│
+     │ - Response agg.  │
+     │ - SSL termination│
+     └─┬──────┬──────┬─┘
+       │      │      │
+  ┌────▼──┐ ┌─▼────┐ ┌▼──────┐
+  │ User  │ │Order │ │Product│
+  │Service│ │Svc   │ │Svc    │
+  └───────┘ └──────┘ └───────┘
+```
+
+**Responsibilities**:
+- **Routing**: Directs requests to the appropriate service
+- **Authentication/Authorization**: Validates tokens before forwarding requests
+- **Rate limiting**: Protects services from being overwhelmed
+- **Response aggregation**: Combines responses from multiple services into one
+- **Protocol translation**: Converts between external (REST) and internal (gRPC) protocols
+
+Popular implementations include Kong, AWS API Gateway, NGINX, and Envoy.
+
+---
+
+## Service Discovery
+
+In dynamic environments (containers, Kubernetes), services scale up and down. **Service discovery** solves the problem of "how does Service A find Service B?"
+
+```
+Client-Side Discovery:
+┌──────────┐     1. Query     ┌──────────────┐
+│  Order    │────────────────►│   Service     │
+│  Service  │                 │   Registry    │
+│           │◄────────────────│  (Consul,     │
+│           │  2. Return IPs  │   Eureka)     │
+│           │                 └───────┬───────┘
+│           │                     3. Register│
+│           │  4. Direct call         │
+│           │──────────┐      ┌───────▼───────┐
+└──────────┘          └─────►│  Inventory    │
+                              │  Service      │
+                              │  (10.0.1.5)   │
+                              └───────────────┘
+
+Server-Side Discovery (Kubernetes, AWS ALB):
+┌──────────┐     1. Request   ┌──────────────┐     2. Route    ┌───────────┐
+│  Order    │────────────────►│  Load         │───────────────►│ Inventory │
+│  Service  │                 │  Balancer /   │                │ Service   │
+└──────────┘                  │  DNS (kube-   │                │ (pod)     │
+                              │  proxy)       │                └───────────┘
+                              └───────────────┘
+```
+
+In Kubernetes, service discovery is built in: each Service resource gets a **DNS name** (e.g., `inventory-service.default.svc.cluster.local`) that automatically routes to healthy pods.
+
+---
+
+## Saga Pattern: Distributed Transactions
+
+In a monolith, you can wrap multiple operations in a single database transaction. In microservices, each service has its own database, so you need the **saga pattern** to maintain data consistency across services.
+
+A saga is a sequence of **local transactions**. If one step fails, **compensating transactions** undo the previous steps.
+
+### Choreography-Based Saga
+
+Each service listens for events and decides whether to act. There is **no central coordinator**.
+
+```
+1. Order Service                    2. Payment Service
+   ┌─────────────┐                    ┌─────────────┐
+   │ Create Order │                    │ Process     │
+   │ (PENDING)    │──OrderCreated────►│ Payment     │
+   └─────────────┘     event          └──────┬──────┘
+                                             │
+         ┌───────PaymentCompleted────────────┘
+         │              event
+         ▼
+3. Inventory Service               4. Shipping Service
+   ┌─────────────┐                    ┌─────────────┐
+   │ Reserve     │                    │ Create      │
+   │ Stock       │──StockReserved───►│ Shipment    │
+   └─────────────┘     event          └──────┬──────┘
+                                             │
+         ┌───────ShipmentCreated─────────────┘
+         ▼
+5. Order Service
+   ┌─────────────┐
+   │ Mark Order  │
+   │ CONFIRMED   │
+   └─────────────┘
+
+Compensation (if Payment fails):
+   PaymentFailed event → Order Service → Mark Order CANCELLED
+```
+
+**Pros**: Simple, no single point of failure, services remain decoupled.
+
+**Cons**: Hard to track the overall flow, difficult to debug, cyclic dependencies can emerge.
+
+### Orchestration-Based Saga
+
+A **central orchestrator** (saga manager) coordinates the steps and handles compensation.
+
+```
+                    ┌──────────────────┐
+                    │  Order Saga      │
+                    │  Orchestrator    │
+                    └──┬───┬───┬───┬──┘
+                       │   │   │   │
+         1. Create     │   │   │   │  4. Create
+            Order      │   │   │   │     Shipment
+              ┌────────┘   │   │   └────────┐
+              ▼            │   │            ▼
+        ┌──────────┐       │   │     ┌──────────┐
+        │  Order   │       │   │     │ Shipping │
+        │  Service │       │   │     │ Service  │
+        └──────────┘       │   │     └──────────┘
+                           │   │
+              2. Process   │   │  3. Reserve
+                 Payment   │   │     Stock
+              ┌────────────┘   └────────────┐
+              ▼                             ▼
+        ┌──────────┐                 ┌──────────┐
+        │ Payment  │                 │Inventory │
+        │ Service  │                 │ Service  │
+        └──────────┘                 └──────────┘
+
+If step 3 fails:
+  Orchestrator → Payment Service: "Refund payment"
+  Orchestrator → Order Service: "Cancel order"
+```
+
+**Pros**: Easy to understand the flow, centralized error handling, clear compensation logic.
+
+**Cons**: Orchestrator is a single point of failure (mitigate with replication), risk of becoming a "god service."
+
+### When to Choose Each
+
+| Factor | Choreography | Orchestration |
+|--------|-------------|---------------|
+| Number of steps | Few (2-4) | Many (4+) |
+| Flow complexity | Simple, linear | Complex, conditional branching |
+| Team ownership | Different teams own different services | One team can own the orchestrator |
+| Debugging | Harder (distributed) | Easier (centralized logs) |
+| Coupling | Very loose | Orchestrator knows all participants |
+
+---
+
+## CQRS: Command Query Responsibility Segregation
+
+CQRS separates the **write model** (commands) from the **read model** (queries), allowing each to be optimized independently.
+
+```
+Traditional (single model):
+┌─────────┐     ┌─────────────┐     ┌──────────┐
+│  Client  │────►│  Service     │────►│ Database │
+│          │◄────│  (read +     │◄────│ (one     │
+└─────────┘     │   write)     │     │  schema) │
+                └─────────────┘     └──────────┘
+
+CQRS (separate models):
+                ┌──────────────┐     ┌──────────────┐
+         write  │  Command     │────►│  Write DB     │
+┌─────────┐────►│  Service     │     │  (normalized) │
+│  Client  │     └──────────────┘     └──────┬───────┘
+│          │                                 │ sync
+│          │     ┌──────────────┐     ┌──────▼───────┐
+│          │────►│  Query       │◄────│  Read DB      │
+└─────────┘ read│  Service     │     │ (denormalized)│
+                └──────────────┘     └──────────────┘
+```
+
+### Why Use CQRS?
+
+- **Read and write workloads differ dramatically**: Most systems read far more than they write. CQRS lets you scale reads and writes independently.
+- **Read-optimized views**: The read model can use denormalized tables, materialized views, or search indices (Elasticsearch) tailored to specific queries.
+- **Simpler models**: The write model focuses on enforcing business rules; the read model focuses on assembling data for display.
+
+### When CQRS Is Overkill
+
+CQRS adds complexity. It is not needed when:
+- Read and write patterns are similar
+- The domain is simple CRUD
+- Strong consistency is required everywhere (CQRS typically involves eventual consistency between write and read models)
+
+---
+
+## Database per Service
+
+Each microservice owns its **private database**. No other service can access it directly.
+
+```
+ ┌──────────┐    ┌──────────┐    ┌──────────┐
+ │  User    │    │  Order   │    │ Product  │
+ │  Service │    │  Service │    │  Service │
+ └────┬─────┘    └────┬─────┘    └────┬─────┘
+      │               │               │
+ ┌────▼─────┐    ┌────▼─────┐    ┌────▼─────┐
+ │PostgreSQL│    │  MySQL   │    │ MongoDB  │
+ │ (users)  │    │ (orders) │    │(products)│
+ └──────────┘    └──────────┘    └──────────┘
+```
+
+**Benefits**:
+- Services can choose the **best database** for their needs (polyglot persistence)
+- Schema changes in one service do not break others
+- Each database can be scaled independently
+
+**Challenges**:
+- Cross-service queries require API calls or data replication
+- Maintaining referential integrity across services requires the saga pattern
+- Reporting across services requires data aggregation (e.g., a data warehouse)
+
+---
+
+## Strangler Fig Migration Pattern
+
+Named after the strangler fig tree that grows around its host tree and eventually replaces it, this pattern enables a **gradual migration** from monolith to microservices.
+
+```
+Phase 1: All traffic goes to the monolith
+┌────────┐     ┌───────────────────┐
+│ Client │────►│     Monolith       │
+└────────┘     └───────────────────┘
+
+Phase 2: New feature built as a service; proxy routes selectively
+┌────────┐     ┌──────────┐     ┌───────────────────┐
+│ Client │────►│  Proxy / │────►│    Monolith        │
+└────────┘     │  Gateway │     │ (existing features)│
+               └────┬─────┘     └───────────────────┘
+                    │
+                    │ /orders/*
+                    ▼
+               ┌──────────┐
+               │  Order   │
+               │  Service │
+               └──────────┘
+
+Phase 3: More features extracted
+┌────────┐     ┌──────────┐     ┌───────────────────┐
+│ Client │────►│  Proxy / │────►│    Monolith        │
+└────────┘     │  Gateway │     │ (shrinking)        │
+               └──┬───┬───┘     └───────────────────┘
+                  │   │
+          ┌───────┘   └───────┐
+          ▼                   ▼
+     ┌──────────┐       ┌──────────┐
+     │  Order   │       │  User    │
+     │  Service │       │  Service │
+     └──────────┘       └──────────┘
+
+Phase 4: Monolith fully replaced
+┌────────┐     ┌──────────┐
+│ Client │────►│  Gateway │──┬──► Order Service
+└────────┘     └──────────┘  ├──► User Service
+                             ├──► Product Service
+                             └──► Payment Service
+```
+
+### Key Principles
+
+1. **Never rewrite from scratch** -- incrementally extract functionality
+2. **Use a routing layer** (proxy/gateway) to redirect traffic
+3. **Extract the service with the clearest boundary** first
+4. **Maintain backward compatibility** during the transition
+5. **Decommission monolith features** only after the service is proven in production
+
+---
+
+## Service Mesh
+
+A service mesh is a **dedicated infrastructure layer** that handles service-to-service communication. Instead of embedding networking logic (retries, timeouts, circuit breaking, mTLS) into each service, a sidecar proxy handles it transparently.
+
+```
+Without Service Mesh:
+┌──────────────────┐          ┌──────────────────┐
+│  Order Service   │          │ Inventory Service │
+│                  │          │                  │
+│  App Code +      │──HTTP──►│  App Code +      │
+│  Retry Logic +   │          │  Retry Logic +   │
+│  Circuit Breaker │          │  Circuit Breaker │
+│  + mTLS + ...    │          │  + mTLS + ...    │
+└──────────────────┘          └──────────────────┘
+
+With Service Mesh (e.g., Istio, Linkerd):
+┌──────────────────┐          ┌──────────────────┐
+│  Order Service   │          │ Inventory Service │
+│  (app code only) │          │  (app code only) │
+│                  │          │                  │
+│  ┌────────────┐  │          │  ┌────────────┐  │
+│  │  Sidecar   │  │──mTLS──►│  │  Sidecar   │  │
+│  │  Proxy     │  │          │  │  Proxy     │  │
+│  │  (Envoy)   │  │          │  │  (Envoy)   │  │
+│  └────────────┘  │          │  └────────────┘  │
+└──────────────────┘          └──────────────────┘
+         ▲                             ▲
+         │         ┌──────────┐        │
+         └─────────│ Control  │────────┘
+                   │  Plane   │
+                   │ (Istio)  │
+                   └──────────┘
+```
+
+**What a service mesh provides**:
+- **Traffic management**: Load balancing, retries, timeouts, circuit breaking
+- **Security**: Mutual TLS (mTLS) between services, access policies
+- **Observability**: Distributed tracing, metrics, access logs -- all without changing application code
+
+:::tip[When to Adopt a Service Mesh]
+A service mesh adds operational complexity. Adopt it when you have **many services** (15+) and the cross-cutting concerns (mTLS, observability, traffic control) are becoming painful to implement in each service individually. For small deployments, a simpler approach (shared libraries, API gateway) is often sufficient.
+:::
+
+---
+
+## Microservices Anti-Patterns
+
+Avoid these common mistakes:
+
+| Anti-Pattern | Description | Solution |
+|-------------|-------------|----------|
+| **Distributed Monolith** | Services are tightly coupled, must be deployed together | Enforce service boundaries, database per service |
+| **Shared Database** | Multiple services read/write the same tables | Each service owns its data, expose through APIs |
+| **Chatty Services** | Excessive inter-service calls for a single operation | Aggregate data, use async events, batch APIs |
+| **Nano-services** | Services are too small, creating excessive overhead | Merge closely related services, align with business capabilities |
+| **No API Versioning** | Breaking changes in APIs cascade to consumers | Semantic versioning, backward compatibility, consumer-driven contracts |
+| **Big Bang Migration** | Rewriting the monolith all at once | Use strangler fig pattern for incremental migration |
+
+---
+
+## Practical Checklist: Are You Ready for Microservices?
+
+Before adopting microservices, honestly assess whether your organization meets these prerequisites:
+
+- [ ] **Team size**: You have multiple teams that need to work independently
+- [ ] **Domain complexity**: The domain is complex enough to justify bounded contexts
+- [ ] **DevOps maturity**: You have CI/CD pipelines, automated testing, and infrastructure as code
+- [ ] **Monitoring and observability**: You have centralized logging, distributed tracing, and alerting
+- [ ] **Container orchestration**: You are comfortable with Docker and Kubernetes (or equivalent)
+- [ ] **API design skills**: Your team can design stable, versioned APIs
+- [ ] **Operational capacity**: You can handle the operational overhead of multiple deployments
+
+If most of these are not in place, start by **improving your monolith** and building DevOps capabilities first.
+
+---
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="Event-Driven Architecture"
+    href="/software-engineering/software-architecture/event-driven/"
+    description="Deep dive into events, message brokers, event sourcing, and eventual consistency"
+  />
+  <LinkCard
+    title="Domain-Driven Design"
+    href="/software-engineering/software-architecture/ddd/"
+    description="Strategic and tactical patterns for modeling complex business domains"
+  />
+  <LinkCard
+    title="Clean & Layered Architecture"
+    href="/software-engineering/software-architecture/clean-architecture/"
+    description="Structure individual services using clean architecture principles"
+  />
+  <LinkCard
+    title="Software Architecture Overview"
+    href="/software-engineering/software-architecture/"
+    description="Return to the architecture overview and quality attributes"
+  />
+</CardGrid>

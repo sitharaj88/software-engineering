@@ -1,0 +1,2015 @@
+---
+title: "Code Smells & Refactoring"
+description: "Identify common OOP anti-patterns and learn systematic refactoring techniques to improve code quality"
+difficulty: "intermediate"
+prerequisites: ["SOLID Principles", "Composition vs Inheritance"]
+timeToRead: "20 min"
+topics: ["code-smells", "refactoring", "anti-patterns", "clean-code", "technical-debt"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+Code smells are surface-level indicators in source code that suggest deeper structural problems. The term was popularized by Martin Fowler and Kent Beck in the book *Refactoring: Improving the Design of Existing Code*. A code smell is not a bug -- your program still works -- but it signals that the design is fragile, hard to extend, or difficult to understand. Left unaddressed, code smells accumulate into **technical debt** that slows development and increases the cost of every future change.
+
+## Why Code Smells Matter
+
+Code smells matter because they are leading indicators of maintainability problems:
+
+- **They compound over time.** A single long method is manageable. Fifty long methods scattered across a codebase make every change risky.
+- **They increase coupling.** Smells like Feature Envy and Inappropriate Intimacy bind classes together, meaning a change in one class forces changes in many others.
+- **They obscure intent.** When a class does too much or a method is too long, developers spend more time reading code than writing it.
+- **They resist testing.** Tightly coupled, monolithic code is difficult to unit test in isolation.
+- **They signal violated principles.** Most code smells map directly to violations of SOLID principles -- recognizing smells helps you apply the right principle.
+
+:::tip[Smells Are Heuristics, Not Rules]
+A code smell is a hint, not a verdict. Context matters. A method with 40 lines in a performance-critical algorithm might be perfectly fine. Use your judgment: if the code is easy to read, test, and change, it is probably fine regardless of length.
+:::
+
+---
+
+## Common OOP Code Smells
+
+### 1. God Class / Blob
+
+A **God Class** (also called a Blob) is a single class that knows too much and does too much. It centralizes the majority of a system's logic, becoming a magnet for every new feature. God Classes violate the **Single Responsibility Principle** -- they have far more than one reason to change.
+
+**Symptoms:**
+- The class has hundreds or thousands of lines
+- It imports many unrelated modules
+- It has fields and methods covering multiple distinct domains
+- Most other classes in the system depend on it
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# BAD: God Class that handles users, orders, emails, and reports
+class ApplicationManager:
+    def __init__(self):
+        self.users = []
+        self.orders = []
+        self.email_server = "smtp.example.com"
+        self.report_format = "pdf"
+
+    # User management
+    def create_user(self, name, email):
+        user = {"name": name, "email": email, "id": len(self.users) + 1}
+        self.users.append(user)
+        self.send_welcome_email(user)
+        return user
+
+    def find_user(self, user_id):
+        return next((u for u in self.users if u["id"] == user_id), None)
+
+    def deactivate_user(self, user_id):
+        user = self.find_user(user_id)
+        if user:
+            user["active"] = False
+
+    # Order management
+    def create_order(self, user_id, items):
+        order = {"user_id": user_id, "items": items, "total": sum(i["price"] for i in items)}
+        self.orders.append(order)
+        self.send_order_confirmation(user_id, order)
+        return order
+
+    def calculate_discount(self, user_id):
+        user_orders = [o for o in self.orders if o["user_id"] == user_id]
+        if len(user_orders) > 10:
+            return 0.15
+        return 0.0
+
+    # Email functionality
+    def send_welcome_email(self, user):
+        print(f"Connecting to {self.email_server}...")
+        print(f"Sending welcome email to {user['email']}")
+
+    def send_order_confirmation(self, user_id, order):
+        user = self.find_user(user_id)
+        print(f"Sending order confirmation to {user['email']}")
+
+    # Reporting
+    def generate_sales_report(self):
+        total = sum(o["total"] for o in self.orders)
+        print(f"Generating {self.report_format} report: Total sales = ${total:.2f}")
+
+    def generate_user_report(self):
+        print(f"Generating {self.report_format} report: {len(self.users)} users")
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// BAD: God Class that handles users, orders, emails, and reports
+class ApplicationManager {
+  constructor() {
+    this.users = [];
+    this.orders = [];
+    this.emailServer = "smtp.example.com";
+    this.reportFormat = "pdf";
+  }
+
+  // User management
+  createUser(name, email) {
+    const user = { name, email, id: this.users.length + 1 };
+    this.users.push(user);
+    this.sendWelcomeEmail(user);
+    return user;
+  }
+
+  findUser(userId) {
+    return this.users.find((u) => u.id === userId);
+  }
+
+  deactivateUser(userId) {
+    const user = this.findUser(userId);
+    if (user) user.active = false;
+  }
+
+  // Order management
+  createOrder(userId, items) {
+    const total = items.reduce((sum, i) => sum + i.price, 0);
+    const order = { userId, items, total };
+    this.orders.push(order);
+    this.sendOrderConfirmation(userId, order);
+    return order;
+  }
+
+  calculateDiscount(userId) {
+    const userOrders = this.orders.filter((o) => o.userId === userId);
+    return userOrders.length > 10 ? 0.15 : 0.0;
+  }
+
+  // Email functionality
+  sendWelcomeEmail(user) {
+    console.log(`Connecting to ${this.emailServer}...`);
+    console.log(`Sending welcome email to ${user.email}`);
+  }
+
+  sendOrderConfirmation(userId, order) {
+    const user = this.findUser(userId);
+    console.log(`Sending order confirmation to ${user.email}`);
+  }
+
+  // Reporting
+  generateSalesReport() {
+    const total = this.orders.reduce((sum, o) => sum + o.total, 0);
+    console.log(`Generating ${this.reportFormat} report: Total sales = $${total.toFixed(2)}`);
+  }
+
+  generateUserReport() {
+    console.log(`Generating ${this.reportFormat} report: ${this.users.length} users`);
+  }
+}
+```
+  </TabItem>
+</Tabs>
+
+**Refactoring:** Apply **Extract Class** to break the God Class into focused classes -- `UserService`, `OrderService`, `EmailService`, and `ReportGenerator` -- each with a single responsibility.
+
+---
+
+### 2. Feature Envy
+
+A method exhibits **Feature Envy** when it accesses the data of another object more than its own. The method "envies" the other class's fields and would be more at home living inside that class. This smell violates the principle that behavior should live with the data it operates on.
+
+**Symptoms:**
+- A method makes multiple calls to getters/attributes on another object
+- The method barely uses fields from its own class
+- You find yourself passing the same object as a parameter to many methods
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# BAD: ShippingCalculator envies the Order class's data
+class Order:
+    def __init__(self, items, customer_zip, is_premium):
+        self.items = items
+        self.customer_zip = customer_zip
+        self.is_premium = is_premium
+
+class ShippingCalculator:
+    def calculate_shipping(self, order):
+        # This method uses order's data extensively but none of its own
+        base_cost = sum(item["weight"] * 0.5 for item in order.items)
+        if order.customer_zip.startswith("9"):
+            base_cost *= 1.2  # West coast surcharge
+        if order.is_premium:
+            base_cost *= 0.0  # Free shipping for premium
+        if len(order.items) > 5:
+            base_cost *= 0.9  # Bulk discount
+        return base_cost
+
+
+# GOOD: Move the method to where the data lives
+class Order:
+    def __init__(self, items, customer_zip, is_premium):
+        self.items = items
+        self.customer_zip = customer_zip
+        self.is_premium = is_premium
+
+    def calculate_shipping(self):
+        base_cost = sum(item["weight"] * 0.5 for item in self.items)
+        if self.customer_zip.startswith("9"):
+            base_cost *= 1.2
+        if self.is_premium:
+            return 0.0
+        if len(self.items) > 5:
+            base_cost *= 0.9
+        return base_cost
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// BAD: ShippingCalculator envies the Order class's data
+class Order {
+  constructor(items, customerZip, isPremium) {
+    this.items = items;
+    this.customerZip = customerZip;
+    this.isPremium = isPremium;
+  }
+}
+
+class ShippingCalculator {
+  calculateShipping(order) {
+    // This method uses order's data extensively but none of its own
+    let baseCost = order.items.reduce((sum, item) => sum + item.weight * 0.5, 0);
+    if (order.customerZip.startsWith("9")) baseCost *= 1.2;
+    if (order.isPremium) baseCost = 0;
+    if (order.items.length > 5) baseCost *= 0.9;
+    return baseCost;
+  }
+}
+
+
+// GOOD: Move the method to where the data lives
+class Order {
+  constructor(items, customerZip, isPremium) {
+    this.items = items;
+    this.customerZip = customerZip;
+    this.isPremium = isPremium;
+  }
+
+  calculateShipping() {
+    let baseCost = this.items.reduce((sum, item) => sum + item.weight * 0.5, 0);
+    if (this.customerZip.startsWith("9")) baseCost *= 1.2;
+    if (this.isPremium) return 0.0;
+    if (this.items.length > 5) baseCost *= 0.9;
+    return baseCost;
+  }
+}
+```
+  </TabItem>
+</Tabs>
+
+**Refactoring:** Apply **Move Method** to relocate the envious method into the class whose data it primarily uses.
+
+---
+
+### 3. Data Clumps
+
+**Data Clumps** occur when the same group of variables appears together repeatedly -- as method parameters, as fields in multiple classes, or as groups of variables that are always passed around together. If these values always travel as a pack, they likely represent a missing concept that deserves its own class.
+
+**Symptoms:**
+- The same three or more parameters appear together in multiple method signatures
+- Several classes contain the same group of fields
+- You frequently extract the same subset of fields from an object
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# BAD: street, city, state, zip_code always travel together
+class Customer:
+    def __init__(self, name, street, city, state, zip_code):
+        self.name = name
+        self.street = street
+        self.city = city
+        self.state = state
+        self.zip_code = zip_code
+
+class Warehouse:
+    def __init__(self, name, street, city, state, zip_code):
+        self.name = name
+        self.street = street
+        self.city = city
+        self.state = state
+        self.zip_code = zip_code
+
+def calculate_distance(street1, city1, state1, zip1,
+                       street2, city2, state2, zip2):
+    # Same group of parameters repeated twice
+    pass
+
+def format_shipping_label(name, street, city, state, zip_code):
+    return f"{name}\n{street}\n{city}, {state} {zip_code}"
+
+
+# GOOD: Extract the clump into its own class
+from dataclasses import dataclass
+
+@dataclass
+class Address:
+    street: str
+    city: str
+    state: str
+    zip_code: str
+
+    def format_label(self, name: str) -> str:
+        return f"{name}\n{self.street}\n{self.city}, {self.state} {self.zip_code}"
+
+class Customer:
+    def __init__(self, name: str, address: Address):
+        self.name = name
+        self.address = address
+
+class Warehouse:
+    def __init__(self, name: str, address: Address):
+        self.name = name
+        self.address = address
+
+def calculate_distance(origin: Address, destination: Address):
+    # Clean, intention-revealing parameter list
+    pass
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// BAD: street, city, state, zipCode always travel together
+class Customer {
+  constructor(name, street, city, state, zipCode) {
+    this.name = name;
+    this.street = street;
+    this.city = city;
+    this.state = state;
+    this.zipCode = zipCode;
+  }
+}
+
+class Warehouse {
+  constructor(name, street, city, state, zipCode) {
+    this.name = name;
+    this.street = street;
+    this.city = city;
+    this.state = state;
+    this.zipCode = zipCode;
+  }
+}
+
+function calculateDistance(street1, city1, state1, zip1,
+                           street2, city2, state2, zip2) {
+  // Same group of parameters repeated twice
+}
+
+
+// GOOD: Extract the clump into its own class
+class Address {
+  constructor(street, city, state, zipCode) {
+    this.street = street;
+    this.city = city;
+    this.state = state;
+    this.zipCode = zipCode;
+  }
+
+  formatLabel(name) {
+    return `${name}\n${this.street}\n${this.city}, ${this.state} ${this.zipCode}`;
+  }
+}
+
+class Customer {
+  constructor(name, address) {
+    this.name = name;
+    this.address = address; // Address object
+  }
+}
+
+class Warehouse {
+  constructor(name, address) {
+    this.name = name;
+    this.address = address; // Address object
+  }
+}
+
+function calculateDistance(origin, destination) {
+  // Clean, intention-revealing parameter list
+}
+```
+  </TabItem>
+</Tabs>
+
+**Refactoring:** Apply **Introduce Parameter Object** or **Extract Class** to bundle the clump into a first-class concept.
+
+---
+
+### 4. Primitive Obsession
+
+**Primitive Obsession** is the habit of using primitive types (strings, integers, booleans) to represent domain concepts that deserve their own type. Phone numbers become strings, money becomes floats, status codes become integers. This scatters validation and formatting logic everywhere the primitive is used.
+
+**Symptoms:**
+- String fields with specific formats (emails, phone numbers, zip codes)
+- Numeric fields that represent money, percentages, or measurements
+- Booleans or string constants used to represent state or type
+- Validation logic duplicated wherever the value is used
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# BAD: Primitives used for domain concepts
+class Employee:
+    def __init__(self, name: str, email: str, phone: str,
+                 salary: float, currency: str):
+        self.name = name
+        self.email = email          # Just a string -- no validation
+        self.phone = phone          # Just a string -- no formatting
+        self.salary = salary        # float + currency always paired
+        self.currency = currency
+
+    def give_raise(self, amount: float):
+        # No guarantee that amount uses the same currency
+        self.salary += amount
+
+    def format_phone(self):
+        # Formatting logic for phone lives in Employee -- wrong place
+        digits = self.phone.replace("-", "").replace(" ", "")
+        return f"({digits[:3]}) {digits[3:6]}-{digits[6:]}"
+
+
+# GOOD: Replace primitives with value objects
+from dataclasses import dataclass
+import re
+
+@dataclass(frozen=True)
+class Email:
+    value: str
+
+    def __post_init__(self):
+        if not re.match(r"^[\w.+-]+@[\w-]+\.[\w.]+$", self.value):
+            raise ValueError(f"Invalid email: {self.value}")
+
+@dataclass(frozen=True)
+class Phone:
+    value: str
+
+    def __post_init__(self):
+        digits = re.sub(r"\D", "", self.value)
+        if len(digits) != 10:
+            raise ValueError(f"Invalid phone: {self.value}")
+        object.__setattr__(self, "value", digits)
+
+    def formatted(self) -> str:
+        return f"({self.value[:3]}) {self.value[3:6]}-{self.value[6:]}"
+
+@dataclass(frozen=True)
+class Money:
+    amount: float
+    currency: str = "USD"
+
+    def add(self, other: "Money") -> "Money":
+        if self.currency != other.currency:
+            raise ValueError("Cannot add different currencies")
+        return Money(self.amount + other.amount, self.currency)
+
+    def __str__(self) -> str:
+        return f"{self.currency} {self.amount:,.2f}"
+
+class Employee:
+    def __init__(self, name: str, email: Email, phone: Phone, salary: Money):
+        self.name = name
+        self.email = email
+        self.phone = phone
+        self.salary = salary
+
+    def give_raise(self, amount: Money):
+        self.salary = self.salary.add(amount)
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// BAD: Primitives used for domain concepts
+class Employee {
+  constructor(name, email, phone, salary, currency) {
+    this.name = name;
+    this.email = email;       // Just a string
+    this.phone = phone;       // Just a string
+    this.salary = salary;     // float + currency always paired
+    this.currency = currency;
+  }
+
+  giveRaise(amount) {
+    this.salary += amount; // No currency safety
+  }
+
+  formatPhone() {
+    const digits = this.phone.replace(/\D/g, "");
+    return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+  }
+}
+
+
+// GOOD: Replace primitives with value objects
+class Email {
+  constructor(value) {
+    if (!/^[\w.+-]+@[\w-]+\.[\w.]+$/.test(value)) {
+      throw new Error(`Invalid email: ${value}`);
+    }
+    this.value = value;
+  }
+}
+
+class Phone {
+  constructor(value) {
+    const digits = value.replace(/\D/g, "");
+    if (digits.length !== 10) {
+      throw new Error(`Invalid phone: ${value}`);
+    }
+    this.value = digits;
+  }
+
+  formatted() {
+    return `(${this.value.slice(0, 3)}) ${this.value.slice(3, 6)}-${this.value.slice(6)}`;
+  }
+}
+
+class Money {
+  constructor(amount, currency = "USD") {
+    this.amount = amount;
+    this.currency = currency;
+  }
+
+  add(other) {
+    if (this.currency !== other.currency) {
+      throw new Error("Cannot add different currencies");
+    }
+    return new Money(this.amount + other.amount, this.currency);
+  }
+
+  toString() {
+    return `${this.currency} ${this.amount.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+    })}`;
+  }
+}
+
+class Employee {
+  constructor(name, email, phone, salary) {
+    this.name = name;
+    this.email = email;   // Email object
+    this.phone = phone;   // Phone object
+    this.salary = salary; // Money object
+  }
+
+  giveRaise(amount) {
+    this.salary = this.salary.add(amount); // Type-safe
+  }
+}
+```
+  </TabItem>
+</Tabs>
+
+**Refactoring:** Apply **Replace Primitive with Object** (also called Replace Data Value with Object) to encapsulate validation, formatting, and behavior inside dedicated value objects.
+
+---
+
+### 5. Long Method
+
+A **Long Method** does too much. When a method stretches beyond 20-30 lines, it typically handles multiple levels of abstraction, making it hard to understand, test, and reuse individual pieces of its logic.
+
+**Symptoms:**
+- The method requires scrolling to read
+- It has multiple levels of indentation (nested loops and conditionals)
+- Comments are used to separate "sections" within the method
+- The method name is vague (e.g., `process`, `handle`, `doStuff`)
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# BAD: Long method doing validation, calculation, formatting, and notification
+def process_order(order_data):
+    # Validate customer
+    if not order_data.get("customer_id"):
+        raise ValueError("Missing customer ID")
+    if not order_data.get("items"):
+        raise ValueError("Order must have items")
+    for item in order_data["items"]:
+        if item["quantity"] <= 0:
+            raise ValueError(f"Invalid quantity for {item['name']}")
+        if item["price"] < 0:
+            raise ValueError(f"Invalid price for {item['name']}")
+
+    # Calculate totals
+    subtotal = 0
+    for item in order_data["items"]:
+        line_total = item["price"] * item["quantity"]
+        subtotal += line_total
+    tax_rate = 0.08
+    if order_data.get("state") in ("OR", "MT", "NH"):
+        tax_rate = 0.0
+    tax = subtotal * tax_rate
+    shipping = 5.99 if subtotal < 50 else 0
+    total = subtotal + tax + shipping
+
+    # Format receipt
+    lines = [f"Order for customer {order_data['customer_id']}"]
+    for item in order_data["items"]:
+        lines.append(f"  {item['name']} x{item['quantity']} = ${item['price'] * item['quantity']:.2f}")
+    lines.append(f"Subtotal: ${subtotal:.2f}")
+    lines.append(f"Tax: ${tax:.2f}")
+    lines.append(f"Shipping: ${shipping:.2f}")
+    lines.append(f"Total: ${total:.2f}")
+    receipt = "\n".join(lines)
+
+    # Send confirmation
+    print(f"Sending confirmation email for order total ${total:.2f}")
+
+    return {"total": total, "receipt": receipt}
+
+
+# GOOD: Extracted into focused methods
+class OrderProcessor:
+    TAX_EXEMPT_STATES = {"OR", "MT", "NH"}
+    FREE_SHIPPING_THRESHOLD = 50
+    DEFAULT_TAX_RATE = 0.08
+    SHIPPING_COST = 5.99
+
+    def process(self, order_data: dict) -> dict:
+        self._validate(order_data)
+        totals = self._calculate_totals(order_data)
+        receipt = self._format_receipt(order_data, totals)
+        self._send_confirmation(order_data, totals["total"])
+        return {"total": totals["total"], "receipt": receipt}
+
+    def _validate(self, order_data: dict) -> None:
+        if not order_data.get("customer_id"):
+            raise ValueError("Missing customer ID")
+        if not order_data.get("items"):
+            raise ValueError("Order must have items")
+        for item in order_data["items"]:
+            if item["quantity"] <= 0:
+                raise ValueError(f"Invalid quantity for {item['name']}")
+            if item["price"] < 0:
+                raise ValueError(f"Invalid price for {item['name']}")
+
+    def _calculate_totals(self, order_data: dict) -> dict:
+        subtotal = sum(i["price"] * i["quantity"] for i in order_data["items"])
+        tax_rate = 0.0 if order_data.get("state") in self.TAX_EXEMPT_STATES else self.DEFAULT_TAX_RATE
+        tax = subtotal * tax_rate
+        shipping = 0 if subtotal >= self.FREE_SHIPPING_THRESHOLD else self.SHIPPING_COST
+        return {"subtotal": subtotal, "tax": tax, "shipping": shipping, "total": subtotal + tax + shipping}
+
+    def _format_receipt(self, order_data: dict, totals: dict) -> str:
+        lines = [f"Order for customer {order_data['customer_id']}"]
+        for item in order_data["items"]:
+            line_total = item["price"] * item["quantity"]
+            lines.append(f"  {item['name']} x{item['quantity']} = ${line_total:.2f}")
+        lines.append(f"Subtotal: ${totals['subtotal']:.2f}")
+        lines.append(f"Tax: ${totals['tax']:.2f}")
+        lines.append(f"Shipping: ${totals['shipping']:.2f}")
+        lines.append(f"Total: ${totals['total']:.2f}")
+        return "\n".join(lines)
+
+    def _send_confirmation(self, order_data: dict, total: float) -> None:
+        print(f"Sending confirmation email for order total ${total:.2f}")
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// BAD: Long method doing validation, calculation, formatting, and notification
+function processOrder(orderData) {
+  // Validate
+  if (!orderData.customerId) throw new Error("Missing customer ID");
+  if (!orderData.items?.length) throw new Error("Order must have items");
+  for (const item of orderData.items) {
+    if (item.quantity <= 0) throw new Error(`Invalid quantity for ${item.name}`);
+    if (item.price < 0) throw new Error(`Invalid price for ${item.name}`);
+  }
+
+  // Calculate
+  let subtotal = 0;
+  for (const item of orderData.items) subtotal += item.price * item.quantity;
+  const taxRate = ["OR", "MT", "NH"].includes(orderData.state) ? 0 : 0.08;
+  const tax = subtotal * taxRate;
+  const shipping = subtotal < 50 ? 5.99 : 0;
+  const total = subtotal + tax + shipping;
+
+  // Format receipt
+  let receipt = `Order for customer ${orderData.customerId}\n`;
+  for (const item of orderData.items) {
+    receipt += `  ${item.name} x${item.quantity} = $${(item.price * item.quantity).toFixed(2)}\n`;
+  }
+  receipt += `Subtotal: $${subtotal.toFixed(2)}\nTax: $${tax.toFixed(2)}\n`;
+  receipt += `Shipping: $${shipping.toFixed(2)}\nTotal: $${total.toFixed(2)}`;
+
+  // Send confirmation
+  console.log(`Sending confirmation email for order total $${total.toFixed(2)}`);
+
+  return { total, receipt };
+}
+
+
+// GOOD: Extracted into focused methods
+class OrderProcessor {
+  static TAX_EXEMPT_STATES = ["OR", "MT", "NH"];
+  static FREE_SHIPPING_THRESHOLD = 50;
+  static DEFAULT_TAX_RATE = 0.08;
+  static SHIPPING_COST = 5.99;
+
+  process(orderData) {
+    this.#validate(orderData);
+    const totals = this.#calculateTotals(orderData);
+    const receipt = this.#formatReceipt(orderData, totals);
+    this.#sendConfirmation(orderData, totals.total);
+    return { total: totals.total, receipt };
+  }
+
+  #validate(orderData) {
+    if (!orderData.customerId) throw new Error("Missing customer ID");
+    if (!orderData.items?.length) throw new Error("Order must have items");
+    for (const item of orderData.items) {
+      if (item.quantity <= 0) throw new Error(`Invalid quantity for ${item.name}`);
+      if (item.price < 0) throw new Error(`Invalid price for ${item.name}`);
+    }
+  }
+
+  #calculateTotals(orderData) {
+    const subtotal = orderData.items.reduce((s, i) => s + i.price * i.quantity, 0);
+    const taxRate = OrderProcessor.TAX_EXEMPT_STATES.includes(orderData.state)
+      ? 0 : OrderProcessor.DEFAULT_TAX_RATE;
+    const tax = subtotal * taxRate;
+    const shipping = subtotal >= OrderProcessor.FREE_SHIPPING_THRESHOLD
+      ? 0 : OrderProcessor.SHIPPING_COST;
+    return { subtotal, tax, shipping, total: subtotal + tax + shipping };
+  }
+
+  #formatReceipt(orderData, totals) {
+    const lines = [`Order for customer ${orderData.customerId}`];
+    for (const item of orderData.items) {
+      lines.push(`  ${item.name} x${item.quantity} = $${(item.price * item.quantity).toFixed(2)}`);
+    }
+    lines.push(`Subtotal: $${totals.subtotal.toFixed(2)}`);
+    lines.push(`Tax: $${totals.tax.toFixed(2)}`);
+    lines.push(`Shipping: $${totals.shipping.toFixed(2)}`);
+    lines.push(`Total: $${totals.total.toFixed(2)}`);
+    return lines.join("\n");
+  }
+
+  #sendConfirmation(orderData, total) {
+    console.log(`Sending confirmation email for order total $${total.toFixed(2)}`);
+  }
+}
+```
+  </TabItem>
+</Tabs>
+
+**Refactoring:** Apply **Extract Method** to break the long method into smaller, named methods that each operate at a single level of abstraction.
+
+---
+
+### 6. Shotgun Surgery
+
+**Shotgun Surgery** is the opposite of a God Class. Instead of one class doing too much, a single change requires making small modifications to many different classes. The relevant logic is scattered across the codebase like shotgun pellets.
+
+**Symptoms:**
+- Adding a single feature requires editing five or more files
+- A new field in one class requires updates in many others
+- Configuration values are duplicated across multiple classes
+- You frequently forget to update one of the affected places, causing bugs
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# BAD: Adding a new user role requires changes in many places
+class UserAuthentication:
+    def can_login(self, user):
+        return user.role in ("admin", "editor", "viewer")
+
+class DashboardController:
+    def get_menu_items(self, user):
+        if user.role == "admin":
+            return ["Dashboard", "Users", "Settings", "Reports"]
+        elif user.role == "editor":
+            return ["Dashboard", "Content", "Reports"]
+        elif user.role == "viewer":
+            return ["Dashboard", "Reports"]
+
+class ReportService:
+    def can_export(self, user):
+        return user.role in ("admin", "editor")
+
+class AuditLogger:
+    def should_log(self, user):
+        return user.role == "admin"
+
+# Adding a "moderator" role means editing ALL four classes!
+
+
+# GOOD: Centralize role behavior using a Role class
+from dataclasses import dataclass, field
+
+@dataclass
+class Role:
+    name: str
+    can_login: bool = True
+    menu_items: list[str] = field(default_factory=list)
+    can_export: bool = False
+    audit_logged: bool = False
+
+class RoleRegistry:
+    _roles: dict[str, Role] = {}
+
+    @classmethod
+    def register(cls, role: Role):
+        cls._roles[role.name] = role
+
+    @classmethod
+    def get(cls, name: str) -> Role:
+        return cls._roles[name]
+
+# Define roles in one place
+RoleRegistry.register(Role("admin", True, ["Dashboard", "Users", "Settings", "Reports"], True, True))
+RoleRegistry.register(Role("editor", True, ["Dashboard", "Content", "Reports"], True, False))
+RoleRegistry.register(Role("viewer", True, ["Dashboard", "Reports"], False, False))
+RoleRegistry.register(Role("moderator", True, ["Dashboard", "Content", "Users"], True, False))
+# Adding a new role = ONE change in ONE place
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// BAD: Adding a new user role requires changes in many places
+class UserAuthentication {
+  canLogin(user) {
+    return ["admin", "editor", "viewer"].includes(user.role);
+  }
+}
+
+class DashboardController {
+  getMenuItems(user) {
+    if (user.role === "admin") return ["Dashboard", "Users", "Settings", "Reports"];
+    if (user.role === "editor") return ["Dashboard", "Content", "Reports"];
+    if (user.role === "viewer") return ["Dashboard", "Reports"];
+  }
+}
+
+class ReportService {
+  canExport(user) {
+    return ["admin", "editor"].includes(user.role);
+  }
+}
+
+// Adding a "moderator" role means editing ALL these classes!
+
+
+// GOOD: Centralize role behavior using a Role class
+class Role {
+  constructor(name, { canLogin = true, menuItems = [], canExport = false, auditLogged = false } = {}) {
+    this.name = name;
+    this.canLogin = canLogin;
+    this.menuItems = menuItems;
+    this.canExport = canExport;
+    this.auditLogged = auditLogged;
+  }
+}
+
+class RoleRegistry {
+  static #roles = new Map();
+
+  static register(role) {
+    RoleRegistry.#roles.set(role.name, role);
+  }
+
+  static get(name) {
+    return RoleRegistry.#roles.get(name);
+  }
+}
+
+// Define roles in one place
+RoleRegistry.register(new Role("admin", {
+  menuItems: ["Dashboard", "Users", "Settings", "Reports"], canExport: true, auditLogged: true,
+}));
+RoleRegistry.register(new Role("editor", {
+  menuItems: ["Dashboard", "Content", "Reports"], canExport: true,
+}));
+RoleRegistry.register(new Role("viewer", {
+  menuItems: ["Dashboard", "Reports"],
+}));
+RoleRegistry.register(new Role("moderator", {
+  menuItems: ["Dashboard", "Content", "Users"], canExport: true,
+}));
+// Adding a new role = ONE change in ONE place
+```
+  </TabItem>
+</Tabs>
+
+**Refactoring:** Apply **Move Method** and **Extract Class** to consolidate the scattered logic into a single, authoritative location.
+
+---
+
+### 7. Inappropriate Intimacy
+
+**Inappropriate Intimacy** occurs when two classes are excessively coupled -- they access each other's private fields, rely on internal implementation details, or have bidirectional dependencies. This makes it impossible to change one class without breaking the other.
+
+**Symptoms:**
+- Classes directly access each other's private or protected fields
+- A change in one class's internal structure breaks another class
+- Two classes always change together
+- Circular imports or bidirectional references between classes
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# BAD: Engine reaches into Car's internals and vice versa
+class Engine:
+    def __init__(self):
+        self.rpm = 0
+        self._temperature = 0
+
+    def start(self, car):
+        # Engine reaches directly into Car's private state
+        if car._fuel_level > 0 and not car._engine_locked:
+            self.rpm = 800
+            self._temperature = 90
+            car._fuel_level -= 0.1  # Directly modifying Car's internal state
+
+class Car:
+    def __init__(self):
+        self._fuel_level = 1.0
+        self._engine_locked = False
+        self.engine = Engine()
+
+    def get_status(self):
+        # Car reaches into Engine's internals
+        return f"RPM: {self.engine.rpm}, Temp: {self.engine._temperature}"
+
+
+# GOOD: Communicate through well-defined interfaces
+class Engine:
+    def __init__(self):
+        self._rpm = 0
+        self._temperature = 0
+
+    def start(self, fuel_available: bool) -> float:
+        """Returns fuel consumed. Caller manages fuel level."""
+        if not fuel_available:
+            raise RuntimeError("No fuel available")
+        self._rpm = 800
+        self._temperature = 90
+        return 0.1  # fuel consumed
+
+    @property
+    def status(self) -> dict:
+        return {"rpm": self._rpm, "temperature": self._temperature}
+
+class Car:
+    def __init__(self):
+        self._fuel_level = 1.0
+        self._engine = Engine()
+
+    def start_engine(self):
+        fuel_consumed = self._engine.start(fuel_available=self._fuel_level > 0)
+        self._fuel_level -= fuel_consumed
+
+    def get_status(self) -> str:
+        engine_status = self._engine.status
+        return f"RPM: {engine_status['rpm']}, Temp: {engine_status['temperature']}"
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// BAD: Engine reaches into Car's internals and vice versa
+class Engine {
+  constructor() {
+    this.rpm = 0;
+    this._temperature = 0;
+  }
+
+  start(car) {
+    // Engine reaches directly into Car's private state
+    if (car._fuelLevel > 0 && !car._engineLocked) {
+      this.rpm = 800;
+      this._temperature = 90;
+      car._fuelLevel -= 0.1; // Directly modifying Car's state
+    }
+  }
+}
+
+class Car {
+  constructor() {
+    this._fuelLevel = 1.0;
+    this._engineLocked = false;
+    this.engine = new Engine();
+  }
+
+  getStatus() {
+    // Car reaches into Engine's internals
+    return `RPM: ${this.engine.rpm}, Temp: ${this.engine._temperature}`;
+  }
+}
+
+
+// GOOD: Communicate through well-defined interfaces
+class Engine {
+  #rpm = 0;
+  #temperature = 0;
+
+  start(fuelAvailable) {
+    if (!fuelAvailable) throw new Error("No fuel available");
+    this.#rpm = 800;
+    this.#temperature = 90;
+    return 0.1; // fuel consumed
+  }
+
+  get status() {
+    return { rpm: this.#rpm, temperature: this.#temperature };
+  }
+}
+
+class Car {
+  #fuelLevel = 1.0;
+  #engine = new Engine();
+
+  startEngine() {
+    const fuelConsumed = this.#engine.start(this.#fuelLevel > 0);
+    this.#fuelLevel -= fuelConsumed;
+  }
+
+  getStatus() {
+    const { rpm, temperature } = this.#engine.status;
+    return `RPM: ${rpm}, Temp: ${temperature}`;
+  }
+}
+```
+  </TabItem>
+</Tabs>
+
+**Refactoring:** Apply **Hide Delegate**, **Extract Class**, or **Move Method** to establish clear boundaries. Replace direct field access with well-defined interfaces and methods.
+
+---
+
+### 8. Refused Bequest
+
+A **Refused Bequest** occurs when a subclass inherits methods or fields from a parent class but does not use or want them. The child class overrides inherited methods to throw exceptions or do nothing, effectively refusing its inheritance. This signals that the inheritance hierarchy is wrong.
+
+**Symptoms:**
+- Subclass overrides methods to raise `NotImplementedError` or return nothing
+- Subclass only uses a small fraction of the parent's interface
+- The "is-a" relationship does not hold logically
+- You find yourself creating stub implementations for inherited abstract methods
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# BAD: Penguin inherits fly() from Bird but cannot fly
+class Bird:
+    def __init__(self, name: str):
+        self.name = name
+
+    def fly(self, altitude: int) -> str:
+        return f"{self.name} flying at {altitude}m"
+
+    def eat(self, food: str) -> str:
+        return f"{self.name} eating {food}"
+
+    def make_sound(self) -> str:
+        return f"{self.name} making a sound"
+
+class Penguin(Bird):
+    def fly(self, altitude: int) -> str:
+        # Refused bequest: penguins cannot fly
+        raise NotImplementedError("Penguins cannot fly!")
+
+    def swim(self, depth: int) -> str:
+        return f"{self.name} swimming at {depth}m depth"
+
+
+# GOOD: Use composition and interfaces instead of forcing inheritance
+from abc import ABC, abstractmethod
+
+class Animal(ABC):
+    def __init__(self, name: str):
+        self.name = name
+
+    @abstractmethod
+    def eat(self, food: str) -> str:
+        pass
+
+    @abstractmethod
+    def make_sound(self) -> str:
+        pass
+
+class Flyable(ABC):
+    @abstractmethod
+    def fly(self, altitude: int) -> str:
+        pass
+
+class Swimmable(ABC):
+    @abstractmethod
+    def swim(self, depth: int) -> str:
+        pass
+
+class Sparrow(Animal, Flyable):
+    def eat(self, food: str) -> str:
+        return f"{self.name} eating {food}"
+
+    def make_sound(self) -> str:
+        return f"{self.name}: chirp chirp!"
+
+    def fly(self, altitude: int) -> str:
+        return f"{self.name} flying at {altitude}m"
+
+class Penguin(Animal, Swimmable):
+    def eat(self, food: str) -> str:
+        return f"{self.name} eating {food}"
+
+    def make_sound(self) -> str:
+        return f"{self.name}: honk honk!"
+
+    def swim(self, depth: int) -> str:
+        return f"{self.name} swimming at {depth}m depth"
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// BAD: Penguin inherits fly() from Bird but cannot fly
+class Bird {
+  constructor(name) {
+    this.name = name;
+  }
+
+  fly(altitude) {
+    return `${this.name} flying at ${altitude}m`;
+  }
+
+  eat(food) {
+    return `${this.name} eating ${food}`;
+  }
+
+  makeSound() {
+    return `${this.name} making a sound`;
+  }
+}
+
+class Penguin extends Bird {
+  fly(altitude) {
+    throw new Error("Penguins cannot fly!"); // Refused bequest
+  }
+
+  swim(depth) {
+    return `${this.name} swimming at ${depth}m depth`;
+  }
+}
+
+
+// GOOD: Use composition and mixins instead of forcing inheritance
+// Mixin functions
+const Flyable = (Base) =>
+  class extends Base {
+    fly(altitude) {
+      return `${this.name} flying at ${altitude}m`;
+    }
+  };
+
+const Swimmable = (Base) =>
+  class extends Base {
+    swim(depth) {
+      return `${this.name} swimming at ${depth}m depth`;
+    }
+  };
+
+class Animal {
+  constructor(name) {
+    this.name = name;
+  }
+
+  eat(food) {
+    return `${this.name} eating ${food}`;
+  }
+
+  makeSound() {
+    return `${this.name} making a sound`;
+  }
+}
+
+class Sparrow extends Flyable(Animal) {
+  makeSound() {
+    return `${this.name}: chirp chirp!`;
+  }
+}
+
+class Penguin extends Swimmable(Animal) {
+  makeSound() {
+    return `${this.name}: honk honk!`;
+  }
+}
+
+// Sparrow can fly but not swim; Penguin can swim but not fly
+const sparrow = new Sparrow("Sparrow");
+console.log(sparrow.fly(100));   // "Sparrow flying at 100m"
+
+const penguin = new Penguin("Tux");
+console.log(penguin.swim(20));   // "Tux swimming at 20m depth"
+```
+  </TabItem>
+</Tabs>
+
+**Refactoring:** Apply **Replace Inheritance with Composition**, break up the hierarchy using interfaces/mixins, or use **Extract Superclass** to create a more accurate inheritance tree.
+
+---
+
+## Code Smell Reference Table
+
+| Code Smell | Description | Violated Principle | Suggested Refactoring |
+|---|---|---|---|
+| **God Class / Blob** | One class does everything | Single Responsibility | Extract Class |
+| **Feature Envy** | Method uses another class's data more than its own | Encapsulation | Move Method |
+| **Data Clumps** | Same group of fields/params appear together repeatedly | Missing abstraction | Introduce Parameter Object, Extract Class |
+| **Primitive Obsession** | Using primitives instead of small value objects | Domain modeling | Replace Primitive with Object |
+| **Long Method** | Method does too much at too many levels of abstraction | Single Responsibility | Extract Method |
+| **Shotgun Surgery** | One change requires editing many classes | Cohesion (SRP) | Move Method, Extract Class |
+| **Inappropriate Intimacy** | Classes access each other's internal details | Encapsulation, Low Coupling | Hide Delegate, Extract Class |
+| **Refused Bequest** | Subclass does not use or want inherited behavior | Liskov Substitution | Replace Inheritance with Composition |
+| **Divergent Change** | One class is changed for many different reasons | Single Responsibility | Extract Class |
+| **Parallel Inheritance** | Adding a subclass in one hierarchy requires adding one in another | DRY, Low Coupling | Move Method, Merge Hierarchies |
+| **Speculative Generality** | Unused abstractions "just in case" | YAGNI | Collapse Hierarchy, Remove Dead Code |
+| **Message Chains** | `a.getB().getC().getD().doSomething()` | Law of Demeter | Hide Delegate, Extract Method |
+
+---
+
+## Refactoring Techniques
+
+### Extract Method
+
+**When to use:** A code fragment can be grouped together with a descriptive name.
+
+Take a block of code inside a long method and move it into a new, named method. The original method calls the new one. This is the single most common refactoring and the first line of defense against Long Method.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# BEFORE
+def print_invoice(invoice):
+    print("========== Invoice ==========")
+
+    # Print header
+    print(f"Customer: {invoice.customer.name}")
+    print(f"Date: {invoice.date}")
+    print(f"Invoice #: {invoice.number}")
+    print()
+
+    # Print line items
+    for item in invoice.items:
+        print(f"  {item.name:<30} {item.quantity:>5} x ${item.price:>8.2f} = ${item.total():>10.2f}")
+
+    # Print totals
+    subtotal = sum(item.total() for item in invoice.items)
+    tax = subtotal * 0.08
+    total = subtotal + tax
+    print(f"\n  {'Subtotal:':<40} ${subtotal:>10.2f}")
+    print(f"  {'Tax (8%):':<40} ${tax:>10.2f}")
+    print(f"  {'Total:':<40} ${total:>10.2f}")
+
+
+# AFTER
+def print_invoice(invoice):
+    print("========== Invoice ==========")
+    _print_header(invoice)
+    _print_line_items(invoice.items)
+    _print_totals(invoice.items)
+
+def _print_header(invoice):
+    print(f"Customer: {invoice.customer.name}")
+    print(f"Date: {invoice.date}")
+    print(f"Invoice #: {invoice.number}")
+    print()
+
+def _print_line_items(items):
+    for item in items:
+        print(f"  {item.name:<30} {item.quantity:>5} x ${item.price:>8.2f} = ${item.total():>10.2f}")
+
+def _print_totals(items):
+    subtotal = sum(item.total() for item in items)
+    tax = subtotal * 0.08
+    total = subtotal + tax
+    print(f"\n  {'Subtotal:':<40} ${subtotal:>10.2f}")
+    print(f"  {'Tax (8%):':<40} ${tax:>10.2f}")
+    print(f"  {'Total:':<40} ${total:>10.2f}")
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// BEFORE
+function printInvoice(invoice) {
+  console.log("========== Invoice ==========");
+
+  // Print header
+  console.log(`Customer: ${invoice.customer.name}`);
+  console.log(`Date: ${invoice.date}`);
+  console.log(`Invoice #: ${invoice.number}\n`);
+
+  // Print line items
+  for (const item of invoice.items) {
+    console.log(`  ${item.name.padEnd(30)} ${String(item.quantity).padStart(5)} x $${item.price.toFixed(2).padStart(8)} = $${item.total().toFixed(2).padStart(10)}`);
+  }
+
+  // Print totals
+  const subtotal = invoice.items.reduce((s, i) => s + i.total(), 0);
+  const tax = subtotal * 0.08;
+  const total = subtotal + tax;
+  console.log(`\n  ${"Subtotal:".padEnd(40)} $${subtotal.toFixed(2).padStart(10)}`);
+  console.log(`  ${"Tax (8%):".padEnd(40)} $${tax.toFixed(2).padStart(10)}`);
+  console.log(`  ${"Total:".padEnd(40)} $${total.toFixed(2).padStart(10)}`);
+}
+
+
+// AFTER
+function printInvoice(invoice) {
+  console.log("========== Invoice ==========");
+  printHeader(invoice);
+  printLineItems(invoice.items);
+  printTotals(invoice.items);
+}
+
+function printHeader(invoice) {
+  console.log(`Customer: ${invoice.customer.name}`);
+  console.log(`Date: ${invoice.date}`);
+  console.log(`Invoice #: ${invoice.number}\n`);
+}
+
+function printLineItems(items) {
+  for (const item of items) {
+    console.log(`  ${item.name.padEnd(30)} ${String(item.quantity).padStart(5)} x $${item.price.toFixed(2).padStart(8)} = $${item.total().toFixed(2).padStart(10)}`);
+  }
+}
+
+function printTotals(items) {
+  const subtotal = items.reduce((s, i) => s + i.total(), 0);
+  const tax = subtotal * 0.08;
+  const total = subtotal + tax;
+  console.log(`\n  ${"Subtotal:".padEnd(40)} $${subtotal.toFixed(2).padStart(10)}`);
+  console.log(`  ${"Tax (8%):".padEnd(40)} $${tax.toFixed(2).padStart(10)}`);
+  console.log(`  ${"Total:".padEnd(40)} $${total.toFixed(2).padStart(10)}`);
+}
+```
+  </TabItem>
+</Tabs>
+
+---
+
+### Extract Class
+
+**When to use:** A class has responsibilities that can be clearly separated into two or more groups.
+
+Split the class by creating a new class and moving the relevant fields and methods into it. The original class delegates to the new one.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# BEFORE: Person has both identity and phone-related responsibilities
+class Person:
+    def __init__(self, name, area_code, number, extension):
+        self.name = name
+        self.area_code = area_code
+        self.number = number
+        self.extension = extension
+
+    def get_phone_number(self):
+        result = f"({self.area_code}) {self.number}"
+        if self.extension:
+            result += f" ext. {self.extension}"
+        return result
+
+
+# AFTER: Phone number extracted into its own class
+class PhoneNumber:
+    def __init__(self, area_code: str, number: str, extension: str = ""):
+        self.area_code = area_code
+        self.number = number
+        self.extension = extension
+
+    def __str__(self) -> str:
+        result = f"({self.area_code}) {self.number}"
+        if self.extension:
+            result += f" ext. {self.extension}"
+        return result
+
+class Person:
+    def __init__(self, name: str, phone: PhoneNumber):
+        self.name = name
+        self.phone = phone
+
+    def get_phone_number(self) -> str:
+        return str(self.phone)
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// BEFORE: Person has both identity and phone-related responsibilities
+class Person {
+  constructor(name, areaCode, number, extension) {
+    this.name = name;
+    this.areaCode = areaCode;
+    this.number = number;
+    this.extension = extension;
+  }
+
+  getPhoneNumber() {
+    let result = `(${this.areaCode}) ${this.number}`;
+    if (this.extension) result += ` ext. ${this.extension}`;
+    return result;
+  }
+}
+
+
+// AFTER: Phone number extracted into its own class
+class PhoneNumber {
+  constructor(areaCode, number, extension = "") {
+    this.areaCode = areaCode;
+    this.number = number;
+    this.extension = extension;
+  }
+
+  toString() {
+    let result = `(${this.areaCode}) ${this.number}`;
+    if (this.extension) result += ` ext. ${this.extension}`;
+    return result;
+  }
+}
+
+class Person {
+  constructor(name, phone) {
+    this.name = name;
+    this.phone = phone; // PhoneNumber instance
+  }
+
+  getPhoneNumber() {
+    return this.phone.toString();
+  }
+}
+```
+  </TabItem>
+</Tabs>
+
+---
+
+### Move Method
+
+**When to use:** A method uses or is used by more features of another class than the class on which it is defined.
+
+Create a new method with a similar body in the class it uses most. Either turn the old method into a delegation call or remove it entirely.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# BEFORE: AccountType has a method that primarily uses Account's data
+class AccountType:
+    def __init__(self, is_premium: bool):
+        self.is_premium = is_premium
+
+class Account:
+    def __init__(self, account_type: AccountType, days_overdrawn: int):
+        self.account_type = account_type
+        self.days_overdrawn = days_overdrawn
+
+    def overdraft_charge(self) -> float:
+        if self.account_type.is_premium:
+            result = 10.0
+            if self.days_overdrawn > 7:
+                result += (self.days_overdrawn - 7) * 0.85
+            return result
+        return self.days_overdrawn * 1.75
+
+
+# AFTER: Move overdraft logic to AccountType since it depends on type
+class AccountType:
+    def __init__(self, is_premium: bool):
+        self.is_premium = is_premium
+
+    def overdraft_charge(self, days_overdrawn: int) -> float:
+        if self.is_premium:
+            result = 10.0
+            if days_overdrawn > 7:
+                result += (days_overdrawn - 7) * 0.85
+            return result
+        return days_overdrawn * 1.75
+
+class Account:
+    def __init__(self, account_type: AccountType, days_overdrawn: int):
+        self.account_type = account_type
+        self.days_overdrawn = days_overdrawn
+
+    def overdraft_charge(self) -> float:
+        return self.account_type.overdraft_charge(self.days_overdrawn)
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// BEFORE: AccountType has a method that primarily uses Account's data
+class AccountType {
+  constructor(isPremium) {
+    this.isPremium = isPremium;
+  }
+}
+
+class Account {
+  constructor(accountType, daysOverdrawn) {
+    this.accountType = accountType;
+    this.daysOverdrawn = daysOverdrawn;
+  }
+
+  overdraftCharge() {
+    if (this.accountType.isPremium) {
+      let result = 10;
+      if (this.daysOverdrawn > 7) result += (this.daysOverdrawn - 7) * 0.85;
+      return result;
+    }
+    return this.daysOverdrawn * 1.75;
+  }
+}
+
+
+// AFTER: Move overdraft logic to AccountType since it depends on type
+class AccountType {
+  constructor(isPremium) {
+    this.isPremium = isPremium;
+  }
+
+  overdraftCharge(daysOverdrawn) {
+    if (this.isPremium) {
+      let result = 10;
+      if (daysOverdrawn > 7) result += (daysOverdrawn - 7) * 0.85;
+      return result;
+    }
+    return daysOverdrawn * 1.75;
+  }
+}
+
+class Account {
+  constructor(accountType, daysOverdrawn) {
+    this.accountType = accountType;
+    this.daysOverdrawn = daysOverdrawn;
+  }
+
+  overdraftCharge() {
+    return this.accountType.overdraftCharge(this.daysOverdrawn);
+  }
+}
+```
+  </TabItem>
+</Tabs>
+
+---
+
+### Replace Conditional with Polymorphism
+
+**When to use:** You have a conditional (switch/if-else chain) that chooses different behavior based on the type of an object.
+
+Create subclasses for each branch of the conditional. Move each leg of the conditional into an overriding method in the corresponding subclass. The original method becomes abstract.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# BEFORE: Conditional selects behavior based on shape type
+class Shape:
+    def __init__(self, shape_type: str, **kwargs):
+        self.shape_type = shape_type
+        self.props = kwargs
+
+    def area(self) -> float:
+        if self.shape_type == "circle":
+            return 3.14159 * self.props["radius"] ** 2
+        elif self.shape_type == "rectangle":
+            return self.props["width"] * self.props["height"]
+        elif self.shape_type == "triangle":
+            return 0.5 * self.props["base"] * self.props["height"]
+        else:
+            raise ValueError(f"Unknown shape: {self.shape_type}")
+
+    def perimeter(self) -> float:
+        if self.shape_type == "circle":
+            return 2 * 3.14159 * self.props["radius"]
+        elif self.shape_type == "rectangle":
+            return 2 * (self.props["width"] + self.props["height"])
+        elif self.shape_type == "triangle":
+            return self.props["a"] + self.props["b"] + self.props["c"]
+        else:
+            raise ValueError(f"Unknown shape: {self.shape_type}")
+
+
+# AFTER: Polymorphism replaces conditionals
+from abc import ABC, abstractmethod
+import math
+
+class Shape(ABC):
+    @abstractmethod
+    def area(self) -> float:
+        pass
+
+    @abstractmethod
+    def perimeter(self) -> float:
+        pass
+
+class Circle(Shape):
+    def __init__(self, radius: float):
+        self.radius = radius
+
+    def area(self) -> float:
+        return math.pi * self.radius ** 2
+
+    def perimeter(self) -> float:
+        return 2 * math.pi * self.radius
+
+class Rectangle(Shape):
+    def __init__(self, width: float, height: float):
+        self.width = width
+        self.height = height
+
+    def area(self) -> float:
+        return self.width * self.height
+
+    def perimeter(self) -> float:
+        return 2 * (self.width + self.height)
+
+class Triangle(Shape):
+    def __init__(self, base: float, height: float, a: float, b: float, c: float):
+        self.base = base
+        self.height = height
+        self.a, self.b, self.c = a, b, c
+
+    def area(self) -> float:
+        return 0.5 * self.base * self.height
+
+    def perimeter(self) -> float:
+        return self.a + self.b + self.c
+
+
+# Adding a new shape requires NO changes to existing code (Open/Closed)
+shapes: list[Shape] = [Circle(5), Rectangle(4, 6), Triangle(3, 4, 3, 4, 5)]
+for shape in shapes:
+    print(f"{type(shape).__name__}: area={shape.area():.2f}, perimeter={shape.perimeter():.2f}")
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// BEFORE: Conditional selects behavior based on shape type
+class Shape {
+  constructor(type, props) {
+    this.type = type;
+    this.props = props;
+  }
+
+  area() {
+    if (this.type === "circle") return Math.PI * this.props.radius ** 2;
+    if (this.type === "rectangle") return this.props.width * this.props.height;
+    if (this.type === "triangle") return 0.5 * this.props.base * this.props.height;
+    throw new Error(`Unknown shape: ${this.type}`);
+  }
+
+  perimeter() {
+    if (this.type === "circle") return 2 * Math.PI * this.props.radius;
+    if (this.type === "rectangle") return 2 * (this.props.width + this.props.height);
+    if (this.type === "triangle") return this.props.a + this.props.b + this.props.c;
+    throw new Error(`Unknown shape: ${this.type}`);
+  }
+}
+
+
+// AFTER: Polymorphism replaces conditionals
+class Shape {
+  area() { throw new Error("Subclass must implement area()"); }
+  perimeter() { throw new Error("Subclass must implement perimeter()"); }
+}
+
+class Circle extends Shape {
+  constructor(radius) {
+    super();
+    this.radius = radius;
+  }
+  area() { return Math.PI * this.radius ** 2; }
+  perimeter() { return 2 * Math.PI * this.radius; }
+}
+
+class Rectangle extends Shape {
+  constructor(width, height) {
+    super();
+    this.width = width;
+    this.height = height;
+  }
+  area() { return this.width * this.height; }
+  perimeter() { return 2 * (this.width + this.height); }
+}
+
+class Triangle extends Shape {
+  constructor(base, height, a, b, c) {
+    super();
+    this.base = base;
+    this.height = height;
+    this.a = a; this.b = b; this.c = c;
+  }
+  area() { return 0.5 * this.base * this.height; }
+  perimeter() { return this.a + this.b + this.c; }
+}
+
+// Adding a new shape requires NO changes to existing code (Open/Closed)
+const shapes = [new Circle(5), new Rectangle(4, 6), new Triangle(3, 4, 3, 4, 5)];
+for (const shape of shapes) {
+  console.log(`${shape.constructor.name}: area=${shape.area().toFixed(2)}, perimeter=${shape.perimeter().toFixed(2)}`);
+}
+```
+  </TabItem>
+</Tabs>
+
+---
+
+### Introduce Parameter Object
+
+**When to use:** A group of parameters naturally go together and are passed around as a unit.
+
+Replace the group of parameters with a single object that bundles them together. This often reveals behavior that belongs on the new object.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# BEFORE: Date range parameters always travel together
+class AnalyticsService:
+    def get_revenue(self, start_date, end_date, currency):
+        print(f"Revenue from {start_date} to {end_date} in {currency}")
+
+    def get_active_users(self, start_date, end_date, currency):
+        print(f"Active users from {start_date} to {end_date}")
+
+    def get_top_products(self, start_date, end_date, currency, limit=10):
+        print(f"Top {limit} products from {start_date} to {end_date}")
+
+    def export_report(self, start_date, end_date, currency, format="csv"):
+        print(f"Exporting {format} report from {start_date} to {end_date}")
+
+
+# AFTER: Parameter object bundles the clump and adds behavior
+from dataclasses import dataclass
+from datetime import date
+
+@dataclass(frozen=True)
+class DateRange:
+    start: date
+    end: date
+    currency: str = "USD"
+
+    def __post_init__(self):
+        if self.start > self.end:
+            raise ValueError("Start date must be before end date")
+
+    @property
+    def days(self) -> int:
+        return (self.end - self.start).days
+
+    def contains(self, d: date) -> bool:
+        return self.start <= d <= self.end
+
+class AnalyticsService:
+    def get_revenue(self, period: DateRange):
+        print(f"Revenue for {period.days}-day period in {period.currency}")
+
+    def get_active_users(self, period: DateRange):
+        print(f"Active users for {period.days}-day period")
+
+    def get_top_products(self, period: DateRange, limit: int = 10):
+        print(f"Top {limit} products for {period.days}-day period")
+
+    def export_report(self, period: DateRange, format: str = "csv"):
+        print(f"Exporting {format} report for {period.days}-day period")
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// BEFORE: Date range parameters always travel together
+class AnalyticsService {
+  getRevenue(startDate, endDate, currency) {
+    console.log(`Revenue from ${startDate} to ${endDate} in ${currency}`);
+  }
+  getActiveUsers(startDate, endDate, currency) {
+    console.log(`Active users from ${startDate} to ${endDate}`);
+  }
+  getTopProducts(startDate, endDate, currency, limit = 10) {
+    console.log(`Top ${limit} products from ${startDate} to ${endDate}`);
+  }
+}
+
+
+// AFTER: Parameter object bundles the clump and adds behavior
+class DateRange {
+  constructor(start, end, currency = "USD") {
+    if (start > end) throw new Error("Start date must be before end date");
+    this.start = start;
+    this.end = end;
+    this.currency = currency;
+  }
+
+  get days() {
+    return Math.ceil((this.end - this.start) / (1000 * 60 * 60 * 24));
+  }
+
+  contains(date) {
+    return date >= this.start && date <= this.end;
+  }
+}
+
+class AnalyticsService {
+  getRevenue(period) {
+    console.log(`Revenue for ${period.days}-day period in ${period.currency}`);
+  }
+  getActiveUsers(period) {
+    console.log(`Active users for ${period.days}-day period`);
+  }
+  getTopProducts(period, limit = 10) {
+    console.log(`Top ${limit} products for ${period.days}-day period`);
+  }
+}
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## Refactoring Workflow
+
+Refactoring should be a disciplined, incremental process -- not a big-bang rewrite. Follow this workflow to refactor safely:
+
+### When to Refactor
+
+- **The Rule of Three.** The first time you do something, just do it. The second time, wince at the duplication but do it anyway. The third time, refactor.
+- **Before adding a feature.** If the existing code is hard to modify, refactor first to make the new feature easy to add.
+- **During code review.** Code review is an ideal time to spot smells and suggest targeted refactorings.
+- **When fixing a bug.** If the bug is hiding inside tangled code, refactor to make the code clear enough that the bug becomes obvious.
+
+### How to Refactor Safely
+
+1. **Ensure you have tests.** Before touching any code, verify that existing tests pass. If there are no tests, write characterization tests that capture the current behavior -- even if that behavior has bugs.
+
+2. **Make one small change at a time.** Each refactoring step should be a single, well-defined transformation: rename a variable, extract a method, move a field. Resist the urge to refactor multiple things at once.
+
+3. **Run tests after every change.** If a test fails, you know exactly which small change caused it, and you can revert immediately.
+
+4. **Commit frequently.** Each successful refactoring step should be its own commit. This gives you a safety net to roll back to.
+
+5. **Separate refactoring from feature work.** Do not mix refactoring commits with feature commits. This makes code review clearer and rollbacks safer.
+
+:::caution[When NOT to Refactor]
+- **When the code works and will never change.** If a module is stable and nobody touches it, leave it alone.
+- **When a rewrite is cheaper.** If the code is so broken that incremental improvement is not viable, a controlled rewrite may be the better investment.
+- **Close to a deadline.** Refactoring introduces risk. If you are shipping tomorrow, ship first and refactor after.
+:::
+
+### Refactoring Decision Flowchart
+
+```
+Is the code hard to understand or change?
+  │
+  ├── No → Leave it alone
+  │
+  └── Yes → Do you have tests covering this code?
+              │
+              ├── No → Write characterization tests first
+              │
+              └── Yes → Identify the smell
+                          │
+                          ├── God Class → Extract Class
+                          ├── Long Method → Extract Method
+                          ├── Feature Envy → Move Method
+                          ├── Data Clumps → Introduce Parameter Object
+                          ├── Primitive Obsession → Replace Primitive with Object
+                          ├── Shotgun Surgery → Move Method + Extract Class
+                          ├── Inappropriate Intimacy → Hide Delegate
+                          └── Refused Bequest → Replace Inheritance with Composition
+```
+
+---
+
+## Key Takeaways
+
+1. **Code smells are heuristics, not absolutes.** A smell is a suggestion to look more closely, not an automatic mandate to refactor. Use your judgment about the context, the team, and the project timeline.
+
+2. **Most smells map to SOLID violations.** God Class violates SRP. Refused Bequest violates LSP. Shotgun Surgery violates SRP. Learning to spot smells reinforces your understanding of SOLID principles.
+
+3. **Refactoring is not rewriting.** Refactoring means changing the internal structure of code without changing its external behavior. Always have tests, always make small steps, and always verify after each change.
+
+4. **The best time to refactor is before it hurts.** Technical debt compounds. A small refactoring today prevents a painful rewrite next year. Build refactoring into your workflow as a continuous practice, not a one-time event.
+
+5. **Tools help, but judgment matters more.** Static analysis tools and linters can detect some smells automatically, but the most impactful smells -- like misplaced responsibilities and broken abstractions -- require human judgment to identify and fix.
+
+---
+
+## Practice Exercises
+
+### Exercise 1: Identify the Smells
+
+Review the following class and list every code smell you can find. For each smell, name the specific refactoring you would apply.
+
+```python
+class ReportManager:
+    def __init__(self):
+        self.db_host = "localhost"
+        self.db_port = 5432
+        self.db_name = "reports"
+        self.email_server = "smtp.company.com"
+        self.email_port = 587
+        self.reports = []
+
+    def generate_and_send_report(self, report_type, recipient_email,
+                                  start_year, start_month, start_day,
+                                  end_year, end_month, end_day,
+                                  format_type):
+        # Connect to database
+        connection_string = f"{self.db_host}:{self.db_port}/{self.db_name}"
+        print(f"Connecting to {connection_string}")
+
+        # Query data based on type
+        if report_type == "sales":
+            data = [{"product": "Widget", "amount": 100}]
+        elif report_type == "inventory":
+            data = [{"product": "Widget", "stock": 50}]
+        elif report_type == "users":
+            data = [{"name": "Alice", "logins": 42}]
+
+        # Format report
+        if format_type == "csv":
+            output = "col1,col2\nval1,val2"
+        elif format_type == "pdf":
+            output = "<pdf>report content</pdf>"
+        elif format_type == "html":
+            output = "<html><body>report</body></html>"
+
+        # Send email
+        print(f"Connecting to {self.email_server}:{self.email_port}")
+        print(f"Sending {format_type} report to {recipient_email}")
+
+        return output
+```
+
+**Hints:** Look for God Class, Long Method, Data Clumps, Primitive Obsession, and Replace Conditional with Polymorphism opportunities.
+
+---
+
+### Exercise 2: Refactor Feature Envy
+
+The `InvoicePrinter` class exhibits Feature Envy. Refactor it so that behavior lives with the data it operates on.
+
+```python
+class Invoice:
+    def __init__(self, items, tax_rate, discount_percent):
+        self.items = items
+        self.tax_rate = tax_rate
+        self.discount_percent = discount_percent
+
+class InvoicePrinter:
+    def print_totals(self, invoice):
+        subtotal = sum(i["price"] * i["qty"] for i in invoice.items)
+        discount = subtotal * (invoice.discount_percent / 100)
+        after_discount = subtotal - discount
+        tax = after_discount * invoice.tax_rate
+        total = after_discount + tax
+        print(f"Subtotal: ${subtotal:.2f}")
+        print(f"Discount ({invoice.discount_percent}%): -${discount:.2f}")
+        print(f"Tax ({invoice.tax_rate * 100:.0f}%): ${tax:.2f}")
+        print(f"Total: ${total:.2f}")
+```
+
+**Goal:** Move the calculation logic into `Invoice` and keep only the printing logic in `InvoicePrinter`.
+
+---
+
+### Exercise 3: Replace Conditionals with Polymorphism
+
+The following notification system uses conditionals to handle different channels. Refactor it to use polymorphism so that adding a new channel (e.g., Slack) requires no changes to existing code.
+
+```javascript
+class NotificationService {
+  send(channel, recipient, message) {
+    if (channel === "email") {
+      console.log(`Connecting to SMTP server...`);
+      console.log(`Sending email to ${recipient}: ${message}`);
+    } else if (channel === "sms") {
+      console.log(`Connecting to SMS gateway...`);
+      console.log(`Sending SMS to ${recipient}: ${message.slice(0, 160)}`);
+    } else if (channel === "push") {
+      console.log(`Connecting to push service...`);
+      console.log(`Sending push notification to device ${recipient}: ${message.slice(0, 256)}`);
+    } else {
+      throw new Error(`Unknown channel: ${channel}`);
+    }
+  }
+}
+```
+
+**Goal:** Create a `NotificationChannel` base class (or interface) with subclasses `EmailChannel`, `SmsChannel`, and `PushChannel`. Each subclass implements `send(recipient, message)`.
+
+---
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="Design Patterns"
+    href="/software-engineering/design-patterns/"
+    description="Learn proven patterns like Strategy, Observer, and Factory that solve the problems code smells reveal"
+  />
+  <LinkCard
+    title="Data Structures & Algorithms"
+    href="/software-engineering/dsa/"
+    description="Build a strong foundation in data structures and algorithms for writing efficient, well-structured code"
+  />
+</CardGrid>

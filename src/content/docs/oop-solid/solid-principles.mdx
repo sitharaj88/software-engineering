@@ -1,0 +1,1752 @@
+---
+title: "SOLID Principles"
+description: "Learn the five SOLID principles for writing maintainable, scalable, and flexible object-oriented code"
+difficulty: "intermediate"
+prerequisites: ["Four Pillars of OOP"]
+timeToRead: "25 min"
+topics: ["solid", "srp", "ocp", "lsp", "isp", "dip", "clean-code"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+The **SOLID** principles are five foundational guidelines for object-oriented design, introduced by Robert C. Martin (Uncle Bob). They help developers write code that is easier to understand, maintain, extend, and refactor. When followed consistently, SOLID principles reduce technical debt and make software systems resilient to change.
+
+| Letter | Principle | Core Idea |
+|--------|-----------|-----------|
+| **S** | Single Responsibility | A class should have only one reason to change |
+| **O** | Open/Closed | Open for extension, closed for modification |
+| **L** | Liskov Substitution | Subtypes must be substitutable for their base types |
+| **I** | Interface Segregation | Prefer many small interfaces over one large interface |
+| **D** | Dependency Inversion | Depend on abstractions, not concrete implementations |
+
+---
+
+## S -- Single Responsibility Principle (SRP)
+
+> **"A class should have one, and only one, reason to change."** -- Robert C. Martin
+
+The Single Responsibility Principle states that every class should encapsulate exactly one responsibility. If a class handles multiple concerns, changes to one concern risk breaking the other. SRP leads to smaller, focused classes that are easier to test and maintain.
+
+### The Problem: A Class Doing Too Much
+
+Consider a `User` class that manages user data, validates input, **and** sends emails. Any change to the email system, validation rules, or data format forces changes to the same class.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# BAD: User class has three responsibilities
+class User:
+    def __init__(self, name, email):
+        self.name = name
+        self.email = email
+
+    def get_user_info(self):
+        return f"{self.name} ({self.email})"
+
+    def validate_email(self):
+        # Validation logic -- reason to change #2
+        import re
+        pattern = r'^[\w\.-]+@[\w\.-]+\.\w+$'
+        return bool(re.match(pattern, self.email))
+
+    def send_welcome_email(self):
+        # Email sending logic -- reason to change #3
+        if self.validate_email():
+            print(f"Sending welcome email to {self.email}")
+            # SMTP setup, template rendering, etc.
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// BAD: User class has three responsibilities
+class User {
+    constructor(name, email) {
+        this.name = name;
+        this.email = email;
+    }
+
+    getUserInfo() {
+        return `${this.name} (${this.email})`;
+    }
+
+    validateEmail() {
+        // Validation logic -- reason to change #2
+        const pattern = /^[\w\.-]+@[\w\.-]+\.\w+$/;
+        return pattern.test(this.email);
+    }
+
+    sendWelcomeEmail() {
+        // Email sending logic -- reason to change #3
+        if (this.validateEmail()) {
+            console.log(`Sending welcome email to ${this.email}`);
+            // SMTP setup, template rendering, etc.
+        }
+    }
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+// BAD: User class has three responsibilities
+public class User {
+    private String name;
+    private String email;
+
+    public User(String name, String email) {
+        this.name = name;
+        this.email = email;
+    }
+
+    public String getUserInfo() {
+        return name + " (" + email + ")";
+    }
+
+    // Validation logic -- reason to change #2
+    public boolean validateEmail() {
+        return email.matches("^[\\w\\.-]+@[\\w\\.-]+\\.\\w+$");
+    }
+
+    // Email sending logic -- reason to change #3
+    public void sendWelcomeEmail() {
+        if (validateEmail()) {
+            System.out.println("Sending welcome email to " + email);
+            // SMTP setup, template rendering, etc.
+        }
+    }
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+// BAD: User class has three responsibilities
+#include <iostream>
+#include <string>
+#include <regex>
+using namespace std;
+
+class User {
+    string name;
+    string email;
+
+public:
+    User(string name, string email)
+        : name(name), email(email) {}
+
+    string getUserInfo() {
+        return name + " (" + email + ")";
+    }
+
+    // Validation logic -- reason to change #2
+    bool validateEmail() {
+        regex pattern(R"(^[\w\.-]+@[\w\.-]+\.\w+$)");
+        return regex_match(email, pattern);
+    }
+
+    // Email sending logic -- reason to change #3
+    void sendWelcomeEmail() {
+        if (validateEmail()) {
+            cout << "Sending welcome email to " << email << endl;
+            // SMTP setup, template rendering, etc.
+        }
+    }
+};
+```
+  </TabItem>
+</Tabs>
+
+### The Solution: Separate Responsibilities
+
+Split each responsibility into its own class. Now changes to email logic, validation rules, or user data are isolated from one another.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# GOOD: Each class has a single responsibility
+
+class User:
+    """Responsibility: manage user data"""
+    def __init__(self, name, email):
+        self.name = name
+        self.email = email
+
+    def get_user_info(self):
+        return f"{self.name} ({self.email})"
+
+
+class EmailValidator:
+    """Responsibility: validate email addresses"""
+    @staticmethod
+    def is_valid(email):
+        import re
+        pattern = r'^[\w\.-]+@[\w\.-]+\.\w+$'
+        return bool(re.match(pattern, email))
+
+
+class EmailService:
+    """Responsibility: send emails"""
+    def __init__(self, validator):
+        self.validator = validator
+
+    def send_welcome_email(self, user):
+        if self.validator.is_valid(user.email):
+            print(f"Sending welcome email to {user.email}")
+
+
+# Usage
+user = User("Alice", "alice@example.com")
+validator = EmailValidator()
+email_service = EmailService(validator)
+email_service.send_welcome_email(user)
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// GOOD: Each class has a single responsibility
+
+class User {
+    // Responsibility: manage user data
+    constructor(name, email) {
+        this.name = name;
+        this.email = email;
+    }
+
+    getUserInfo() {
+        return `${this.name} (${this.email})`;
+    }
+}
+
+class EmailValidator {
+    // Responsibility: validate email addresses
+    static isValid(email) {
+        const pattern = /^[\w\.-]+@[\w\.-]+\.\w+$/;
+        return pattern.test(email);
+    }
+}
+
+class EmailService {
+    // Responsibility: send emails
+    constructor(validator) {
+        this.validator = validator;
+    }
+
+    sendWelcomeEmail(user) {
+        if (this.validator.isValid(user.email)) {
+            console.log(`Sending welcome email to ${user.email}`);
+        }
+    }
+}
+
+// Usage
+const user = new User("Alice", "alice@example.com");
+const emailService = new EmailService(EmailValidator);
+emailService.sendWelcomeEmail(user);
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+// GOOD: Each class has a single responsibility
+
+// Responsibility: manage user data
+public class User {
+    private String name;
+    private String email;
+
+    public User(String name, String email) {
+        this.name = name;
+        this.email = email;
+    }
+
+    public String getName() { return name; }
+    public String getEmail() { return email; }
+
+    public String getUserInfo() {
+        return name + " (" + email + ")";
+    }
+}
+
+// Responsibility: validate email addresses
+public class EmailValidator {
+    public static boolean isValid(String email) {
+        return email.matches("^[\\w\\.-]+@[\\w\\.-]+\\.\\w+$");
+    }
+}
+
+// Responsibility: send emails
+public class EmailService {
+    private EmailValidator validator;
+
+    public EmailService(EmailValidator validator) {
+        this.validator = validator;
+    }
+
+    public void sendWelcomeEmail(User user) {
+        if (EmailValidator.isValid(user.getEmail())) {
+            System.out.println("Sending welcome email to " + user.getEmail());
+        }
+    }
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+// GOOD: Each class has a single responsibility
+#include <iostream>
+#include <string>
+#include <regex>
+using namespace std;
+
+// Responsibility: manage user data
+class User {
+    string name;
+    string email;
+
+public:
+    User(string name, string email)
+        : name(name), email(email) {}
+
+    string getName() const { return name; }
+    string getEmail() const { return email; }
+    string getUserInfo() const { return name + " (" + email + ")"; }
+};
+
+// Responsibility: validate email addresses
+class EmailValidator {
+public:
+    static bool isValid(const string& email) {
+        regex pattern(R"(^[\w\.-]+@[\w\.-]+\.\w+$)");
+        return regex_match(email, pattern);
+    }
+};
+
+// Responsibility: send emails
+class EmailService {
+public:
+    void sendWelcomeEmail(const User& user) {
+        if (EmailValidator::isValid(user.getEmail())) {
+            cout << "Sending welcome email to " << user.getEmail() << endl;
+        }
+    }
+};
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## O -- Open/Closed Principle (OCP)
+
+> **"Software entities should be open for extension, but closed for modification."** -- Bertrand Meyer
+
+The Open/Closed Principle means you should be able to add new behavior to a system without changing existing, tested code. This is typically achieved through abstraction -- using interfaces, abstract classes, or polymorphism so that new functionality is added via new classes rather than by editing old ones.
+
+### The Problem: Modifying Existing Code for Every New Feature
+
+Imagine a discount calculator that uses `if/else` chains. Every time a new discount type is introduced, you must modify the existing function, risking bugs in previously working logic.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# BAD: Must modify this function for every new discount type
+class DiscountCalculator:
+    def calculate(self, customer_type, amount):
+        if customer_type == "regular":
+            return amount * 0.95  # 5% discount
+        elif customer_type == "premium":
+            return amount * 0.90  # 10% discount
+        elif customer_type == "vip":
+            return amount * 0.80  # 20% discount
+        # Adding a new type? Must edit this class!
+        else:
+            return amount
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// BAD: Must modify this function for every new discount type
+class DiscountCalculator {
+    calculate(customerType, amount) {
+        if (customerType === "regular") {
+            return amount * 0.95; // 5% discount
+        } else if (customerType === "premium") {
+            return amount * 0.90; // 10% discount
+        } else if (customerType === "vip") {
+            return amount * 0.80; // 20% discount
+        }
+        // Adding a new type? Must edit this class!
+        return amount;
+    }
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+// BAD: Must modify this method for every new discount type
+public class DiscountCalculator {
+    public double calculate(String customerType, double amount) {
+        if (customerType.equals("regular")) {
+            return amount * 0.95; // 5% discount
+        } else if (customerType.equals("premium")) {
+            return amount * 0.90; // 10% discount
+        } else if (customerType.equals("vip")) {
+            return amount * 0.80; // 20% discount
+        }
+        // Adding a new type? Must edit this class!
+        return amount;
+    }
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+// BAD: Must modify this function for every new discount type
+#include <string>
+using namespace std;
+
+class DiscountCalculator {
+public:
+    double calculate(const string& customerType, double amount) {
+        if (customerType == "regular") {
+            return amount * 0.95; // 5% discount
+        } else if (customerType == "premium") {
+            return amount * 0.90; // 10% discount
+        } else if (customerType == "vip") {
+            return amount * 0.80; // 20% discount
+        }
+        // Adding a new type? Must edit this class!
+        return amount;
+    }
+};
+```
+  </TabItem>
+</Tabs>
+
+### The Solution: Extend with New Classes, Not Modifications
+
+Define a `DiscountStrategy` abstraction and implement each discount type as its own class. New types are added by creating new classes -- existing code is never touched.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# GOOD: Open for extension, closed for modification
+from abc import ABC, abstractmethod
+
+class DiscountStrategy(ABC):
+    @abstractmethod
+    def calculate(self, amount):
+        pass
+
+class RegularDiscount(DiscountStrategy):
+    def calculate(self, amount):
+        return amount * 0.95  # 5% discount
+
+class PremiumDiscount(DiscountStrategy):
+    def calculate(self, amount):
+        return amount * 0.90  # 10% discount
+
+class VIPDiscount(DiscountStrategy):
+    def calculate(self, amount):
+        return amount * 0.80  # 20% discount
+
+# Adding a new discount? Just create a new class!
+class EmployeeDiscount(DiscountStrategy):
+    def calculate(self, amount):
+        return amount * 0.70  # 30% discount
+
+class DiscountCalculator:
+    def __init__(self, strategy: DiscountStrategy):
+        self.strategy = strategy
+
+    def calculate(self, amount):
+        return self.strategy.calculate(amount)
+
+# Usage
+calc = DiscountCalculator(VIPDiscount())
+print(calc.calculate(100))  # 80.0
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// GOOD: Open for extension, closed for modification
+
+class DiscountStrategy {
+    calculate(amount) {
+        throw new Error("Subclasses must implement calculate()");
+    }
+}
+
+class RegularDiscount extends DiscountStrategy {
+    calculate(amount) {
+        return amount * 0.95; // 5% discount
+    }
+}
+
+class PremiumDiscount extends DiscountStrategy {
+    calculate(amount) {
+        return amount * 0.90; // 10% discount
+    }
+}
+
+class VIPDiscount extends DiscountStrategy {
+    calculate(amount) {
+        return amount * 0.80; // 20% discount
+    }
+}
+
+// Adding a new discount? Just create a new class!
+class EmployeeDiscount extends DiscountStrategy {
+    calculate(amount) {
+        return amount * 0.70; // 30% discount
+    }
+}
+
+class DiscountCalculator {
+    constructor(strategy) {
+        this.strategy = strategy;
+    }
+
+    calculate(amount) {
+        return this.strategy.calculate(amount);
+    }
+}
+
+// Usage
+const calc = new DiscountCalculator(new VIPDiscount());
+console.log(calc.calculate(100)); // 80
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+// GOOD: Open for extension, closed for modification
+
+public interface DiscountStrategy {
+    double calculate(double amount);
+}
+
+public class RegularDiscount implements DiscountStrategy {
+    public double calculate(double amount) {
+        return amount * 0.95; // 5% discount
+    }
+}
+
+public class PremiumDiscount implements DiscountStrategy {
+    public double calculate(double amount) {
+        return amount * 0.90; // 10% discount
+    }
+}
+
+public class VIPDiscount implements DiscountStrategy {
+    public double calculate(double amount) {
+        return amount * 0.80; // 20% discount
+    }
+}
+
+// Adding a new discount? Just create a new class!
+public class EmployeeDiscount implements DiscountStrategy {
+    public double calculate(double amount) {
+        return amount * 0.70; // 30% discount
+    }
+}
+
+public class DiscountCalculator {
+    private DiscountStrategy strategy;
+
+    public DiscountCalculator(DiscountStrategy strategy) {
+        this.strategy = strategy;
+    }
+
+    public double calculate(double amount) {
+        return strategy.calculate(amount);
+    }
+}
+
+// Usage
+// DiscountCalculator calc = new DiscountCalculator(new VIPDiscount());
+// System.out.println(calc.calculate(100)); // 80.0
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+// GOOD: Open for extension, closed for modification
+#include <iostream>
+#include <memory>
+using namespace std;
+
+class DiscountStrategy {
+public:
+    virtual double calculate(double amount) const = 0;
+    virtual ~DiscountStrategy() = default;
+};
+
+class RegularDiscount : public DiscountStrategy {
+public:
+    double calculate(double amount) const override {
+        return amount * 0.95; // 5% discount
+    }
+};
+
+class PremiumDiscount : public DiscountStrategy {
+public:
+    double calculate(double amount) const override {
+        return amount * 0.90; // 10% discount
+    }
+};
+
+class VIPDiscount : public DiscountStrategy {
+public:
+    double calculate(double amount) const override {
+        return amount * 0.80; // 20% discount
+    }
+};
+
+// Adding a new discount? Just create a new class!
+class EmployeeDiscount : public DiscountStrategy {
+public:
+    double calculate(double amount) const override {
+        return amount * 0.70; // 30% discount
+    }
+};
+
+class DiscountCalculator {
+    unique_ptr<DiscountStrategy> strategy;
+
+public:
+    DiscountCalculator(unique_ptr<DiscountStrategy> strategy)
+        : strategy(move(strategy)) {}
+
+    double calculate(double amount) const {
+        return strategy->calculate(amount);
+    }
+};
+
+// Usage
+// auto calc = DiscountCalculator(make_unique<VIPDiscount>());
+// cout << calc.calculate(100) << endl; // 80
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## L -- Liskov Substitution Principle (LSP)
+
+> **"Objects of a superclass should be replaceable with objects of a subclass without altering the correctness of the program."** -- Barbara Liskov
+
+The Liskov Substitution Principle means that if your code works with a base class, it must also work correctly with any derived class. A subclass should **extend** behavior, not break the contract established by its parent.
+
+### The Problem: Subclass Breaks Parent's Contract
+
+The classic example is `Rectangle` and `Square`. A square *is* a rectangle mathematically, but in code, making `Square` inherit from `Rectangle` creates unexpected behavior when width and height are set independently.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# BAD: Square breaks the Rectangle contract
+class Rectangle:
+    def __init__(self, width, height):
+        self._width = width
+        self._height = height
+
+    def set_width(self, width):
+        self._width = width
+
+    def set_height(self, height):
+        self._height = height
+
+    def area(self):
+        return self._width * self._height
+
+class Square(Rectangle):
+    def __init__(self, size):
+        super().__init__(size, size)
+
+    def set_width(self, width):
+        # Forces both dimensions to change -- breaks expectations!
+        self._width = width
+        self._height = width
+
+    def set_height(self, height):
+        self._width = height
+        self._height = height
+
+# This function expects Rectangle behavior
+def resize_and_check(rect):
+    rect.set_width(5)
+    rect.set_height(10)
+    assert rect.area() == 50, f"Expected 50, got {rect.area()}"
+
+resize_and_check(Rectangle(2, 3))  # Passes
+resize_and_check(Square(2))        # FAILS! area() returns 100, not 50
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// BAD: Square breaks the Rectangle contract
+class Rectangle {
+    constructor(width, height) {
+        this._width = width;
+        this._height = height;
+    }
+
+    setWidth(width) { this._width = width; }
+    setHeight(height) { this._height = height; }
+    area() { return this._width * this._height; }
+}
+
+class Square extends Rectangle {
+    constructor(size) {
+        super(size, size);
+    }
+
+    // Forces both dimensions to change -- breaks expectations!
+    setWidth(width) {
+        this._width = width;
+        this._height = width;
+    }
+
+    setHeight(height) {
+        this._width = height;
+        this._height = height;
+    }
+}
+
+// This function expects Rectangle behavior
+function resizeAndCheck(rect) {
+    rect.setWidth(5);
+    rect.setHeight(10);
+    console.assert(rect.area() === 50, `Expected 50, got ${rect.area()}`);
+}
+
+resizeAndCheck(new Rectangle(2, 3)); // Passes
+resizeAndCheck(new Square(2));       // FAILS! area() returns 100
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+// BAD: Square breaks the Rectangle contract
+public class Rectangle {
+    protected int width;
+    protected int height;
+
+    public Rectangle(int width, int height) {
+        this.width = width;
+        this.height = height;
+    }
+
+    public void setWidth(int width) { this.width = width; }
+    public void setHeight(int height) { this.height = height; }
+    public int area() { return width * height; }
+}
+
+public class Square extends Rectangle {
+    public Square(int size) {
+        super(size, size);
+    }
+
+    // Forces both dimensions to change -- breaks expectations!
+    @Override
+    public void setWidth(int width) {
+        this.width = width;
+        this.height = width;
+    }
+
+    @Override
+    public void setHeight(int height) {
+        this.width = height;
+        this.height = height;
+    }
+}
+
+// resizeAndCheck(new Rectangle(2, 3)); // Passes
+// resizeAndCheck(new Square(2));       // FAILS! area() returns 100
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+// BAD: Square breaks the Rectangle contract
+#include <iostream>
+#include <cassert>
+using namespace std;
+
+class Rectangle {
+protected:
+    int width;
+    int height;
+
+public:
+    Rectangle(int w, int h) : width(w), height(h) {}
+
+    virtual void setWidth(int w) { width = w; }
+    virtual void setHeight(int h) { height = h; }
+    int area() const { return width * height; }
+};
+
+class Square : public Rectangle {
+public:
+    Square(int size) : Rectangle(size, size) {}
+
+    // Forces both dimensions to change -- breaks expectations!
+    void setWidth(int w) override {
+        width = w;
+        height = w;
+    }
+
+    void setHeight(int h) override {
+        width = h;
+        height = h;
+    }
+};
+
+void resizeAndCheck(Rectangle& rect) {
+    rect.setWidth(5);
+    rect.setHeight(10);
+    assert(rect.area() == 50); // Fails for Square!
+}
+```
+  </TabItem>
+</Tabs>
+
+### The Solution: Use a Common Abstraction
+
+Instead of forcing `Square` to inherit from `Rectangle`, define a shared `Shape` interface. Each shape implements its own area logic independently, so substitution never breaks the contract.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# GOOD: Both shapes implement a common interface correctly
+from abc import ABC, abstractmethod
+
+class Shape(ABC):
+    @abstractmethod
+    def area(self):
+        pass
+
+class Rectangle(Shape):
+    def __init__(self, width, height):
+        self.width = width
+        self.height = height
+
+    def area(self):
+        return self.width * self.height
+
+class Square(Shape):
+    def __init__(self, side):
+        self.side = side
+
+    def area(self):
+        return self.side * self.side
+
+# Both work correctly with any code that expects a Shape
+def print_area(shape: Shape):
+    print(f"Area: {shape.area()}")
+
+print_area(Rectangle(5, 10))  # Area: 50
+print_area(Square(7))         # Area: 49
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// GOOD: Both shapes implement a common interface correctly
+
+class Shape {
+    area() {
+        throw new Error("Subclasses must implement area()");
+    }
+}
+
+class Rectangle extends Shape {
+    constructor(width, height) {
+        super();
+        this.width = width;
+        this.height = height;
+    }
+
+    area() {
+        return this.width * this.height;
+    }
+}
+
+class Square extends Shape {
+    constructor(side) {
+        super();
+        this.side = side;
+    }
+
+    area() {
+        return this.side * this.side;
+    }
+}
+
+// Both work correctly with any code that expects a Shape
+function printArea(shape) {
+    console.log(`Area: ${shape.area()}`);
+}
+
+printArea(new Rectangle(5, 10)); // Area: 50
+printArea(new Square(7));        // Area: 49
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+// GOOD: Both shapes implement a common interface correctly
+
+public interface Shape {
+    double area();
+}
+
+public class Rectangle implements Shape {
+    private final double width;
+    private final double height;
+
+    public Rectangle(double width, double height) {
+        this.width = width;
+        this.height = height;
+    }
+
+    public double area() {
+        return width * height;
+    }
+}
+
+public class Square implements Shape {
+    private final double side;
+
+    public Square(double side) {
+        this.side = side;
+    }
+
+    public double area() {
+        return side * side;
+    }
+}
+
+// Both work correctly with any code that expects a Shape
+// public static void printArea(Shape shape) {
+//     System.out.println("Area: " + shape.area());
+// }
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+// GOOD: Both shapes implement a common interface correctly
+#include <iostream>
+#include <memory>
+using namespace std;
+
+class Shape {
+public:
+    virtual double area() const = 0;
+    virtual ~Shape() = default;
+};
+
+class Rectangle : public Shape {
+    double width, height;
+
+public:
+    Rectangle(double w, double h) : width(w), height(h) {}
+
+    double area() const override {
+        return width * height;
+    }
+};
+
+class Square : public Shape {
+    double side;
+
+public:
+    Square(double s) : side(s) {}
+
+    double area() const override {
+        return side * side;
+    }
+};
+
+// Both work correctly with any code that expects a Shape
+void printArea(const Shape& shape) {
+    cout << "Area: " << shape.area() << endl;
+}
+
+// printArea(Rectangle(5, 10)); // Area: 50
+// printArea(Square(7));        // Area: 49
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## I -- Interface Segregation Principle (ISP)
+
+> **"No client should be forced to depend on methods it does not use."** -- Robert C. Martin
+
+The Interface Segregation Principle states that large, monolithic interfaces should be split into smaller, more specific ones. Classes should only need to implement the methods that are relevant to them. This prevents "fat interfaces" that force implementing classes to provide stub or empty methods for functionality they do not support.
+
+### The Problem: A Fat Interface
+
+A `Worker` interface that requires all workers to implement `work()`, `eat()`, and `sleep()` forces a `Robot` class to provide meaningless implementations for `eat()` and `sleep()`.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# BAD: Fat interface forces irrelevant implementations
+from abc import ABC, abstractmethod
+
+class Worker(ABC):
+    @abstractmethod
+    def work(self):
+        pass
+
+    @abstractmethod
+    def eat(self):
+        pass
+
+    @abstractmethod
+    def sleep(self):
+        pass
+
+class Human(Worker):
+    def work(self):
+        print("Human working")
+
+    def eat(self):
+        print("Human eating")
+
+    def sleep(self):
+        print("Human sleeping")
+
+class Robot(Worker):
+    def work(self):
+        print("Robot working")
+
+    def eat(self):
+        pass  # Robots don't eat! Forced to implement.
+
+    def sleep(self):
+        pass  # Robots don't sleep! Forced to implement.
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// BAD: Fat interface forces irrelevant implementations
+
+class Worker {
+    work() { throw new Error("Must implement"); }
+    eat() { throw new Error("Must implement"); }
+    sleep() { throw new Error("Must implement"); }
+}
+
+class Human extends Worker {
+    work() { console.log("Human working"); }
+    eat() { console.log("Human eating"); }
+    sleep() { console.log("Human sleeping"); }
+}
+
+class Robot extends Worker {
+    work() { console.log("Robot working"); }
+    eat() { /* Robots don't eat! Forced to implement. */ }
+    sleep() { /* Robots don't sleep! Forced to implement. */ }
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+// BAD: Fat interface forces irrelevant implementations
+public interface Worker {
+    void work();
+    void eat();
+    void sleep();
+}
+
+public class Human implements Worker {
+    public void work() { System.out.println("Human working"); }
+    public void eat() { System.out.println("Human eating"); }
+    public void sleep() { System.out.println("Human sleeping"); }
+}
+
+public class Robot implements Worker {
+    public void work() { System.out.println("Robot working"); }
+    public void eat() { /* Robots don't eat! Forced to implement. */ }
+    public void sleep() { /* Robots don't sleep! Forced to implement. */ }
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+// BAD: Fat interface forces irrelevant implementations
+#include <iostream>
+using namespace std;
+
+class Worker {
+public:
+    virtual void work() = 0;
+    virtual void eat() = 0;
+    virtual void sleep() = 0;
+    virtual ~Worker() = default;
+};
+
+class Human : public Worker {
+public:
+    void work() override { cout << "Human working" << endl; }
+    void eat() override { cout << "Human eating" << endl; }
+    void sleep() override { cout << "Human sleeping" << endl; }
+};
+
+class Robot : public Worker {
+public:
+    void work() override { cout << "Robot working" << endl; }
+    void eat() override { /* Robots don't eat! Forced to implement. */ }
+    void sleep() override { /* Robots don't sleep! Forced to implement. */ }
+};
+```
+  </TabItem>
+</Tabs>
+
+### The Solution: Split Into Focused Interfaces
+
+Break the fat interface into smaller role-based interfaces. Each class only implements the interfaces that apply to it.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# GOOD: Small, focused interfaces
+from abc import ABC, abstractmethod
+
+class Workable(ABC):
+    @abstractmethod
+    def work(self):
+        pass
+
+class Feedable(ABC):
+    @abstractmethod
+    def eat(self):
+        pass
+
+class Sleepable(ABC):
+    @abstractmethod
+    def sleep(self):
+        pass
+
+class Human(Workable, Feedable, Sleepable):
+    def work(self):
+        print("Human working")
+
+    def eat(self):
+        print("Human eating")
+
+    def sleep(self):
+        print("Human sleeping")
+
+class Robot(Workable):
+    def work(self):
+        print("Robot working")
+    # No need to implement eat() or sleep()!
+
+# Functions depend only on the interface they need
+def assign_task(worker: Workable):
+    worker.work()
+
+def schedule_lunch(eater: Feedable):
+    eater.eat()
+
+assign_task(Human())  # Works
+assign_task(Robot())  # Works
+schedule_lunch(Human())  # Works
+# schedule_lunch(Robot())  # Type error -- correct!
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// GOOD: Small, focused interfaces via mixins / composition
+
+// Define capabilities as mixins
+const Workable = (Base) => class extends Base {
+    work() { throw new Error("Must implement work()"); }
+};
+
+const Feedable = (Base) => class extends Base {
+    eat() { throw new Error("Must implement eat()"); }
+};
+
+const Sleepable = (Base) => class extends Base {
+    sleep() { throw new Error("Must implement sleep()"); }
+};
+
+class Human extends Sleepable(Feedable(Workable(class {}))) {
+    work() { console.log("Human working"); }
+    eat() { console.log("Human eating"); }
+    sleep() { console.log("Human sleeping"); }
+}
+
+class Robot extends Workable(class {}) {
+    work() { console.log("Robot working"); }
+    // No need to implement eat() or sleep()!
+}
+
+// Functions depend only on the capability they need
+function assignTask(worker) {
+    worker.work();
+}
+
+assignTask(new Human()); // Works
+assignTask(new Robot()); // Works
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+// GOOD: Small, focused interfaces
+
+public interface Workable {
+    void work();
+}
+
+public interface Feedable {
+    void eat();
+}
+
+public interface Sleepable {
+    void sleep();
+}
+
+public class Human implements Workable, Feedable, Sleepable {
+    public void work() { System.out.println("Human working"); }
+    public void eat() { System.out.println("Human eating"); }
+    public void sleep() { System.out.println("Human sleeping"); }
+}
+
+public class Robot implements Workable {
+    public void work() { System.out.println("Robot working"); }
+    // No need to implement eat() or sleep()!
+}
+
+// Methods depend only on the interface they need
+// public static void assignTask(Workable worker) { worker.work(); }
+// public static void scheduleLunch(Feedable eater) { eater.eat(); }
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+// GOOD: Small, focused interfaces
+#include <iostream>
+using namespace std;
+
+class Workable {
+public:
+    virtual void work() = 0;
+    virtual ~Workable() = default;
+};
+
+class Feedable {
+public:
+    virtual void eat() = 0;
+    virtual ~Feedable() = default;
+};
+
+class Sleepable {
+public:
+    virtual void sleep() = 0;
+    virtual ~Sleepable() = default;
+};
+
+class Human : public Workable, public Feedable, public Sleepable {
+public:
+    void work() override { cout << "Human working" << endl; }
+    void eat() override { cout << "Human eating" << endl; }
+    void sleep() override { cout << "Human sleeping" << endl; }
+};
+
+class Robot : public Workable {
+public:
+    void work() override { cout << "Robot working" << endl; }
+    // No need to implement eat() or sleep()!
+};
+
+// Functions depend only on the interface they need
+void assignTask(Workable& worker) { worker.work(); }
+void scheduleLunch(Feedable& eater) { eater.eat(); }
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## D -- Dependency Inversion Principle (DIP)
+
+> **"High-level modules should not depend on low-level modules. Both should depend on abstractions."** -- Robert C. Martin
+
+The Dependency Inversion Principle states that instead of high-level business logic depending directly on low-level implementation details (databases, file systems, APIs), both should depend on abstract interfaces. This decouples modules from specific implementations and makes the system easier to test and swap components.
+
+### The Problem: High-Level Module Depends on Low-Level Details
+
+A `NotificationService` that directly instantiates and depends on a concrete `EmailSender` is tightly coupled. Switching to SMS or push notifications requires rewriting the service.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# BAD: High-level module depends directly on low-level module
+class EmailSender:
+    def send(self, recipient, message):
+        print(f"Email to {recipient}: {message}")
+
+class NotificationService:
+    def __init__(self):
+        # Tightly coupled to EmailSender!
+        self.sender = EmailSender()
+
+    def notify(self, recipient, message):
+        self.sender.send(recipient, message)
+
+# What if we want SMS? Must rewrite NotificationService!
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// BAD: High-level module depends directly on low-level module
+class EmailSender {
+    send(recipient, message) {
+        console.log(`Email to ${recipient}: ${message}`);
+    }
+}
+
+class NotificationService {
+    constructor() {
+        // Tightly coupled to EmailSender!
+        this.sender = new EmailSender();
+    }
+
+    notify(recipient, message) {
+        this.sender.send(recipient, message);
+    }
+}
+
+// What if we want SMS? Must rewrite NotificationService!
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+// BAD: High-level module depends directly on low-level module
+public class EmailSender {
+    public void send(String recipient, String message) {
+        System.out.println("Email to " + recipient + ": " + message);
+    }
+}
+
+public class NotificationService {
+    // Tightly coupled to EmailSender!
+    private EmailSender sender = new EmailSender();
+
+    public void notify(String recipient, String message) {
+        sender.send(recipient, message);
+    }
+}
+
+// What if we want SMS? Must rewrite NotificationService!
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+// BAD: High-level module depends directly on low-level module
+#include <iostream>
+#include <string>
+using namespace std;
+
+class EmailSender {
+public:
+    void send(const string& recipient, const string& message) {
+        cout << "Email to " << recipient << ": " << message << endl;
+    }
+};
+
+class NotificationService {
+    // Tightly coupled to EmailSender!
+    EmailSender sender;
+
+public:
+    void notify(const string& recipient, const string& message) {
+        sender.send(recipient, message);
+    }
+};
+
+// What if we want SMS? Must rewrite NotificationService!
+```
+  </TabItem>
+</Tabs>
+
+### The Solution: Depend on Abstractions
+
+Define a `MessageSender` interface. The `NotificationService` depends on the abstraction, and concrete senders are injected at runtime. Swapping implementations requires zero changes to the service.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# GOOD: Both high-level and low-level depend on abstractions
+from abc import ABC, abstractmethod
+
+class MessageSender(ABC):
+    @abstractmethod
+    def send(self, recipient, message):
+        pass
+
+class EmailSender(MessageSender):
+    def send(self, recipient, message):
+        print(f"Email to {recipient}: {message}")
+
+class SMSSender(MessageSender):
+    def send(self, recipient, message):
+        print(f"SMS to {recipient}: {message}")
+
+class PushNotificationSender(MessageSender):
+    def send(self, recipient, message):
+        print(f"Push to {recipient}: {message}")
+
+class NotificationService:
+    def __init__(self, sender: MessageSender):
+        # Depends on abstraction, not concrete class
+        self.sender = sender
+
+    def notify(self, recipient, message):
+        self.sender.send(recipient, message)
+
+# Easy to swap implementations
+service = NotificationService(EmailSender())
+service.notify("alice@example.com", "Welcome!")
+
+service = NotificationService(SMSSender())
+service.notify("+1234567890", "Your code is 1234")
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// GOOD: Both high-level and low-level depend on abstractions
+
+class MessageSender {
+    send(recipient, message) {
+        throw new Error("Subclasses must implement send()");
+    }
+}
+
+class EmailSender extends MessageSender {
+    send(recipient, message) {
+        console.log(`Email to ${recipient}: ${message}`);
+    }
+}
+
+class SMSSender extends MessageSender {
+    send(recipient, message) {
+        console.log(`SMS to ${recipient}: ${message}`);
+    }
+}
+
+class PushNotificationSender extends MessageSender {
+    send(recipient, message) {
+        console.log(`Push to ${recipient}: ${message}`);
+    }
+}
+
+class NotificationService {
+    constructor(sender) {
+        // Depends on abstraction, not concrete class
+        this.sender = sender;
+    }
+
+    notify(recipient, message) {
+        this.sender.send(recipient, message);
+    }
+}
+
+// Easy to swap implementations
+let service = new NotificationService(new EmailSender());
+service.notify("alice@example.com", "Welcome!");
+
+service = new NotificationService(new SMSSender());
+service.notify("+1234567890", "Your code is 1234");
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+// GOOD: Both high-level and low-level depend on abstractions
+
+public interface MessageSender {
+    void send(String recipient, String message);
+}
+
+public class EmailSender implements MessageSender {
+    public void send(String recipient, String message) {
+        System.out.println("Email to " + recipient + ": " + message);
+    }
+}
+
+public class SMSSender implements MessageSender {
+    public void send(String recipient, String message) {
+        System.out.println("SMS to " + recipient + ": " + message);
+    }
+}
+
+public class PushNotificationSender implements MessageSender {
+    public void send(String recipient, String message) {
+        System.out.println("Push to " + recipient + ": " + message);
+    }
+}
+
+public class NotificationService {
+    // Depends on abstraction, not concrete class
+    private MessageSender sender;
+
+    public NotificationService(MessageSender sender) {
+        this.sender = sender;
+    }
+
+    public void notify(String recipient, String message) {
+        sender.send(recipient, message);
+    }
+}
+
+// Easy to swap implementations:
+// new NotificationService(new EmailSender())
+// new NotificationService(new SMSSender())
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+// GOOD: Both high-level and low-level depend on abstractions
+#include <iostream>
+#include <string>
+#include <memory>
+using namespace std;
+
+class MessageSender {
+public:
+    virtual void send(const string& recipient, const string& message) = 0;
+    virtual ~MessageSender() = default;
+};
+
+class EmailSender : public MessageSender {
+public:
+    void send(const string& recipient, const string& message) override {
+        cout << "Email to " << recipient << ": " << message << endl;
+    }
+};
+
+class SMSSender : public MessageSender {
+public:
+    void send(const string& recipient, const string& message) override {
+        cout << "SMS to " << recipient << ": " << message << endl;
+    }
+};
+
+class PushNotificationSender : public MessageSender {
+public:
+    void send(const string& recipient, const string& message) override {
+        cout << "Push to " << recipient << ": " << message << endl;
+    }
+};
+
+class NotificationService {
+    // Depends on abstraction, not concrete class
+    unique_ptr<MessageSender> sender;
+
+public:
+    NotificationService(unique_ptr<MessageSender> sender)
+        : sender(move(sender)) {}
+
+    void notify(const string& recipient, const string& message) {
+        sender->send(recipient, message);
+    }
+};
+
+// Easy to swap implementations:
+// auto svc = NotificationService(make_unique<EmailSender>());
+// svc.notify("alice@example.com", "Welcome!");
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## SOLID Principles Summary
+
+| Principle | Acronym | Key Question | Violation Smell |
+|-----------|---------|--------------|-----------------|
+| **Single Responsibility** | SRP | Does this class have more than one reason to change? | God classes, classes with "and" in their description |
+| **Open/Closed** | OCP | Can I add new behavior without modifying existing code? | Long `if/else` or `switch` chains for types |
+| **Liskov Substitution** | LSP | Can I use a subclass anywhere the parent is expected? | Overridden methods that throw `NotImplementedError` or break contracts |
+| **Interface Segregation** | ISP | Is every method in this interface used by every implementor? | Empty method stubs, "fat" interfaces |
+| **Dependency Inversion** | DIP | Does my high-level logic depend on concrete low-level details? | `new` inside business logic, hard-coded dependencies |
+
+---
+
+## SOLID in Practice: Real-World Scenarios
+
+### Scenario 1: E-Commerce Order Processing
+
+An order processing system must calculate totals, apply discounts, charge payment, and send confirmations. Without SOLID, all this logic lives in one giant `OrderProcessor` class.
+
+**Applying SOLID:**
+- **SRP** -- Separate into `OrderCalculator`, `DiscountEngine`, `PaymentGateway`, `OrderNotifier`
+- **OCP** -- New payment methods (PayPal, crypto) are added as new `PaymentMethod` implementations
+- **LSP** -- All `PaymentMethod` subclasses process payments without breaking the checkout flow
+- **ISP** -- `PaymentMethod` interface only requires `charge()` and `refund()`, not unrelated methods like `sendReceipt()`
+- **DIP** -- `OrderProcessor` depends on `PaymentMethod` interface, not `StripePayment` directly
+
+### Scenario 2: Logging Framework
+
+A logging framework must support multiple outputs (console, file, remote server) and formats (plain text, JSON, XML).
+
+**Applying SOLID:**
+- **SRP** -- `Logger` orchestrates; `Formatter` handles formatting; `Transport` handles output
+- **OCP** -- New formats or transports are added as new classes without modifying the `Logger`
+- **LSP** -- Any `Transport` (console, file, HTTP) can be used interchangeably
+- **ISP** -- `Transport` only needs `write(entry)`, not formatting methods
+- **DIP** -- `Logger` depends on `Formatter` and `Transport` abstractions, injected at creation
+
+### Scenario 3: Authentication System
+
+An authentication system must support multiple strategies (password, OAuth, SSO, biometrics).
+
+**Applying SOLID:**
+- **SRP** -- `AuthController` handles routing; `AuthStrategy` handles verification; `SessionManager` handles sessions
+- **OCP** -- New auth strategies (e.g., WebAuthn) are added by implementing `AuthStrategy`
+- **LSP** -- All strategies return consistent `AuthResult` objects
+- **ISP** -- `AuthStrategy` only requires `authenticate(credentials)`, not session management
+- **DIP** -- The controller depends on the `AuthStrategy` interface, not any specific provider
+
+---
+
+## Common Violations and How to Fix Them
+
+### 1. The God Class (Violates SRP)
+
+**Symptom:** A single class with hundreds or thousands of lines that handles UI, business logic, data access, and more.
+
+**Fix:** Identify distinct responsibilities and extract each into its own class. Use the "describe in one sentence" test -- if you need "and" or "or", the class has too many responsibilities.
+
+### 2. The Switch/If-Else Chain (Violates OCP)
+
+**Symptom:** A function with a growing `switch` or `if/else` block that checks types or categories.
+
+**Fix:** Replace the conditional with polymorphism. Define an interface for the varying behavior and create one implementation per case.
+
+### 3. The Broken Override (Violates LSP)
+
+**Symptom:** A subclass overrides a parent method to throw an exception, return `null`, or do nothing.
+
+**Fix:** Reconsider the inheritance hierarchy. If the subclass cannot honor the parent's contract, it likely should not extend that parent. Use composition or a different interface instead.
+
+### 4. The Kitchen-Sink Interface (Violates ISP)
+
+**Symptom:** An interface with 10+ methods, and most implementing classes leave several of them empty or throw `UnsupportedOperationException`.
+
+**Fix:** Split the interface into several smaller, cohesive interfaces. Group methods by the clients that use them.
+
+### 5. The Hard-Coded Dependency (Violates DIP)
+
+**Symptom:** Business logic classes instantiate their own dependencies using `new` or direct constructors, making testing and swapping impossible.
+
+**Fix:** Accept dependencies through constructors (constructor injection) or setters. Depend on interfaces, not concrete classes. Use a dependency injection container in larger applications.
+
+---
+
+## Key Takeaways
+
+1. **SOLID is about managing change.** Every principle addresses a different way that changes in requirements can cascade through your codebase. Following them limits the blast radius of any single change.
+
+2. **Start with SRP.** If each class has a single, well-defined purpose, the other principles become easier to apply naturally.
+
+3. **OCP and DIP work together.** Abstractions (DIP) are the mechanism that enables extension without modification (OCP). You cannot follow OCP well without DIP.
+
+4. **LSP is about contracts, not types.** A subclass that technically compiles but behaves unexpectedly is more dangerous than a compile error. Think about behavioral compatibility, not just structural compatibility.
+
+5. **ISP prevents "pollution."** Fat interfaces force unnecessary coupling. Small, focused interfaces keep classes lean and reduce the impact of changes.
+
+6. **Apply SOLID pragmatically.** Over-engineering a simple script with five layers of abstraction is just as harmful as ignoring the principles entirely. Use your judgment -- apply SOLID where the code will benefit from flexibility and maintainability.
+
+7. **SOLID principles are complementary.** They reinforce each other. A codebase that follows all five tends to be modular, testable, and resilient to changing requirements.
+
+---
+
+## Practice Exercises
+
+### Exercise 1: Refactor a Report Generator
+
+You have a `ReportGenerator` class that fetches data from a database, formats it as HTML, and emails it to the manager. Refactor it to follow SRP and DIP.
+
+<details>
+<summary>Hints</summary>
+
+- Identify the three responsibilities: data retrieval, formatting, and delivery.
+- Create a `DataFetcher` interface for the data source (could be a database, API, or file).
+- Create a `ReportFormatter` interface with implementations like `HTMLFormatter`, `PDFFormatter`, and `CSVFormatter`.
+- Create a `ReportDelivery` interface with implementations like `EmailDelivery` and `FileDelivery`.
+- The `ReportGenerator` should accept all three as constructor dependencies.
+</details>
+
+### Exercise 2: Fix an LSP Violation
+
+Given the following class hierarchy, identify the LSP violation and fix it:
+
+```python
+class Bird:
+    def fly(self):
+        return "Flying high!"
+
+    def make_sound(self):
+        return "Tweet!"
+
+class Penguin(Bird):
+    def fly(self):
+        raise Exception("Penguins can't fly!")  # LSP violation!
+
+    def make_sound(self):
+        return "Squawk!"
+```
+
+<details>
+<summary>Hints</summary>
+
+- Not all birds can fly, so `fly()` should not be part of the base `Bird` class.
+- Create a `Bird` base class with `make_sound()`.
+- Create a `FlyingBird` subclass (or a `Flyable` interface) that adds `fly()`.
+- `Penguin` extends `Bird` but not `FlyingBird`.
+- `Eagle` extends `FlyingBird` (or implements both `Bird` and `Flyable`).
+</details>
+
+### Exercise 3: Apply OCP to a Shape Area Calculator
+
+You have a function that calculates the total area of shapes using type-checking:
+
+```python
+def total_area(shapes):
+    total = 0
+    for shape in shapes:
+        if isinstance(shape, dict) and shape["type"] == "circle":
+            total += 3.14159 * shape["radius"] ** 2
+        elif isinstance(shape, dict) and shape["type"] == "rectangle":
+            total += shape["width"] * shape["height"]
+        # Must add more elif for each new shape...
+    return total
+```
+
+Refactor this to follow OCP so that new shapes can be added without modifying the `total_area` function.
+
+<details>
+<summary>Hints</summary>
+
+- Define an abstract `Shape` class with an `area()` method.
+- Create `Circle`, `Rectangle`, `Triangle`, etc. as concrete implementations.
+- The `total_area` function simply calls `shape.area()` for each item -- it never needs to know the specific type.
+- Test by adding a `Triangle` class without changing `total_area`.
+</details>
+
+---
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="Composition vs Inheritance"
+    href="/software-engineering/oop-solid/composition-vs-inheritance/"
+    description="Learn when to use composition over inheritance and how these approaches complement SOLID principles"
+  />
+  <LinkCard
+    title="Design Patterns"
+    href="/software-engineering/design-patterns/"
+    description="Explore proven solutions to common design problems that put SOLID principles into practice"
+  />
+</CardGrid>

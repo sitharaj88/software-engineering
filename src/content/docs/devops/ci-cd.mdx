@@ -1,0 +1,625 @@
+---
+title: "CI/CD Pipelines"
+description: "Automate your build, test, and deployment workflow with continuous integration and delivery"
+difficulty: "intermediate"
+prerequisites: ["DevOps Overview", "Testing Fundamentals", "Version Control"]
+timeToRead: "20 min"
+topics: ["ci", "cd", "pipelines", "github-actions", "jenkins", "automation"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+## What is Continuous Integration?
+
+**Continuous Integration (CI)** is the practice of frequently merging code changes into a shared repository, where each merge triggers an automated build and test process. The goal is to detect integration problems early, when they are small and easy to fix, rather than discovering them at the end of a long development cycle.
+
+### How CI Works
+
+```
+Developer A ──push──▶ ┌───────────┐    ┌───────┐    ┌───────┐
+                      │   Shared  │───▶│ Build │───▶│ Test  │──▶ Pass ✓ or Fail ✗
+Developer B ──push──▶ │   Repo    │    └───────┘    └───────┘
+                      └───────────┘
+Developer C ──push──▶       │
+                            ▼
+                    Triggered on every push
+```
+
+### CI Best Practices
+
+- **Commit often** -- Integrate changes at least once a day. Smaller commits are easier to review and less likely to cause conflicts.
+- **Fix broken builds immediately** -- A failing build is the team's top priority. Never leave the pipeline red.
+- **Keep the build fast** -- Aim for under 10 minutes. Use caching, parallel test execution, and incremental builds.
+- **Write comprehensive tests** -- CI is only as good as your test suite. Include unit, integration, and smoke tests.
+- **Use trunk-based development** -- Keep feature branches short-lived and merge frequently to avoid drift.
+
+## Continuous Delivery vs Continuous Deployment
+
+These terms sound similar but have an important distinction:
+
+```
+                 ┌─────────┐   ┌───────┐   ┌───────┐   ┌─────────┐
+  Code Push ───▶ │  Build  │──▶│ Test  │──▶│ Stage │──▶│Production│
+                 └─────────┘   └───────┘   └───────┘   └─────────┘
+                                                │              │
+                                                │              │
+                 Continuous Delivery ◀──────────┘              │
+                 (manual approval to prod)                     │
+                                                               │
+                 Continuous Deployment ◀───────────────────────┘
+                 (fully automated to prod)
+```
+
+| Aspect | Continuous Delivery | Continuous Deployment |
+|---|---|---|
+| **Definition** | Code is always in a deployable state | Every passing change is deployed to production automatically |
+| **Production deploy** | Requires manual approval or trigger | Fully automated, no human gate |
+| **Risk** | Lower -- humans review before release | Requires high confidence in test suite |
+| **Best for** | Regulated environments, critical systems | Mature teams with excellent test coverage |
+| **Frequency** | Deploy when ready (daily/weekly) | Every successful commit goes live |
+
+Most teams start with Continuous Delivery and graduate to Continuous Deployment as their test coverage and confidence grow.
+
+## Pipeline Stages
+
+A typical CI/CD pipeline consists of sequential stages, each adding more confidence that the change is safe to deploy:
+
+```
+┌────────┐  ┌────────┐  ┌────────┐  ┌──────────┐  ┌─────────┐  ┌─────────────┐
+│ Source │─▶│ Build  │─▶│ Test   │─▶│ Security │─▶│ Deploy  │─▶│   Deploy    │
+│        │  │        │  │        │  │   Scan   │  │ Staging │  │  Production │
+└────────┘  └────────┘  └────────┘  └──────────┘  └─────────┘  └─────────────┘
+   │            │            │            │             │              │
+   │            │            │            │             │              │
+  Clone      Compile     Unit tests   SAST/DAST    Smoke tests   Final deploy
+  Install    Package      Integration  Dependency   Integration    Health check
+  deps       Lint         E2E tests    audit        UAT            Monitoring
+```
+
+### Stage Breakdown
+
+1. **Source** -- Triggered by a push, pull request, or tag. The pipeline checks out the code and installs dependencies.
+2. **Build** -- Compile the application, run linters, and create deployable artifacts (binaries, Docker images, etc.).
+3. **Test** -- Execute the full test suite: unit tests, integration tests, and end-to-end tests.
+4. **Security Scan** -- Run static analysis (SAST), dependency vulnerability scanning, and optionally dynamic analysis (DAST).
+5. **Deploy to Staging** -- Deploy the artifact to a staging environment that mirrors production for final verification.
+6. **Deploy to Production** -- Promote the artifact to production using a safe deployment strategy.
+
+## Pipeline as Code
+
+Modern CI/CD systems define pipelines as code, stored alongside the application in version control. This means your pipeline is:
+
+- **Version controlled** -- Changes to the pipeline are tracked and reviewed just like application code.
+- **Reproducible** -- Anyone can understand and recreate the build process from the configuration file.
+- **Portable** -- The pipeline definition travels with the code, making it easy to fork or migrate.
+
+### Pipeline Configuration Examples
+
+<Tabs>
+  <TabItem label="GitHub Actions">
+```yaml
+# .github/workflows/ci-cd.yml
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Run unit tests
+        run: npm test -- --coverage
+
+      - name: Run integration tests
+        run: npm run test:integration
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+
+  security-scan:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Snyk security scan
+        uses: snyk/actions/node@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+  deploy-staging:
+    runs-on: ubuntu-latest
+    needs: [build-and-test, security-scan]
+    if: github.ref == 'refs/heads/main'
+    environment: staging
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to staging
+        run: |
+          echo "Deploying to staging environment..."
+          ./scripts/deploy.sh staging
+
+      - name: Run smoke tests
+        run: npm run test:smoke -- --env=staging
+
+  deploy-production:
+    runs-on: ubuntu-latest
+    needs: deploy-staging
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    steps:
+      - name: Deploy to production
+        run: |
+          echo "Deploying to production..."
+          ./scripts/deploy.sh production
+
+      - name: Health check
+        run: |
+          curl --fail https://api.example.com/health || exit 1
+```
+  </TabItem>
+  <TabItem label="GitLab CI">
+```yaml
+# .gitlab-ci.yml
+stages:
+  - build
+  - test
+  - security
+  - deploy-staging
+  - deploy-production
+
+variables:
+  NODE_VERSION: "20"
+
+cache:
+  key: ${CI_COMMIT_REF_SLUG}
+  paths:
+    - node_modules/
+
+build:
+  stage: build
+  image: node:${NODE_VERSION}
+  script:
+    - npm ci
+    - npm run build
+  artifacts:
+    paths:
+      - dist/
+    expire_in: 1 hour
+
+lint:
+  stage: test
+  image: node:${NODE_VERSION}
+  script:
+    - npm ci
+    - npm run lint
+
+unit-tests:
+  stage: test
+  image: node:${NODE_VERSION}
+  script:
+    - npm ci
+    - npm test -- --coverage
+  coverage: '/All files[^|]*\|[^|]*\s+([\d\.]+)/'
+  artifacts:
+    reports:
+      junit: junit.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage/cobertura-coverage.xml
+
+integration-tests:
+  stage: test
+  image: node:${NODE_VERSION}
+  services:
+    - postgres:15
+  variables:
+    POSTGRES_DB: testdb
+    POSTGRES_USER: testuser
+    POSTGRES_PASSWORD: testpass
+  script:
+    - npm ci
+    - npm run test:integration
+
+security-scan:
+  stage: security
+  image: node:${NODE_VERSION}
+  script:
+    - npm audit --audit-level=high
+    - npx snyk test
+  allow_failure: true
+
+deploy-staging:
+  stage: deploy-staging
+  image: alpine:latest
+  script:
+    - echo "Deploying to staging..."
+    - ./scripts/deploy.sh staging
+    - echo "Running smoke tests..."
+    - ./scripts/smoke-test.sh staging
+  environment:
+    name: staging
+    url: https://staging.example.com
+  only:
+    - main
+
+deploy-production:
+  stage: deploy-production
+  image: alpine:latest
+  script:
+    - echo "Deploying to production..."
+    - ./scripts/deploy.sh production
+  environment:
+    name: production
+    url: https://example.com
+  when: manual
+  only:
+    - main
+```
+  </TabItem>
+  <TabItem label="Jenkins">
+```groovy
+// Jenkinsfile
+pipeline {
+    agent any
+
+    environment {
+        NODE_VERSION = '20'
+        REGISTRY = 'ghcr.io'
+    }
+
+    options {
+        timeout(time: 30, unit: 'MINUTES')
+        disableConcurrentBuilds()
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Install Dependencies') {
+            steps {
+                sh 'npm ci'
+            }
+        }
+
+        stage('Lint') {
+            steps {
+                sh 'npm run lint'
+            }
+        }
+
+        stage('Test') {
+            parallel {
+                stage('Unit Tests') {
+                    steps {
+                        sh 'npm test -- --coverage'
+                    }
+                    post {
+                        always {
+                            junit 'junit.xml'
+                            publishHTML([
+                                reportDir: 'coverage/lcov-report',
+                                reportFiles: 'index.html',
+                                reportName: 'Coverage Report'
+                            ])
+                        }
+                    }
+                }
+                stage('Integration Tests') {
+                    steps {
+                        sh 'npm run test:integration'
+                    }
+                }
+            }
+        }
+
+        stage('Security Scan') {
+            steps {
+                sh 'npm audit --audit-level=high'
+                snykSecurity(
+                    snykInstallation: 'snyk-latest',
+                    severity: 'high'
+                )
+            }
+        }
+
+        stage('Build Artifact') {
+            steps {
+                sh 'npm run build'
+                archiveArtifacts artifacts: 'dist/**', fingerprint: true
+            }
+        }
+
+        stage('Deploy to Staging') {
+            when {
+                branch 'main'
+            }
+            steps {
+                sh './scripts/deploy.sh staging'
+                sh './scripts/smoke-test.sh staging'
+            }
+        }
+
+        stage('Deploy to Production') {
+            when {
+                branch 'main'
+            }
+            input {
+                message 'Deploy to production?'
+                ok 'Yes, deploy!'
+            }
+            steps {
+                sh './scripts/deploy.sh production'
+                sh 'curl --fail https://api.example.com/health'
+            }
+        }
+    }
+
+    post {
+        failure {
+            slackSend(
+                color: 'danger',
+                message: "Build FAILED: ${env.JOB_NAME} #${env.BUILD_NUMBER}"
+            )
+        }
+        success {
+            slackSend(
+                color: 'good',
+                message: "Build SUCCESS: ${env.JOB_NAME} #${env.BUILD_NUMBER}"
+            )
+        }
+    }
+}
+```
+  </TabItem>
+</Tabs>
+
+## Branching Strategies for CI/CD
+
+Your branching strategy directly affects how your CI/CD pipeline operates. Here are the most common approaches:
+
+### Trunk-Based Development
+
+```
+main ──●──●──●──●──●──●──●──●──●──  (always deployable)
+        \   /  \   /
+         ●─●    ●─●    ◀── short-lived feature branches (< 1 day)
+```
+
+- Developers commit directly to `main` or use very short-lived branches.
+- Best for Continuous Deployment -- every merge triggers a production deploy.
+- Requires strong test coverage and feature flags.
+
+### GitHub Flow
+
+```
+main ──●──────●──────●──────●──────  (protected, deploy on merge)
+        \    / \    /
+         ●──●   ●──●   ◀── feature branches with pull requests
+```
+
+- Feature branches are created from `main` and merged back via pull requests.
+- CI runs on every push to a branch; CD triggers when merged to `main`.
+- Simple and effective for most teams.
+
+### Git Flow
+
+```
+main    ──●──────────────●──────────  (production releases only)
+           \            / \
+release     ●──●──●──●─   \          (release stabilization)
+             /        \     \
+develop ──●──●──●──●──●──●──●──●──  (integration branch)
+           \   /  \      /
+feature     ●─●    ●──●─             (feature branches)
+```
+
+- More complex, with `develop`, `release`, and `hotfix` branches.
+- Best for teams with scheduled releases and multiple versions in production.
+- Less suited for Continuous Deployment due to its complexity.
+
+## Environment Promotion
+
+Code should flow through progressively more production-like environments:
+
+```
+┌───────────┐    ┌───────────┐    ┌───────────┐    ┌───────────────┐
+│    Dev     │───▶│  Staging  │───▶│    QA     │───▶│  Production   │
+│            │    │           │    │           │    │               │
+│ Latest code│    │ Mirrors   │    │ Full test │    │ Live traffic  │
+│ Fast tests │    │ prod env  │    │ suite     │    │ Real data     │
+└───────────┘    └───────────┘    └───────────┘    └───────────────┘
+```
+
+Key principles for environment promotion:
+
+- **Build once, deploy everywhere** -- The same artifact (Docker image, binary, etc.) should move through all environments. Never rebuild for each environment.
+- **Environment-specific configuration** -- Use environment variables or config files for database URLs, API keys, and feature flags.
+- **Promotion gates** -- Require passing tests, security scans, or manual approvals before promotion.
+
+## Rollback Strategies
+
+Even with thorough testing, production deployments can fail. Safe rollback strategies minimize the impact of bad deployments:
+
+### Blue-Green Deployment
+
+```
+                    Load Balancer
+                         │
+              ┌──────────┴──────────┐
+              │                     │
+        ┌─────────┐          ┌─────────┐
+        │  Blue   │          │  Green  │
+        │ (v1.0)  │          │ (v1.1)  │
+        │ ACTIVE  │          │  IDLE   │
+        └─────────┘          └─────────┘
+
+  Deploy v1.1 to Green → Test Green → Switch traffic to Green
+  If problems → Switch back to Blue instantly
+```
+
+- Two identical production environments: one active (Blue), one idle (Green).
+- Deploy to the idle environment, verify, then switch traffic.
+- Instant rollback by switching traffic back to the previous environment.
+
+### Canary Deployment
+
+```
+                    Load Balancer
+                    │         │
+              ┌─────┘         └─────┐
+              │  95%            5%  │
+        ┌─────────┐          ┌─────────┐
+        │ Stable  │          │ Canary  │
+        │ (v1.0)  │          │ (v1.1)  │
+        └─────────┘          └─────────┘
+
+  Gradually increase canary traffic: 5% → 25% → 50% → 100%
+  Monitor error rates and latency at each step
+  If problems → Route all traffic back to stable
+```
+
+- Route a small percentage of traffic to the new version.
+- Monitor error rates, latency, and business metrics.
+- Gradually increase traffic if metrics look healthy; roll back if not.
+
+### Rolling Deployment
+
+```
+  Start:    [v1.0] [v1.0] [v1.0] [v1.0]
+  Step 1:   [v1.1] [v1.0] [v1.0] [v1.0]
+  Step 2:   [v1.1] [v1.1] [v1.0] [v1.0]
+  Step 3:   [v1.1] [v1.1] [v1.1] [v1.0]
+  Step 4:   [v1.1] [v1.1] [v1.1] [v1.1]
+```
+
+- Replace instances one at a time (or in batches).
+- No extra infrastructure needed, but rollback is slower.
+- During the rollout, both versions run simultaneously -- ensure backward compatibility.
+
+## Feature Flags
+
+Feature flags (or feature toggles) decouple deployment from release. You can deploy code to production but keep new features hidden behind a flag, enabling them selectively:
+
+```javascript
+// Feature flag example
+if (featureFlags.isEnabled('new-checkout-flow', { userId: user.id })) {
+  return <NewCheckoutFlow />;
+} else {
+  return <LegacyCheckoutFlow />;
+}
+```
+
+Feature flags enable:
+
+- **Gradual rollouts** -- Enable a feature for 1%, then 10%, then 50%, then 100% of users.
+- **A/B testing** -- Show different experiences to different user groups.
+- **Kill switches** -- Instantly disable a problematic feature without deploying.
+- **Trunk-based development** -- Merge incomplete features behind flags without affecting users.
+
+Popular feature flag tools include LaunchDarkly, Unleash, Flagsmith, and Split.io.
+
+## Secrets Management in CI/CD
+
+CI/CD pipelines often need access to sensitive data -- API keys, database passwords, deployment credentials. Never hardcode secrets in your code or pipeline configuration.
+
+### Best Practices
+
+- **Use your CI platform's secrets store** -- GitHub Actions Secrets, GitLab CI Variables (masked/protected), Jenkins Credentials.
+- **Rotate secrets regularly** -- Automate rotation where possible.
+- **Limit scope** -- Give pipelines only the secrets they need for their specific stage.
+- **Audit access** -- Log who accessed or modified secrets and when.
+- **Use short-lived credentials** -- Prefer OIDC tokens or temporary credentials over long-lived API keys.
+
+### Example: Using Secrets in GitHub Actions
+
+```yaml
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write  # Required for OIDC
+    steps:
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::123456789012:role/deploy-role
+          aws-region: us-east-1
+
+      # Secrets are injected as environment variables
+      - name: Deploy
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          API_KEY: ${{ secrets.API_KEY }}
+        run: ./scripts/deploy.sh
+```
+
+:::caution[Never echo secrets]
+Avoid printing secret values in pipeline logs. Most CI platforms automatically mask known secrets, but be careful with commands that might inadvertently expose them (such as `env` or `printenv`).
+:::
+
+## CI/CD Anti-Patterns to Avoid
+
+| Anti-Pattern | Why It Hurts | Better Approach |
+|---|---|---|
+| Long-running builds (30+ min) | Slows feedback, discourages frequent commits | Parallelize tests, use caching, split pipelines |
+| No automated tests | CI without tests is just continuous building | Build comprehensive test suites progressively |
+| Manual deployment steps | Error-prone, unrepeatable, knowledge silos | Automate every step, document what remains manual |
+| Snowflake environments | "Works on my machine" problems | Use containers and IaC for consistent environments |
+| Ignoring flaky tests | Erodes trust in the pipeline | Fix or quarantine flaky tests immediately |
+| Deploying on Fridays | Reduced staffing for incident response | Deploy during business hours, or be confident enough to deploy anytime |
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="Containers & Docker"
+    description="Learn how to package applications in containers for consistent, repeatable deployments."
+    href="/software-engineering/devops/containers-docker/"
+  />
+  <LinkCard
+    title="Kubernetes Fundamentals"
+    description="Orchestrate containerized applications at scale with Kubernetes."
+    href="/software-engineering/devops/kubernetes/"
+  />
+  <LinkCard
+    title="Monitoring, Observability & IaC"
+    description="Monitor application health and manage infrastructure as code."
+    href="/software-engineering/devops/monitoring-iac/"
+  />
+  <LinkCard
+    title="DevOps Overview"
+    description="Return to the DevOps overview for the big picture."
+    href="/software-engineering/devops/"
+  />
+</CardGrid>

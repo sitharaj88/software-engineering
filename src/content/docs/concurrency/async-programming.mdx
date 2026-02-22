@@ -1,0 +1,971 @@
+---
+title: "Async Programming"
+description: "Learn event loops, async/await patterns, and non-blocking I/O across programming languages"
+difficulty: "intermediate"
+prerequisites: ["Threads & Synchronization"]
+timeToRead: "20 min"
+topics: ["async-await", "event-loop", "promises", "futures", "coroutines", "non-blocking"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+Asynchronous programming is a concurrency model built around the idea that tasks should not block while waiting for I/O operations to complete. Instead of tying up a thread while a network request or file read is in progress, async programs register a callback or suspend execution, freeing the runtime to do other useful work in the meantime.
+
+## Blocking vs Non-Blocking I/O
+
+The fundamental difference lies in what happens when your program makes an I/O request (reading a file, querying a database, fetching a URL).
+
+### Blocking I/O
+
+The calling thread **halts** until the operation finishes. During that wait, the thread cannot do anything else.
+
+```
+Thread 1:  [── Work ──][──── Waiting for DB ────][── Process Result ──]
+Thread 2:  [── Work ──][──── Waiting for API ───][── Process Result ──]
+Thread 3:  [── Work ──][──── Waiting for File ──][── Process Result ──]
+
+Each thread is idle while waiting. To handle 1000 concurrent requests,
+you need approximately 1000 threads -- expensive and unscalable.
+```
+
+### Non-Blocking I/O
+
+The calling thread **initiates** the operation and **moves on** to other work. When the result is ready, the program is notified.
+
+```
+Thread 1:  [─ Work ─][Start DB][─ Other Work ─][DB Ready → Process]
+           [Start API][─ Other Work ─][API Ready → Process]
+           [Start File][─ Other Work ─][File Ready → Process]
+
+One thread handles many concurrent I/O operations by interleaving work.
+A single thread can handle thousands of connections.
+```
+
+:::tip[When to Use Each]
+- **Blocking I/O with threads**: CPU-bound tasks that genuinely need parallel computation (image processing, simulations, data crunching).
+- **Non-blocking async I/O**: I/O-bound tasks with many concurrent operations (web servers, API clients, chat applications, microservice communication).
+:::
+
+## The Event Loop
+
+The event loop is the heart of async programming. It is a single-threaded loop that continuously checks for completed I/O operations and runs their associated callbacks.
+
+```
+┌─────────────────────────────────────────────┐
+│                 EVENT LOOP                   │
+│                                             │
+│  ┌─────────┐    ┌──────────────────────┐    │
+│  │  Timer  │    │   Pending Callbacks   │    │
+│  │  Phase  │───►│   (I/O callbacks,     │    │
+│  └─────────┘    │    setTimeout, etc.)  │    │
+│       ▲         └──────────┬───────────┘    │
+│       │                    │                │
+│       │                    ▼                │
+│  ┌────┴────┐    ┌──────────────────────┐    │
+│  │  Close  │    │    Poll Phase         │    │
+│  │Callbacks│◄───│  (Retrieve new I/O    │    │
+│  └─────────┘    │   events, execute     │    │
+│       ▲         │   I/O callbacks)      │    │
+│       │         └──────────┬───────────┘    │
+│       │                    │                │
+│       │                    ▼                │
+│  ┌────┴────┐    ┌──────────────────────┐    │
+│  │  Check  │◄───│  setImmediate        │    │
+│  │  Phase  │    │  callbacks           │    │
+│  └─────────┘    └──────────────────────┘    │
+│                                             │
+│  The loop repeats until there are no more   │
+│  callbacks or events to process.            │
+└─────────────────────────────────────────────┘
+```
+
+### How It Works
+
+1. The event loop starts and processes any immediately runnable tasks
+2. It checks for completed I/O operations and schedules their callbacks
+3. It runs the queued callbacks one at a time (single-threaded)
+4. It checks for timers that have expired and runs their callbacks
+5. If there is nothing left to do, it waits for new I/O events
+6. Steps 2--5 repeat until the program exits
+
+Because the event loop is single-threaded, a long-running computation in a callback will **block the entire loop**. This is why CPU-intensive work should be offloaded to worker threads or processes, not run inside the event loop.
+
+## The Evolution of Async Patterns
+
+Async programming has evolved through several patterns, each improving on the last.
+
+### 1. Callbacks
+
+The earliest async pattern: pass a function to be called when the operation completes.
+
+<Tabs>
+  <TabItem label="JavaScript">
+```javascript
+const fs = require('fs');
+
+// Simple callback
+fs.readFile('data.txt', 'utf8', (err, data) => {
+  if (err) {
+    console.error('Error reading file:', err);
+    return;
+  }
+  console.log('File contents:', data);
+});
+
+console.log('This runs immediately -- readFile is non-blocking');
+```
+  </TabItem>
+  <TabItem label="Python">
+```python
+import asyncio
+
+# In Python, pure callback style is uncommon,
+# but the low-level asyncio API supports it.
+
+def on_complete(future):
+    print(f"Result: {future.result()}")
+
+async def fetch_data():
+    await asyncio.sleep(1)
+    return "data from server"
+
+loop = asyncio.get_event_loop()
+task = loop.create_task(fetch_data())
+task.add_done_callback(on_complete)
+loop.run_until_complete(task)
+```
+  </TabItem>
+</Tabs>
+
+### Callback Hell
+
+Callbacks become unmanageable when operations depend on each other. Each async step nests inside the previous callback, creating a "pyramid of doom."
+
+```javascript
+// Callback hell -- deeply nested, hard to read and maintain
+getUser(userId, (err, user) => {
+  if (err) return handleError(err);
+  getOrders(user.id, (err, orders) => {
+    if (err) return handleError(err);
+    getOrderDetails(orders[0].id, (err, details) => {
+      if (err) return handleError(err);
+      getShippingStatus(details.trackingId, (err, status) => {
+        if (err) return handleError(err);
+        console.log('Shipping status:', status);
+        // Imagine this going even deeper...
+      });
+    });
+  });
+});
+```
+
+This pattern is brittle, hard to debug, and nearly impossible to handle errors correctly across all branches. Promises were invented to solve this problem.
+
+### 2. Promises and Futures
+
+A Promise (JavaScript) or Future (Python, Java, C++) is an object that represents a value that will be available in the future. Instead of nesting callbacks, you chain operations.
+
+<Tabs>
+  <TabItem label="JavaScript">
+```javascript
+// Promises flatten the callback pyramid
+function getUser(userId) {
+  return new Promise((resolve, reject) => {
+    setTimeout(() => resolve({ id: userId, name: 'Alice' }), 100);
+  });
+}
+
+function getOrders(userId) {
+  return new Promise((resolve, reject) => {
+    setTimeout(() => resolve([{ id: 1, item: 'Laptop' }]), 100);
+  });
+}
+
+function getOrderDetails(orderId) {
+  return new Promise((resolve, reject) => {
+    setTimeout(() => resolve({ orderId, total: 999, trackingId: 'TRK123' }), 100);
+  });
+}
+
+// Chained -- flat and readable
+getUser(42)
+  .then(user => getOrders(user.id))
+  .then(orders => getOrderDetails(orders[0].id))
+  .then(details => console.log('Order details:', details))
+  .catch(err => console.error('Error:', err));  // Single error handler
+
+// Promise.all -- run multiple promises concurrently
+Promise.all([
+  fetch('https://api.example.com/users'),
+  fetch('https://api.example.com/products'),
+  fetch('https://api.example.com/orders'),
+])
+  .then(([users, products, orders]) => {
+    console.log('All data fetched');
+  })
+  .catch(err => console.error('One request failed:', err));
+
+// Promise.race -- resolve as soon as the first one completes
+Promise.race([
+  fetch('https://api1.example.com/data'),
+  fetch('https://api2.example.com/data'),
+])
+  .then(fastest => console.log('Fastest response:', fastest));
+```
+  </TabItem>
+  <TabItem label="Python">
+```python
+import asyncio
+
+# In Python, asyncio.Future is the equivalent of a Promise.
+# Most often, you work with coroutines directly (see async/await below).
+
+async def fetch_user(user_id):
+    await asyncio.sleep(0.1)  # Simulate I/O
+    return {"id": user_id, "name": "Alice"}
+
+async def fetch_orders(user_id):
+    await asyncio.sleep(0.1)
+    return [{"id": 1, "item": "Laptop"}]
+
+async def fetch_order_details(order_id):
+    await asyncio.sleep(0.1)
+    return {"order_id": order_id, "total": 999}
+
+async def main():
+    user = await fetch_user(42)
+    orders = await fetch_orders(user["id"])
+    details = await fetch_order_details(orders[0]["id"])
+    print(f"Order details: {details}")
+
+asyncio.run(main())
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+import java.util.concurrent.CompletableFuture;
+
+public class FutureDemo {
+    static CompletableFuture<String> fetchUser(int userId) {
+        return CompletableFuture.supplyAsync(() -> {
+            sleep(100);
+            return "Alice";
+        });
+    }
+
+    static CompletableFuture<String> fetchOrders(String user) {
+        return CompletableFuture.supplyAsync(() -> {
+            sleep(100);
+            return "Order-1";
+        });
+    }
+
+    static CompletableFuture<String> fetchDetails(String orderId) {
+        return CompletableFuture.supplyAsync(() -> {
+            sleep(100);
+            return "Details for " + orderId;
+        });
+    }
+
+    public static void main(String[] args) {
+        // Chain async operations (like .then in JavaScript)
+        fetchUser(42)
+            .thenCompose(user -> fetchOrders(user))
+            .thenCompose(order -> fetchDetails(order))
+            .thenAccept(details -> System.out.println(details))
+            .exceptionally(err -> {
+                System.err.println("Error: " + err.getMessage());
+                return null;
+            })
+            .join(); // Block main thread until done
+
+        // Run multiple futures concurrently
+        CompletableFuture.allOf(
+            fetchUser(1),
+            fetchUser(2),
+            fetchUser(3)
+        ).thenRun(() -> System.out.println("All users fetched"))
+         .join();
+    }
+
+    private static void sleep(long ms) {
+        try { Thread.sleep(ms); } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+#include <iostream>
+#include <future>
+#include <string>
+#include <chrono>
+#include <thread>
+
+std::string fetch_user(int user_id) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    return "Alice";
+}
+
+std::string fetch_orders(const std::string& user) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    return "Order-1";
+}
+
+int main() {
+    // std::async launches work on another thread and returns a future
+    auto user_future = std::async(std::launch::async, fetch_user, 42);
+
+    // .get() blocks until the result is available
+    std::string user = user_future.get();
+    std::cout << "User: " << user << "\n";
+
+    auto orders_future = std::async(std::launch::async, fetch_orders, user);
+    std::string orders = orders_future.get();
+    std::cout << "Orders: " << orders << "\n";
+
+    // Run multiple futures concurrently
+    auto f1 = std::async(std::launch::async, fetch_user, 1);
+    auto f2 = std::async(std::launch::async, fetch_user, 2);
+    auto f3 = std::async(std::launch::async, fetch_user, 3);
+
+    // Collect results (each .get() blocks only until its result is ready)
+    std::cout << f1.get() << ", " << f2.get() << ", " << f3.get() << "\n";
+
+    return 0;
+}
+```
+  </TabItem>
+</Tabs>
+
+### 3. Async/Await
+
+Async/await is syntactic sugar over Promises/Futures that makes asynchronous code **look and behave like synchronous code**. This is the modern standard across most languages.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+import asyncio
+import aiohttp
+import time
+
+# Define a coroutine with 'async def'
+async def fetch_url(session, url):
+    async with session.get(url) as response:
+        return await response.text()
+
+async def main():
+    urls = [
+        "https://httpbin.org/delay/1",
+        "https://httpbin.org/delay/1",
+        "https://httpbin.org/delay/1",
+    ]
+
+    start = time.time()
+
+    async with aiohttp.ClientSession() as session:
+        # Sequential -- each request waits for the previous
+        for url in urls:
+            result = await fetch_url(session, url)
+            print(f"Fetched {url[:40]}...")
+
+        print(f"Sequential: {time.time() - start:.2f}s")
+
+    start = time.time()
+
+    async with aiohttp.ClientSession() as session:
+        # Concurrent -- all requests run at the same time
+        tasks = [fetch_url(session, url) for url in urls]
+        results = await asyncio.gather(*tasks)
+        for url, result in zip(urls, results):
+            print(f"Fetched {url[:40]}...")
+
+        print(f"Concurrent: {time.time() - start:.2f}s")
+
+# asyncio.gather with error handling
+async def safe_fetch(session, url):
+    try:
+        return await fetch_url(session, url)
+    except Exception as e:
+        return f"Error fetching {url}: {e}"
+
+# Run with timeout
+async def fetch_with_timeout():
+    try:
+        result = await asyncio.wait_for(
+            asyncio.sleep(10),  # This will timeout
+            timeout=2.0
+        )
+    except asyncio.TimeoutError:
+        print("Operation timed out")
+
+asyncio.run(main())
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// async function always returns a Promise
+async function fetchUser(userId) {
+  const response = await fetch(`https://api.example.com/users/${userId}`);
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return response.json();
+}
+
+async function fetchOrders(userId) {
+  const response = await fetch(`https://api.example.com/orders?user=${userId}`);
+  return response.json();
+}
+
+// Sequential execution
+async function getDataSequential() {
+  const user = await fetchUser(42);        // Wait for this...
+  const orders = await fetchOrders(user.id); // ...then this
+  console.log(user, orders);
+}
+
+// Concurrent execution
+async function getDataConcurrent() {
+  // Both requests start immediately
+  const [users, products, orders] = await Promise.all([
+    fetch('https://api.example.com/users').then(r => r.json()),
+    fetch('https://api.example.com/products').then(r => r.json()),
+    fetch('https://api.example.com/orders').then(r => r.json()),
+  ]);
+  console.log(users, products, orders);
+}
+
+// Error handling with try/catch
+async function safeFetch() {
+  try {
+    const data = await fetchUser(42);
+    return data;
+  } catch (error) {
+    console.error('Failed to fetch user:', error.message);
+    return null;
+  }
+}
+
+// Async iteration
+async function* generatePages(baseUrl) {
+  let page = 1;
+  while (true) {
+    const response = await fetch(`${baseUrl}?page=${page}`);
+    const data = await response.json();
+    if (data.items.length === 0) return;
+    yield data.items;
+    page++;
+  }
+}
+
+async function processAllPages() {
+  for await (const items of generatePages('https://api.example.com/data')) {
+    console.log(`Processing ${items.length} items`);
+  }
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+import java.util.concurrent.*;
+
+public class AsyncAwaitDemo {
+    // Java 21+ Virtual Threads (Project Loom) -- lightweight threads
+    // that make blocking code as efficient as async code
+    public static void main(String[] args) throws Exception {
+
+        // Virtual threads -- create millions without overhead
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            // Each virtual thread is lightweight (~1KB vs ~1MB for platform threads)
+            var futures = new java.util.ArrayList<Future<String>>();
+
+            for (int i = 0; i < 10000; i++) {
+                final int id = i;
+                futures.add(executor.submit(() -> {
+                    // Blocking call -- but virtual thread yields to carrier thread
+                    Thread.sleep(1000);
+                    return "Result from task " + id;
+                }));
+            }
+
+            // Collect results
+            for (var future : futures) {
+                System.out.println(future.get());
+            }
+        }
+
+        // CompletableFuture -- the async/await equivalent before Loom
+        CompletableFuture<String> pipeline =
+            CompletableFuture.supplyAsync(() -> fetchUser(42))
+                .thenApplyAsync(user -> fetchOrders(user))
+                .thenApplyAsync(orders -> processOrders(orders));
+
+        System.out.println(pipeline.get());
+
+        // Structured concurrency (Java 21+ preview)
+        // Ensures all child tasks complete before the parent continues
+        /*
+        try (var scope = new StructuredTaskScope.ShutdownOnFailure()) {
+            Future<String> user = scope.fork(() -> fetchUser(42));
+            Future<String> orders = scope.fork(() -> fetchOrders("Alice"));
+
+            scope.join();           // Wait for all tasks
+            scope.throwIfFailed();  // Propagate errors
+
+            System.out.println(user.resultNow() + " " + orders.resultNow());
+        }
+        */
+    }
+
+    static String fetchUser(int id) {
+        sleep(100);
+        return "Alice";
+    }
+
+    static String fetchOrders(String user) {
+        sleep(100);
+        return "Orders for " + user;
+    }
+
+    static String processOrders(String orders) {
+        return "Processed: " + orders;
+    }
+
+    static void sleep(long ms) {
+        try { Thread.sleep(ms); } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+#include <iostream>
+#include <future>
+#include <string>
+#include <chrono>
+#include <thread>
+#include <vector>
+
+// C++20 Coroutines provide co_await, co_yield, and co_return.
+// A simplified conceptual example (actual implementation requires
+// custom promise_type and awaitable types):
+
+// Using std::async as the practical pre-coroutine approach
+std::string fetch_data(const std::string& endpoint) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    return "Data from " + endpoint;
+}
+
+int main() {
+    // Launch multiple async tasks concurrently
+    auto f1 = std::async(std::launch::async, fetch_data, "/users");
+    auto f2 = std::async(std::launch::async, fetch_data, "/products");
+    auto f3 = std::async(std::launch::async, fetch_data, "/orders");
+
+    // All three requests are running concurrently
+    // .get() blocks until the specific future is ready
+    std::cout << f1.get() << "\n";
+    std::cout << f2.get() << "\n";
+    std::cout << f3.get() << "\n";
+
+    // C++20 Coroutines (conceptual -- requires coroutine library)
+    // A coroutine suspends at co_await points and resumes later.
+    //
+    // Task<std::string> fetch_user() {
+    //     auto response = co_await async_http_get("/users/42");
+    //     auto body = co_await response.read_body();
+    //     co_return parse_user(body);
+    // }
+    //
+    // Task<void> main_async() {
+    //     auto user = co_await fetch_user();
+    //     auto orders = co_await fetch_orders(user.id);
+    //     std::cout << "User: " << user.name << "\n";
+    //     std::cout << "Orders: " << orders.size() << "\n";
+    // }
+
+    return 0;
+}
+```
+  </TabItem>
+</Tabs>
+
+## Coroutines
+
+Coroutines are functions that can be **suspended and resumed**. Unlike regular functions that run from start to finish, a coroutine can pause at specific points (e.g., `await`, `yield`) and give control back to the caller or event loop. When the awaited operation completes, the coroutine resumes from where it left off.
+
+```
+Regular Function:           Coroutine:
+
+  start ──► run ──► end      start ──► run ──► suspend
+                                                  │
+                              (event loop does     │
+                               other work)         │
+                                                  │
+                              resume ◄─────────────┘
+                                │
+                              run ──► suspend
+                                        │
+                              resume ◄──┘
+                                │
+                              run ──► end
+```
+
+### Cooperative vs Preemptive Scheduling
+
+| Aspect | Cooperative (Coroutines) | Preemptive (OS Threads) |
+|--------|--------------------------|------------------------|
+| **Who decides when to switch?** | The task yields control explicitly (`await`, `yield`) | The OS scheduler forces context switches at any time |
+| **Overhead** | Very low (no kernel involvement) | Higher (kernel context switch, register save/restore) |
+| **Determinism** | High -- you control when switches happen | Low -- the OS can switch at any instruction |
+| **Risk** | A misbehaving coroutine can block the loop | The OS ensures fairness even with misbehaving threads |
+| **Concurrency bugs** | Fewer race conditions (single-threaded) | Many possible race conditions |
+| **Best for** | I/O-bound workloads | CPU-bound and mixed workloads |
+
+:::note[Key Insight]
+Because coroutines in Python and JavaScript run on a single thread with cooperative scheduling, you know that your code will not be interrupted *between* `await` points. This makes reasoning about shared state much easier than with threads. However, you still need to be careful about state changes that happen *across* `await` points.
+:::
+
+## When to Use Async vs Threads
+
+Choosing between async programming and threading depends on the nature of your workload.
+
+### Use Async When
+
+- Your application is **I/O-bound** (network calls, database queries, file reads)
+- You need to handle **many concurrent connections** (web servers, API gateways)
+- You want to **minimize memory usage** (coroutines use far less memory than threads)
+- You are working in an **ecosystem with good async support** (Node.js, Python asyncio, Rust Tokio)
+
+### Use Threads When
+
+- Your application is **CPU-bound** (image processing, scientific computing, encryption)
+- You need **true parallelism** on multiple cores
+- You are using **libraries that block** and do not have async alternatives
+- Your language's async runtime has **limitations** (Python's GIL limits thread-based parallelism for CPU work, but multiprocessing bypasses it)
+
+### The Hybrid Approach
+
+In practice, many applications combine both:
+
+```
+┌───────────────────────────────────────────────────────┐
+│                  Application                           │
+│                                                       │
+│  ┌─────────────────────────────────────────────────┐  │
+│  │           Async Event Loop (Main)                │  │
+│  │                                                 │  │
+│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐        │  │
+│  │  │ HTTP Req │ │ DB Query │ │ WebSocket│        │  │
+│  │  │ (async)  │ │ (async)  │ │ (async)  │        │  │
+│  │  └──────────┘ └──────────┘ └──────────┘        │  │
+│  │                                                 │  │
+│  │  CPU-heavy tasks offloaded to thread pool:      │  │
+│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐        │  │
+│  │  │  Image   │ │   Data   │ │  Crypto  │        │  │
+│  │  │ Process  │ │  Crunch  │ │  Hash    │        │  │
+│  │  │ (thread) │ │ (thread) │ │ (thread) │        │  │
+│  │  └──────────┘ └──────────┘ └──────────┘        │  │
+│  └─────────────────────────────────────────────────┘  │
+└───────────────────────────────────────────────────────┘
+```
+
+<Tabs>
+  <TabItem label="Python">
+```python
+import asyncio
+import concurrent.futures
+import hashlib
+
+# CPU-bound work -- offload to thread pool
+def cpu_intensive_hash(data):
+    """Simulate CPU-bound work"""
+    for _ in range(1000000):
+        data = hashlib.sha256(data).digest()
+    return data.hex()
+
+async def main():
+    loop = asyncio.get_event_loop()
+
+    # Create a thread pool for CPU-bound work
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+        # Run CPU-bound work in the thread pool,
+        # without blocking the event loop
+        result = await loop.run_in_executor(
+            pool,
+            cpu_intensive_hash,
+            b"hello world"
+        )
+        print(f"Hash result: {result[:20]}...")
+
+        # Meanwhile, async I/O operations still run concurrently
+        # on the event loop
+        await asyncio.sleep(0.1)  # Simulate async I/O
+
+asyncio.run(main())
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+const { Worker } = require('worker_threads');
+
+// Offload CPU-intensive work to a worker thread
+function cpuHeavyTask(data) {
+  return new Promise((resolve, reject) => {
+    const worker = new Worker(`
+      const { parentPort, workerData } = require('worker_threads');
+      const crypto = require('crypto');
+
+      let hash = workerData;
+      for (let i = 0; i < 1000000; i++) {
+        hash = crypto.createHash('sha256').update(hash).digest();
+      }
+      parentPort.postMessage(hash.toString('hex'));
+    `, {
+      eval: true,
+      workerData: data,
+    });
+
+    worker.on('message', resolve);
+    worker.on('error', reject);
+  });
+}
+
+async function main() {
+  // Async I/O and CPU work run concurrently
+  const [hashResult, apiResult] = await Promise.all([
+    cpuHeavyTask(Buffer.from('hello world')),
+    fetch('https://api.example.com/data').then(r => r.json()),
+  ]);
+
+  console.log('Hash:', hashResult.slice(0, 20));
+  console.log('API:', apiResult);
+}
+
+main().catch(console.error);
+```
+  </TabItem>
+</Tabs>
+
+## Common Async Patterns
+
+### Pattern 1: Fan-Out / Fan-In
+
+Launch many concurrent operations and collect all results.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+import asyncio
+
+async def fetch_page(page_num):
+    await asyncio.sleep(0.5)  # Simulate network request
+    return {"page": page_num, "items": [f"item-{page_num}-{i}" for i in range(10)]}
+
+async def fetch_all_pages(total_pages):
+    # Fan-out: launch all requests concurrently
+    tasks = [fetch_page(i) for i in range(1, total_pages + 1)]
+
+    # Fan-in: collect all results
+    results = await asyncio.gather(*tasks)
+    all_items = [item for result in results for item in result["items"]]
+    return all_items
+
+asyncio.run(fetch_all_pages(10))
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+async function fetchPage(pageNum) {
+  const response = await fetch(`/api/data?page=${pageNum}`);
+  return response.json();
+}
+
+async function fetchAllPages(totalPages) {
+  // Fan-out
+  const promises = Array.from(
+    { length: totalPages },
+    (_, i) => fetchPage(i + 1)
+  );
+
+  // Fan-in
+  const results = await Promise.all(promises);
+  return results.flatMap(r => r.items);
+}
+```
+  </TabItem>
+</Tabs>
+
+### Pattern 2: Rate-Limited Concurrency
+
+Limit how many async operations run concurrently to avoid overwhelming a server or exceeding API rate limits.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+import asyncio
+
+async def fetch_with_limit(url, semaphore):
+    async with semaphore:
+        print(f"Fetching: {url}")
+        await asyncio.sleep(1)  # Simulate request
+        return f"Result from {url}"
+
+async def main():
+    # Allow at most 5 concurrent requests
+    semaphore = asyncio.Semaphore(5)
+
+    urls = [f"https://api.example.com/item/{i}" for i in range(20)]
+    tasks = [fetch_with_limit(url, semaphore) for url in urls]
+    results = await asyncio.gather(*tasks)
+    print(f"Fetched {len(results)} items")
+
+asyncio.run(main())
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+async function fetchWithLimit(urls, maxConcurrent) {
+  const results = [];
+  const executing = new Set();
+
+  for (const url of urls) {
+    const promise = fetch(url)
+      .then(r => r.json())
+      .then(data => {
+        executing.delete(promise);
+        return data;
+      });
+
+    executing.add(promise);
+    results.push(promise);
+
+    // When we reach the concurrency limit, wait for one to complete
+    if (executing.size >= maxConcurrent) {
+      await Promise.race(executing);
+    }
+  }
+
+  return Promise.all(results);
+}
+
+// Only 5 requests at a time
+const urls = Array.from({ length: 20 }, (_, i) => `/api/item/${i}`);
+fetchWithLimit(urls, 5).then(results => {
+  console.log(`Fetched ${results.length} items`);
+});
+```
+  </TabItem>
+</Tabs>
+
+### Pattern 3: Timeout and Cancellation
+
+Set deadlines on async operations so they do not hang indefinitely.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+import asyncio
+
+async def slow_operation():
+    await asyncio.sleep(10)
+    return "completed"
+
+async def main():
+    # Timeout after 2 seconds
+    try:
+        result = await asyncio.wait_for(slow_operation(), timeout=2.0)
+        print(result)
+    except asyncio.TimeoutError:
+        print("Operation timed out!")
+
+    # Cancellation
+    task = asyncio.create_task(slow_operation())
+    await asyncio.sleep(1)
+    task.cancel()
+
+    try:
+        await task
+    except asyncio.CancelledError:
+        print("Task was cancelled")
+
+asyncio.run(main())
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// Timeout with AbortController
+async function fetchWithTimeout(url, timeoutMs) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    return await response.json();
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      throw new Error(`Request timed out after ${timeoutMs}ms`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+// Usage
+try {
+  const data = await fetchWithTimeout('https://api.example.com/data', 5000);
+  console.log(data);
+} catch (error) {
+  console.error(error.message);
+}
+```
+  </TabItem>
+</Tabs>
+
+## Comparison Table: Async Across Languages
+
+| Feature | Python | JavaScript | Java | C++ |
+|---------|--------|------------|------|-----|
+| **Async keyword** | `async def` | `async function` | `CompletableFuture` / virtual threads | `co_await` (C++20) |
+| **Await keyword** | `await` | `await` | `.thenCompose()` / `.get()` | `co_await` |
+| **Event loop** | `asyncio` | Built-in (libuv in Node.js) | Netty, Vert.x (external) | Boost.Asio (external) |
+| **Concurrency primitive** | `asyncio.gather()` | `Promise.all()` | `CompletableFuture.allOf()` | `std::async` |
+| **Cancellation** | `task.cancel()` | `AbortController` | `future.cancel()` | Cooperative (no built-in) |
+| **Timeout** | `asyncio.wait_for()` | `AbortController` + `setTimeout` | `.orTimeout()` | Custom with `std::future` |
+| **Ecosystem** | aiohttp, FastAPI | Express, Fastify | Spring WebFlux, Quarkus | Boost.Asio, cppcoro |
+
+## Common Mistakes
+
+1. **Forgetting to `await`** -- The function returns a coroutine/promise object instead of the result. In Python, this produces a warning; in JavaScript, you silently get a Promise instead of the value.
+
+2. **Blocking the event loop** -- Calling `time.sleep()` instead of `await asyncio.sleep()`, or running CPU-heavy code directly in an async function. This freezes all concurrent operations.
+
+3. **Creating tasks without awaiting them** -- "Fire and forget" tasks whose exceptions go unhandled. Always gather or await your tasks.
+
+4. **Sequential awaits when concurrent is possible** -- Writing `a = await x; b = await y` when `x` and `y` are independent. Use `gather` or `Promise.all` instead.
+
+5. **Mixing sync and async incorrectly** -- Calling async functions from synchronous code (or vice versa) without proper bridging.
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="Race Conditions & Common Pitfalls"
+    href="/software-engineering/concurrency/race-conditions/"
+    description="Learn to identify and prevent race conditions, deadlocks, and other concurrency bugs"
+  />
+  <LinkCard
+    title="Threads & Synchronization"
+    href="/software-engineering/concurrency/threads-synchronization/"
+    description="Revisit thread-based concurrency and synchronization primitives"
+  />
+  <LinkCard
+    title="Concurrency & Parallelism Overview"
+    href="/software-engineering/concurrency/"
+    description="Return to the section overview for key concepts and concurrency models"
+  />
+</CardGrid>

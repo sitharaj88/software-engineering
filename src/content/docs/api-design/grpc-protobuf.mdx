@@ -1,0 +1,975 @@
+---
+title: "gRPC & Protocol Buffers"
+description: "Build high-performance APIs using gRPC and Protocol Buffers for inter-service communication"
+difficulty: "advanced"
+prerequisites: ["RESTful API Design"]
+timeToRead: "18 min"
+topics: ["grpc", "protobuf", "rpc", "streaming", "service-definition"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+## What is RPC?
+
+**Remote Procedure Call (RPC)** is a communication paradigm where a client invokes a function on a remote server as if it were a local function call. Unlike REST, which is resource-oriented (nouns and HTTP methods), RPC is **action-oriented** -- you call specific procedures with defined inputs and outputs.
+
+```
+// REST: resource-oriented
+GET /users/42/orders?status=pending
+
+// RPC: action-oriented
+GetPendingOrders(user_id=42)
+```
+
+While the concept of RPC dates back to the 1980s, modern frameworks like gRPC have made it practical, performant, and polyglot.
+
+---
+
+## Why gRPC?
+
+**gRPC** (gRPC Remote Procedure Calls) is a high-performance, open-source RPC framework originally developed by Google. It is now a Cloud Native Computing Foundation (CNCF) incubating project used at scale by companies like Google, Netflix, Dropbox, and Square.
+
+### Key Advantages
+
+- **HTTP/2 Transport** -- Multiplexed streams, header compression, and bidirectional communication over a single TCP connection
+- **Protocol Buffers** -- Efficient binary serialization that is 3-10x smaller and 20-100x faster than JSON
+- **Code Generation** -- Generate client and server code in 12+ languages from a single `.proto` file
+- **Streaming** -- Native support for server streaming, client streaming, and bidirectional streaming
+- **Deadlines and Cancellation** -- Built-in support for timeouts and request cancellation
+- **Interceptors** -- Middleware for authentication, logging, and monitoring
+
+### When to Use gRPC
+
+- **Microservice-to-microservice communication** where performance matters
+- **Polyglot environments** where services are written in different languages
+- **Real-time streaming** scenarios (live data feeds, chat, telemetry)
+- **Low-latency, high-throughput** internal APIs
+- **Mobile clients** on constrained networks (smaller payloads)
+
+### When NOT to Use gRPC
+
+- **Browser clients** (gRPC-Web exists but adds complexity)
+- **Public APIs** where developer experience and simplicity matter
+- **Simple CRUD** applications where REST is sufficient
+- **Teams unfamiliar** with Protocol Buffers and code generation workflows
+
+---
+
+## Protocol Buffers
+
+**Protocol Buffers (protobuf)** is Google's language-neutral, platform-neutral, extensible mechanism for serializing structured data. It serves as both the **Interface Definition Language (IDL)** and the **serialization format** for gRPC.
+
+### Message Definition
+
+Messages are the primary data structures in protobuf.
+
+```protobuf
+// blog.proto
+syntax = "proto3";
+
+package blog.v1;
+
+option java_package = "com.example.blog.v1";
+option go_package = "github.com/example/blog/v1";
+
+message Post {
+  string id = 1;
+  string title = 2;
+  string content = 3;
+  PostStatus status = 4;
+  string author_id = 5;
+  repeated string tags = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+}
+
+message User {
+  string id = 1;
+  string name = 2;
+  string email = 3;
+  string avatar_url = 4;
+}
+
+message Comment {
+  string id = 1;
+  string body = 2;
+  string author_id = 3;
+  string post_id = 4;
+  google.protobuf.Timestamp created_at = 5;
+}
+```
+
+### Field Numbers
+
+Each field has a **unique number** that identifies it in the binary encoding. These numbers must never change once your message is in use.
+
+- Fields **1-15** use 1 byte for the tag (use for frequently-set fields)
+- Fields **16-2047** use 2 bytes
+- Never reuse a field number after deleting a field (use `reserved` instead)
+
+```protobuf
+message Post {
+  reserved 6, 9;                  // Reserved field numbers
+  reserved "category", "slug";    // Reserved field names
+
+  string id = 1;
+  string title = 2;
+  // Field 6 was "category", now removed
+}
+```
+
+### Scalar Types
+
+| Protobuf Type | Python Type | Java Type | Go Type | Description |
+|---|---|---|---|---|
+| `double` | `float` | `double` | `float64` | 64-bit floating point |
+| `float` | `float` | `float` | `float32` | 32-bit floating point |
+| `int32` | `int` | `int` | `int32` | Variable-length signed |
+| `int64` | `int` | `long` | `int64` | Variable-length signed |
+| `uint32` | `int` | `int` | `uint32` | Variable-length unsigned |
+| `uint64` | `int` | `long` | `uint64` | Variable-length unsigned |
+| `bool` | `bool` | `boolean` | `bool` | Boolean |
+| `string` | `str` | `String` | `string` | UTF-8 or ASCII |
+| `bytes` | `bytes` | `ByteString` | `[]byte` | Arbitrary byte data |
+
+### Enum Types
+
+```protobuf
+enum PostStatus {
+  POST_STATUS_UNSPECIFIED = 0;  // Always have a zero value
+  POST_STATUS_DRAFT = 1;
+  POST_STATUS_PUBLISHED = 2;
+  POST_STATUS_ARCHIVED = 3;
+}
+```
+
+The zero value should always be an `UNSPECIFIED` or `UNKNOWN` sentinel value so that default (unset) fields are distinguishable from intentionally set fields.
+
+### Nested Messages
+
+```protobuf
+message PostResponse {
+  Post post = 1;
+  AuthorInfo author = 2;
+
+  message AuthorInfo {
+    string name = 1;
+    string avatar_url = 2;
+    int32 post_count = 3;
+  }
+}
+```
+
+### Oneof
+
+Use `oneof` when only one of several fields should be set at a time.
+
+```protobuf
+message NotificationTarget {
+  string message = 1;
+
+  oneof target {
+    string email = 2;
+    string phone_number = 3;
+    string push_token = 4;
+  }
+}
+```
+
+### Maps
+
+```protobuf
+message PostMetadata {
+  string id = 1;
+  map<string, string> labels = 2;      // e.g., {"language": "en", "region": "us"}
+  map<string, int32> view_counts = 3;  // e.g., {"2025-06-01": 142, "2025-06-02": 87}
+}
+```
+
+---
+
+## Service Definitions
+
+gRPC services are defined in `.proto` files alongside message types.
+
+```protobuf
+// blog_service.proto
+syntax = "proto3";
+
+package blog.v1;
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+service BlogService {
+  // Unary RPC
+  rpc GetPost(GetPostRequest) returns (GetPostResponse);
+  rpc CreatePost(CreatePostRequest) returns (CreatePostResponse);
+  rpc UpdatePost(UpdatePostRequest) returns (UpdatePostResponse);
+  rpc DeletePost(DeletePostRequest) returns (google.protobuf.Empty);
+
+  // Server streaming RPC
+  rpc ListPosts(ListPostsRequest) returns (stream Post);
+
+  // Client streaming RPC
+  rpc BatchCreatePosts(stream CreatePostRequest) returns (BatchCreatePostsResponse);
+
+  // Bidirectional streaming RPC
+  rpc Chat(stream ChatMessage) returns (stream ChatMessage);
+}
+
+message GetPostRequest {
+  string id = 1;
+}
+
+message GetPostResponse {
+  Post post = 1;
+}
+
+message CreatePostRequest {
+  string title = 1;
+  string content = 2;
+  repeated string tags = 3;
+}
+
+message CreatePostResponse {
+  Post post = 1;
+}
+
+message UpdatePostRequest {
+  string id = 1;
+  string title = 2;
+  string content = 3;
+  repeated string tags = 4;
+  PostStatus status = 5;
+}
+
+message UpdatePostResponse {
+  Post post = 1;
+}
+
+message DeletePostRequest {
+  string id = 1;
+}
+
+message ListPostsRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+  PostStatus status_filter = 3;
+}
+
+message BatchCreatePostsResponse {
+  int32 created_count = 1;
+  repeated string post_ids = 2;
+}
+
+message ChatMessage {
+  string user_id = 1;
+  string content = 2;
+  google.protobuf.Timestamp timestamp = 3;
+}
+```
+
+---
+
+## Four Types of RPC
+
+gRPC supports four communication patterns.
+
+### 1. Unary RPC
+
+The simplest pattern: client sends one request, server sends one response. Similar to a traditional function call.
+
+```protobuf
+rpc GetPost(GetPostRequest) returns (GetPostResponse);
+```
+
+```
+Client ──request──> Server
+Client <──response── Server
+```
+
+### 2. Server Streaming RPC
+
+Client sends one request, server sends a stream of responses. Useful for large datasets, real-time feeds, or long-running queries.
+
+```protobuf
+rpc ListPosts(ListPostsRequest) returns (stream Post);
+```
+
+```
+Client ──request──> Server
+Client <──response── Server
+Client <──response── Server
+Client <──response── Server
+Client <──(done)──── Server
+```
+
+### 3. Client Streaming RPC
+
+Client sends a stream of requests, server sends one response after the client is done. Useful for batch uploads or aggregation.
+
+```protobuf
+rpc BatchCreatePosts(stream CreatePostRequest) returns (BatchCreatePostsResponse);
+```
+
+```
+Client ──request──> Server
+Client ──request──> Server
+Client ──request──> Server
+Client ──(done)───> Server
+Client <──response── Server
+```
+
+### 4. Bidirectional Streaming RPC
+
+Both client and server send streams of messages independently. The two streams operate independently, so client and server can read and write in any order.
+
+```protobuf
+rpc Chat(stream ChatMessage) returns (stream ChatMessage);
+```
+
+```
+Client ──message──> Server
+Client <──message── Server
+Client ──message──> Server
+Client ──message──> Server
+Client <──message── Server
+Client <──message── Server
+```
+
+---
+
+## Code Generation Workflow
+
+The core workflow for gRPC involves defining `.proto` files and generating code.
+
+```
+                    ┌─────────────┐
+                    │  .proto     │
+                    │  files      │
+                    └──────┬──────┘
+                           │
+                     protoc compiler
+                    + language plugins
+                           │
+          ┌────────────────┼────────────────┐
+          │                │                │
+    ┌─────▼──────┐  ┌─────▼──────┐  ┌─────▼──────┐
+    │  Python    │  │  Java      │  │  Go        │
+    │  stubs     │  │  stubs     │  │  stubs     │
+    └────────────┘  └────────────┘  └────────────┘
+```
+
+### Generating Code
+
+<Tabs>
+  <TabItem label="Python (grpcio)">
+```bash
+# Install the tools
+pip install grpcio grpcio-tools
+
+# Generate Python code from proto files
+python -m grpc_tools.protoc \
+  --proto_path=./proto \
+  --python_out=./generated \
+  --grpc_python_out=./generated \
+  ./proto/blog_service.proto
+
+# This generates two files:
+#   blog_service_pb2.py       - Message classes
+#   blog_service_pb2_grpc.py  - Client stub and server base classes
+```
+  </TabItem>
+  <TabItem label="Java (grpc-java)">
+```bash
+# In build.gradle (using protobuf-gradle-plugin)
+plugins {
+    id 'com.google.protobuf' version '0.9.4'
+}
+
+dependencies {
+    implementation 'io.grpc:grpc-netty-shaded:1.62.2'
+    implementation 'io.grpc:grpc-protobuf:1.62.2'
+    implementation 'io.grpc:grpc-stub:1.62.2'
+    compileOnly 'org.apache.tomcat:annotations-api:6.0.53'
+}
+
+protobuf {
+    protoc {
+        artifact = 'com.google.protobuf:protoc:3.25.3'
+    }
+    plugins {
+        grpc {
+            artifact = 'io.grpc:protoc-gen-grpc-java:1.62.2'
+        }
+    }
+    generateProtoTasks {
+        all()*.plugins {
+            grpc {}
+        }
+    }
+}
+
+# Run: ./gradlew generateProto
+# Generated classes appear in build/generated/source/proto/
+```
+  </TabItem>
+</Tabs>
+
+### Implementing the Server
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# server.py
+import grpc
+from concurrent import futures
+from generated import blog_service_pb2
+from generated import blog_service_pb2_grpc
+
+
+class BlogServicer(blog_service_pb2_grpc.BlogServiceServicer):
+    """Implementation of the BlogService."""
+
+    def __init__(self):
+        self.posts = {}  # In-memory store for demo
+
+    def GetPost(self, request, context):
+        """Unary RPC: Get a single post by ID."""
+        post = self.posts.get(request.id)
+        if post is None:
+            context.set_code(grpc.StatusCode.NOT_FOUND)
+            context.set_details(f"Post {request.id} not found")
+            return blog_service_pb2.GetPostResponse()
+
+        return blog_service_pb2.GetPostResponse(post=post)
+
+    def CreatePost(self, request, context):
+        """Unary RPC: Create a new post."""
+        import uuid
+
+        post_id = str(uuid.uuid4())
+        post = blog_service_pb2.Post(
+            id=post_id,
+            title=request.title,
+            content=request.content,
+            tags=request.tags,
+            status=blog_service_pb2.POST_STATUS_DRAFT,
+        )
+        self.posts[post_id] = post
+        return blog_service_pb2.CreatePostResponse(post=post)
+
+    def ListPosts(self, request, context):
+        """Server streaming RPC: Stream all posts."""
+        for post in self.posts.values():
+            if (
+                request.status_filter
+                == blog_service_pb2.POST_STATUS_UNSPECIFIED
+                or post.status == request.status_filter
+            ):
+                yield post
+
+    def BatchCreatePosts(self, request_iterator, context):
+        """Client streaming RPC: Batch create posts."""
+        created_ids = []
+        for request in request_iterator:
+            import uuid
+
+            post_id = str(uuid.uuid4())
+            post = blog_service_pb2.Post(
+                id=post_id,
+                title=request.title,
+                content=request.content,
+                tags=request.tags,
+                status=blog_service_pb2.POST_STATUS_DRAFT,
+            )
+            self.posts[post_id] = post
+            created_ids.append(post_id)
+
+        return blog_service_pb2.BatchCreatePostsResponse(
+            created_count=len(created_ids),
+            post_ids=created_ids,
+        )
+
+    def Chat(self, request_iterator, context):
+        """Bidirectional streaming RPC."""
+        for message in request_iterator:
+            # Echo back with a response
+            response = blog_service_pb2.ChatMessage(
+                user_id="bot",
+                content=f"Received: {message.content}",
+            )
+            yield response
+
+
+def serve():
+    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+    blog_service_pb2_grpc.add_BlogServiceServicer_to_server(
+        BlogServicer(), server
+    )
+    server.add_insecure_port("[::]:50051")
+    server.start()
+    print("Server started on port 50051")
+    server.wait_for_termination()
+
+
+if __name__ == "__main__":
+    serve()
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+// BlogServiceImpl.java
+package com.example.blog;
+
+import blog.v1.BlogServiceGrpc;
+import blog.v1.BlogServiceProto.*;
+import io.grpc.Status;
+import io.grpc.stub.StreamObserver;
+
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
+public class BlogServiceImpl extends BlogServiceGrpc.BlogServiceImplBase {
+
+    private final Map<String, Post> posts = new ConcurrentHashMap<>();
+
+    @Override
+    public void getPost(GetPostRequest request,
+                        StreamObserver<GetPostResponse> responseObserver) {
+        // Unary RPC
+        Post post = posts.get(request.getId());
+        if (post == null) {
+            responseObserver.onError(
+                Status.NOT_FOUND
+                    .withDescription("Post " + request.getId() + " not found")
+                    .asRuntimeException()
+            );
+            return;
+        }
+
+        responseObserver.onNext(
+            GetPostResponse.newBuilder().setPost(post).build()
+        );
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void createPost(CreatePostRequest request,
+                           StreamObserver<CreatePostResponse> responseObserver) {
+        // Unary RPC
+        String postId = UUID.randomUUID().toString();
+        Post post = Post.newBuilder()
+            .setId(postId)
+            .setTitle(request.getTitle())
+            .setContent(request.getContent())
+            .addAllTags(request.getTagsList())
+            .setStatus(PostStatus.POST_STATUS_DRAFT)
+            .build();
+
+        posts.put(postId, post);
+
+        responseObserver.onNext(
+            CreatePostResponse.newBuilder().setPost(post).build()
+        );
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void listPosts(ListPostsRequest request,
+                          StreamObserver<Post> responseObserver) {
+        // Server streaming RPC
+        for (Post post : posts.values()) {
+            if (request.getStatusFilter() == PostStatus.POST_STATUS_UNSPECIFIED
+                || post.getStatus() == request.getStatusFilter()) {
+                responseObserver.onNext(post);
+            }
+        }
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public StreamObserver<CreatePostRequest> batchCreatePosts(
+            StreamObserver<BatchCreatePostsResponse> responseObserver) {
+        // Client streaming RPC
+        return new StreamObserver<>() {
+            private final java.util.List<String> createdIds =
+                new java.util.ArrayList<>();
+
+            @Override
+            public void onNext(CreatePostRequest request) {
+                String postId = UUID.randomUUID().toString();
+                Post post = Post.newBuilder()
+                    .setId(postId)
+                    .setTitle(request.getTitle())
+                    .setContent(request.getContent())
+                    .addAllTags(request.getTagsList())
+                    .setStatus(PostStatus.POST_STATUS_DRAFT)
+                    .build();
+                posts.put(postId, post);
+                createdIds.add(postId);
+            }
+
+            @Override
+            public void onError(Throwable t) {
+                System.err.println("BatchCreate error: " + t.getMessage());
+            }
+
+            @Override
+            public void onCompleted() {
+                responseObserver.onNext(
+                    BatchCreatePostsResponse.newBuilder()
+                        .setCreatedCount(createdIds.size())
+                        .addAllPostIds(createdIds)
+                        .build()
+                );
+                responseObserver.onCompleted();
+            }
+        };
+    }
+}
+```
+  </TabItem>
+</Tabs>
+
+### Implementing the Client
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# client.py
+import grpc
+from generated import blog_service_pb2
+from generated import blog_service_pb2_grpc
+
+
+def run():
+    # Create a channel and stub
+    channel = grpc.insecure_channel("localhost:50051")
+    stub = blog_service_pb2_grpc.BlogServiceStub(channel)
+
+    # Unary RPC: Create a post
+    create_response = stub.CreatePost(
+        blog_service_pb2.CreatePostRequest(
+            title="Hello gRPC",
+            content="This is a post created via gRPC.",
+            tags=["grpc", "protobuf"],
+        )
+    )
+    print(f"Created post: {create_response.post.id}")
+
+    # Unary RPC: Get a post
+    get_response = stub.GetPost(
+        blog_service_pb2.GetPostRequest(id=create_response.post.id)
+    )
+    print(f"Got post: {get_response.post.title}")
+
+    # Server streaming RPC: List all posts
+    print("All posts:")
+    for post in stub.ListPosts(blog_service_pb2.ListPostsRequest()):
+        print(f"  - {post.title} ({post.id})")
+
+    # Handle errors
+    try:
+        stub.GetPost(
+            blog_service_pb2.GetPostRequest(id="nonexistent")
+        )
+    except grpc.RpcError as e:
+        print(f"Error: {e.code()} - {e.details()}")
+        # Output: Error: StatusCode.NOT_FOUND - Post nonexistent not found
+
+
+if __name__ == "__main__":
+    run()
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+// BlogClient.java
+package com.example.blog;
+
+import blog.v1.BlogServiceGrpc;
+import blog.v1.BlogServiceProto.*;
+import io.grpc.ManagedChannel;
+import io.grpc.ManagedChannelBuilder;
+import io.grpc.StatusRuntimeException;
+
+import java.util.Iterator;
+
+public class BlogClient {
+
+    public static void main(String[] args) {
+        // Create a channel
+        ManagedChannel channel = ManagedChannelBuilder
+            .forAddress("localhost", 50051)
+            .usePlaintext()
+            .build();
+
+        // Create blocking (synchronous) stub
+        BlogServiceGrpc.BlogServiceBlockingStub stub =
+            BlogServiceGrpc.newBlockingStub(channel);
+
+        // Unary RPC: Create a post
+        CreatePostResponse createResponse = stub.createPost(
+            CreatePostRequest.newBuilder()
+                .setTitle("Hello gRPC")
+                .setContent("This is a post created via gRPC.")
+                .addTags("grpc")
+                .addTags("protobuf")
+                .build()
+        );
+        System.out.println("Created: " + createResponse.getPost().getId());
+
+        // Unary RPC: Get a post
+        GetPostResponse getResponse = stub.getPost(
+            GetPostRequest.newBuilder()
+                .setId(createResponse.getPost().getId())
+                .build()
+        );
+        System.out.println("Got: " + getResponse.getPost().getTitle());
+
+        // Server streaming RPC: List all posts
+        Iterator<Post> posts = stub.listPosts(
+            ListPostsRequest.newBuilder().build()
+        );
+        System.out.println("All posts:");
+        posts.forEachRemaining(post ->
+            System.out.println("  - " + post.getTitle())
+        );
+
+        // Handle errors
+        try {
+            stub.getPost(
+                GetPostRequest.newBuilder()
+                    .setId("nonexistent")
+                    .build()
+            );
+        } catch (StatusRuntimeException e) {
+            System.out.println("Error: " + e.getStatus());
+            // Output: Error: NOT_FOUND: Post nonexistent not found
+        }
+
+        channel.shutdown();
+    }
+}
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## Error Handling (Status Codes)
+
+gRPC uses its own set of status codes, similar in concept to HTTP status codes but specific to RPC semantics.
+
+| gRPC Code | Number | Description | HTTP Equivalent |
+|---|---|---|---|
+| `OK` | 0 | Success | 200 |
+| `CANCELLED` | 1 | Operation was cancelled | 499 |
+| `UNKNOWN` | 2 | Unknown error | 500 |
+| `INVALID_ARGUMENT` | 3 | Client sent invalid argument | 400 |
+| `DEADLINE_EXCEEDED` | 4 | Deadline expired | 504 |
+| `NOT_FOUND` | 5 | Resource not found | 404 |
+| `ALREADY_EXISTS` | 6 | Resource already exists | 409 |
+| `PERMISSION_DENIED` | 7 | Not authorized | 403 |
+| `RESOURCE_EXHAUSTED` | 8 | Rate limit or quota exceeded | 429 |
+| `FAILED_PRECONDITION` | 9 | Operation precondition not met | 400 |
+| `ABORTED` | 10 | Operation was aborted | 409 |
+| `OUT_OF_RANGE` | 11 | Value out of valid range | 400 |
+| `UNIMPLEMENTED` | 12 | Method not implemented | 501 |
+| `INTERNAL` | 13 | Internal server error | 500 |
+| `UNAVAILABLE` | 14 | Service temporarily unavailable | 503 |
+| `UNAUTHENTICATED` | 16 | Not authenticated | 401 |
+
+### Rich Error Details
+
+gRPC supports attaching structured error details using the `google.rpc.Status` message.
+
+```python
+from grpc_status import rpc_status
+from google.protobuf import any_pb2
+from google.rpc import status_pb2, error_details_pb2
+
+# Server: return rich error details
+def CreatePost(self, request, context):
+    if not request.title:
+        detail = any_pb2.Any()
+        detail.Pack(
+            error_details_pb2.BadRequest(
+                field_violations=[
+                    error_details_pb2.BadRequest.FieldViolation(
+                        field="title",
+                        description="Title is required"
+                    )
+                ]
+            )
+        )
+        rich_status = status_pb2.Status(
+            code=grpc.StatusCode.INVALID_ARGUMENT.value[0],
+            message="Validation failed",
+            details=[detail],
+        )
+        context.abort_with_status(rpc_status.to_status(rich_status))
+```
+
+---
+
+## Deadlines and Cancellation
+
+### Deadlines
+
+Every gRPC call should have a **deadline** -- the maximum time a client is willing to wait. If the deadline expires, the call is terminated with `DEADLINE_EXCEEDED`.
+
+```python
+# Python client: set a 5-second deadline
+try:
+    response = stub.GetPost(
+        blog_service_pb2.GetPostRequest(id="42"),
+        timeout=5.0,  # 5 seconds
+    )
+except grpc.RpcError as e:
+    if e.code() == grpc.StatusCode.DEADLINE_EXCEEDED:
+        print("Request timed out!")
+```
+
+```java
+// Java client: set a 5-second deadline
+try {
+    GetPostResponse response = stub
+        .withDeadlineAfter(5, TimeUnit.SECONDS)
+        .getPost(GetPostRequest.newBuilder().setId("42").build());
+} catch (StatusRuntimeException e) {
+    if (e.getStatus().getCode() == Status.Code.DEADLINE_EXCEEDED) {
+        System.out.println("Request timed out!");
+    }
+}
+```
+
+### Cancellation
+
+Clients can cancel in-progress requests. Servers should check for cancellation in long-running operations.
+
+```python
+# Server: check for cancellation in streaming RPCs
+def ListPosts(self, request, context):
+    for post in self.get_all_posts():
+        if context.is_active():  # Check if client is still listening
+            yield post
+        else:
+            return  # Client cancelled, stop processing
+```
+
+---
+
+## Interceptors (Middleware)
+
+Interceptors are the gRPC equivalent of middleware. They allow you to add cross-cutting concerns like logging, authentication, and metrics.
+
+```python
+# Python: Server interceptor for logging
+import grpc
+import time
+
+
+class LoggingInterceptor(grpc.ServerInterceptor):
+    def intercept_service(self, continuation, handler_call_details):
+        method = handler_call_details.method
+        start_time = time.time()
+        print(f"[gRPC] Received call: {method}")
+
+        response = continuation(handler_call_details)
+
+        duration = time.time() - start_time
+        print(f"[gRPC] Completed {method} in {duration:.3f}s")
+        return response
+
+
+# Apply interceptor to server
+server = grpc.server(
+    futures.ThreadPoolExecutor(max_workers=10),
+    interceptors=[LoggingInterceptor()],
+)
+```
+
+```python
+# Python: Client interceptor for authentication
+class AuthInterceptor(grpc.UnaryUnaryClientInterceptor):
+    def __init__(self, token):
+        self.token = token
+
+    def intercept_unary_unary(self, continuation, client_call_details, request):
+        metadata = list(client_call_details.metadata or [])
+        metadata.append(("authorization", f"Bearer {self.token}"))
+
+        new_details = client_call_details._replace(metadata=metadata)
+        return continuation(new_details, request)
+
+
+# Apply interceptor to channel
+channel = grpc.intercept_channel(
+    grpc.insecure_channel("localhost:50051"),
+    AuthInterceptor(token="my-jwt-token"),
+)
+```
+
+---
+
+## Performance Comparison
+
+| Metric | REST + JSON | gRPC + Protobuf |
+|---|---|---|
+| **Payload size** | ~100 bytes (JSON) | ~30 bytes (binary protobuf) |
+| **Serialization speed** | ~1x (baseline) | ~20-100x faster |
+| **Latency** | Higher (HTTP/1.1 overhead) | Lower (HTTP/2, multiplexing) |
+| **Streaming** | SSE or WebSocket (separate) | Native, bidirectional |
+| **Code generation** | Optional (OpenAPI) | Required, strongly typed |
+| **Browser support** | Native | Requires gRPC-Web proxy |
+| **Human readability** | JSON is readable | Binary is not readable |
+| **Debugging** | Easy (curl, browser) | Needs specialized tools (grpcurl, Evans) |
+
+### When Performance Matters
+
+For internal microservice communication with hundreds of calls per second, gRPC's binary serialization and HTTP/2 multiplexing provide measurable improvements. For public APIs with moderate traffic, the developer experience benefits of REST/JSON often outweigh the performance gains of gRPC.
+
+---
+
+## Summary
+
+gRPC and Protocol Buffers provide a powerful, type-safe, and performant foundation for building APIs, particularly in microservice architectures. Key takeaways:
+
+- **Protocol Buffers** define both the schema and serialization format in a single `.proto` file
+- **Code generation** produces strongly typed clients and servers in 12+ languages
+- **Four RPC types** (unary, server streaming, client streaming, bidirectional) cover all communication patterns
+- **gRPC status codes** provide semantic error handling similar to HTTP status codes
+- **Deadlines and cancellation** are first-class features for building resilient systems
+- **Interceptors** enable cross-cutting concerns like auth, logging, and metrics
+- gRPC excels for **internal services** but REST remains the better choice for **public APIs**
+
+---
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="Auth, Versioning & Rate Limiting"
+    description="Secure your APIs with authentication, manage versions, and protect against abuse with rate limiting."
+    href="/software-engineering/api-design/api-auth-versioning/"
+  />
+  <LinkCard
+    title="RESTful API Design"
+    description="Review REST best practices for resource naming, status codes, pagination, and error handling."
+    href="/software-engineering/api-design/rest-apis/"
+  />
+  <LinkCard
+    title="GraphQL"
+    description="Build flexible APIs with client-defined queries, strong type systems, and real-time subscriptions."
+    href="/software-engineering/api-design/graphql/"
+  />
+  <LinkCard
+    title="API Design Overview"
+    description="Return to the API Design overview for a high-level comparison of all API paradigms."
+    href="/software-engineering/api-design/"
+  />
+</CardGrid>

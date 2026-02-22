@@ -1,0 +1,578 @@
+---
+title: "Git Fundamentals"
+description: "Master essential Git commands and workflows for effective version control"
+difficulty: "beginner"
+prerequisites: ["Version Control Overview"]
+timeToRead: "25 min"
+topics: ["git", "commands", "staging", "commits", "branches", "merging"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+import GitGraphVisualizer from '../../../components/interactive/GitGraphVisualizer';
+
+## Git's Mental Model
+
+Before diving into commands, it is essential to understand the three areas where your files live in a Git project. This mental model is the foundation for everything else.
+
+```
+┌──────────────────┐     git add     ┌──────────────────┐    git commit    ┌──────────────────┐
+│                  │ ──────────────► │                  │ ──────────────► │                  │
+│ Working Directory│                 │  Staging Area    │                 │   Repository     │
+│                  │ ◄────────────── │  (Index)         │                 │   (.git)         │
+│                  │  git restore    │                  │                 │                  │
+└──────────────────┘                 └──────────────────┘                 └──────────────────┘
+     Your files                        Files ready for                    Permanent snapshots
+     on disk                           the next commit                    (commit history)
+```
+
+- **Working Directory** -- The actual files on your filesystem. This is where you edit, create, and delete files.
+- **Staging Area (Index)** -- A preparation zone where you assemble changes before committing. You choose exactly which changes go into the next commit.
+- **Repository (.git directory)** -- The database of all commits, branches, and metadata. Once a change is committed here, it is part of the permanent history.
+
+This three-stage architecture gives you fine-grained control. You can modify ten files but commit only three of them, keeping the rest for a separate commit.
+
+### Interactive Git Playground
+
+Practice Git commands interactively. Create branches, make commits, merge, and rebase -- see the commit graph update in real time.
+
+<GitGraphVisualizer client:load />
+
+## Setting Up Git
+
+Before using Git, configure your identity. This information is attached to every commit you make.
+
+```bash
+# Set your name and email (used in commit metadata)
+git config --global user.name "Your Name"
+git config --global user.email "you@example.com"
+
+# Optional: set your preferred text editor
+git config --global core.editor "code --wait"
+
+# Optional: set default branch name to 'main'
+git config --global init.defaultBranch main
+
+# Verify your configuration
+git config --list
+```
+
+## Essential Git Commands
+
+### Initializing and Cloning
+
+<Tabs>
+  <TabItem label="git init">
+    Create a new Git repository in the current directory.
+
+    ```bash
+    # Initialize a new repository
+    mkdir my-project
+    cd my-project
+    git init
+    ```
+
+    This creates a hidden `.git` directory that stores all version control data. Your project files remain untouched.
+  </TabItem>
+  <TabItem label="git clone">
+    Create a local copy of a remote repository, including its full history.
+
+    ```bash
+    # Clone via HTTPS
+    git clone https://github.com/user/repository.git
+
+    # Clone via SSH
+    git clone git@github.com:user/repository.git
+
+    # Clone into a specific directory
+    git clone https://github.com/user/repository.git my-folder
+    ```
+
+    Cloning automatically sets up a remote called `origin` pointing to the source repository.
+  </TabItem>
+</Tabs>
+
+### Inspecting State
+
+<Tabs>
+  <TabItem label="git status">
+    Show the current state of your working directory and staging area.
+
+    ```bash
+    git status
+    ```
+
+    Example output:
+
+    ```
+    On branch main
+    Changes to be committed:
+      (use "git restore --staged <file>..." to unstage)
+            modified:   src/app.js
+
+    Changes not staged for commit:
+      (use "git add <file>..." to update what will be committed)
+            modified:   src/utils.js
+
+    Untracked files:
+      (use "git add <file>..." to include in what will be committed)
+            src/newfile.js
+    ```
+
+    Use `git status -s` for a compact summary.
+  </TabItem>
+  <TabItem label="git log">
+    View the commit history.
+
+    ```bash
+    # Full log with details
+    git log
+
+    # Compact one-line format
+    git log --oneline
+
+    # Graphical branch visualization
+    git log --oneline --graph --all
+
+    # Show last 5 commits
+    git log -5
+
+    # Show commits by a specific author
+    git log --author="Jane"
+
+    # Show commits that changed a specific file
+    git log -- src/app.js
+    ```
+
+    Example of `git log --oneline --graph --all`:
+
+    ```
+    * e4f5g6h (HEAD -> feature) Add search functionality
+    * a1b2c3d Implement user login
+    | * d7e8f9a (main) Fix homepage layout
+    |/
+    * 1a2b3c4 Initial commit
+    ```
+  </TabItem>
+  <TabItem label="git diff">
+    Show differences between various states.
+
+    ```bash
+    # Changes in working directory (unstaged)
+    git diff
+
+    # Changes that are staged for the next commit
+    git diff --staged
+
+    # Differences between two branches
+    git diff main..feature
+
+    # Differences for a specific file
+    git diff src/app.js
+
+    # Summary of changes (files and line counts)
+    git diff --stat
+    ```
+
+    Example output:
+
+    ```diff
+    diff --git a/src/app.js b/src/app.js
+    index 1a2b3c4..d5e6f7g 100644
+    --- a/src/app.js
+    +++ b/src/app.js
+    @@ -10,7 +10,7 @@
+     function greet(name) {
+    -  return "Hello, " + name;
+    +  return `Hello, ${name}!`;
+     }
+    ```
+  </TabItem>
+</Tabs>
+
+### Staging and Committing
+
+<Tabs>
+  <TabItem label="git add">
+    Move changes from the working directory to the staging area.
+
+    ```bash
+    # Stage a specific file
+    git add src/app.js
+
+    # Stage multiple specific files
+    git add src/app.js src/utils.js
+
+    # Stage all changes in a directory
+    git add src/
+
+    # Stage all changes in the entire project
+    git add .
+
+    # Stage parts of a file interactively
+    git add -p src/app.js
+    ```
+
+    The staging area lets you craft commits precisely. Stage only the changes that belong together logically.
+  </TabItem>
+  <TabItem label="git commit">
+    Create a snapshot of all staged changes.
+
+    ```bash
+    # Commit with an inline message
+    git commit -m "Add user authentication feature"
+
+    # Commit with a detailed message (opens editor)
+    git commit
+
+    # Stage all tracked files and commit in one step
+    git commit -am "Fix typo in README"
+    ```
+
+    **Writing Good Commit Messages:**
+
+    ```
+    Short summary (50 chars or less)
+
+    More detailed explanation if needed. Wrap at 72 characters.
+    Explain the *why* behind the change, not just the *what*.
+
+    - Bullet points are fine
+    - Use a hyphen or asterisk for the bullet
+    ```
+  </TabItem>
+</Tabs>
+
+### Branching and Merging
+
+Branches are one of Git's most powerful features. They allow you to diverge from the main line of development and work in isolation.
+
+```
+          ┌─── C4 ─── C5  (feature)
+         /
+C1 ─── C2 ─── C3  (main)
+```
+
+<Tabs>
+  <TabItem label="git branch">
+    Manage branches.
+
+    ```bash
+    # List all local branches
+    git branch
+
+    # List all branches (local and remote)
+    git branch -a
+
+    # Create a new branch
+    git branch feature-login
+
+    # Delete a branch (safe -- only if merged)
+    git branch -d feature-login
+
+    # Rename current branch
+    git branch -m new-name
+    ```
+  </TabItem>
+  <TabItem label="git checkout / switch">
+    Switch between branches or create and switch in one step.
+
+    ```bash
+    # Switch to an existing branch
+    git checkout feature-login
+    # or (modern syntax)
+    git switch feature-login
+
+    # Create a new branch and switch to it
+    git checkout -b feature-login
+    # or (modern syntax)
+    git switch -c feature-login
+    ```
+
+    When you switch branches, Git updates your working directory to match the snapshot of the target branch.
+  </TabItem>
+  <TabItem label="git merge">
+    Combine the history of one branch into another.
+
+    ```bash
+    # First, switch to the branch you want to merge INTO
+    git checkout main
+
+    # Merge the feature branch into main
+    git merge feature-login
+    ```
+
+    **Fast-forward merge** (linear history, no merge commit):
+
+    ```
+    Before:  C1 ─── C2 (main)  ─── C3 ─── C4 (feature)
+    After:   C1 ─── C2 ─── C3 ─── C4 (main, feature)
+    ```
+
+    **Three-way merge** (diverged history, creates merge commit):
+
+    ```
+    Before:          ┌─── C4 ─── C5 (feature)
+                    /
+             C1 ── C2 ─── C3 (main)
+
+    After:           ┌─── C4 ─── C5 (feature)
+                    /               \
+             C1 ── C2 ─── C3 ─── M1 (main)
+    ```
+  </TabItem>
+  <TabItem label="git rebase">
+    Reapply commits on top of another branch, creating a linear history.
+
+    ```bash
+    # While on the feature branch, rebase onto main
+    git checkout feature-login
+    git rebase main
+    ```
+
+    **Before rebase:**
+
+    ```
+              ┌─── C4 ─── C5 (feature)
+             /
+    C1 ─── C2 ─── C3 (main)
+    ```
+
+    **After rebase:**
+
+    ```
+    C1 ─── C2 ─── C3 (main) ─── C4' ─── C5' (feature)
+    ```
+
+    :::caution
+    Never rebase commits that have been pushed to a shared remote branch. Rebasing rewrites history, which can cause serious problems for collaborators.
+    :::
+  </TabItem>
+</Tabs>
+
+### Handling Merge Conflicts
+
+When Git cannot automatically merge changes, it produces a conflict. The conflicted file will contain markers showing both versions:
+
+```
+<<<<<<< HEAD
+function greet(name) {
+  return `Hello, ${name}!`;
+}
+=======
+function greet(name) {
+  return `Hi there, ${name}!`;
+}
+>>>>>>> feature-branch
+```
+
+**Steps to resolve:**
+
+1. Open the conflicted file and decide which changes to keep (or combine both).
+2. Remove the conflict markers (`<<<<<<<`, `=======`, `>>>>>>>`).
+3. Stage the resolved file: `git add src/app.js`
+4. Complete the merge: `git commit`
+
+### Undoing Changes
+
+<Tabs>
+  <TabItem label="git restore">
+    Discard changes in the working directory or unstage files.
+
+    ```bash
+    # Discard changes in a file (revert to last commit)
+    git restore src/app.js
+
+    # Unstage a file (keep changes in working directory)
+    git restore --staged src/app.js
+    ```
+  </TabItem>
+  <TabItem label="git reset">
+    Move the current branch pointer to a different commit.
+
+    ```bash
+    # Soft reset: move HEAD, keep changes staged
+    git reset --soft HEAD~1
+
+    # Mixed reset (default): move HEAD, unstage changes
+    git reset HEAD~1
+
+    # Hard reset: move HEAD, discard all changes
+    git reset --hard HEAD~1
+    ```
+
+    ```
+    --soft:   Moves HEAD only. Staging area and working directory unchanged.
+    --mixed:  Moves HEAD and resets staging area. Working directory unchanged.
+    --hard:   Moves HEAD and resets everything. All changes are lost.
+    ```
+
+    :::danger
+    `git reset --hard` permanently discards uncommitted changes. Use it with extreme caution.
+    :::
+  </TabItem>
+  <TabItem label="git stash">
+    Temporarily save uncommitted changes so you can switch context.
+
+    ```bash
+    # Stash current changes
+    git stash
+
+    # Stash with a descriptive message
+    git stash push -m "work in progress: login form"
+
+    # List all stashes
+    git stash list
+
+    # Apply the most recent stash (keep it in the stash list)
+    git stash apply
+
+    # Apply and remove the most recent stash
+    git stash pop
+
+    # Apply a specific stash
+    git stash apply stash@{2}
+
+    # Drop a specific stash
+    git stash drop stash@{0}
+    ```
+
+    Stashing is useful when you need to quickly switch branches but are not ready to commit your current work.
+  </TabItem>
+</Tabs>
+
+### Working with Remotes
+
+<Tabs>
+  <TabItem label="git remote">
+    Manage connections to remote repositories.
+
+    ```bash
+    # List remotes
+    git remote -v
+
+    # Add a remote
+    git remote add origin https://github.com/user/repo.git
+
+    # Change a remote URL
+    git remote set-url origin https://github.com/user/new-repo.git
+
+    # Remove a remote
+    git remote remove origin
+    ```
+  </TabItem>
+  <TabItem label="git push / pull / fetch">
+    Synchronize with remote repositories.
+
+    ```bash
+    # Push current branch to remote
+    git push origin main
+
+    # Push and set upstream tracking
+    git push -u origin feature-login
+
+    # Fetch changes from remote (does not merge)
+    git fetch origin
+
+    # Pull changes (fetch + merge)
+    git pull origin main
+
+    # Pull with rebase instead of merge
+    git pull --rebase origin main
+    ```
+
+    **Fetch vs. Pull:**
+
+    ```
+    git fetch:  Downloads new data but does NOT integrate it.
+                Safe to run at any time.
+
+    git pull:   Downloads new data AND merges it into your current branch.
+                Equivalent to git fetch + git merge.
+    ```
+  </TabItem>
+</Tabs>
+
+## Common Workflows
+
+### Solo Developer Workflow
+
+```bash
+# 1. Make changes to files
+# 2. Review what changed
+git status
+git diff
+
+# 3. Stage and commit
+git add .
+git commit -m "Implement feature X"
+
+# 4. Push to remote
+git push origin main
+```
+
+### Feature Branch Workflow
+
+```bash
+# 1. Create a feature branch from main
+git checkout -b feature-search
+
+# 2. Work on the feature (edit, stage, commit -- repeat)
+git add src/search.js
+git commit -m "Add search input component"
+
+git add src/search.js src/api.js
+git commit -m "Connect search to API"
+
+# 3. Push the feature branch to remote
+git push -u origin feature-search
+
+# 4. Open a pull request (on GitHub/GitLab)
+
+# 5. After approval, merge into main
+git checkout main
+git pull origin main
+git merge feature-search
+
+# 6. Clean up
+git branch -d feature-search
+git push origin --delete feature-search
+```
+
+## Quick Reference
+
+| Command | Purpose |
+|---------|---------|
+| `git init` | Initialize a new repository |
+| `git clone <url>` | Copy a remote repository locally |
+| `git status` | Show working directory state |
+| `git add <file>` | Stage changes for commit |
+| `git commit -m "msg"` | Create a commit from staged changes |
+| `git log --oneline` | View compact commit history |
+| `git diff` | Show unstaged changes |
+| `git branch <name>` | Create a new branch |
+| `git checkout <branch>` | Switch to a branch |
+| `git merge <branch>` | Merge a branch into current branch |
+| `git rebase <branch>` | Reapply commits onto another branch |
+| `git stash` | Temporarily save uncommitted changes |
+| `git push` | Upload commits to remote |
+| `git pull` | Download and merge remote changes |
+| `git fetch` | Download remote changes without merging |
+| `git reset` | Move branch pointer / unstage changes |
+| `git restore` | Discard working directory changes |
+
+## Next Steps
+
+Now that you understand the core Git commands, explore how teams organize their branches and review each other's code:
+
+<CardGrid>
+  <LinkCard
+    title="Branching Strategies"
+    description="Compare Git Flow, GitHub Flow, and Trunk-Based Development to choose the right workflow"
+    href="/software-engineering/version-control/branching-strategies/"
+  />
+  <LinkCard
+    title="Code Review Best Practices"
+    description="Learn effective code review practices for better code quality and collaboration"
+    href="/software-engineering/version-control/code-review/"
+  />
+</CardGrid>

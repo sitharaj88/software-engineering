@@ -1,0 +1,761 @@
+---
+title: "Processes & Threads"
+description: "Learn about process lifecycle, thread management, context switching, and inter-process communication"
+difficulty: "intermediate"
+prerequisites: ["Operating Systems Overview"]
+timeToRead: "20 min"
+topics: ["processes", "threads", "pcb", "context-switching", "ipc"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+A **process** is a program in execution. When you run a program, the operating system creates a process that includes the program code, its current activity (represented by the program counter and CPU registers), a stack, a data section, and a heap. Understanding processes and threads is fundamental to everything else in operating systems.
+
+## The Process Concept
+
+### What Makes Up a Process?
+
+A process is far more than just the executable code. It consists of:
+
+- **Text section** -- The compiled program code
+- **Program counter** -- The address of the next instruction to execute
+- **CPU registers** -- Current values of all processor registers
+- **Stack** -- Temporary data such as function parameters, return addresses, and local variables
+- **Data section** -- Global and static variables
+- **Heap** -- Dynamically allocated memory during runtime
+
+### Process Control Block (PCB)
+
+The OS tracks each process using a data structure called the **Process Control Block (PCB)**. The PCB is the kernel's representation of a process and contains everything needed to manage it.
+
+```
+┌─────────────────────────────────────┐
+│       Process Control Block (PCB)   │
+├─────────────────────────────────────┤
+│  Process ID (PID)         : 4821    │
+│  Process State            : Running │
+│  Program Counter          : 0x7f3a │
+│  CPU Registers            : {...}   │
+│  CPU Scheduling Info      :         │
+│    - Priority             : 20      │
+│    - Queue pointer        : 0xab12  │
+│  Memory Management Info   :         │
+│    - Page table base      : 0x1000  │
+│    - Memory limits        : 4 GB    │
+│  I/O Status Info          :         │
+│    - Open files           : [0,1,2] │
+│    - I/O devices          : [tty0]  │
+│  Accounting Info          :         │
+│    - CPU time used        : 1.24s   │
+│    - Time limits          : none    │
+│  Parent PID               : 4800    │
+│  Child PIDs               : [4822]  │
+└─────────────────────────────────────┘
+```
+
+---
+
+## Process States
+
+Every process moves through a well-defined set of states during its lifetime. The OS scheduler manages these transitions.
+
+```
+                    ┌───────────────┐
+                    │     New       │
+                    │  (admitted)   │
+                    └───────┬───────┘
+                            │
+                            v
+         ┌──────────────────────────────────┐
+         │            Ready                  │
+         │   (waiting for CPU assignment)    │
+         └──────┬──────────────────▲────────┘
+                │                  │
+    scheduler   │                  │  interrupt /
+    dispatch    │                  │  I/O complete /
+                │                  │  time quantum
+                v                  │  expired
+         ┌──────────────────────────────────┐
+         │           Running                 │
+         │   (instructions being executed)   │
+         └──────┬──────────────┬────────────┘
+                │              │
+     I/O or    │              │  exit
+     event     │              │
+     wait      │              v
+                │     ┌───────────────┐
+                │     │  Terminated   │
+                │     │   (exit)      │
+                │     └───────────────┘
+                v
+         ┌──────────────────────────────────┐
+         │           Waiting                 │
+         │   (waiting for I/O or event)      │
+         └──────────────────────────────────┘
+```
+
+| State | Description |
+|-------|-------------|
+| **New** | Process is being created |
+| **Ready** | Process is loaded in memory and waiting for CPU time |
+| **Running** | Process instructions are being executed on the CPU |
+| **Waiting** | Process is waiting for an I/O operation or event to complete |
+| **Terminated** | Process has finished execution |
+
+---
+
+## Process Creation
+
+In Unix/Linux systems, new processes are created using the `fork()` system call. The `fork()` call creates a **child process** that is an almost exact copy of the parent. The child can then use `exec()` to replace its memory image with a new program.
+
+```
+Parent Process (PID 100)
+    │
+    ├── fork() ─────────────────────┐
+    │                               │
+    │  Parent continues             │  Child Process (PID 101)
+    │  fork() returns child PID     │  fork() returns 0
+    │  (101)                        │
+    │                               │
+    v                               v
+  wait()                         exec("/bin/ls")
+    │                               │
+    │                               │  (replaces process image
+    │                               │   with 'ls' program)
+    │                               │
+    │                               v
+    │                            ls executes and exits
+    │                               │
+    v                               │
+  Parent resumes  <─────────────────┘
+  (child exited)
+```
+
+### Process Creation Example
+
+<Tabs>
+  <TabItem label="Python">
+```python
+import os
+import sys
+
+def main():
+    print(f"Parent process PID: {os.getpid()}")
+
+    # Create a child process
+    pid = os.fork()
+
+    if pid < 0:
+        # Fork failed
+        print("Fork failed!", file=sys.stderr)
+        sys.exit(1)
+    elif pid == 0:
+        # Child process
+        print(f"Child process PID: {os.getpid()}")
+        print(f"Child's parent PID: {os.getppid()}")
+        # Replace child with a new program
+        os.execlp("echo", "echo", "Hello from child!")
+    else:
+        # Parent process
+        print(f"Parent created child with PID: {pid}")
+        # Wait for child to finish
+        os.wait()
+        print("Child has terminated.")
+
+if __name__ == "__main__":
+    main()
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+import java.io.IOException;
+
+public class ProcessCreation {
+    public static void main(String[] args) throws IOException, InterruptedException {
+        System.out.println("Parent process starting...");
+
+        // Create a child process using ProcessBuilder
+        ProcessBuilder pb = new ProcessBuilder("echo", "Hello from child!");
+        pb.inheritIO(); // Redirect child I/O to parent
+
+        Process child = pb.start();
+        System.out.println("Child process started with PID: " + child.pid());
+
+        // Wait for child to finish
+        int exitCode = child.waitFor();
+        System.out.println("Child exited with code: " + exitCode);
+    }
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+#include <iostream>
+#include <unistd.h>
+#include <sys/wait.h>
+
+int main() {
+    std::cout << "Parent process PID: " << getpid() << std::endl;
+
+    pid_t pid = fork();
+
+    if (pid < 0) {
+        std::cerr << "Fork failed!" << std::endl;
+        return 1;
+    } else if (pid == 0) {
+        // Child process
+        std::cout << "Child process PID: " << getpid() << std::endl;
+        std::cout << "Child's parent PID: " << getppid() << std::endl;
+
+        // Replace child with a new program
+        execlp("echo", "echo", "Hello from child!", nullptr);
+
+        // If exec fails
+        std::cerr << "Exec failed!" << std::endl;
+        return 1;
+    } else {
+        // Parent process
+        std::cout << "Parent created child with PID: " << pid << std::endl;
+
+        int status;
+        waitpid(pid, &status, 0);
+
+        if (WIFEXITED(status)) {
+            std::cout << "Child exited with status: "
+                      << WEXITSTATUS(status) << std::endl;
+        }
+    }
+
+    return 0;
+}
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+const { fork, spawn } = require('child_process');
+
+// Method 1: Spawn a new process
+const child = spawn('echo', ['Hello from child!']);
+
+child.stdout.on('data', (data) => {
+  console.log(`Child output: ${data}`);
+});
+
+child.on('close', (code) => {
+  console.log(`Child process exited with code ${code}`);
+});
+
+// Method 2: Fork a Node.js module (runs in a separate V8 instance)
+// In parent.js:
+const worker = fork('./worker.js');
+
+worker.on('message', (msg) => {
+  console.log('Message from child:', msg);
+});
+
+worker.send({ task: 'compute', data: [1, 2, 3] });
+
+// In worker.js:
+// process.on('message', (msg) => {
+//   const result = msg.data.reduce((a, b) => a + b, 0);
+//   process.send({ result });
+// });
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## Process vs Thread
+
+A **thread** is the smallest unit of execution within a process. A process can have multiple threads that share the same address space but execute independently.
+
+```
+┌─────────────────────────────────────────────────────┐
+│                    Process                           │
+│                                                     │
+│  ┌──────────────────────────────────────────────┐   │
+│  │               Shared Resources                │   │
+│  │  Code Section | Data Section | Heap | Files   │   │
+│  └──────────────────────────────────────────────┘   │
+│                                                     │
+│  ┌──────────┐   ┌──────────┐   ┌──────────┐        │
+│  │ Thread 1 │   │ Thread 2 │   │ Thread 3 │        │
+│  │          │   │          │   │          │        │
+│  │ Registers│   │ Registers│   │ Registers│        │
+│  │ Stack    │   │ Stack    │   │ Stack    │        │
+│  │ PC       │   │ PC       │   │ PC       │        │
+│  └──────────┘   └──────────┘   └──────────┘        │
+└─────────────────────────────────────────────────────┘
+```
+
+| Feature | Process | Thread |
+|---------|---------|--------|
+| **Address space** | Own separate address space | Shares address space with other threads in same process |
+| **Creation overhead** | Heavy (allocate memory, copy page tables) | Light (just a new stack and register set) |
+| **Communication** | IPC required (pipes, sockets, shared memory) | Direct access to shared memory |
+| **Context switch cost** | Expensive (flush TLB, swap page tables) | Cheap (same address space) |
+| **Isolation** | Full isolation; one process crash does not affect others | No isolation; one thread crash can kill the entire process |
+| **Resource usage** | Each process has its own resources | Threads share process resources |
+
+---
+
+## User Threads vs Kernel Threads
+
+| Feature | User-Level Threads | Kernel-Level Threads |
+|---------|-------------------|---------------------|
+| **Managed by** | User-space thread library | Operating system kernel |
+| **Kernel awareness** | Kernel sees only one thread per process | Kernel schedules each thread individually |
+| **Context switch** | Fast (no kernel involvement) | Slower (requires kernel mode switch) |
+| **Blocking** | If one thread blocks, all threads in the process block | Other threads continue running |
+| **Parallelism** | Cannot exploit multiple CPUs | Can run on different CPUs simultaneously |
+| **Examples** | Green threads (early Java), GNU Portable Threads | POSIX threads (pthreads), Windows threads |
+
+### Multi-Threading Models
+
+```
+Many-to-One                One-to-One               Many-to-Many
+(User threads →            (User threads →           (User threads →
+ 1 kernel thread)           kernel threads)           kernel threads)
+
+ U  U  U  U               U    U    U    U          U  U  U  U  U
+  \ | | /                  |    |    |    |           \  |  |  /  |
+   \|_|/                   |    |    |    |            \ | / \ /  |
+    K                      K    K    K    K             K   K    K
+
+- Fast but no             - True parallelism        - Best of both
+  true parallelism        - Thread creation is       - OS can create
+- One block stops all       more expensive             as many kernel
+                          - Used by Linux,             threads as needed
+                            Windows, macOS
+```
+
+- **Many-to-One**: Many user threads map to a single kernel thread. Simple but a single blocking call blocks all threads.
+- **One-to-One**: Each user thread maps to a kernel thread. Provides true parallelism but higher overhead. This is the model used by Linux (NPTL), Windows, and macOS.
+- **Many-to-Many**: Many user threads map to many (often fewer) kernel threads. Flexible but complex to implement.
+
+---
+
+## Multi-Threading Examples
+
+<Tabs>
+  <TabItem label="Python">
+```python
+import threading
+import time
+from multiprocessing import Process
+
+# === Threading (shared memory, limited by GIL for CPU-bound) ===
+
+def worker(name, duration):
+    print(f"Thread {name} starting")
+    time.sleep(duration)  # Simulates I/O-bound work
+    print(f"Thread {name} finished")
+
+# Create and start threads
+threads = []
+for i in range(4):
+    t = threading.Thread(target=worker, args=(f"T-{i}", 1))
+    threads.append(t)
+    t.start()
+
+# Wait for all threads to complete
+for t in threads:
+    t.join()
+
+print("All threads finished")
+
+# === Multiprocessing (separate address spaces, true parallelism) ===
+
+def cpu_intensive(n):
+    """CPU-bound work that benefits from multiprocessing."""
+    total = sum(i * i for i in range(n))
+    print(f"Process {n}: result = {total}")
+
+processes = []
+for n in [10_000_000, 20_000_000, 30_000_000]:
+    p = Process(target=cpu_intensive, args=(n,))
+    processes.append(p)
+    p.start()
+
+for p in processes:
+    p.join()
+
+print("All processes finished")
+
+# === Thread Synchronization ===
+
+counter = 0
+lock = threading.Lock()
+
+def increment(times):
+    global counter
+    for _ in range(times):
+        with lock:  # Acquire lock before modifying shared data
+            counter += 1
+
+threads = [threading.Thread(target=increment, args=(100_000,)) for _ in range(4)]
+for t in threads:
+    t.start()
+for t in threads:
+    t.join()
+
+print(f"Counter: {counter}")  # Always 400000 with lock
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
+
+public class ThreadingExample {
+
+    // Method 1: Extending Thread class
+    static class WorkerThread extends Thread {
+        private final String name;
+
+        WorkerThread(String name) {
+            this.name = name;
+        }
+
+        @Override
+        public void run() {
+            System.out.println("Thread " + name + " starting");
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            System.out.println("Thread " + name + " finished");
+        }
+    }
+
+    // Method 2: Implementing Runnable interface
+    static class WorkerRunnable implements Runnable {
+        private final String name;
+
+        WorkerRunnable(String name) {
+            this.name = name;
+        }
+
+        @Override
+        public void run() {
+            System.out.println("Runnable " + name + " executing");
+        }
+    }
+
+    public static void main(String[] args) throws InterruptedException {
+        // Using Thread class
+        Thread t1 = new WorkerThread("A");
+        Thread t2 = new WorkerThread("B");
+        t1.start();
+        t2.start();
+        t1.join();
+        t2.join();
+
+        // Using ExecutorService (thread pool)
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+
+        for (int i = 0; i < 8; i++) {
+            final int taskId = i;
+            executor.submit(() -> {
+                System.out.println("Task " + taskId + " on "
+                    + Thread.currentThread().getName());
+            });
+        }
+
+        executor.shutdown();
+        executor.awaitTermination(5, TimeUnit.SECONDS);
+
+        // Thread-safe counter with AtomicInteger
+        AtomicInteger counter = new AtomicInteger(0);
+        Thread[] threads = new Thread[4];
+
+        for (int i = 0; i < 4; i++) {
+            threads[i] = new Thread(() -> {
+                for (int j = 0; j < 100_000; j++) {
+                    counter.incrementAndGet();
+                }
+            });
+            threads[i].start();
+        }
+
+        for (Thread t : threads) {
+            t.join();
+        }
+
+        System.out.println("Counter: " + counter.get()); // Always 400000
+    }
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+#include <iostream>
+#include <thread>
+#include <vector>
+#include <mutex>
+#include <chrono>
+
+// Shared counter and mutex
+int counter = 0;
+std::mutex mtx;
+
+void worker(const std::string& name, int duration_ms) {
+    std::cout << "Thread " << name << " starting" << std::endl;
+    std::this_thread::sleep_for(std::chrono::milliseconds(duration_ms));
+    std::cout << "Thread " << name << " finished" << std::endl;
+}
+
+void increment(int times) {
+    for (int i = 0; i < times; i++) {
+        std::lock_guard<std::mutex> lock(mtx);
+        counter++;
+    }
+}
+
+int main() {
+    // Create and start threads
+    std::vector<std::thread> threads;
+
+    for (int i = 0; i < 4; i++) {
+        threads.emplace_back(worker, "T-" + std::to_string(i), 1000);
+    }
+
+    // Wait for all threads to complete
+    for (auto& t : threads) {
+        t.join();
+    }
+
+    std::cout << "All threads finished" << std::endl;
+
+    // Thread synchronization example
+    std::vector<std::thread> counter_threads;
+    for (int i = 0; i < 4; i++) {
+        counter_threads.emplace_back(increment, 100000);
+    }
+
+    for (auto& t : counter_threads) {
+        t.join();
+    }
+
+    std::cout << "Counter: " << counter << std::endl; // Always 400000
+
+    // Lambda-based threads
+    auto task = [](int id) {
+        std::cout << "Lambda thread " << id
+                  << " on thread " << std::this_thread::get_id()
+                  << std::endl;
+    };
+
+    std::thread t1(task, 1);
+    std::thread t2(task, 2);
+    t1.join();
+    t2.join();
+
+    return 0;
+}
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// === Worker Threads (Node.js) ===
+// main.js
+const { Worker, isMainThread, parentPort, workerData } = require('worker_threads');
+
+if (isMainThread) {
+  // Main thread: create workers
+  console.log('Main thread starting workers...');
+
+  const workers = [];
+  for (let i = 0; i < 4; i++) {
+    const worker = new Worker(__filename, {
+      workerData: { id: i, iterations: 1_000_000 }
+    });
+
+    worker.on('message', (msg) => {
+      console.log(`Worker ${msg.id} result: ${msg.result}`);
+    });
+
+    worker.on('exit', (code) => {
+      console.log(`Worker exited with code ${code}`);
+    });
+
+    workers.push(worker);
+  }
+
+  // Wait for all workers
+  Promise.all(workers.map(w =>
+    new Promise(resolve => w.on('exit', resolve))
+  )).then(() => {
+    console.log('All workers finished');
+  });
+
+} else {
+  // Worker thread: do CPU-intensive work
+  const { id, iterations } = workerData;
+  let sum = 0;
+  for (let i = 0; i < iterations; i++) {
+    sum += i * i;
+  }
+  parentPort.postMessage({ id, result: sum });
+}
+
+// === SharedArrayBuffer for shared memory between workers ===
+// main_shared.js
+const { Worker } = require('worker_threads');
+
+const sharedBuffer = new SharedArrayBuffer(4); // 4 bytes = 1 int32
+const sharedArray = new Int32Array(sharedBuffer);
+
+const worker = new Worker('./counter_worker.js', {
+  workerData: { sharedBuffer }
+});
+
+// Use Atomics for thread-safe operations
+Atomics.add(sharedArray, 0, 10);
+console.log('Main incremented to:', Atomics.load(sharedArray, 0));
+
+// counter_worker.js:
+// const { workerData } = require('worker_threads');
+// const sharedArray = new Int32Array(workerData.sharedBuffer);
+// Atomics.add(sharedArray, 0, 20);
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## Context Switching
+
+A **context switch** occurs when the OS saves the state of one process (or thread) and loads the state of another so that the CPU can execute a different process. Context switches are triggered by:
+
+- A timer interrupt (time quantum expired)
+- An I/O request (process must wait)
+- A higher-priority process becoming ready
+- A system call that causes the process to block
+
+```
+Process A (Running)              Kernel                Process B (Ready)
+    │                              │                       │
+    │  Timer interrupt             │                       │
+    │─────────────────────────────>│                       │
+    │                              │                       │
+    │  Save state of A             │                       │
+    │  (registers, PC, SP          │                       │
+    │   → PCB of A)                │                       │
+    │                              │                       │
+    │                    Scheduler decides to run B        │
+    │                              │                       │
+    │                              │  Load state of B      │
+    │                              │  (PCB of B →          │
+    │                              │   registers, PC, SP)  │
+    │                              │──────────────────────>│
+    │                              │                       │
+    │  A is now Ready              │         B is Running  │
+    │                              │                       │
+```
+
+### Cost of Context Switching
+
+Context switching is pure overhead -- no useful work is done during a switch. The cost includes:
+
+- **Direct costs**: Saving and restoring registers, switching the memory address space (flushing TLB), updating kernel data structures
+- **Indirect costs**: Cache pollution (the new process has different data in L1/L2 cache), TLB misses, pipeline flushes
+
+Typical context switch times range from **1-10 microseconds** on modern hardware. Thread context switches within the same process are cheaper because the address space does not change.
+
+---
+
+## Inter-Process Communication (IPC)
+
+Since processes have separate address spaces, they need special mechanisms to communicate. The OS provides several IPC methods.
+
+### Pipes
+
+A **pipe** provides a unidirectional byte stream between two related processes (typically parent and child).
+
+```
+┌──────────┐    write end    ┌──────┐    read end    ┌──────────┐
+│ Process A │───────────────>│ Pipe │───────────────>│ Process B │
+│ (writer)  │                │ (buf)│                │ (reader)  │
+└──────────┘                 └──────┘                └──────────┘
+```
+
+### Shared Memory
+
+Processes map the same region of physical memory into their address spaces. This is the fastest IPC mechanism because data does not need to be copied -- but it requires synchronization.
+
+```
+┌──────────────┐        ┌──────────────┐
+│  Process A   │        │  Process B   │
+│              │        │              │
+│  Virtual     │        │  Virtual     │
+│  Address     │        │  Address     │
+│  Space       │        │  Space       │
+│      │       │        │      │       │
+│      │ mapped│        │mapped│       │
+│      v       │        │      v       │
+└──────┼───────┘        └──────┼───────┘
+       │                       │
+       └───────────┬───────────┘
+                   │
+            ┌──────v──────┐
+            │   Shared    │
+            │   Memory    │
+            │   Region    │
+            └─────────────┘
+```
+
+### Message Passing
+
+Processes send and receive messages through the kernel. This approach is simpler to program correctly (no shared state) but involves data copying and kernel overhead.
+
+| IPC Method | Speed | Complexity | Use Case |
+|-----------|-------|------------|----------|
+| **Pipe** | Medium | Low | Parent-child communication, shell pipelines |
+| **Named Pipe (FIFO)** | Medium | Low | Unrelated processes on same machine |
+| **Shared Memory** | Very Fast | High (needs synchronization) | High-throughput data sharing |
+| **Message Queue** | Medium | Medium | Structured message exchange |
+| **Socket** | Slower | Medium | Network communication, cross-machine IPC |
+| **Signal** | Very Fast | Low (limited data) | Simple notifications (e.g., SIGTERM, SIGKILL) |
+
+---
+
+## Key Takeaways
+
+1. **Processes** are independent execution environments with their own address space; **threads** share the address space within a process
+2. The **PCB** stores everything the OS needs to manage a process: PID, state, registers, memory info, open files
+3. **Process states** cycle through New, Ready, Running, Waiting, and Terminated
+4. `fork()` creates a child process; `exec()` replaces the process image with a new program
+5. **Context switching** is necessary for multitasking but introduces overhead -- minimize it where possible
+6. **IPC mechanisms** (pipes, shared memory, message passing) let processes with separate address spaces communicate
+7. **Threads** are cheaper to create and switch than processes, but lack isolation -- one thread crash kills the entire process
+8. Modern OSes use the **one-to-one** threading model where each user thread maps to a kernel thread
+
+---
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="CPU Scheduling"
+    href="/software-engineering/operating-systems/cpu-scheduling/"
+    description="Learn how the OS decides which process gets the CPU next using scheduling algorithms"
+  />
+  <LinkCard
+    title="Deadlocks & Synchronization"
+    href="/software-engineering/operating-systems/deadlocks/"
+    description="Understand synchronization primitives and how to prevent deadlocks between threads"
+  />
+  <LinkCard
+    title="Memory Management"
+    href="/software-engineering/operating-systems/memory-management/"
+    description="Explore how the OS manages memory with paging, segmentation, and virtual memory"
+  />
+  <LinkCard
+    title="Operating Systems Overview"
+    href="/software-engineering/operating-systems/"
+    description="Return to the OS overview for the big picture"
+  />
+</CardGrid>

@@ -1,0 +1,1087 @@
+---
+title: "Deadlocks & Synchronization"
+description: "Learn about deadlock conditions, prevention strategies, and synchronization primitives"
+difficulty: "advanced"
+prerequisites: ["Processes & Threads"]
+timeToRead: "20 min"
+topics: ["deadlocks", "mutex", "semaphore", "monitor", "synchronization"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+When multiple threads or processes share resources, two fundamental problems arise: **synchronization** (how do we coordinate access to shared data?) and **deadlock** (what happens when processes get stuck waiting for each other forever?). These topics are among the most important in operating systems -- they appear in every OS course, most technical interviews, and are the root cause of some of the hardest bugs in real-world systems.
+
+## The Critical Section Problem
+
+A **critical section** is a segment of code that accesses shared resources (variables, files, databases) and must not be executed by more than one thread at a time. The critical section problem is: how do we ensure mutual exclusion?
+
+```
+Thread A                          Thread B
+─────────                         ─────────
+// Entry section                  // Entry section
+   acquire(lock)                     acquire(lock)  ← blocks until A releases
+// Critical section               // Critical section
+   balance = balance + 100           balance = balance - 50
+// Exit section                   // Exit section
+   release(lock)                     release(lock)
+// Remainder section              // Remainder section
+```
+
+### Requirements for a Correct Solution
+
+Any solution to the critical section problem must satisfy three conditions:
+
+| Requirement | Description |
+|------------|-------------|
+| **Mutual Exclusion** | At most one thread can be in its critical section at any time |
+| **Progress** | If no thread is in its critical section and some threads want to enter, the selection cannot be postponed indefinitely |
+| **Bounded Waiting** | There is a limit on the number of times other threads can enter their critical sections after a thread has requested entry |
+
+---
+
+## Synchronization Primitives
+
+### Mutex (Mutual Exclusion Lock)
+
+A **mutex** is the simplest synchronization primitive. It has two states: **locked** and **unlocked**. Only one thread can hold the mutex at a time. If a thread tries to acquire a locked mutex, it blocks until the mutex is released.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+import threading
+
+# Shared resource
+balance = 0
+mutex = threading.Lock()
+
+def deposit(amount, iterations):
+    global balance
+    for _ in range(iterations):
+        mutex.acquire()
+        try:
+            # Critical section
+            balance += amount
+        finally:
+            mutex.release()
+
+def withdraw(amount, iterations):
+    global balance
+    for _ in range(iterations):
+        with mutex:  # Pythonic way (context manager)
+            # Critical section
+            balance -= amount
+
+# Without mutex: race condition → unpredictable balance
+# With mutex: balance is always correct
+threads = [
+    threading.Thread(target=deposit, args=(1, 100_000)),
+    threading.Thread(target=withdraw, args=(1, 100_000)),
+]
+
+for t in threads:
+    t.start()
+for t in threads:
+    t.join()
+
+print(f"Final balance: {balance}")  # Always 0 with mutex
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+import java.util.concurrent.locks.ReentrantLock;
+
+public class MutexExample {
+    private int balance = 0;
+    private final ReentrantLock mutex = new ReentrantLock();
+
+    public void deposit(int amount, int iterations) {
+        for (int i = 0; i < iterations; i++) {
+            mutex.lock();
+            try {
+                balance += amount;  // Critical section
+            } finally {
+                mutex.unlock();
+            }
+        }
+    }
+
+    // Alternative: synchronized keyword (implicit mutex)
+    public synchronized void withdraw(int amount) {
+        balance -= amount;  // Critical section
+    }
+
+    // Synchronized block (more granular control)
+    public void transfer(int amount) {
+        synchronized (this) {
+            balance += amount;  // Critical section
+        }
+    }
+
+    public static void main(String[] args) throws InterruptedException {
+        MutexExample account = new MutexExample();
+
+        Thread t1 = new Thread(() -> account.deposit(1, 100_000));
+        Thread t2 = new Thread(() -> {
+            for (int i = 0; i < 100_000; i++) {
+                account.withdraw(1);
+            }
+        });
+
+        t1.start(); t2.start();
+        t1.join(); t2.join();
+
+        System.out.println("Balance: " + account.balance); // Always 0
+    }
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+#include <iostream>
+#include <thread>
+#include <mutex>
+#include <vector>
+
+int balance = 0;
+std::mutex mtx;
+
+void deposit(int amount, int iterations) {
+    for (int i = 0; i < iterations; i++) {
+        std::lock_guard<std::mutex> lock(mtx);  // RAII-style
+        balance += amount;  // Critical section
+    }  // mutex automatically released when lock goes out of scope
+}
+
+void withdraw(int amount, int iterations) {
+    for (int i = 0; i < iterations; i++) {
+        std::unique_lock<std::mutex> lock(mtx);  // More flexible
+        balance -= amount;  // Critical section
+        lock.unlock();  // Can manually unlock early
+    }
+}
+
+int main() {
+    std::thread t1(deposit, 1, 100000);
+    std::thread t2(withdraw, 1, 100000);
+
+    t1.join();
+    t2.join();
+
+    std::cout << "Balance: " << balance << std::endl;  // Always 0
+    return 0;
+}
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// JavaScript is single-threaded (event loop), so traditional mutexes
+// are not needed. However, async operations can interleave.
+
+// Mutex pattern for async operations
+class AsyncMutex {
+  constructor() {
+    this._queue = [];
+    this._locked = false;
+  }
+
+  async acquire() {
+    return new Promise((resolve) => {
+      if (!this._locked) {
+        this._locked = true;
+        resolve();
+      } else {
+        this._queue.push(resolve);
+      }
+    });
+  }
+
+  release() {
+    if (this._queue.length > 0) {
+      const next = this._queue.shift();
+      next();  // Give lock to next waiter
+    } else {
+      this._locked = false;
+    }
+  }
+}
+
+// Usage with async/await
+const mutex = new AsyncMutex();
+let balance = 0;
+
+async function deposit(amount, iterations) {
+  for (let i = 0; i < iterations; i++) {
+    await mutex.acquire();
+    try {
+      balance += amount;  // Critical section
+    } finally {
+      mutex.release();
+    }
+  }
+}
+
+async function withdraw(amount, iterations) {
+  for (let i = 0; i < iterations; i++) {
+    await mutex.acquire();
+    try {
+      balance -= amount;  // Critical section
+    } finally {
+      mutex.release();
+    }
+  }
+}
+
+// For true parallelism in Node.js, use Worker threads
+// with SharedArrayBuffer and Atomics
+const { Worker, isMainThread } = require('worker_threads');
+
+if (isMainThread) {
+  const shared = new SharedArrayBuffer(4);
+  const arr = new Int32Array(shared);
+
+  // Atomic operations are inherently thread-safe
+  Atomics.add(arr, 0, 10);
+  console.log('Value:', Atomics.load(arr, 0));  // 10
+}
+```
+  </TabItem>
+</Tabs>
+
+---
+
+### Semaphore
+
+A **semaphore** is a more general synchronization primitive than a mutex. It maintains an integer counter and supports two atomic operations:
+
+- **wait()** (also called `P()` or `down()`): Decrement the counter. If the counter becomes negative, the calling thread blocks.
+- **signal()** (also called `V()` or `up()`): Increment the counter. If threads are waiting, wake one up.
+
+| Type | Counter Value | Use Case |
+|------|--------------|----------|
+| **Binary Semaphore** | 0 or 1 | Same as mutex -- mutual exclusion |
+| **Counting Semaphore** | 0 to N | Controlling access to N identical resources (e.g., connection pool) |
+
+<Tabs>
+  <TabItem label="Python">
+```python
+import threading
+import time
+
+# Counting semaphore: limit concurrent access to 3
+pool_semaphore = threading.Semaphore(3)
+
+def access_resource(thread_id):
+    print(f"Thread {thread_id}: waiting for resource...")
+    pool_semaphore.acquire()
+    try:
+        print(f"Thread {thread_id}: acquired resource")
+        time.sleep(2)  # Simulate work
+    finally:
+        print(f"Thread {thread_id}: releasing resource")
+        pool_semaphore.release()
+
+threads = []
+for i in range(8):
+    t = threading.Thread(target=access_resource, args=(i,))
+    threads.append(t)
+    t.start()
+
+for t in threads:
+    t.join()
+
+# Binary semaphore for signaling (producer-consumer pattern)
+items_available = threading.Semaphore(0)  # Start at 0
+buffer = []
+
+def producer():
+    for i in range(5):
+        item = f"item-{i}"
+        buffer.append(item)
+        print(f"Produced: {item}")
+        items_available.release()  # Signal: item available
+        time.sleep(0.5)
+
+def consumer():
+    for _ in range(5):
+        items_available.acquire()  # Wait for item
+        item = buffer.pop(0)
+        print(f"Consumed: {item}")
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+import java.util.concurrent.Semaphore;
+
+public class SemaphoreExample {
+
+    // Connection pool with max 3 concurrent connections
+    private static final Semaphore connectionPool = new Semaphore(3);
+
+    public static void accessDatabase(int threadId) {
+        try {
+            System.out.println("Thread " + threadId + ": waiting...");
+            connectionPool.acquire();
+            System.out.println("Thread " + threadId + ": connected");
+            Thread.sleep(2000);  // Simulate query
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } finally {
+            System.out.println("Thread " + threadId + ": disconnected");
+            connectionPool.release();
+        }
+    }
+
+    public static void main(String[] args) {
+        for (int i = 0; i < 8; i++) {
+            final int id = i;
+            new Thread(() -> accessDatabase(id)).start();
+        }
+    }
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+#include <iostream>
+#include <thread>
+#include <semaphore>  // C++20
+#include <vector>
+
+// Counting semaphore: max 3 concurrent accesses
+std::counting_semaphore<3> pool_sem(3);
+
+void access_resource(int id) {
+    std::cout << "Thread " << id << ": waiting...\n";
+    pool_sem.acquire();
+    std::cout << "Thread " << id << ": acquired\n";
+    std::this_thread::sleep_for(std::chrono::seconds(2));
+    std::cout << "Thread " << id << ": releasing\n";
+    pool_sem.release();
+}
+
+// Binary semaphore for signaling
+std::binary_semaphore sig(0);  // Starts at 0
+
+void producer() {
+    std::cout << "Producer: preparing data...\n";
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+    std::cout << "Producer: data ready, signaling\n";
+    sig.release();  // Signal consumer
+}
+
+void consumer() {
+    std::cout << "Consumer: waiting for data...\n";
+    sig.acquire();  // Wait for signal
+    std::cout << "Consumer: got data, processing\n";
+}
+
+int main() {
+    std::vector<std::thread> threads;
+    for (int i = 0; i < 8; i++) {
+        threads.emplace_back(access_resource, i);
+    }
+    for (auto& t : threads) t.join();
+
+    std::thread t1(producer);
+    std::thread t2(consumer);
+    t1.join();
+    t2.join();
+
+    return 0;
+}
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// Semaphore implementation for async JavaScript
+class Semaphore {
+  constructor(maxConcurrent) {
+    this._max = maxConcurrent;
+    this._current = 0;
+    this._queue = [];
+  }
+
+  async acquire() {
+    if (this._current < this._max) {
+      this._current++;
+      return;
+    }
+    return new Promise((resolve) => {
+      this._queue.push(resolve);
+    });
+  }
+
+  release() {
+    if (this._queue.length > 0) {
+      const next = this._queue.shift();
+      next();
+    } else {
+      this._current--;
+    }
+  }
+}
+
+// Usage: limit concurrent HTTP requests to 3
+const semaphore = new Semaphore(3);
+
+async function fetchWithLimit(url) {
+  await semaphore.acquire();
+  try {
+    const response = await fetch(url);
+    return await response.json();
+  } finally {
+    semaphore.release();
+  }
+}
+
+// Process 10 URLs with max 3 concurrent
+const urls = Array.from({ length: 10 }, (_, i) =>
+  `https://api.example.com/data/${i}`
+);
+
+Promise.all(urls.map(fetchWithLimit))
+  .then(results => console.log('All done:', results.length));
+```
+  </TabItem>
+</Tabs>
+
+---
+
+### Monitor
+
+A **monitor** is a higher-level synchronization construct that encapsulates shared data, the operations on that data, and the synchronization logic into a single module. Only one thread can be active inside a monitor at a time.
+
+Monitors include **condition variables** for signaling:
+- **wait(condition)** -- Release the monitor lock and sleep until signaled
+- **signal(condition)** -- Wake up one thread waiting on this condition
+- **broadcast(condition)** -- Wake up all threads waiting on this condition
+
+```
+┌────────────────────────────────────────┐
+│              Monitor                    │
+│                                        │
+│  Shared Data:                          │
+│    - buffer[]                          │
+│    - count                             │
+│                                        │
+│  Condition Variables:                  │
+│    - not_full                          │
+│    - not_empty                         │
+│                                        │
+│  Operations:                           │
+│    - insert(item)                      │
+│    - remove() → item                   │
+│                                        │
+│  ┌──────────────────────┐              │
+│  │  Entry Queue         │              │
+│  │  (threads waiting    │              │
+│  │   to enter monitor)  │              │
+│  └──────────────────────┘              │
+│                                        │
+│  ┌──────────────────────┐              │
+│  │  Condition Queues    │              │
+│  │  not_full:  [T3]     │              │
+│  │  not_empty: [T1, T5] │              │
+│  └──────────────────────┘              │
+└────────────────────────────────────────┘
+```
+
+<Tabs>
+  <TabItem label="Python">
+```python
+import threading
+import time
+
+class BoundedBuffer:
+    """Monitor-style bounded buffer using Condition variables."""
+
+    def __init__(self, capacity):
+        self.buffer = []
+        self.capacity = capacity
+        self.lock = threading.Lock()
+        self.not_full = threading.Condition(self.lock)
+        self.not_empty = threading.Condition(self.lock)
+
+    def insert(self, item):
+        with self.not_full:  # Acquire lock
+            while len(self.buffer) >= self.capacity:
+                self.not_full.wait()  # Release lock and wait
+
+            self.buffer.append(item)
+            self.not_empty.notify()  # Signal waiting consumers
+
+    def remove(self):
+        with self.not_empty:  # Acquire lock
+            while len(self.buffer) == 0:
+                self.not_empty.wait()  # Release lock and wait
+
+            item = self.buffer.pop(0)
+            self.not_full.notify()  # Signal waiting producers
+            return item
+
+# Usage
+buf = BoundedBuffer(5)
+
+def producer(name):
+    for i in range(10):
+        item = f"{name}-{i}"
+        buf.insert(item)
+        print(f"{name} produced {item}")
+        time.sleep(0.1)
+
+def consumer(name):
+    for _ in range(10):
+        item = buf.remove()
+        print(f"{name} consumed {item}")
+        time.sleep(0.2)
+
+t1 = threading.Thread(target=producer, args=("P1",))
+t2 = threading.Thread(target=consumer, args=("C1",))
+t1.start(); t2.start()
+t1.join(); t2.join()
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+import java.util.LinkedList;
+import java.util.Queue;
+
+public class BoundedBuffer<T> {
+    private final Queue<T> buffer = new LinkedList<>();
+    private final int capacity;
+
+    public BoundedBuffer(int capacity) {
+        this.capacity = capacity;
+    }
+
+    // synchronized makes this method a monitor entry
+    public synchronized void insert(T item) throws InterruptedException {
+        while (buffer.size() >= capacity) {
+            wait();  // Release monitor lock and wait
+        }
+        buffer.add(item);
+        notifyAll();  // Wake up waiting threads
+    }
+
+    public synchronized T remove() throws InterruptedException {
+        while (buffer.isEmpty()) {
+            wait();  // Release monitor lock and wait
+        }
+        T item = buffer.poll();
+        notifyAll();  // Wake up waiting threads
+        return item;
+    }
+
+    public static void main(String[] args) {
+        BoundedBuffer<String> buf = new BoundedBuffer<>(5);
+
+        // Producer
+        new Thread(() -> {
+            for (int i = 0; i < 10; i++) {
+                try {
+                    String item = "item-" + i;
+                    buf.insert(item);
+                    System.out.println("Produced: " + item);
+                    Thread.sleep(100);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        }).start();
+
+        // Consumer
+        new Thread(() -> {
+            for (int i = 0; i < 10; i++) {
+                try {
+                    String item = buf.remove();
+                    System.out.println("Consumed: " + item);
+                    Thread.sleep(200);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        }).start();
+    }
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+#include <iostream>
+#include <queue>
+#include <mutex>
+#include <condition_variable>
+#include <thread>
+
+template <typename T>
+class BoundedBuffer {
+private:
+    std::queue<T> buffer;
+    size_t capacity;
+    std::mutex mtx;
+    std::condition_variable not_full;
+    std::condition_variable not_empty;
+
+public:
+    BoundedBuffer(size_t cap) : capacity(cap) {}
+
+    void insert(const T& item) {
+        std::unique_lock<std::mutex> lock(mtx);
+        not_full.wait(lock, [this]() {
+            return buffer.size() < capacity;
+        });
+
+        buffer.push(item);
+        not_empty.notify_one();
+    }
+
+    T remove() {
+        std::unique_lock<std::mutex> lock(mtx);
+        not_empty.wait(lock, [this]() {
+            return !buffer.empty();
+        });
+
+        T item = buffer.front();
+        buffer.pop();
+        not_full.notify_one();
+        return item;
+    }
+};
+
+int main() {
+    BoundedBuffer<std::string> buf(5);
+
+    std::thread producer([&buf]() {
+        for (int i = 0; i < 10; i++) {
+            std::string item = "item-" + std::to_string(i);
+            buf.insert(item);
+            std::cout << "Produced: " << item << "\n";
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
+    });
+
+    std::thread consumer([&buf]() {
+        for (int i = 0; i < 10; i++) {
+            std::string item = buf.remove();
+            std::cout << "Consumed: " << item << "\n";
+            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        }
+    });
+
+    producer.join();
+    consumer.join();
+    return 0;
+}
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// Monitor-style BoundedBuffer using async/await
+class BoundedBuffer {
+  constructor(capacity) {
+    this.buffer = [];
+    this.capacity = capacity;
+    this._waitingProducers = [];
+    this._waitingConsumers = [];
+  }
+
+  async insert(item) {
+    while (this.buffer.length >= this.capacity) {
+      await new Promise(resolve =>
+        this._waitingProducers.push(resolve)
+      );
+    }
+    this.buffer.push(item);
+
+    // Signal a waiting consumer
+    if (this._waitingConsumers.length > 0) {
+      const resolve = this._waitingConsumers.shift();
+      resolve();
+    }
+  }
+
+  async remove() {
+    while (this.buffer.length === 0) {
+      await new Promise(resolve =>
+        this._waitingConsumers.push(resolve)
+      );
+    }
+    const item = this.buffer.shift();
+
+    // Signal a waiting producer
+    if (this._waitingProducers.length > 0) {
+      const resolve = this._waitingProducers.shift();
+      resolve();
+    }
+    return item;
+  }
+}
+
+// Usage
+const buf = new BoundedBuffer(5);
+
+async function producer(name) {
+  for (let i = 0; i < 10; i++) {
+    const item = `${name}-${i}`;
+    await buf.insert(item);
+    console.log(`${name} produced ${item}`);
+    await new Promise(r => setTimeout(r, 100));
+  }
+}
+
+async function consumer(name) {
+  for (let i = 0; i < 10; i++) {
+    const item = await buf.remove();
+    console.log(`${name} consumed ${item}`);
+    await new Promise(r => setTimeout(r, 200));
+  }
+}
+
+Promise.all([producer('P1'), consumer('C1')]);
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## Deadlock
+
+A **deadlock** occurs when two or more processes are waiting for each other to release resources, and none of them can proceed. The system is stuck.
+
+```
+Deadlock Example:
+
+Thread A                          Thread B
+─────────                         ─────────
+1. acquire(Lock_X)  ✓             1. acquire(Lock_Y)  ✓
+2. acquire(Lock_Y)  ← BLOCKED    2. acquire(Lock_X)  ← BLOCKED
+
+   A holds X, wants Y                B holds Y, wants X
+
+          ┌─────────┐
+          │ Lock_X  │
+          └────┬────┘
+     holds     │         wants
+   ┌───────────┘    ┌───────────┐
+   │                │           │
+   v                │           v
+┌──────┐            │        ┌──────┐
+│  A   │            │        │  B   │
+└──┬───┘            │        └──┬───┘
+   │                │           │
+   │    wants       │   holds   │
+   └────────────────┘───────────┘
+                │
+          ┌─────┴───┐
+          │ Lock_Y  │
+          └─────────┘
+```
+
+### Four Necessary Conditions for Deadlock
+
+**All four** conditions must hold simultaneously for a deadlock to occur:
+
+| Condition | Description | Example |
+|-----------|-------------|---------|
+| **1. Mutual Exclusion** | At least one resource is held in a non-sharable mode | A printer can only be used by one process at a time |
+| **2. Hold and Wait** | A process holding at least one resource is waiting to acquire additional resources held by other processes | Process holds Lock A and waits for Lock B |
+| **3. No Preemption** | Resources cannot be forcibly taken from a process; they must be released voluntarily | OS cannot revoke a file lock from a process |
+| **4. Circular Wait** | A circular chain of processes exists where each process holds a resource needed by the next | P1 waits for P2, P2 waits for P3, P3 waits for P1 |
+
+---
+
+### Resource Allocation Graph
+
+A **resource allocation graph** visualizes the relationship between processes and resources. A cycle in the graph indicates a potential deadlock.
+
+```
+Resource Allocation Graph:
+
+  R1 ──────── ●         ● ────── R2
+  (1 instance)│         │(1 instance)
+              │ assign  │ assign
+              v         v
+          ┌──────┐  ┌──────┐
+          │  P1  │  │  P2  │
+          └──┬───┘  └──┬───┘
+             │ request  │ request
+             v         v
+  R2 ──────── ●         ● ────── R1
+
+  P1 holds R1, requests R2
+  P2 holds R2, requests R1
+  → Cycle exists → DEADLOCK (with single-instance resources)
+
+Note: With multi-instance resources, a cycle is necessary
+but not sufficient for deadlock.
+```
+
+---
+
+## Deadlock Prevention
+
+Prevent deadlock by ensuring that at least one of the four necessary conditions cannot hold.
+
+| Condition to Break | Prevention Strategy | Trade-off |
+|-------------------|---------------------|-----------|
+| **Mutual Exclusion** | Make resources sharable (e.g., read-only files) | Not always possible (printers, write locks) |
+| **Hold and Wait** | Require processes to request ALL resources before starting, or release all before requesting new ones | Poor resource utilization, possible starvation |
+| **No Preemption** | If a process cannot get a resource, force it to release all held resources and retry | Expensive, possible livelock |
+| **Circular Wait** | Impose a total ordering on resources; processes must request in increasing order | Requires knowing all resources in advance |
+
+### Breaking Circular Wait (Most Practical)
+
+Assign a global order to all resources (R1 < R2 < R3 ...) and require every thread to acquire resources in increasing order:
+
+```
+Resource ordering: Lock_X = 1, Lock_Y = 2
+
+Thread A (correct):           Thread B (correct):
+  acquire(Lock_X)  // 1       acquire(Lock_X)  // 1
+  acquire(Lock_Y)  // 2       acquire(Lock_Y)  // 2
+  ...                         ...
+  release(Lock_Y)             release(Lock_Y)
+  release(Lock_X)             release(Lock_X)
+
+Both threads always acquire Lock_X before Lock_Y.
+→ No circular wait → No deadlock!
+```
+
+---
+
+## Deadlock Avoidance: Banker's Algorithm
+
+Deadlock **avoidance** allows the four conditions to potentially hold but makes careful resource-allocation decisions to ensure the system never enters a deadlock state. The most famous avoidance algorithm is the **Banker's Algorithm**, proposed by Dijkstra.
+
+### Concept
+
+The system maintains information about:
+- **Available**: Resources currently available
+- **Maximum**: Maximum demand of each process
+- **Allocation**: Resources currently allocated to each process
+- **Need**: Remaining resources each process may need (Need = Maximum - Allocation)
+
+Before granting a request, the system checks if the resulting state is **safe** -- meaning there exists at least one sequence in which all processes can complete.
+
+### Worked Example
+
+**Given**: 3 resource types (A, B, C) with total instances (10, 5, 7).
+
+| Process | Allocation (A B C) | Maximum (A B C) | Need (A B C) |
+|---------|-------------------|-----------------|--------------|
+| P0 | 0 1 0 | 7 5 3 | 7 4 3 |
+| P1 | 2 0 0 | 3 2 2 | 1 2 2 |
+| P2 | 3 0 2 | 9 0 2 | 6 0 0 |
+| P3 | 2 1 1 | 2 2 2 | 0 1 1 |
+| P4 | 0 0 2 | 4 3 3 | 4 3 1 |
+
+**Available** = Total - Sum(Allocation) = (10,5,7) - (7,2,5) = **(3, 3, 2)**
+
+**Safety Check** -- Find a safe sequence:
+
+```
+Step 1: Available = (3, 3, 2)
+  Can P1 run? Need(1,2,2) <= Available(3,3,2)? YES
+  → Run P1. Available = (3,3,2) + Allocation_P1(2,0,0) = (5, 3, 2)
+
+Step 2: Available = (5, 3, 2)
+  Can P3 run? Need(0,1,1) <= Available(5,3,2)? YES
+  → Run P3. Available = (5,3,2) + Allocation_P3(2,1,1) = (7, 4, 3)
+
+Step 3: Available = (7, 4, 3)
+  Can P4 run? Need(4,3,1) <= Available(7,4,3)? YES
+  → Run P4. Available = (7,4,3) + Allocation_P4(0,0,2) = (7, 4, 5)
+
+Step 4: Available = (7, 4, 5)
+  Can P0 run? Need(7,4,3) <= Available(7,4,5)? YES
+  → Run P0. Available = (7,4,5) + Allocation_P0(0,1,0) = (7, 5, 5)
+
+Step 5: Available = (7, 5, 5)
+  Can P2 run? Need(6,0,0) <= Available(7,5,5)? YES
+  → Run P2. Available = (7,5,5) + Allocation_P2(3,0,2) = (10, 5, 7)
+
+Safe sequence: <P1, P3, P4, P0, P2>
+System is in a SAFE STATE.
+```
+
+If a new request would leave the system in an **unsafe state**, the request is denied (the process must wait).
+
+---
+
+## Deadlock Detection and Recovery
+
+Instead of preventing or avoiding deadlock, let deadlocks happen and then detect and recover.
+
+### Detection
+
+- **Single instance resources**: Use a **wait-for graph** (simplified resource allocation graph with only processes). A cycle means deadlock.
+- **Multiple instance resources**: Use a detection algorithm similar to Banker's but without the Maximum/Need matrices.
+
+### Recovery
+
+| Strategy | Description | Trade-off |
+|----------|-------------|-----------|
+| **Process termination** | Kill one or all deadlocked processes | Loss of work; choose victim carefully |
+| **Resource preemption** | Take resources from one process, give to another | Must handle rollback; risk of starvation if same process always chosen |
+
+In practice, many systems (Linux, Windows) use a combination: prevent circular wait where possible, and if a deadlock is suspected, use timeouts to break it (e.g., database lock timeouts).
+
+---
+
+## Classic Synchronization Problems
+
+### 1. Producer-Consumer Problem
+
+One or more producers generate data and place it in a shared buffer. One or more consumers remove data from the buffer. The buffer has a fixed capacity.
+
+**Constraints**: Producers must wait if the buffer is full. Consumers must wait if the buffer is empty. Access to the buffer must be mutually exclusive.
+
+This problem was solved above with the BoundedBuffer monitor. It can also be solved with semaphores:
+
+```
+Semaphore Solution:
+
+mutex    = Semaphore(1)    // mutual exclusion for buffer access
+empty    = Semaphore(N)    // counts empty slots (initially N)
+full     = Semaphore(0)    // counts full slots (initially 0)
+
+Producer:                       Consumer:
+  wait(empty)                     wait(full)
+  wait(mutex)                     wait(mutex)
+  // add item to buffer           // remove item from buffer
+  signal(mutex)                   signal(mutex)
+  signal(full)                    signal(empty)
+```
+
+### 2. Readers-Writers Problem
+
+Multiple readers can access shared data simultaneously, but a writer needs exclusive access. No reader should wait unless a writer is already using the shared data.
+
+```
+Readers-Writers Solution (First Readers-Writers):
+
+mutex       = Semaphore(1)   // protect read_count
+rw_mutex    = Semaphore(1)   // mutual exclusion for writers
+read_count  = 0              // number of active readers
+
+Writer:                        Reader:
+  wait(rw_mutex)                 wait(mutex)
+  // write data                  read_count++
+  signal(rw_mutex)               if read_count == 1:
+                                   wait(rw_mutex)  // first reader locks out writers
+                                 signal(mutex)
+
+                                 // read data
+
+                                 wait(mutex)
+                                 read_count--
+                                 if read_count == 0:
+                                   signal(rw_mutex)  // last reader unlocks for writers
+                                 signal(mutex)
+```
+
+**Note**: This solution favors readers -- a continuous stream of readers can starve writers. The Second Readers-Writers problem gives priority to writers.
+
+### 3. Dining Philosophers Problem
+
+Five philosophers sit around a table with five forks. Each philosopher needs both the left and right fork to eat. They alternate between thinking and eating.
+
+```
+           P0
+       F4      F0
+     P4          P1
+       F3      F1
+           P3
+              F2
+           P2
+
+Naive solution (DEADLOCKS):
+  philosopher(i):
+    while true:
+      think()
+      pick_up(fork[i])           // left fork
+      pick_up(fork[(i+1) % 5])  // right fork
+      eat()
+      put_down(fork[i])
+      put_down(fork[(i+1) % 5])
+
+If all 5 pick up their left fork simultaneously → deadlock!
+```
+
+**Solutions**:
+
+| Solution | How It Works |
+|----------|-------------|
+| **Resource ordering** | Philosopher picks up lower-numbered fork first. Breaks circular wait. |
+| **Limit concurrency** | Allow at most 4 philosophers to attempt eating simultaneously (use a semaphore initialized to 4). |
+| **Asymmetric** | Even-numbered philosophers pick up left first; odd-numbered pick up right first. |
+| **Monitor** | Philosopher checks both forks are available before picking up either. |
+
+```
+Resource Ordering Solution:
+  philosopher(i):
+    first  = min(i, (i+1) % 5)
+    second = max(i, (i+1) % 5)
+
+    while true:
+      think()
+      pick_up(fork[first])    // always lower-numbered first
+      pick_up(fork[second])   // then higher-numbered
+      eat()
+      put_down(fork[second])
+      put_down(fork[first])
+
+This breaks the circular wait condition → no deadlock.
+```
+
+---
+
+## Summary: Synchronization Primitives Comparison
+
+| Primitive | Level | Key Feature | When to Use |
+|-----------|-------|-------------|-------------|
+| **Mutex** | Low | Binary lock; only owner can unlock | Protecting a single shared resource |
+| **Semaphore** | Low | Counter-based; any thread can signal | Limiting concurrent access to N resources |
+| **Monitor** | High | Encapsulates data + operations + sync | Complex shared data structures |
+| **Condition Variable** | Used with mutex/monitor | Wait/signal for specific conditions | Producer-consumer, readers-writers |
+| **Read-Write Lock** | Medium | Multiple readers OR one writer | Read-heavy workloads |
+| **Atomic Operations** | Hardware | Lock-free, single instruction | Simple counters and flags |
+
+---
+
+## Key Takeaways
+
+1. The **critical section problem** requires mutual exclusion, progress, and bounded waiting
+2. **Mutexes** provide simple binary locking; **semaphores** generalize to counting; **monitors** provide structured high-level synchronization
+3. **Deadlock** requires all four conditions: mutual exclusion, hold-and-wait, no preemption, and circular wait
+4. **Prevention** breaks at least one condition (resource ordering is most practical); **avoidance** uses the Banker's Algorithm to stay in safe states; **detection** finds deadlocks after they occur
+5. The **Banker's Algorithm** checks if a safe sequence exists before granting resource requests
+6. Classic problems (Producer-Consumer, Readers-Writers, Dining Philosophers) appear repeatedly in exams and interviews -- know at least one solution for each
+7. In real-world systems, lock ordering and timeouts are the most common deadlock prevention strategies
+
+---
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="Memory Management"
+    href="/software-engineering/operating-systems/memory-management/"
+    description="Understand virtual memory, paging, and page replacement algorithms"
+  />
+  <LinkCard
+    title="CPU Scheduling"
+    href="/software-engineering/operating-systems/cpu-scheduling/"
+    description="Explore scheduling algorithms that decide CPU allocation"
+  />
+  <LinkCard
+    title="Processes & Threads"
+    href="/software-engineering/operating-systems/processes-threads/"
+    description="Review process lifecycle, threading models, and IPC mechanisms"
+  />
+  <LinkCard
+    title="Operating Systems Overview"
+    href="/software-engineering/operating-systems/"
+    description="Return to the OS overview for the complete topic map"
+  />
+</CardGrid>

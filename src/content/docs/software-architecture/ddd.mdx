@@ -1,0 +1,1018 @@
+---
+title: "Domain-Driven Design"
+description: "Model complex business domains using DDD strategic and tactical patterns"
+difficulty: "advanced"
+prerequisites: ["Clean & Layered Architecture", "Microservices Architecture"]
+timeToRead: "20 min"
+topics: ["ddd", "bounded-context", "aggregates", "entities", "value-objects", "ubiquitous-language"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+Domain-Driven Design (DDD) is an approach to software development that places the **business domain at the center** of all design decisions. Introduced by Eric Evans in his 2003 book *Domain-Driven Design: Tackling Complexity in the Heart of Software*, DDD provides both **strategic patterns** for organizing large systems and **tactical patterns** for modeling the domain in code.
+
+---
+
+## Why DDD Matters
+
+Most software failures are not caused by bad technology choices -- they are caused by **misunderstanding the business problem**. DDD addresses this by:
+
+- **Aligning software structure with business structure** -- code mirrors how the business actually works
+- **Creating a shared language** between developers and domain experts -- reducing translation errors
+- **Managing complexity** -- breaking large domains into smaller, well-defined areas
+- **Guiding microservice boundaries** -- bounded contexts map naturally to services
+
+:::note[When to Use DDD]
+DDD is most valuable in **complex domains** where business rules are intricate and evolving. For simple CRUD applications or technical infrastructure projects, the overhead of DDD is not justified. As Eric Evans says, "Not all of a large system will be well-designed. Focus the DDD effort on the core domain."
+:::
+
+---
+
+## Strategic DDD
+
+Strategic DDD is about the **big picture**: how to decompose a large system into manageable parts and how those parts relate to each other. It is the most impactful aspect of DDD, especially for architectural decisions.
+
+### Subdomains
+
+Every business can be broken down into **subdomains** -- areas of the business that serve a specific purpose. DDD classifies subdomains into three types:
+
+| Subdomain Type | Description | Investment Level | Example (E-Commerce) |
+|---------------|-------------|-----------------|---------------------|
+| **Core** | The competitive advantage -- what makes the business unique | Highest (custom-built, best engineers) | Product recommendation engine, pricing algorithm |
+| **Supporting** | Necessary for the business but not a differentiator | Medium (custom-built, but simpler) | Inventory management, order fulfillment |
+| **Generic** | Solved problems with off-the-shelf solutions | Lowest (buy or use open-source) | Authentication, email delivery, payment processing |
+
+```
+E-Commerce Company Subdomains:
+
+┌────────────────────────────────────────────────────────┐
+│                                                        │
+│  CORE (build in-house, invest heavily):                │
+│  ┌─────────────────┐  ┌──────────────────────┐         │
+│  │ Product          │  │ Personalized         │         │
+│  │ Recommendation   │  │ Pricing Engine       │         │
+│  └─────────────────┘  └──────────────────────┘         │
+│                                                        │
+│  SUPPORTING (build in-house, moderate investment):     │
+│  ┌──────────┐  ┌──────────────┐  ┌──────────────┐     │
+│  │ Order    │  │ Inventory    │  │ Customer     │     │
+│  │ Mgmt     │  │ Tracking     │  │ Support      │     │
+│  └──────────┘  └──────────────┘  └──────────────┘     │
+│                                                        │
+│  GENERIC (buy or use SaaS):                            │
+│  ┌──────────┐  ┌──────────────┐  ┌──────────────┐     │
+│  │ Auth     │  │ Payment      │  │ Email /      │     │
+│  │ (Auth0)  │  │ (Stripe)     │  │ SMS (SES)    │     │
+│  └──────────┘  └──────────────┘  └──────────────┘     │
+│                                                        │
+└────────────────────────────────────────────────────────┘
+```
+
+### Bounded Contexts
+
+A **bounded context** is an explicit boundary within which a particular domain model applies. Inside a bounded context, terms have precise, unambiguous meanings. The same word can mean different things in different bounded contexts.
+
+```
+The word "Product" means different things in different contexts:
+
+┌─────────────────────────┐    ┌─────────────────────────┐
+│   Catalog Context        │    │   Inventory Context      │
+│                          │    │                          │
+│   Product:               │    │   Product:               │
+│   - name                 │    │   - SKU                  │
+│   - description          │    │   - warehouse_location   │
+│   - images               │    │   - quantity_on_hand     │
+│   - price                │    │   - reorder_threshold    │
+│   - categories           │    │   - supplier_id          │
+│                          │    │                          │
+│   "Something customers   │    │   "Something we track    │
+│    browse and buy"       │    │    in our warehouse"     │
+└─────────────────────────┘    └─────────────────────────┘
+
+┌─────────────────────────┐    ┌─────────────────────────┐
+│   Shipping Context       │    │   Billing Context        │
+│                          │    │                          │
+│   Product:               │    │   Product:               │
+│   - weight               │    │   - SKU                  │
+│   - dimensions           │    │   - taxable              │
+│   - fragile              │    │   - unit_price           │
+│   - shipping_class       │    │   - discount_rules       │
+│                          │    │                          │
+│   "Something we need     │    │   "Something we charge   │
+│    to pack and ship"     │    │    the customer for"     │
+└─────────────────────────┘    └─────────────────────────┘
+```
+
+**Key principles of bounded contexts**:
+- Each bounded context has its **own ubiquitous language** (terms, definitions, models)
+- Each bounded context has its **own data store** (no shared databases)
+- Communication between contexts happens through **well-defined interfaces** (APIs, events)
+- A bounded context is a natural candidate for a **microservice**
+
+### Context Mapping
+
+A **context map** shows how bounded contexts relate to each other. It documents the integration patterns and power dynamics between teams.
+
+```
+Context Map: E-Commerce Platform
+
+   ┌──────────────┐          ┌──────────────┐
+   │              │  REST    │              │
+   │   Catalog    │◄────────►│  Inventory   │
+   │   Context    │  API     │  Context     │
+   │              │          │              │
+   │  (upstream)  │          │ (downstream) │
+   └──────┬───────┘          └──────┬───────┘
+          │                         │
+          │  Domain Events          │  Domain Events
+          │  (OrderPlaced)          │  (StockReserved)
+          ▼                         ▼
+   ┌──────────────┐          ┌──────────────┐
+   │              │  Events  │              │
+   │    Order     │─────────►│   Shipping   │
+   │   Context    │          │   Context    │
+   │              │          │              │
+   │   (core)     │          │ (supporting) │
+   └──────┬───────┘          └──────────────┘
+          │
+          │  REST API
+          ▼
+   ┌──────────────┐
+   │              │
+   │   Payment    │
+   │   Context    │
+   │              │
+   │  (generic /  │
+   │   external)  │
+   └──────────────┘
+
+Relationship Patterns:
+  ═══► Customer-Supplier: Upstream serves downstream's needs
+  ───► Conformist: Downstream conforms to upstream's model
+  ◄──► Partnership: Both teams coordinate closely
+  ACL: Anti-Corruption Layer protects downstream from upstream changes
+```
+
+### Common Context Mapping Patterns
+
+| Pattern | Description | When to Use |
+|---------|-------------|-------------|
+| **Partnership** | Two teams coordinate closely to evolve their models together | Teams are co-located, tightly aligned |
+| **Customer-Supplier** | Upstream team serves the downstream team's needs | Clear dependency, cooperative teams |
+| **Conformist** | Downstream team adopts the upstream model as-is | No influence over upstream (e.g., external API) |
+| **Anti-Corruption Layer** | Downstream translates upstream model to protect its own model | Upstream model is messy or unstable |
+| **Open Host Service** | Upstream exposes a well-defined protocol for many consumers | Public API with multiple consumers |
+| **Published Language** | Shared, well-documented data format between contexts | Industry standards (e.g., iCalendar, FHIR) |
+| **Shared Kernel** | Two contexts share a small, common model | Tightly related contexts with shared core concepts |
+| **Separate Ways** | No integration -- contexts operate independently | No meaningful relationship |
+
+---
+
+## Ubiquitous Language
+
+The **ubiquitous language** is a shared vocabulary between developers and domain experts that is used consistently in conversations, documentation, and code.
+
+### How to Build a Ubiquitous Language
+
+1. **Listen to domain experts** -- use the words they use, not developer jargon
+2. **Be precise** -- if a word is ambiguous, define it explicitly within the bounded context
+3. **Embed it in code** -- class names, method names, and variable names should reflect the ubiquitous language
+4. **Evolve it together** -- as understanding deepens, refine the language and refactor the code
+
+### Example
+
+```
+Domain Expert says:             Developer says:
+"A customer places an order"    "User creates a record in the orders table"
+"The order is fulfilled"        "Status is updated to 2"
+"We charge the customer"        "Payment API call is made"
+
+With Ubiquitous Language, everyone says:
+"A customer places an order"    →  customer.placeOrder(items)
+"The order is fulfilled"        →  order.fulfill()
+"We charge the customer"        →  paymentService.chargeCustomer(order)
+```
+
+:::tip[The Language IS the Model]
+If a domain expert would not understand your class names, your model probably does not reflect the domain accurately. "OrderFulfilled" is better than "UpdateOrderStatusEvent." "Money" is better than "DecimalWrapper."
+:::
+
+---
+
+## Tactical DDD
+
+Tactical DDD provides the **building blocks** for implementing the domain model in code. These patterns help you write code that accurately reflects the business domain.
+
+### Entities
+
+An entity is an object defined by its **identity**, not its attributes. Two entities with the same attributes but different IDs are different objects. Entities have a **lifecycle** -- they are created, modified over time, and eventually archived or deleted.
+
+- **Examples**: User, Order, BankAccount, Patient
+- **Key property**: Has a unique identifier (ID) that persists across changes
+- **Equality**: Based on identity, not attributes
+
+### Value Objects
+
+A value object is defined by its **attributes**, not by an identity. Two value objects with the same attributes are considered equal. Value objects are **immutable** -- once created, they cannot be changed.
+
+- **Examples**: Money, Address, DateRange, EmailAddress, GPS Coordinates
+- **Key property**: No identity -- equality is based on all attributes
+- **Immutability**: Changing a value means creating a new instance
+
+### Aggregates and Aggregate Roots
+
+An **aggregate** is a cluster of entities and value objects that are treated as a **single unit for data changes**. The **aggregate root** is the entry point -- all external access must go through the root.
+
+```
+Order Aggregate:
+
+    ┌─────────────────────────────────────────┐
+    │              Order (Aggregate Root)       │
+    │                                          │
+    │   id: UUID                               │
+    │   status: OrderStatus                    │
+    │   customer_id: string                    │
+    │                                          │
+    │   ┌───────────────┐  ┌───────────────┐   │
+    │   │  OrderItem    │  │  OrderItem    │   │
+    │   │  (Entity)     │  │  (Entity)     │   │
+    │   │              │  │              │   │
+    │   │  ┌─────────┐ │  │  ┌─────────┐ │   │
+    │   │  │ Money   │ │  │  │ Money   │ │   │
+    │   │  │ (Value  │ │  │  │ (Value  │ │   │
+    │   │  │ Object) │ │  │  │ Object) │ │   │
+    │   │  └─────────┘ │  │  └─────────┘ │   │
+    │   └───────────────┘  └───────────────┘   │
+    │                                          │
+    │   ┌──────────────────┐                   │
+    │   │ ShippingAddress   │                   │
+    │   │ (Value Object)    │                   │
+    │   └──────────────────┘                   │
+    │                                          │
+    └─────────────────────────────────────────┘
+
+    Rules:
+    1. All changes go through Order (the aggregate root)
+    2. External objects reference Order by ID only
+    3. One transaction = one aggregate
+    4. OrderItems cannot be accessed directly from outside
+```
+
+**Aggregate design rules**:
+1. **Reference other aggregates by ID**, not by direct object reference
+2. **One transaction per aggregate** -- do not modify multiple aggregates in a single transaction
+3. **Keep aggregates small** -- large aggregates create contention and performance problems
+4. **Use eventual consistency** between aggregates (via domain events)
+
+### Domain Events
+
+Domain events represent **something meaningful that happened** in the domain. They are raised by aggregates and consumed by other parts of the system.
+
+- Named in **past tense** (e.g., `OrderPlaced`, `PaymentReceived`)
+- Carry the data needed for consumers to react
+- Enable **eventual consistency** between aggregates
+
+### Repositories
+
+A repository provides a **collection-like interface** for accessing aggregates. It abstracts the persistence mechanism, allowing the domain model to remain ignorant of the database.
+
+- One repository per **aggregate root**
+- Repositories return **domain objects**, not database rows
+- The interface is defined in the domain layer; the implementation is in the infrastructure layer
+
+### Domain Services
+
+A domain service encapsulates **business logic that does not naturally belong to any single entity or value object**. It operates on multiple entities or requires external dependencies.
+
+- **Examples**: `PricingService` (calculating prices based on rules, discounts, and customer tier), `TransferService` (moving money between two accounts)
+- Should be **stateless** -- all state lives in entities and value objects
+
+### Application Services
+
+An application service **orchestrates use cases** by coordinating domain objects, repositories, and infrastructure services. It does not contain business logic -- it delegates to the domain model.
+
+- Handles **input validation** and **transaction management**
+- Maps between **DTOs** (external) and **domain objects** (internal)
+- Defined in the application layer, not the domain layer
+
+---
+
+## Code Examples: Tactical DDD
+
+### Value Objects
+
+<Tabs>
+  <TabItem label="Python">
+```python
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)  # frozen=True makes it immutable
+class Money:
+    """Value object: defined by its attributes, immutable."""
+    amount: float
+    currency: str
+
+    def __post_init__(self):
+        if self.amount < 0:
+            raise ValueError("Amount cannot be negative")
+        if self.currency not in ("USD", "EUR", "GBP"):
+            raise ValueError(f"Unsupported currency: {self.currency}")
+
+    def add(self, other: "Money") -> "Money":
+        if self.currency != other.currency:
+            raise ValueError("Cannot add different currencies")
+        return Money(amount=self.amount + other.amount, currency=self.currency)
+
+    def multiply(self, factor: int) -> "Money":
+        return Money(amount=self.amount * factor, currency=self.currency)
+
+
+@dataclass(frozen=True)
+class Address:
+    """Value object: two addresses with the same fields are equal."""
+    street: str
+    city: str
+    state: str
+    zip_code: str
+    country: str
+
+    def __post_init__(self):
+        if not self.zip_code:
+            raise ValueError("Zip code is required")
+
+
+# Value object equality is based on attributes
+price_a = Money(19.99, "USD")
+price_b = Money(19.99, "USD")
+print(price_a == price_b)  # True -- same attributes
+
+# Immutability -- creating a new instance instead of modifying
+new_price = price_a.add(Money(5.00, "USD"))
+print(new_price)  # Money(amount=24.99, currency='USD')
+print(price_a)    # Money(amount=19.99, currency='USD') -- unchanged
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+import java.util.Objects;
+
+/**
+ * Value object: defined by its attributes, immutable.
+ * Uses Java record for conciseness (Java 16+).
+ */
+public record Money(double amount, String currency) {
+
+    public Money {
+        if (amount < 0) {
+            throw new IllegalArgumentException("Amount cannot be negative");
+        }
+        if (!currency.matches("USD|EUR|GBP")) {
+            throw new IllegalArgumentException(
+                "Unsupported currency: " + currency
+            );
+        }
+    }
+
+    public static final Money ZERO = new Money(0, "USD");
+
+    public Money add(Money other) {
+        if (!this.currency.equals(other.currency)) {
+            throw new IllegalArgumentException(
+                "Cannot add different currencies"
+            );
+        }
+        return new Money(this.amount + other.amount, this.currency);
+    }
+
+    public Money multiply(int factor) {
+        return new Money(this.amount * factor, this.currency);
+    }
+}
+
+
+/**
+ * Value object: two addresses with the same fields are equal.
+ */
+public record Address(
+    String street,
+    String city,
+    String state,
+    String zipCode,
+    String country
+) {
+    public Address {
+        if (zipCode == null || zipCode.isBlank()) {
+            throw new IllegalArgumentException("Zip code is required");
+        }
+    }
+}
+
+// Value object equality is based on attributes
+Money priceA = new Money(19.99, "USD");
+Money priceB = new Money(19.99, "USD");
+System.out.println(priceA.equals(priceB)); // true -- same attributes
+
+// Immutability -- creating a new instance instead of modifying
+Money newPrice = priceA.add(new Money(5.00, "USD"));
+System.out.println(newPrice);  // Money[amount=24.99, currency=USD]
+System.out.println(priceA);    // Money[amount=19.99, currency=USD] -- unchanged
+```
+  </TabItem>
+</Tabs>
+
+### Entity and Aggregate Root
+
+<Tabs>
+  <TabItem label="Python">
+```python
+from dataclasses import dataclass, field
+from datetime import datetime
+from enum import Enum
+from typing import List, Optional
+from uuid import UUID, uuid4
+
+
+class OrderStatus(Enum):
+    DRAFT = "DRAFT"
+    PLACED = "PLACED"
+    PAID = "PAID"
+    SHIPPED = "SHIPPED"
+    DELIVERED = "DELIVERED"
+    CANCELLED = "CANCELLED"
+
+
+@dataclass
+class OrderItem:
+    """Entity within the Order aggregate (has its own identity)."""
+    id: UUID = field(default_factory=uuid4)
+    product_id: str = ""
+    product_name: str = ""
+    quantity: int = 0
+    unit_price: Money = field(default_factory=lambda: Money(0, "USD"))
+
+    @property
+    def subtotal(self) -> Money:
+        return self.unit_price.multiply(self.quantity)
+
+
+class Order:
+    """Aggregate Root: all modifications go through this class."""
+
+    def __init__(self, customer_id: str):
+        self._id: UUID = uuid4()
+        self._customer_id = customer_id
+        self._items: List[OrderItem] = []
+        self._status = OrderStatus.DRAFT
+        self._shipping_address: Optional[Address] = None
+        self._created_at = datetime.utcnow()
+        self._domain_events: List[dict] = []
+
+    # --- Identity-based equality ---
+    def __eq__(self, other):
+        if not isinstance(other, Order):
+            return False
+        return self._id == other._id
+
+    def __hash__(self):
+        return hash(self._id)
+
+    # --- Properties ---
+    @property
+    def id(self) -> UUID:
+        return self._id
+
+    @property
+    def status(self) -> OrderStatus:
+        return self._status
+
+    @property
+    def total(self) -> Money:
+        if not self._items:
+            return Money(0, "USD")
+        result = Money(0, "USD")
+        for item in self._items:
+            result = result.add(item.subtotal)
+        return result
+
+    @property
+    def domain_events(self) -> List[dict]:
+        return list(self._domain_events)
+
+    # --- Commands (business operations) ---
+    def add_item(
+        self, product_id: str, product_name: str,
+        quantity: int, unit_price: Money,
+    ) -> None:
+        """Add an item. Only allowed in DRAFT status."""
+        if self._status != OrderStatus.DRAFT:
+            raise ValueError("Can only add items to draft orders")
+        if quantity <= 0:
+            raise ValueError("Quantity must be positive")
+
+        item = OrderItem(
+            product_id=product_id,
+            product_name=product_name,
+            quantity=quantity,
+            unit_price=unit_price,
+        )
+        self._items.append(item)
+
+    def set_shipping_address(self, address: Address) -> None:
+        """Set the shipping address. Only allowed in DRAFT status."""
+        if self._status != OrderStatus.DRAFT:
+            raise ValueError("Can only set address on draft orders")
+        self._shipping_address = address
+
+    def place(self) -> None:
+        """Place the order. Business rules are enforced here."""
+        if self._status != OrderStatus.DRAFT:
+            raise ValueError("Order is not in DRAFT status")
+        if not self._items:
+            raise ValueError("Cannot place an empty order")
+        if self._shipping_address is None:
+            raise ValueError("Shipping address is required")
+
+        self._status = OrderStatus.PLACED
+
+        # Raise a domain event
+        self._domain_events.append({
+            "type": "OrderPlaced",
+            "order_id": str(self._id),
+            "customer_id": self._customer_id,
+            "total": self.total.amount,
+            "item_count": len(self._items),
+        })
+
+    def cancel(self) -> None:
+        """Cancel the order. Only placed or paid orders can be cancelled."""
+        if self._status not in (OrderStatus.PLACED, OrderStatus.PAID):
+            raise ValueError(
+                f"Cannot cancel order in {self._status.value} status"
+            )
+        self._status = OrderStatus.CANCELLED
+        self._domain_events.append({
+            "type": "OrderCancelled",
+            "order_id": str(self._id),
+        })
+
+    def clear_events(self) -> None:
+        """Called after events have been published."""
+        self._domain_events.clear()
+
+
+# Usage
+order = Order(customer_id="C-42")
+order.add_item("P-1", "Mechanical Keyboard", 1, Money(89.99, "USD"))
+order.add_item("P-2", "USB-C Cable", 2, Money(12.99, "USD"))
+order.set_shipping_address(Address(
+    street="123 Main St",
+    city="Springfield",
+    state="IL",
+    zip_code="62704",
+    country="US",
+))
+order.place()
+
+print(order.status)         # OrderStatus.PLACED
+print(order.total)          # Money(amount=115.97, currency='USD')
+print(order.domain_events)  # [{'type': 'OrderPlaced', ...}]
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+import java.time.Instant;
+import java.util.*;
+
+public class Order {
+    // --- Aggregate Root ---
+
+    private final UUID id;
+    private final String customerId;
+    private final List<OrderItem> items;
+    private OrderStatus status;
+    private Address shippingAddress;
+    private final Instant createdAt;
+    private final List<DomainEvent> domainEvents;
+
+    public Order(String customerId) {
+        this.id = UUID.randomUUID();
+        this.customerId = customerId;
+        this.items = new ArrayList<>();
+        this.status = OrderStatus.DRAFT;
+        this.createdAt = Instant.now();
+        this.domainEvents = new ArrayList<>();
+    }
+
+    // --- Identity-based equality ---
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Order other)) return false;
+        return id.equals(other.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
+    }
+
+    // --- Computed properties ---
+    public Money getTotal() {
+        return items.stream()
+            .map(OrderItem::getSubtotal)
+            .reduce(Money.ZERO, Money::add);
+    }
+
+    // --- Commands (business operations) ---
+    public void addItem(
+        String productId, String productName,
+        int quantity, Money unitPrice
+    ) {
+        if (status != OrderStatus.DRAFT) {
+            throw new IllegalStateException(
+                "Can only add items to draft orders"
+            );
+        }
+        if (quantity <= 0) {
+            throw new IllegalArgumentException(
+                "Quantity must be positive"
+            );
+        }
+        items.add(new OrderItem(
+            productId, productName, quantity, unitPrice
+        ));
+    }
+
+    public void setShippingAddress(Address address) {
+        if (status != OrderStatus.DRAFT) {
+            throw new IllegalStateException(
+                "Can only set address on draft orders"
+            );
+        }
+        this.shippingAddress = address;
+    }
+
+    public void place() {
+        if (status != OrderStatus.DRAFT) {
+            throw new IllegalStateException("Order is not in DRAFT status");
+        }
+        if (items.isEmpty()) {
+            throw new IllegalStateException("Cannot place an empty order");
+        }
+        if (shippingAddress == null) {
+            throw new IllegalStateException(
+                "Shipping address is required"
+            );
+        }
+
+        this.status = OrderStatus.PLACED;
+
+        // Raise a domain event
+        domainEvents.add(new OrderPlacedEvent(
+            id.toString(), customerId,
+            getTotal().amount(), items.size()
+        ));
+    }
+
+    public void cancel() {
+        if (status != OrderStatus.PLACED && status != OrderStatus.PAID) {
+            throw new IllegalStateException(
+                "Cannot cancel order in " + status + " status"
+            );
+        }
+        this.status = OrderStatus.CANCELLED;
+        domainEvents.add(new OrderCancelledEvent(id.toString()));
+    }
+
+    public List<DomainEvent> getDomainEvents() {
+        return Collections.unmodifiableList(domainEvents);
+    }
+
+    public void clearEvents() {
+        domainEvents.clear();
+    }
+
+    // Getters
+    public UUID getId() { return id; }
+    public OrderStatus getStatus() { return status; }
+}
+```
+  </TabItem>
+</Tabs>
+
+### Repository
+
+<Tabs>
+  <TabItem label="Python">
+```python
+from abc import ABC, abstractmethod
+from typing import Optional
+from uuid import UUID
+
+
+class OrderRepository(ABC):
+    """
+    Repository interface: defined in the DOMAIN layer.
+    Provides a collection-like abstraction over persistence.
+    """
+
+    @abstractmethod
+    def save(self, order: Order) -> None:
+        """Persist the order (insert or update)."""
+        ...
+
+    @abstractmethod
+    def find_by_id(self, order_id: UUID) -> Optional[Order]:
+        """Retrieve an order by its ID."""
+        ...
+
+    @abstractmethod
+    def find_by_customer(self, customer_id: str) -> List[Order]:
+        """Retrieve all orders for a customer."""
+        ...
+
+    @abstractmethod
+    def delete(self, order_id: UUID) -> None:
+        """Remove an order from the store."""
+        ...
+
+
+# In-memory implementation (for testing)
+class InMemoryOrderRepository(OrderRepository):
+    def __init__(self):
+        self._store: dict[UUID, Order] = {}
+
+    def save(self, order: Order) -> None:
+        self._store[order.id] = order
+
+    def find_by_id(self, order_id: UUID) -> Optional[Order]:
+        return self._store.get(order_id)
+
+    def find_by_customer(self, customer_id: str) -> List[Order]:
+        return [
+            o for o in self._store.values()
+            if o._customer_id == customer_id
+        ]
+
+    def delete(self, order_id: UUID) -> None:
+        self._store.pop(order_id, None)
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+import java.util.Optional;
+import java.util.List;
+import java.util.UUID;
+
+/**
+ * Repository interface: defined in the DOMAIN layer.
+ * One repository per aggregate root.
+ */
+public interface OrderRepository {
+
+    void save(Order order);
+
+    Optional<Order> findById(UUID orderId);
+
+    List<Order> findByCustomer(String customerId);
+
+    void delete(UUID orderId);
+}
+
+
+// In-memory implementation (for testing)
+public class InMemoryOrderRepository implements OrderRepository {
+
+    private final Map<UUID, Order> store = new HashMap<>();
+
+    @Override
+    public void save(Order order) {
+        store.put(order.getId(), order);
+    }
+
+    @Override
+    public Optional<Order> findById(UUID orderId) {
+        return Optional.ofNullable(store.get(orderId));
+    }
+
+    @Override
+    public List<Order> findByCustomer(String customerId) {
+        return store.values().stream()
+            .filter(o -> o.getCustomerId().equals(customerId))
+            .toList();
+    }
+
+    @Override
+    public void delete(UUID orderId) {
+        store.remove(orderId);
+    }
+}
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## Anti-Corruption Layer
+
+An **anti-corruption layer (ACL)** is a translation boundary that protects your domain model from the concepts and language of an external system. It prevents external models from "corrupting" your clean domain.
+
+```
+Without ACL (external model leaks into domain):
+
+  External Payment API          Your Domain
+  ┌────────────────────┐        ┌──────────────────┐
+  │ {                  │        │ Order uses        │
+  │   "txn_id": "...", │───────►│ "txn_id",         │
+  │   "amt_cents": 100,│        │ "amt_cents",      │
+  │   "ccy": "USD",   │        │ "ccy" directly    │
+  │   "stat": "OK"    │        │                   │
+  │ }                  │        │ (coupling!)       │
+  └────────────────────┘        └──────────────────┘
+
+
+With ACL (translation at the boundary):
+
+  External Payment API    Anti-Corruption Layer    Your Domain
+  ┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐
+  │ {                │    │ Translates:      │    │ Uses:            │
+  │  "txn_id": "...",│───►│ txn_id → payId   │───►│ paymentId        │
+  │  "amt_cents": 100│    │ amt_cents → Money │    │ Money(1.00,USD)  │
+  │  "ccy": "USD",  │    │ stat → PayStatus  │    │ PaymentStatus    │
+  │  "stat": "OK"   │    │                  │    │                  │
+  │ }                │    │ (isolates change)│    │ (clean model)    │
+  └──────────────────┘    └──────────────────┘    └──────────────────┘
+```
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# Anti-corruption layer: translates external API to domain model
+
+from dataclasses import dataclass
+from enum import Enum
+
+
+# Domain model (our clean model)
+class PaymentStatus(Enum):
+    SUCCESSFUL = "SUCCESSFUL"
+    FAILED = "FAILED"
+    PENDING = "PENDING"
+
+
+@dataclass
+class PaymentResult:
+    """Domain object representing a payment outcome."""
+    payment_id: str
+    amount: Money
+    status: PaymentStatus
+
+
+# ACL: translates external payment API response to domain model
+class PaymentGatewayACL:
+    """Anti-corruption layer for the external payment provider."""
+
+    def __init__(self, external_client):
+        self._client = external_client
+
+    def process_payment(
+        self, amount: Money, customer_token: str
+    ) -> PaymentResult:
+        # Call the external API
+        raw_response = self._client.charge(
+            amt_cents=int(amount.amount * 100),
+            ccy=amount.currency,
+            token=customer_token,
+        )
+
+        # Translate external concepts to our domain
+        return PaymentResult(
+            payment_id=raw_response["txn_id"],
+            amount=Money(
+                amount=raw_response["amt_cents"] / 100,
+                currency=raw_response["ccy"],
+            ),
+            status=self._translate_status(raw_response["stat"]),
+        )
+
+    @staticmethod
+    def _translate_status(external_status: str) -> PaymentStatus:
+        mapping = {
+            "OK": PaymentStatus.SUCCESSFUL,
+            "FAIL": PaymentStatus.FAILED,
+            "PEND": PaymentStatus.PENDING,
+        }
+        return mapping.get(external_status, PaymentStatus.FAILED)
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+// Anti-corruption layer: translates external API to domain model
+
+public class PaymentGatewayACL {
+
+    private final ExternalPaymentClient externalClient;
+
+    public PaymentGatewayACL(ExternalPaymentClient externalClient) {
+        this.externalClient = externalClient;
+    }
+
+    public PaymentResult processPayment(
+        Money amount, String customerToken
+    ) {
+        // Call the external API
+        Map<String, Object> rawResponse = externalClient.charge(
+            (int) (amount.amount() * 100),
+            amount.currency(),
+            customerToken
+        );
+
+        // Translate external concepts to our domain
+        return new PaymentResult(
+            (String) rawResponse.get("txn_id"),
+            new Money(
+                (Integer) rawResponse.get("amt_cents") / 100.0,
+                (String) rawResponse.get("ccy")
+            ),
+            translateStatus((String) rawResponse.get("stat"))
+        );
+    }
+
+    private PaymentStatus translateStatus(String externalStatus) {
+        return switch (externalStatus) {
+            case "OK" -> PaymentStatus.SUCCESSFUL;
+            case "FAIL" -> PaymentStatus.FAILED;
+            case "PEND" -> PaymentStatus.PENDING;
+            default -> PaymentStatus.FAILED;
+        };
+    }
+}
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## DDD and Microservices
+
+DDD and microservices are natural partners. The strategic patterns of DDD directly inform microservice boundaries:
+
+```
+Bounded Context   →   Microservice
+Ubiquitous Language   →   Service API vocabulary
+Context Map   →   Inter-service communication patterns
+Aggregate   →   Consistency boundary within a service
+Domain Event   →   Integration event between services
+Anti-Corruption Layer   →   API adapter / client library
+```
+
+| DDD Concept | Microservice Equivalent |
+|-------------|------------------------|
+| Bounded Context | Service boundary |
+| Context Map | System architecture diagram |
+| Aggregate Root | Transaction boundary |
+| Repository | Data access within a service |
+| Domain Event | Message on the event bus |
+| Anti-Corruption Layer | Service adapter / client |
+| Ubiquitous Language | API contract vocabulary |
+
+---
+
+## Common DDD Pitfalls
+
+| Pitfall | Description | Solution |
+|---------|-------------|----------|
+| **Anemic Domain Model** | Entities have only getters/setters; all logic is in services | Move business rules into entities and value objects |
+| **Oversize Aggregates** | One aggregate contains too many entities | Keep aggregates small; reference other aggregates by ID |
+| **Ignoring Bounded Contexts** | Using one model everywhere leads to ambiguity | Define explicit boundaries with distinct models |
+| **CRUD Thinking** | Treating entities as database records | Focus on domain behavior, not data persistence |
+| **Shared Database** | Multiple bounded contexts share one database | Each context owns its data store |
+| **Applying DDD Everywhere** | Using DDD for simple CRUD subdomains | Apply DDD to the core domain; keep generic subdomains simple |
+
+---
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="Event-Driven Architecture"
+    href="/software-engineering/software-architecture/event-driven/"
+    description="Implement domain events with message brokers, event sourcing, and CQRS"
+  />
+  <LinkCard
+    title="Microservices Architecture"
+    href="/software-engineering/software-architecture/microservices/"
+    description="Apply bounded contexts to decompose systems into microservices"
+  />
+  <LinkCard
+    title="Clean & Layered Architecture"
+    href="/software-engineering/software-architecture/clean-architecture/"
+    description="Structure services using clean architecture and the dependency rule"
+  />
+  <LinkCard
+    title="Software Architecture Overview"
+    href="/software-engineering/software-architecture/"
+    description="Return to quality attributes, trade-offs, and architectural decision records"
+  />
+</CardGrid>

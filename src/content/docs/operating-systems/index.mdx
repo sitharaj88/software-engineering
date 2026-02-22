@@ -1,0 +1,239 @@
+---
+title: "Operating Systems"
+description: "Understand how operating systems manage hardware resources, processes, memory, and file systems"
+difficulty: "beginner"
+prerequisites: ["Basic programming knowledge"]
+timeToRead: "10 min"
+topics: ["os", "kernel", "system-calls", "processes", "memory"]
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+An **operating system (OS)** is the most important software that runs on a computer. It manages the computer's hardware resources -- CPU, memory, storage, and I/O devices -- and provides a stable, consistent interface for application programs to use. Without an operating system, every program would need to handle hardware directly, making software development impossibly complex.
+
+Whether you are writing a web server, a mobile app, or a machine learning pipeline, the OS is silently orchestrating everything underneath. Understanding how it works will make you a significantly better engineer.
+
+## What Does an Operating System Do?
+
+At its core, an OS has four primary responsibilities:
+
+1. **Process Management** -- Creating, scheduling, and terminating processes and threads
+2. **Memory Management** -- Allocating and deallocating memory, implementing virtual memory
+3. **File System Management** -- Organizing data on storage devices, managing file access and permissions
+4. **I/O Management** -- Handling communication between the CPU and peripheral devices (disk, network, keyboard, display)
+
+Additionally, the OS provides:
+
+- **Security and access control** -- Protecting processes from each other and enforcing user permissions
+- **Networking** -- Managing network connections and protocols
+- **User interface** -- Providing a command-line or graphical interface for human interaction
+
+---
+
+## Kernel vs User Space
+
+The most fundamental architectural concept in operating systems is the separation between **kernel space** and **user space**. This boundary is enforced by the CPU hardware itself.
+
+```
+┌─────────────────────────────────────────────────────┐
+│                  USER SPACE                         │
+│                                                     │
+│   ┌──────────┐  ┌──────────┐  ┌──────────────┐     │
+│   │  Web     │  │  Text    │  │   Database   │     │
+│   │  Browser │  │  Editor  │  │   Server     │     │
+│   └────┬─────┘  └────┬─────┘  └──────┬───────┘     │
+│        │             │               │              │
+│  ──────┴─────────────┴───────────────┴──────────    │
+│              System Call Interface                   │
+│              (open, read, write, fork,               │
+│               exec, mmap, socket...)                 │
+│  ───────────────────────────────────────────────    │
+│                                                     │
+├─────────────────────────────────────────────────────┤
+│                 KERNEL SPACE                         │
+│                                                     │
+│   ┌────────────────────────────────────────────┐    │
+│   │              Kernel                         │    │
+│   │                                             │    │
+│   │   ┌───────────┐  ┌──────────┐  ┌────────┐  │    │
+│   │   │ Process   │  │ Memory   │  │ File   │  │    │
+│   │   │ Scheduler │  │ Manager  │  │ System │  │    │
+│   │   └───────────┘  └──────────┘  └────────┘  │    │
+│   │                                             │    │
+│   │   ┌───────────┐  ┌──────────┐  ┌────────┐  │    │
+│   │   │ Device    │  │ Network  │  │ Security│  │    │
+│   │   │ Drivers   │  │ Stack    │  │ Module │  │    │
+│   │   └───────────┘  └──────────┘  └────────┘  │    │
+│   └────────────────────────────────────────────┘    │
+│                                                     │
+├─────────────────────────────────────────────────────┤
+│                   HARDWARE                          │
+│                                                     │
+│   ┌───────┐  ┌────────┐  ┌──────┐  ┌───────────┐   │
+│   │  CPU  │  │ Memory │  │ Disk │  │ Network   │   │
+│   │       │  │ (RAM)  │  │      │  │ Interface │   │
+│   └───────┘  └────────┘  └──────┘  └───────────┘   │
+└─────────────────────────────────────────────────────┘
+```
+
+### Kernel Space
+
+The **kernel** is the core of the operating system. It runs with full hardware privileges (Ring 0 on x86 processors) and has unrestricted access to all hardware and memory. The kernel is responsible for:
+
+- Managing the CPU scheduler and deciding which process runs next
+- Handling interrupts from hardware devices
+- Managing physical and virtual memory
+- Providing the file system implementation
+- Enforcing security boundaries between processes
+
+### User Space
+
+**User space** is where all application programs run. Programs in user space have restricted access -- they cannot directly touch hardware or access another process's memory. When a user-space program needs to perform a privileged operation (reading a file, sending a network packet, allocating memory), it must ask the kernel through a **system call**.
+
+### Why the Separation Matters
+
+- **Stability** -- A bug in a user program cannot crash the entire system
+- **Security** -- One program cannot read or modify another program's data
+- **Fairness** -- The kernel ensures all programs get their share of resources
+
+---
+
+## System Calls
+
+A **system call** is the mechanism by which a user-space program requests a service from the kernel. It is the only legal way for applications to interact with hardware resources.
+
+When a program invokes a system call:
+
+1. The program places the system call number and arguments in CPU registers
+2. A special CPU instruction (e.g., `syscall` on x86-64, `svc` on ARM) triggers a **trap** that switches to kernel mode
+3. The kernel validates the request and performs the operation
+4. Control returns to the user program with the result
+
+### Common Categories of System Calls
+
+| Category | Examples | Purpose |
+|----------|----------|---------|
+| **Process Control** | `fork()`, `exec()`, `exit()`, `wait()` | Create, run, and manage processes |
+| **File Management** | `open()`, `read()`, `write()`, `close()` | Access and manipulate files |
+| **Device Management** | `ioctl()`, `read()`, `write()` | Communicate with hardware devices |
+| **Information** | `getpid()`, `time()`, `uname()` | Query system and process info |
+| **Communication** | `pipe()`, `socket()`, `send()`, `recv()` | Inter-process and network communication |
+| **Memory** | `mmap()`, `brk()`, `sbrk()` | Allocate and manage memory |
+
+---
+
+## Types of Operating Systems
+
+### By Kernel Architecture
+
+| Type | Description | Examples |
+|------|-------------|----------|
+| **Monolithic Kernel** | All OS services run in kernel space in a single binary. Fast but a bug in any component can crash the whole system. | Linux, FreeBSD |
+| **Microkernel** | Only essential services (IPC, basic scheduling, memory) in kernel. Other services run in user space. More stable but slower due to extra context switches. | Minix, QNX, seL4 |
+| **Hybrid Kernel** | Combines monolithic and microkernel approaches. Core services in kernel with some modularity. | Windows NT, macOS (XNU) |
+| **Exokernel** | Minimal kernel that gives applications near-direct access to hardware. Maximizes performance and flexibility. | MIT Exokernel (research) |
+
+### By Purpose
+
+| Type | Description | Examples |
+|------|-------------|----------|
+| **General-Purpose** | Designed for a wide variety of tasks | Windows, macOS, Linux |
+| **Real-Time (RTOS)** | Guarantees response within strict time deadlines. Used in safety-critical systems. | FreeRTOS, VxWorks, QNX |
+| **Embedded** | Designed for resource-constrained devices with specific functions | Zephyr, Contiki, Embedded Linux |
+| **Distributed** | Manages a group of networked computers, presenting them as a single system | Plan 9, Amoeba |
+| **Mobile** | Optimized for smartphones and tablets with touch interfaces and power management | Android, iOS |
+
+---
+
+## Key Concepts at a Glance
+
+| Concept | Description |
+|---------|-------------|
+| **Process** | A running instance of a program with its own address space |
+| **Thread** | A lightweight unit of execution within a process |
+| **Context Switch** | Saving one process's state and loading another's so the CPU can multitask |
+| **Virtual Memory** | Abstraction that gives each process the illusion of having its own contiguous memory |
+| **Paging** | Dividing memory into fixed-size blocks (pages) for efficient management |
+| **Deadlock** | A state where two or more processes are stuck waiting for each other indefinitely |
+| **Semaphore** | A synchronization primitive used to control access to shared resources |
+| **Interrupt** | A signal from hardware or software that causes the CPU to pause and handle an event |
+| **Scheduling** | The algorithm the OS uses to decide which process runs on the CPU next |
+
+---
+
+## Topics Covered
+
+<CardGrid>
+  <Card title="Processes & Threads" icon="seti:todo">
+    Process lifecycle, process control block, thread models, context switching, inter-process communication (pipes, shared memory, message passing), and multi-threading.
+
+    [Explore Processes & Threads →](/software-engineering/operating-systems/processes-threads/)
+  </Card>
+  <Card title="CPU Scheduling" icon="seti:clock">
+    Scheduling criteria and algorithms: FCFS, SJF, SRTF, Round Robin, Priority Scheduling, Multilevel Queue, and MLFQ. Includes Gantt charts, comparison tables, and practice problems.
+
+    [Explore CPU Scheduling →](/software-engineering/operating-systems/cpu-scheduling/)
+  </Card>
+  <Card title="Memory Management" icon="seti:db">
+    Memory hierarchy, paging, segmentation, virtual memory, demand paging, TLB, page replacement algorithms (FIFO, LRU, Optimal, Clock), and thrashing.
+
+    [Explore Memory Management →](/software-engineering/operating-systems/memory-management/)
+  </Card>
+  <Card title="Deadlocks & Synchronization" icon="warning">
+    Critical section problem, mutexes, semaphores, monitors, deadlock conditions, resource allocation graphs, Banker's algorithm, and classic synchronization problems.
+
+    [Explore Deadlocks & Synchronization →](/software-engineering/operating-systems/deadlocks/)
+  </Card>
+</CardGrid>
+
+---
+
+## Recommended Learning Path
+
+<CardGrid stagger>
+  <Card title="Week 1: Fundamentals" icon="open-book">
+    Start here. Understand what an OS does, kernel vs user space, and system calls. This page covers everything you need to begin.
+  </Card>
+  <Card title="Week 2: Processes & Threads" icon="seti:todo">
+    Learn how programs are executed, how processes are created with fork/exec, and how threads enable concurrency within a single process.
+
+    [Begin Processes & Threads →](/software-engineering/operating-systems/processes-threads/)
+  </Card>
+  <Card title="Week 3: CPU Scheduling" icon="seti:clock">
+    Understand how the OS decides which process runs next. Master the classic scheduling algorithms and practice Gantt chart problems.
+
+    [Begin CPU Scheduling →](/software-engineering/operating-systems/cpu-scheduling/)
+  </Card>
+  <Card title="Week 4: Memory & Synchronization" icon="seti:db">
+    Dive into virtual memory, paging, and page replacement. Then tackle synchronization primitives and deadlock handling.
+
+    [Begin Memory Management →](/software-engineering/operating-systems/memory-management/)
+  </Card>
+</CardGrid>
+
+---
+
+## Ready to Begin?
+
+<CardGrid>
+  <LinkCard
+    title="Processes & Threads"
+    href="/software-engineering/operating-systems/processes-threads/"
+    description="Start with the building blocks: processes, threads, and inter-process communication"
+  />
+  <LinkCard
+    title="CPU Scheduling"
+    href="/software-engineering/operating-systems/cpu-scheduling/"
+    description="Learn how the OS allocates CPU time across competing processes"
+  />
+  <LinkCard
+    title="Memory Management"
+    href="/software-engineering/operating-systems/memory-management/"
+    description="Understand virtual memory, paging, and page replacement strategies"
+  />
+  <LinkCard
+    title="Deadlocks & Synchronization"
+    href="/software-engineering/operating-systems/deadlocks/"
+    description="Master synchronization primitives and deadlock prevention techniques"
+  />
+</CardGrid>

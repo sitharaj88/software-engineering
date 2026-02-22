@@ -1,0 +1,1021 @@
+---
+title: "Authentication, Versioning & Rate Limiting"
+description: "Secure your APIs with authentication, manage versions, and protect against abuse"
+difficulty: "intermediate"
+prerequisites: ["RESTful API Design"]
+timeToRead: "18 min"
+topics: ["api-keys", "oauth2", "jwt", "versioning", "rate-limiting", "cors"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+## API Authentication Methods
+
+Authentication verifies the identity of the client making the request. Choosing the right authentication method depends on your use case, security requirements, and the type of clients consuming your API.
+
+### API Keys
+
+The simplest form of authentication. An API key is a unique string assigned to each client, typically passed in a header or query parameter.
+
+```
+# Header (preferred)
+GET /v1/posts
+X-API-Key: ak_live_7f3a9b2c4d5e6f1a8b9c0d1e2f3a4b5c
+
+# Query parameter (less secure -- visible in logs and browser history)
+GET /v1/posts?api_key=ak_live_7f3a9b2c4d5e6f1a8b9c0d1e2f3a4b5c
+```
+
+**When to use:** Public APIs for third-party developers, metering and rate limiting, simple server-to-server communication.
+
+**Limitations:** API keys identify the _application_, not the _user_. They cannot represent user-specific permissions. If leaked, anyone can use them until rotated.
+
+### Basic Authentication
+
+The client sends a Base64-encoded `username:password` in the `Authorization` header.
+
+```
+GET /v1/posts
+Authorization: Basic amFuZTpwYXNzd29yZDEyMw==
+```
+
+**When to use:** Internal tools, simple integrations, or as a stepping stone before implementing OAuth.
+
+**Limitations:** Credentials are sent with every request (though Base64 is encoding, not encryption -- always use HTTPS). No token expiration or granular permissions.
+
+### Bearer Tokens
+
+The client sends a token (typically a JWT or opaque token) in the `Authorization` header.
+
+```
+GET /v1/posts
+Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+**When to use:** Most modern APIs. Bearer tokens can represent user identity, permissions, and expiration.
+
+### Comparison
+
+| Method | Identifies | Expiration | Granularity | Complexity |
+|---|---|---|---|---|
+| API Key | Application | Manual rotation | Low (all-or-nothing) | Very Low |
+| Basic Auth | User | None | Low | Low |
+| Bearer Token (JWT) | User | Built-in (`exp` claim) | High (scopes/claims) | Medium |
+| OAuth 2.0 | User + Application | Built-in (token lifetime) | High (scopes) | High |
+
+---
+
+## OAuth 2.0
+
+**OAuth 2.0** is the industry standard authorization framework. It allows applications to obtain limited access to user accounts on third-party services without exposing user credentials.
+
+### Key Concepts
+
+- **Resource Owner** -- The user who owns the data
+- **Client** -- The application requesting access
+- **Authorization Server** -- Issues tokens after authenticating the user (e.g., Google, GitHub, Auth0)
+- **Resource Server** -- The API that accepts tokens and serves protected resources
+
+### Authorization Code Flow
+
+The most common and most secure flow for server-side applications. Used when your application can securely store a client secret.
+
+```
+┌──────────┐                              ┌───────────────────┐
+│  User     │                              │  Authorization    │
+│  (Browser)│                              │  Server           │
+└─────┬─────┘                              └────────┬──────────┘
+      │                                             │
+      │  1. Click "Login with GitHub"               │
+      │────────────────────────────────────────────>│
+      │                                             │
+      │  2. Redirect to authorization page          │
+      │<────────────────────────────────────────────│
+      │                                             │
+      │  3. User grants permission                  │
+      │────────────────────────────────────────────>│
+      │                                             │
+      │  4. Redirect back with authorization code   │
+      │<────────────────────────────────────────────│
+      │                                             │
+┌─────▼─────┐                                       │
+│  Your     │  5. Exchange code for tokens          │
+│  Server   │──────────────────────────────────────>│
+│           │                                       │
+│           │  6. Access token + refresh token       │
+│           │<──────────────────────────────────────│
+└───────────┘
+```
+
+```
+# Step 1: Redirect user to authorization endpoint
+GET https://github.com/login/oauth/authorize
+  ?client_id=your_client_id
+  &redirect_uri=https://yourapp.com/callback
+  &scope=read:user repo
+  &state=random_csrf_token
+  &response_type=code
+
+# Step 4: GitHub redirects back with code
+GET https://yourapp.com/callback
+  ?code=abc123def456
+  &state=random_csrf_token
+
+# Step 5: Exchange code for tokens (server-side)
+POST https://github.com/login/oauth/access_token
+Content-Type: application/json
+{
+  "client_id": "your_client_id",
+  "client_secret": "your_client_secret",
+  "code": "abc123def456",
+  "redirect_uri": "https://yourapp.com/callback"
+}
+
+# Step 6: Response with tokens
+{
+  "access_token": "gho_xxxxxxxxxxxx",
+  "token_type": "bearer",
+  "scope": "read:user,repo",
+  "refresh_token": "ghr_xxxxxxxxxxxx"
+}
+```
+
+### Client Credentials Flow
+
+Used for **machine-to-machine** communication where no user is involved. The client authenticates directly with the authorization server using its own credentials.
+
+```
+POST https://auth.example.com/oauth/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=client_credentials
+&client_id=your_client_id
+&client_secret=your_client_secret
+&scope=read:analytics write:reports
+```
+
+```json
+{
+  "access_token": "eyJhbGciOiJSUzI1NiIs...",
+  "token_type": "bearer",
+  "expires_in": 3600,
+  "scope": "read:analytics write:reports"
+}
+```
+
+**When to use:** Backend services, cron jobs, CI/CD pipelines, microservice-to-microservice auth.
+
+### Authorization Code Flow with PKCE
+
+**PKCE (Proof Key for Code Exchange)** is an extension to the Authorization Code flow designed for **public clients** -- applications that cannot securely store a client secret (single-page apps, mobile apps, CLI tools).
+
+```
+# Step 1: Generate code verifier and challenge
+code_verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+code_challenge = base64url(sha256(code_verifier))
+# = "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
+
+# Step 2: Redirect with code_challenge
+GET https://auth.example.com/authorize
+  ?client_id=your_client_id
+  &redirect_uri=https://yourapp.com/callback
+  &response_type=code
+  &scope=openid profile
+  &code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM
+  &code_challenge_method=S256
+  &state=random_state
+
+# Step 3: Exchange code with code_verifier (no client_secret needed)
+POST https://auth.example.com/oauth/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=authorization_code
+&code=abc123def456
+&redirect_uri=https://yourapp.com/callback
+&client_id=your_client_id
+&code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk
+```
+
+**Why PKCE?** Without a client secret, an attacker who intercepts the authorization code could exchange it for tokens. PKCE ensures that only the client who initiated the request (and knows the `code_verifier`) can complete the exchange.
+
+### Which OAuth Flow to Use?
+
+| Client Type | Recommended Flow |
+|---|---|
+| Server-side web app (Node.js, Django, Rails) | Authorization Code |
+| Single-page app (React, Vue, Angular) | Authorization Code + PKCE |
+| Mobile app (iOS, Android) | Authorization Code + PKCE |
+| CLI tool | Authorization Code + PKCE (with localhost redirect) |
+| Machine-to-machine (backend service, cron) | Client Credentials |
+
+---
+
+## JSON Web Tokens (JWT)
+
+A **JSON Web Token (JWT)** is a compact, URL-safe token format that encodes claims (data) as a JSON object. JWTs are the most common bearer token format used in modern APIs.
+
+### JWT Structure
+
+A JWT consists of three Base64URL-encoded parts separated by dots:
+
+```
+eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.
+eyJzdWIiOiJ1c2VyXzQyIiwibmFtZSI6IkphbmUgRG9lIiwicm9sZSI6ImFkbWluIiwiaWF0IjoxNzE4NDQ4MjAwLCJleHAiOjE3MTg0NTE4MDB9.
+SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c
+
+ \___________________________/ \________________________________________________/ \_________________________________/
+         Header                              Payload                                    Signature
+```
+
+**Header** -- Algorithm and token type:
+```json
+{
+  "alg": "RS256",
+  "typ": "JWT"
+}
+```
+
+**Payload** -- Claims (data):
+```json
+{
+  "sub": "user_42",
+  "name": "Jane Doe",
+  "role": "admin",
+  "scope": "read:posts write:posts",
+  "iat": 1718448200,
+  "exp": 1718451800,
+  "iss": "https://auth.example.com",
+  "aud": "https://api.example.com"
+}
+```
+
+**Signature** -- Ensures the token was not tampered with:
+```
+RSASHA256(
+  base64UrlEncode(header) + "." + base64UrlEncode(payload),
+  privateKey
+)
+```
+
+### Standard JWT Claims
+
+| Claim | Name | Description |
+|---|---|---|
+| `iss` | Issuer | Who issued the token |
+| `sub` | Subject | Who the token represents (user ID) |
+| `aud` | Audience | Who the token is intended for |
+| `exp` | Expiration | When the token expires (Unix timestamp) |
+| `iat` | Issued At | When the token was issued |
+| `nbf` | Not Before | Token is not valid before this time |
+| `jti` | JWT ID | Unique token identifier (for revocation) |
+
+### JWT Creation and Verification
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# pip install PyJWT cryptography
+import jwt
+import datetime
+
+# --- Token Creation (Authorization Server) ---
+
+PRIVATE_KEY = open("private_key.pem").read()
+PUBLIC_KEY = open("public_key.pem").read()
+
+def create_access_token(user_id: str, role: str, scopes: list[str]) -> str:
+    """Create a signed JWT access token."""
+    now = datetime.datetime.now(datetime.timezone.utc)
+    payload = {
+        "sub": user_id,
+        "role": role,
+        "scope": " ".join(scopes),
+        "iat": now,
+        "exp": now + datetime.timedelta(hours=1),
+        "iss": "https://auth.example.com",
+        "aud": "https://api.example.com",
+    }
+    return jwt.encode(payload, PRIVATE_KEY, algorithm="RS256")
+
+
+# Generate a token
+token = create_access_token(
+    user_id="user_42",
+    role="admin",
+    scopes=["read:posts", "write:posts", "delete:posts"],
+)
+print(f"Token: {token}")
+
+
+# --- Token Verification (Resource Server / API) ---
+
+def verify_access_token(token: str) -> dict:
+    """Verify and decode a JWT access token."""
+    try:
+        payload = jwt.decode(
+            token,
+            PUBLIC_KEY,
+            algorithms=["RS256"],
+            audience="https://api.example.com",
+            issuer="https://auth.example.com",
+        )
+        return payload
+    except jwt.ExpiredSignatureError:
+        raise Exception("Token has expired")
+    except jwt.InvalidAudienceError:
+        raise Exception("Invalid audience")
+    except jwt.InvalidIssuerError:
+        raise Exception("Invalid issuer")
+    except jwt.InvalidTokenError as e:
+        raise Exception(f"Invalid token: {e}")
+
+
+# Verify the token
+claims = verify_access_token(token)
+print(f"User: {claims['sub']}")
+print(f"Role: {claims['role']}")
+print(f"Scopes: {claims['scope']}")
+
+
+# --- Middleware for FastAPI ---
+
+from fastapi import Depends, HTTPException, Security
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+
+security = HTTPBearer()
+
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Security(security),
+) -> dict:
+    """FastAPI dependency to extract and verify the JWT."""
+    try:
+        return verify_access_token(credentials.credentials)
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=str(e))
+
+
+# Usage in a route
+@app.get("/v1/posts")
+async def list_posts(user: dict = Depends(get_current_user)):
+    if "read:posts" not in user["scope"].split():
+        raise HTTPException(status_code=403, detail="Insufficient scope")
+    return {"posts": [...]}
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```js
+// npm install jsonwebtoken
+import jwt from 'jsonwebtoken';
+import fs from 'fs';
+
+// --- Token Creation (Authorization Server) ---
+
+const PRIVATE_KEY = fs.readFileSync('private_key.pem', 'utf8');
+const PUBLIC_KEY = fs.readFileSync('public_key.pem', 'utf8');
+
+function createAccessToken(userId, role, scopes) {
+  const payload = {
+    sub: userId,
+    role: role,
+    scope: scopes.join(' '),
+    iss: 'https://auth.example.com',
+    aud: 'https://api.example.com',
+  };
+
+  return jwt.sign(payload, PRIVATE_KEY, {
+    algorithm: 'RS256',
+    expiresIn: '1h',
+  });
+}
+
+// Generate a token
+const token = createAccessToken('user_42', 'admin', [
+  'read:posts',
+  'write:posts',
+  'delete:posts',
+]);
+console.log(`Token: ${token}`);
+
+
+// --- Token Verification (Resource Server / API) ---
+
+function verifyAccessToken(token) {
+  try {
+    const payload = jwt.verify(token, PUBLIC_KEY, {
+      algorithms: ['RS256'],
+      audience: 'https://api.example.com',
+      issuer: 'https://auth.example.com',
+    });
+    return payload;
+  } catch (error) {
+    if (error.name === 'TokenExpiredError') {
+      throw new Error('Token has expired');
+    }
+    if (error.name === 'JsonWebTokenError') {
+      throw new Error(`Invalid token: ${error.message}`);
+    }
+    throw error;
+  }
+}
+
+// Verify the token
+const claims = verifyAccessToken(token);
+console.log(`User: ${claims.sub}`);
+console.log(`Role: ${claims.role}`);
+console.log(`Scopes: ${claims.scope}`);
+
+
+// --- Middleware for Express ---
+
+function authenticate(req, res, next) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({
+      type: 'https://api.example.com/errors/unauthorized',
+      title: 'Unauthorized',
+      status: 401,
+      detail: 'Missing or invalid Authorization header',
+    });
+  }
+
+  try {
+    const token = authHeader.split(' ')[1];
+    req.user = verifyAccessToken(token);
+    next();
+  } catch (error) {
+    return res.status(401).json({
+      type: 'https://api.example.com/errors/unauthorized',
+      title: 'Unauthorized',
+      status: 401,
+      detail: error.message,
+    });
+  }
+}
+
+function requireScope(...requiredScopes) {
+  return (req, res, next) => {
+    const userScopes = req.user.scope.split(' ');
+    const hasAll = requiredScopes.every((s) => userScopes.includes(s));
+    if (!hasAll) {
+      return res.status(403).json({
+        type: 'https://api.example.com/errors/forbidden',
+        title: 'Forbidden',
+        status: 403,
+        detail: `Required scopes: ${requiredScopes.join(', ')}`,
+      });
+    }
+    next();
+  };
+}
+
+// Usage in Express routes
+app.get('/v1/posts',
+  authenticate,
+  requireScope('read:posts'),
+  (req, res) => {
+    res.json({ posts: [...] });
+  }
+);
+
+app.delete('/v1/posts/:id',
+  authenticate,
+  requireScope('delete:posts'),
+  (req, res) => {
+    // delete logic
+    res.status(204).send();
+  }
+);
+```
+  </TabItem>
+</Tabs>
+
+### JWT Best Practices
+
+- **Use asymmetric algorithms** (RS256, ES256) so the resource server only needs the public key
+- **Keep tokens short-lived** (15 minutes to 1 hour for access tokens)
+- **Use refresh tokens** to obtain new access tokens without re-authentication
+- **Never store sensitive data** in the payload -- JWTs are encoded, not encrypted
+- **Validate all claims** -- check `exp`, `iss`, `aud`, and any custom claims
+- **Use HTTPS only** -- tokens are bearer credentials and must be transmitted securely
+
+---
+
+## API Versioning Strategies
+
+APIs evolve over time. Versioning allows you to introduce breaking changes without disrupting existing consumers.
+
+### URL Path Versioning
+
+```
+GET /v1/posts
+GET /v2/posts
+```
+
+| Pros | Cons |
+|---|---|
+| Explicit and visible | Pollutes the URL space |
+| Easy to route at the load balancer | Can lead to code duplication |
+| Simple for developers to understand | Older versions must be maintained |
+| Easy to deprecate (redirect or 410 Gone) | |
+
+**Used by:** GitHub, Stripe, Twilio, Google Maps
+
+### Header Versioning
+
+```
+GET /posts
+Accept: application/vnd.example.v2+json
+```
+
+Or with a custom header:
+
+```
+GET /posts
+API-Version: 2
+```
+
+| Pros | Cons |
+|---|---|
+| Clean URLs | Harder to test in a browser |
+| Version is metadata, not part of the resource | Less discoverable |
+| Can negotiate content type simultaneously | More complex routing |
+
+**Used by:** GitHub (also supports header), Azure
+
+### Query Parameter Versioning
+
+```
+GET /posts?version=2
+```
+
+| Pros | Cons |
+|---|---|
+| Easy to add to any request | Mixes versioning with resource queries |
+| Easy to test | Easy to forget (what if omitted?) |
+| Can default to latest | Not semantically clean |
+
+**Used by:** Google (some APIs), Amazon
+
+### Recommendation
+
+**URL path versioning** is the most widely used and practical approach. It is explicit, easy to implement, and immediately understandable. Start with `/v1/` from day one, even if you have no plans for `/v2/` yet.
+
+### Versioning Best Practices
+
+- **Version from the start** -- Adding versioning later is painful
+- **Only increment on breaking changes** -- Additive changes (new fields, new endpoints) do not require a new version
+- **Support at most 2-3 active versions** -- Each version is a maintenance burden
+- **Provide migration guides** -- When releasing a new version, document what changed and how to migrate
+- **Set deprecation timelines** -- Give consumers at least 6-12 months to migrate
+- **Use sunset headers** -- `Sunset: Sat, 01 Mar 2026 00:00:00 GMT` to signal deprecation
+
+---
+
+## Rate Limiting
+
+Rate limiting protects your API from abuse, prevents resource exhaustion, and ensures fair usage across all consumers.
+
+### Rate Limiting Algorithms
+
+#### Fixed Window
+
+Counts requests in fixed time windows (e.g., 100 requests per minute, resetting at the start of each minute).
+
+```
+Window: 12:00:00 - 12:01:00
+Requests: ████████████████████░░░░░░░░░░  (80/100)
+                                            ↑ 20 remaining
+
+Window: 12:01:00 - 12:02:00
+Requests: ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  (0/100)
+                                            ↑ counter resets
+```
+
+**Pros:** Simple to implement, low memory.
+**Cons:** Burst at window boundaries. A client could make 100 requests at 12:00:59 and 100 more at 12:01:00 -- 200 requests in 2 seconds.
+
+#### Sliding Window
+
+Combines the current and previous window to smooth out the boundary problem.
+
+```
+Current window (12:01:00 - 12:02:00): 30 requests
+Previous window (12:00:00 - 12:01:00): 80 requests
+Time into current window: 30 seconds (50%)
+
+Weighted count = 80 * (1 - 0.50) + 30 = 70
+Limit: 100 → 30 requests remaining
+```
+
+**Pros:** Smooths boundary bursts, reasonable accuracy.
+**Cons:** Slightly more complex, approximate.
+
+#### Token Bucket
+
+A bucket holds tokens up to a maximum capacity. Each request consumes one token. Tokens are added at a fixed rate. If the bucket is empty, requests are rejected.
+
+```
+Bucket capacity: 10 tokens
+Refill rate: 1 token per second
+
+Time 0s:  [██████████] 10/10  → Request OK (9 remaining)
+Time 0s:  [█████████░] 9/10   → Request OK (8 remaining)
+...
+Time 0s:  [█░░░░░░░░░] 1/10   → Request OK (0 remaining)
+Time 0s:  [░░░░░░░░░░] 0/10   → REJECTED (429)
+Time 1s:  [█░░░░░░░░░] 1/10   → Request OK (refilled 1)
+```
+
+**Pros:** Allows short bursts while enforcing average rate. Widely used (AWS, Stripe).
+**Cons:** Slightly more complex to implement.
+
+#### Leaky Bucket
+
+Requests enter a queue (bucket) and are processed at a fixed rate. If the queue is full, new requests are rejected.
+
+```
+Queue capacity: 5
+Processing rate: 1 request per second
+
+Queue: [R1] [R2] [R3] [__] [__]  → 3 queued, 2 slots available
+       ↓ processed at fixed rate
+       R1 → processed
+       R2 → processed
+       ...
+```
+
+**Pros:** Produces a perfectly smooth output rate.
+**Cons:** Adds latency (requests wait in queue), does not allow any bursts.
+
+### Implementing Rate Limiting
+
+<Tabs>
+  <TabItem label="Python (Token Bucket with Redis)">
+```python
+# rate_limiter.py
+import time
+import redis
+
+redis_client = redis.Redis(host="localhost", port=6379)
+
+def token_bucket_rate_limit(
+    key: str,
+    capacity: int = 100,
+    refill_rate: float = 10.0,  # tokens per second
+) -> tuple[bool, dict]:
+    """
+    Token bucket rate limiter using Redis.
+
+    Returns (allowed, headers) where headers contain
+    rate limit information for the response.
+    """
+    now = time.time()
+    bucket_key = f"rate_limit:{key}"
+
+    # Lua script for atomic token bucket operation
+    lua_script = """
+    local key = KEYS[1]
+    local capacity = tonumber(ARGV[1])
+    local refill_rate = tonumber(ARGV[2])
+    local now = tonumber(ARGV[3])
+
+    local bucket = redis.call('HMGET', key, 'tokens', 'last_refill')
+    local tokens = tonumber(bucket[1])
+    local last_refill = tonumber(bucket[2])
+
+    -- Initialize bucket if it does not exist
+    if tokens == nil then
+        tokens = capacity
+        last_refill = now
+    end
+
+    -- Refill tokens based on elapsed time
+    local elapsed = now - last_refill
+    local new_tokens = elapsed * refill_rate
+    tokens = math.min(capacity, tokens + new_tokens)
+
+    -- Check if request is allowed
+    local allowed = 0
+    if tokens >= 1 then
+        tokens = tokens - 1
+        allowed = 1
+    end
+
+    -- Update bucket
+    redis.call('HMSET', key, 'tokens', tokens, 'last_refill', now)
+    redis.call('EXPIRE', key, math.ceil(capacity / refill_rate) * 2)
+
+    return {allowed, math.floor(tokens), capacity}
+    """
+
+    result = redis_client.eval(lua_script, 1, bucket_key, capacity, refill_rate, now)
+    allowed, remaining, limit = result
+
+    headers = {
+        "X-RateLimit-Limit": str(limit),
+        "X-RateLimit-Remaining": str(max(0, remaining)),
+        "X-RateLimit-Reset": str(int(now + (capacity - remaining) / refill_rate)),
+    }
+
+    if not allowed:
+        retry_after = (1 - (remaining % 1)) / refill_rate if remaining < 1 else 1
+        headers["Retry-After"] = str(int(retry_after) + 1)
+
+    return bool(allowed), headers
+
+
+# FastAPI middleware
+from fastapi import Request, Response
+from starlette.middleware.base import BaseHTTPMiddleware
+
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        # Use API key or IP as the rate limit key
+        client_key = (
+            request.headers.get("X-API-Key")
+            or request.client.host
+        )
+
+        allowed, headers = token_bucket_rate_limit(
+            key=client_key,
+            capacity=100,      # 100 requests max
+            refill_rate=10.0,  # 10 requests per second
+        )
+
+        if not allowed:
+            return Response(
+                content='{"detail": "Rate limit exceeded"}',
+                status_code=429,
+                headers=headers,
+                media_type="application/json",
+            )
+
+        response = await call_next(request)
+        for key, value in headers.items():
+            response.headers[key] = value
+        return response
+```
+  </TabItem>
+  <TabItem label="JavaScript (Token Bucket with Redis)">
+```js
+// rateLimiter.js
+import Redis from 'ioredis';
+
+const redis = new Redis({ host: 'localhost', port: 6379 });
+
+// Lua script for atomic token bucket operation
+const LUA_SCRIPT = `
+local key = KEYS[1]
+local capacity = tonumber(ARGV[1])
+local refill_rate = tonumber(ARGV[2])
+local now = tonumber(ARGV[3])
+
+local bucket = redis.call('HMGET', key, 'tokens', 'last_refill')
+local tokens = tonumber(bucket[1])
+local last_refill = tonumber(bucket[2])
+
+-- Initialize bucket if it does not exist
+if tokens == nil then
+    tokens = capacity
+    last_refill = now
+end
+
+-- Refill tokens based on elapsed time
+local elapsed = now - last_refill
+local new_tokens = elapsed * refill_rate
+tokens = math.min(capacity, tokens + new_tokens)
+
+-- Check if request is allowed
+local allowed = 0
+if tokens >= 1 then
+    tokens = tokens - 1
+    allowed = 1
+end
+
+-- Update bucket
+redis.call('HMSET', key, 'tokens', tokens, 'last_refill', now)
+redis.call('EXPIRE', key, math.ceil(capacity / refill_rate) * 2)
+
+return {allowed, math.floor(tokens), capacity}
+`;
+
+async function tokenBucketRateLimit(key, capacity = 100, refillRate = 10) {
+  const now = Date.now() / 1000;
+  const bucketKey = `rate_limit:${key}`;
+
+  const [allowed, remaining, limit] = await redis.eval(
+    LUA_SCRIPT,
+    1,
+    bucketKey,
+    capacity,
+    refillRate,
+    now
+  );
+
+  const headers = {
+    'X-RateLimit-Limit': String(limit),
+    'X-RateLimit-Remaining': String(Math.max(0, remaining)),
+    'X-RateLimit-Reset': String(
+      Math.ceil(now + (capacity - remaining) / refillRate)
+    ),
+  };
+
+  if (!allowed) {
+    headers['Retry-After'] = '1';
+  }
+
+  return { allowed: Boolean(allowed), headers };
+}
+
+// Express middleware
+function rateLimitMiddleware(capacity = 100, refillRate = 10) {
+  return async (req, res, next) => {
+    // Use API key or IP as the rate limit key
+    const clientKey = req.headers['x-api-key'] || req.ip;
+
+    const { allowed, headers } = await tokenBucketRateLimit(
+      clientKey,
+      capacity,
+      refillRate
+    );
+
+    // Set rate limit headers on every response
+    Object.entries(headers).forEach(([key, value]) => {
+      res.set(key, value);
+    });
+
+    if (!allowed) {
+      return res.status(429).json({
+        type: 'https://api.example.com/errors/rate-limit-exceeded',
+        title: 'Too Many Requests',
+        status: 429,
+        detail: `Rate limit of ${capacity} requests exceeded. Try again later.`,
+      });
+    }
+
+    next();
+  };
+}
+
+// Usage
+app.use('/v1/', rateLimitMiddleware(100, 10));
+
+// Different limits for different endpoints
+app.use('/v1/search', rateLimitMiddleware(20, 2));
+app.use('/v1/auth', rateLimitMiddleware(10, 1));
+
+export { rateLimitMiddleware, tokenBucketRateLimit };
+```
+  </TabItem>
+</Tabs>
+
+### Rate Limit Response Headers
+
+Standard headers to include in every API response:
+
+| Header | Description | Example |
+|---|---|---|
+| `X-RateLimit-Limit` | Maximum requests allowed in the window | `100` |
+| `X-RateLimit-Remaining` | Requests remaining in the current window | `42` |
+| `X-RateLimit-Reset` | Unix timestamp when the limit resets | `1718451800` |
+| `Retry-After` | Seconds to wait before retrying (only on 429) | `30` |
+
+---
+
+## CORS (Cross-Origin Resource Sharing)
+
+**CORS** is a browser security mechanism that restricts web pages from making requests to a different domain than the one that served the page. It is enforced by the browser, not the server.
+
+### Why CORS Exists
+
+Without CORS, a malicious website at `evil.com` could make API requests to `yourbank.com` using the user's cookies, performing actions on their behalf. CORS ensures that only authorized origins can access your API from a browser.
+
+### How CORS Works
+
+1. **Simple requests** (GET, POST with simple headers) are sent directly. The browser checks the `Access-Control-Allow-Origin` header in the response.
+
+2. **Preflight requests** are sent for complex requests (PUT, DELETE, custom headers). The browser sends an `OPTIONS` request first to check if the actual request is allowed.
+
+```
+# Preflight request (browser sends automatically)
+OPTIONS /v1/posts HTTP/1.1
+Host: api.example.com
+Origin: https://frontend.example.com
+Access-Control-Request-Method: DELETE
+Access-Control-Request-Headers: Authorization, Content-Type
+
+# Preflight response (server must respond correctly)
+HTTP/1.1 204 No Content
+Access-Control-Allow-Origin: https://frontend.example.com
+Access-Control-Allow-Methods: GET, POST, PUT, DELETE, PATCH
+Access-Control-Allow-Headers: Authorization, Content-Type
+Access-Control-Max-Age: 86400
+```
+
+### CORS Configuration
+
+```
+# Response headers for CORS
+Access-Control-Allow-Origin: https://frontend.example.com
+Access-Control-Allow-Methods: GET, POST, PUT, DELETE, PATCH
+Access-Control-Allow-Headers: Authorization, Content-Type, X-API-Key
+Access-Control-Allow-Credentials: true
+Access-Control-Max-Age: 86400
+Access-Control-Expose-Headers: X-RateLimit-Limit, X-RateLimit-Remaining
+```
+
+| Header | Description |
+|---|---|
+| `Access-Control-Allow-Origin` | Which origins can access the API (`*` for any, or a specific origin) |
+| `Access-Control-Allow-Methods` | Which HTTP methods are allowed |
+| `Access-Control-Allow-Headers` | Which request headers are allowed |
+| `Access-Control-Allow-Credentials` | Whether cookies and auth headers are allowed |
+| `Access-Control-Max-Age` | How long (seconds) the preflight result can be cached |
+| `Access-Control-Expose-Headers` | Which response headers the browser can access |
+
+### CORS Best Practices
+
+- **Never use `Access-Control-Allow-Origin: *` with credentials** -- this is blocked by browsers
+- **Whitelist specific origins** rather than allowing all
+- **Set `Access-Control-Max-Age`** to reduce preflight requests (86400 seconds = 24 hours)
+- **Expose rate limit headers** so client-side code can read them
+- **Handle `OPTIONS` requests** explicitly if your framework does not do it automatically
+
+---
+
+## API Security Best Practices
+
+### Transport Security
+
+- **Always use HTTPS** -- never expose APIs over plain HTTP
+- **Use TLS 1.2 or higher** -- disable older TLS versions
+- **Enable HSTS** -- `Strict-Transport-Security: max-age=31536000; includeSubDomains`
+
+### Authentication and Authorization
+
+- **Validate tokens on every request** -- never trust client-side validation alone
+- **Use short-lived access tokens** (15 min - 1 hour) with refresh token rotation
+- **Implement proper scopes** -- principle of least privilege
+- **Hash API keys** in the database -- store only hashed values, like passwords
+- **Rotate secrets regularly** -- provide mechanisms for key rotation without downtime
+
+### Input Validation
+
+- **Validate all inputs** -- never trust client data
+- **Limit request body size** -- prevent oversized payloads (e.g., 1MB max)
+- **Sanitize inputs** -- prevent injection attacks (SQL injection, XSS)
+- **Use parameterized queries** -- never concatenate user input into SQL
+
+### Response Security
+
+- **Never expose internal errors** -- return generic messages, log details server-side
+- **Remove sensitive headers** -- `Server`, `X-Powered-By`, stack traces
+- **Use `Content-Type: application/json`** -- prevent MIME type sniffing
+- **Add security headers** -- `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`
+
+### Monitoring and Auditing
+
+- **Log all authentication events** -- successes, failures, token refreshes
+- **Monitor for anomalies** -- unusual traffic patterns, brute force attempts
+- **Implement request IDs** -- trace requests across services for debugging
+- **Set up alerting** -- notify on rate limit spikes, auth failures, error rate increases
+
+---
+
+## Summary
+
+Securing an API is not a single task but a combination of authentication, authorization, versioning, rate limiting, and CORS configuration working together. Key takeaways:
+
+- **Choose the right auth method** for your use case -- API keys for simplicity, OAuth 2.0 + JWT for user-based auth
+- **Use PKCE** for any public client (SPAs, mobile apps)
+- **Version your API from day one** using URL path versioning
+- **Implement rate limiting** with token bucket for the best balance of burst tolerance and fairness
+- **Configure CORS correctly** to allow only trusted origins
+- **Follow security best practices** at every layer -- transport, authentication, input, and response
+
+---
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="RESTful API Design"
+    description="Review REST best practices for resource naming, status codes, pagination, and error handling."
+    href="/software-engineering/api-design/rest-apis/"
+  />
+  <LinkCard
+    title="GraphQL"
+    description="Build flexible APIs with client-defined queries, a strong type system, and real-time subscriptions."
+    href="/software-engineering/api-design/graphql/"
+  />
+  <LinkCard
+    title="gRPC & Protocol Buffers"
+    description="Build high-performance APIs using gRPC for inter-service communication with bidirectional streaming."
+    href="/software-engineering/api-design/grpc-protobuf/"
+  />
+  <LinkCard
+    title="API Design Overview"
+    description="Return to the API Design overview for a high-level comparison of all API paradigms."
+    href="/software-engineering/api-design/"
+  />
+</CardGrid>

@@ -1,0 +1,722 @@
+---
+title: "Integration & E2E Testing"
+description: "Test how components work together with integration tests and end-to-end testing strategies"
+difficulty: "intermediate"
+prerequisites: ["Unit Testing", "TDD & Mocking"]
+timeToRead: "18 min"
+topics: ["integration-testing", "e2e-testing", "api-testing", "test-containers", "ci-cd"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+## Integration Testing
+
+Integration tests verify that multiple components work correctly together. While unit tests isolate individual pieces, integration tests examine the seams -- the boundaries where modules, services, databases, and APIs connect.
+
+### What Integration Tests Cover
+
+- **Database interactions** -- Queries return expected results, transactions behave correctly, migrations work.
+- **API contracts** -- Services communicate with the correct request/response formats.
+- **Module boundaries** -- Components composed together produce the right behavior.
+- **Middleware and pipelines** -- Authentication, validation, logging, and error handling work end-to-end through the stack.
+- **Third-party service integrations** -- External APIs, message queues, and caches behave as expected.
+
+### Real Dependencies vs. Test Doubles
+
+A key decision in integration testing is which dependencies to use real implementations for and which to replace with test doubles.
+
+| Approach | When to Use | Trade-offs |
+|---|---|---|
+| **Real database** | Testing queries, schema, transactions | Slower, requires setup, but catches real DB issues |
+| **In-memory database** | Fast integration tests with SQL compatibility | May have dialect differences from production DB |
+| **Test containers** | Docker-based real services for CI | Closest to production, requires Docker |
+| **Stub external APIs** | Third-party services you cannot control | Fast and reliable, but may miss API changes |
+| **Contract tests** | Verifying API compatibility between services | Catches contract drift without running the real service |
+
+### Database Testing with Test Containers
+
+Test containers let you spin up real database instances in Docker for your tests. This eliminates the "works on my machine" problem and the discrepancies between in-memory databases and production databases.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+import pytest
+from testcontainers.postgres import PostgresContainer
+from sqlalchemy import create_engine, text
+from user_repository import UserRepository
+
+@pytest.fixture(scope="module")
+def postgres():
+    """Spin up a real PostgreSQL instance for testing."""
+    with PostgresContainer("postgres:16") as pg:
+        yield pg
+
+@pytest.fixture
+def db_engine(postgres):
+    """Create a SQLAlchemy engine connected to the test database."""
+    engine = create_engine(postgres.get_connection_url())
+    # Run migrations
+    with engine.begin() as conn:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(100) NOT NULL,
+                email VARCHAR(255) UNIQUE NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """))
+    yield engine
+    engine.dispose()
+
+@pytest.fixture
+def user_repo(db_engine):
+    """Provide a UserRepository backed by the real database."""
+    repo = UserRepository(db_engine)
+    yield repo
+    # Clean up after each test
+    with db_engine.begin() as conn:
+        conn.execute(text("DELETE FROM users"))
+
+class TestUserRepository:
+    def test_create_user(self, user_repo):
+        user = user_repo.create("Alice", "alice@example.com")
+
+        assert user.id is not None
+        assert user.name == "Alice"
+        assert user.email == "alice@example.com"
+
+    def test_find_by_email(self, user_repo):
+        user_repo.create("Bob", "bob@example.com")
+        found = user_repo.find_by_email("bob@example.com")
+
+        assert found is not None
+        assert found.name == "Bob"
+
+    def test_duplicate_email_raises(self, user_repo):
+        user_repo.create("Alice", "alice@example.com")
+        with pytest.raises(Exception):  # IntegrityError
+            user_repo.create("Another Alice", "alice@example.com")
+
+    def test_find_nonexistent_returns_none(self, user_repo):
+        found = user_repo.find_by_email("nobody@example.com")
+        assert found is None
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+const { GenericContainer } = require('testcontainers');
+const { Pool } = require('pg');
+const { UserRepository } = require('./userRepository');
+
+describe('UserRepository (PostgreSQL)', () => {
+  let container;
+  let pool;
+  let userRepo;
+
+  beforeAll(async () => {
+    // Start a real PostgreSQL container
+    container = await new GenericContainer('postgres:16')
+      .withEnvironment({
+        POSTGRES_USER: 'test',
+        POSTGRES_PASSWORD: 'test',
+        POSTGRES_DB: 'testdb',
+      })
+      .withExposedPorts(5432)
+      .start();
+
+    pool = new Pool({
+      host: container.getHost(),
+      port: container.getMappedPort(5432),
+      user: 'test',
+      password: 'test',
+      database: 'testdb',
+    });
+
+    // Run migrations
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+  }, 60000); // Container startup can take time
+
+  beforeEach(async () => {
+    await pool.query('DELETE FROM users');
+    userRepo = new UserRepository(pool);
+  });
+
+  afterAll(async () => {
+    await pool.end();
+    await container.stop();
+  });
+
+  test('creates a user', async () => {
+    const user = await userRepo.create('Alice', 'alice@example.com');
+
+    expect(user.id).toBeDefined();
+    expect(user.name).toBe('Alice');
+    expect(user.email).toBe('alice@example.com');
+  });
+
+  test('finds user by email', async () => {
+    await userRepo.create('Bob', 'bob@example.com');
+    const found = await userRepo.findByEmail('bob@example.com');
+
+    expect(found).not.toBeNull();
+    expect(found.name).toBe('Bob');
+  });
+
+  test('rejects duplicate emails', async () => {
+    await userRepo.create('Alice', 'alice@example.com');
+    await expect(
+      userRepo.create('Another Alice', 'alice@example.com')
+    ).rejects.toThrow();
+  });
+});
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## API Integration Testing
+
+API integration tests verify that your HTTP endpoints work correctly -- routing, request parsing, validation, business logic, and response formatting all wired together.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+import pytest
+from httpx import AsyncClient, ASGITransport
+from app import create_app
+
+@pytest.fixture
+def app():
+    """Create a test application instance."""
+    return create_app(config="testing")
+
+@pytest.fixture
+async def client(app):
+    """Provide an async HTTP client for API testing."""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        yield ac
+
+class TestUserAPI:
+    @pytest.mark.asyncio
+    async def test_create_user(self, client):
+        response = await client.post("/api/users", json={
+            "name": "Alice",
+            "email": "alice@example.com",
+        })
+
+        assert response.status_code == 201
+        data = response.json()
+        assert data["name"] == "Alice"
+        assert data["email"] == "alice@example.com"
+        assert "id" in data
+
+    @pytest.mark.asyncio
+    async def test_create_user_missing_email(self, client):
+        response = await client.post("/api/users", json={
+            "name": "Alice",
+        })
+
+        assert response.status_code == 422
+        errors = response.json()["errors"]
+        assert any("email" in e["field"] for e in errors)
+
+    @pytest.mark.asyncio
+    async def test_get_user(self, client):
+        # Create a user first
+        create_response = await client.post("/api/users", json={
+            "name": "Bob",
+            "email": "bob@example.com",
+        })
+        user_id = create_response.json()["id"]
+
+        # Fetch the user
+        response = await client.get(f"/api/users/{user_id}")
+
+        assert response.status_code == 200
+        assert response.json()["name"] == "Bob"
+
+    @pytest.mark.asyncio
+    async def test_get_nonexistent_user(self, client):
+        response = await client.get("/api/users/99999")
+        assert response.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_list_users_with_pagination(self, client):
+        # Create several users
+        for i in range(15):
+            await client.post("/api/users", json={
+                "name": f"User {i}",
+                "email": f"user{i}@example.com",
+            })
+
+        # Fetch first page
+        response = await client.get("/api/users?page=1&per_page=10")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["users"]) == 10
+        assert data["total"] == 15
+        assert data["page"] == 1
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+const request = require('supertest');
+const { createApp } = require('./app');
+
+describe('User API', () => {
+  let app;
+
+  beforeAll(async () => {
+    app = await createApp({ config: 'testing' });
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  describe('POST /api/users', () => {
+    test('creates a user successfully', async () => {
+      const response = await request(app)
+        .post('/api/users')
+        .send({ name: 'Alice', email: 'alice@example.com' })
+        .expect('Content-Type', /json/)
+        .expect(201);
+
+      expect(response.body).toMatchObject({
+        name: 'Alice',
+        email: 'alice@example.com',
+      });
+      expect(response.body.id).toBeDefined();
+    });
+
+    test('returns 422 for missing email', async () => {
+      const response = await request(app)
+        .post('/api/users')
+        .send({ name: 'Alice' })
+        .expect(422);
+
+      expect(response.body.errors).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ field: 'email' }),
+        ])
+      );
+    });
+  });
+
+  describe('GET /api/users/:id', () => {
+    test('retrieves an existing user', async () => {
+      // Create a user first
+      const createResponse = await request(app)
+        .post('/api/users')
+        .send({ name: 'Bob', email: 'bob@example.com' });
+      const userId = createResponse.body.id;
+
+      const response = await request(app)
+        .get(`/api/users/${userId}`)
+        .expect(200);
+
+      expect(response.body.name).toBe('Bob');
+    });
+
+    test('returns 404 for nonexistent user', async () => {
+      await request(app)
+        .get('/api/users/99999')
+        .expect(404);
+    });
+  });
+
+  describe('GET /api/users (pagination)', () => {
+    test('paginates results', async () => {
+      // Create several users
+      for (let i = 0; i < 15; i++) {
+        await request(app)
+          .post('/api/users')
+          .send({ name: `User ${i}`, email: `user${i}@example.com` });
+      }
+
+      const response = await request(app)
+        .get('/api/users?page=1&perPage=10')
+        .expect(200);
+
+      expect(response.body.users).toHaveLength(10);
+      expect(response.body.total).toBe(15);
+      expect(response.body.page).toBe(1);
+    });
+  });
+});
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## End-to-End (E2E) Testing
+
+E2E tests validate complete user workflows by exercising the full system stack -- frontend, backend, database, and all services together. They simulate real user behavior, interacting with the application the same way a human would.
+
+### What E2E Tests Cover
+
+- **Critical user journeys** -- Registration, login, checkout, payment, and other high-value flows.
+- **Cross-cutting concerns** -- Authentication, authorization, session management, and navigation.
+- **Multi-page workflows** -- Flows that span several pages and involve state carried between them.
+- **Real-world conditions** -- Network requests, rendering, and browser behavior.
+
+### E2E Testing Tools
+
+| Tool | Language | Key Strengths |
+|---|---|---|
+| **Playwright** | JavaScript, Python, Java, .NET | Cross-browser, auto-waiting, parallel execution, trace viewer |
+| **Cypress** | JavaScript | Developer-friendly, time-travel debugging, real-time reloads |
+| **Selenium** | Many languages | Longest track record, largest ecosystem, W3C WebDriver standard |
+
+### E2E Test Example with Playwright
+
+```javascript
+// tests/checkout.spec.js
+const { test, expect } = require('@playwright/test');
+
+test.describe('Checkout Flow', () => {
+  test.beforeEach(async ({ page }) => {
+    // Log in before each test
+    await page.goto('/login');
+    await page.fill('[data-testid="email"]', 'shopper@example.com');
+    await page.fill('[data-testid="password"]', 'password123');
+    await page.click('[data-testid="login-button"]');
+    await expect(page).toHaveURL('/dashboard');
+  });
+
+  test('complete purchase from product page to confirmation', async ({ page }) => {
+    // Browse to a product
+    await page.goto('/products');
+    await page.click('[data-testid="product-widget-pro"]');
+    await expect(page.locator('h1')).toHaveText('Widget Pro');
+
+    // Add to cart
+    await page.selectOption('[data-testid="quantity"]', '2');
+    await page.click('[data-testid="add-to-cart"]');
+    await expect(page.locator('[data-testid="cart-count"]')).toHaveText('2');
+
+    // Go to cart
+    await page.click('[data-testid="cart-icon"]');
+    await expect(page.locator('[data-testid="cart-total"]')).toContainText('$49.98');
+
+    // Proceed to checkout
+    await page.click('[data-testid="checkout-button"]');
+
+    // Fill shipping information
+    await page.fill('[data-testid="address"]', '123 Main St');
+    await page.fill('[data-testid="city"]', 'Portland');
+    await page.selectOption('[data-testid="state"]', 'OR');
+    await page.fill('[data-testid="zip"]', '97201');
+    await page.click('[data-testid="continue-to-payment"]');
+
+    // Fill payment information
+    await page.fill('[data-testid="card-number"]', '4242424242424242');
+    await page.fill('[data-testid="expiry"]', '12/28');
+    await page.fill('[data-testid="cvv"]', '123');
+
+    // Place order
+    await page.click('[data-testid="place-order"]');
+
+    // Verify confirmation
+    await expect(page).toHaveURL(/\/orders\/\d+/);
+    await expect(page.locator('[data-testid="order-status"]')).toHaveText('Confirmed');
+    await expect(page.locator('[data-testid="order-total"]')).toContainText('$49.98');
+  });
+
+  test('shows error for invalid payment', async ({ page }) => {
+    await page.goto('/cart');
+    await page.click('[data-testid="checkout-button"]');
+
+    // Skip to payment with pre-filled shipping
+    await page.click('[data-testid="continue-to-payment"]');
+    await page.fill('[data-testid="card-number"]', '4000000000000002'); // Decline card
+    await page.fill('[data-testid="expiry"]', '12/28');
+    await page.fill('[data-testid="cvv"]', '123');
+    await page.click('[data-testid="place-order"]');
+
+    await expect(page.locator('[data-testid="payment-error"]')).toBeVisible();
+    await expect(page.locator('[data-testid="payment-error"]')).toContainText('declined');
+  });
+});
+```
+
+### E2E Test Example with Cypress
+
+```javascript
+// cypress/e2e/login.cy.js
+describe('Login Flow', () => {
+  beforeEach(() => {
+    cy.visit('/login');
+  });
+
+  it('logs in successfully with valid credentials', () => {
+    cy.get('[data-testid="email"]').type('user@example.com');
+    cy.get('[data-testid="password"]').type('password123');
+    cy.get('[data-testid="login-button"]').click();
+
+    cy.url().should('include', '/dashboard');
+    cy.get('[data-testid="welcome-message"]').should('contain', 'Welcome back');
+  });
+
+  it('shows error for invalid credentials', () => {
+    cy.get('[data-testid="email"]').type('user@example.com');
+    cy.get('[data-testid="password"]').type('wrongpassword');
+    cy.get('[data-testid="login-button"]').click();
+
+    cy.url().should('include', '/login');
+    cy.get('[data-testid="error-message"]')
+      .should('be.visible')
+      .and('contain', 'Invalid email or password');
+  });
+
+  it('redirects to originally requested page after login', () => {
+    cy.visit('/settings/profile');
+    // Should redirect to login
+    cy.url().should('include', '/login');
+
+    cy.get('[data-testid="email"]').type('user@example.com');
+    cy.get('[data-testid="password"]').type('password123');
+    cy.get('[data-testid="login-button"]').click();
+
+    // Should redirect back to settings
+    cy.url().should('include', '/settings/profile');
+  });
+});
+```
+
+---
+
+## Contract Testing
+
+Contract testing verifies that two services (a consumer and a provider) agree on the structure of their communication. Instead of running both services simultaneously, each side tests against a shared contract.
+
+### Why Contract Testing Matters
+
+In a microservices architecture, integration tests that spin up all services become slow, complex, and fragile. Contract tests solve this by:
+
+- Letting teams develop and test independently.
+- Catching API changes that would break consumers before deployment.
+- Running fast because they do not require real service instances.
+
+### How It Works
+
+1. **Consumer** writes tests that describe the requests it makes and the responses it expects.
+2. These expectations are recorded as a **contract** (also called a pact).
+3. **Provider** runs the contract against its actual implementation to verify compatibility.
+4. If the provider changes its API in a way that breaks the contract, the provider's test fails.
+
+```
+Consumer                    Contract                    Provider
++----------------+         +----------+         +----------------+
+| Writes tests   | ------> | Shared   | <------ | Verifies       |
+| describing     |         | contract |         | contract       |
+| expected API   |         | (pact)   |         | against real   |
+| behavior       |         |          |         | implementation |
++----------------+         +----------+         +----------------+
+```
+
+This approach catches the common scenario where a backend team changes a response field name and breaks three frontend applications that depend on it.
+
+---
+
+## Test Environments
+
+Managing test environments is critical for reliable integration and E2E testing.
+
+### Environment Types
+
+| Environment | Purpose | Data |
+|---|---|---|
+| **Local development** | Developer workstation testing | Synthetic/fixture data |
+| **CI environment** | Automated pipeline testing | Auto-generated test data |
+| **Staging** | Pre-production validation | Sanitized copy of production data |
+| **Preview / ephemeral** | Per-PR test environment | Fresh data per deployment |
+
+### Best Practices
+
+- **Isolate environments** -- Tests in one environment must never affect another.
+- **Use infrastructure as code** -- Define test environments with Terraform, Docker Compose, or similar tools so they are reproducible.
+- **Seed data programmatically** -- Do not rely on manually created test data. Use factories and seeders.
+- **Clean up after tests** -- Reset state between test runs to prevent test pollution.
+
+---
+
+## Testing in CI/CD Pipelines
+
+Automated testing is most valuable when it runs on every code change. A well-designed CI/CD pipeline runs tests at the right granularity and in the right order.
+
+### Recommended Pipeline Structure
+
+```
+Code Push / PR
+    |
+    v
++-------------------+
+| Lint & Static     |  (seconds)
+| Analysis          |
++-------------------+
+    |
+    v
++-------------------+
+| Unit Tests        |  (seconds to minutes)
++-------------------+
+    |
+    v
++-------------------+
+| Integration Tests |  (minutes)
++-------------------+
+    |
+    v
++-------------------+
+| E2E Tests         |  (minutes to tens of minutes)
++-------------------+
+    |
+    v
++-------------------+
+| Deploy to Staging |
++-------------------+
+    |
+    v
++-------------------+
+| Smoke Tests       |  (minutes)
++-------------------+
+    |
+    v
++-------------------+
+| Deploy to Prod    |
++-------------------+
+```
+
+### Pipeline Best Practices
+
+- **Fail fast** -- Run the fastest tests first. If unit tests fail, do not waste time on slower E2E tests.
+- **Parallelize** -- Run independent test suites concurrently to reduce total pipeline time.
+- **Cache dependencies** -- Cache package installations and Docker images between runs.
+- **Report clearly** -- Generate test reports with failure details, screenshots (for E2E), and coverage metrics.
+- **Set quality gates** -- Block merges when tests fail or coverage drops below thresholds.
+
+---
+
+## Test Data Management
+
+Managing test data is one of the hardest problems in integration and E2E testing.
+
+### Strategies
+
+**Factories and Builders** -- Generate test data programmatically with sensible defaults and easy customization.
+
+```python
+# Python factory example
+from dataclasses import dataclass, field
+from datetime import datetime
+import uuid
+
+@dataclass
+class UserFactory:
+    name: str = "Test User"
+    email: str = field(default_factory=lambda: f"user-{uuid.uuid4().hex[:8]}@test.com")
+    created_at: datetime = field(default_factory=datetime.now)
+
+    def build(self, **overrides):
+        data = {
+            "name": overrides.get("name", self.name),
+            "email": overrides.get("email", self.email),
+            "created_at": overrides.get("created_at", self.created_at),
+        }
+        return data
+
+# Usage
+factory = UserFactory()
+user1 = factory.build()                               # Default values
+user2 = factory.build(name="Alice", email="alice@test.com")  # Custom values
+```
+
+**Database snapshots** -- Take a snapshot of a known-good database state and restore it before test runs. Useful for complex data setups that are expensive to rebuild.
+
+**Transaction rollback** -- Wrap each test in a database transaction and roll it back afterward. This is fast but does not work for tests that span multiple database connections.
+
+---
+
+## Flaky Tests: Causes and Fixes
+
+Flaky tests -- tests that sometimes pass and sometimes fail without code changes -- are one of the most destructive problems in a test suite. They erode developer trust and slow down the entire team.
+
+### Common Causes
+
+| Cause | Example | Fix |
+|---|---|---|
+| **Timing dependencies** | Asserting before async operation completes | Use explicit waits and retry mechanisms |
+| **Shared state** | Tests depend on order of execution | Isolate tests, reset state in setup/teardown |
+| **External dependencies** | Network calls to real services | Mock external services or use containers |
+| **Non-deterministic data** | Relying on `Math.random()` or current time | Seed random generators, mock time |
+| **Race conditions** | Concurrent database access | Use proper locking or sequential test execution |
+| **Resource exhaustion** | Running out of file handles or connections | Clean up resources in teardown |
+
+### Strategies for Dealing with Flaky Tests
+
+1. **Quarantine** -- Move known flaky tests to a separate suite that does not block the pipeline. Fix them with priority.
+2. **Retry with limits** -- Retry failed tests once or twice, but investigate any test that needs retries.
+3. **Track flakiness** -- Log and monitor which tests fail intermittently. Most teams find that 5-10 tests cause 90% of flakiness.
+4. **Fix the root cause** -- Retrying is a band-aid. Address the underlying timing, state, or dependency issue.
+
+---
+
+## Comparison: Unit vs. Integration vs. E2E Tests
+
+| Characteristic | Unit Tests | Integration Tests | E2E Tests |
+|---|---|---|---|
+| **Speed** | Very fast (ms) | Moderate (seconds) | Slow (seconds to minutes) |
+| **Scope** | Single function/class | Multiple components | Entire application |
+| **Dependencies** | None (all mocked) | Some real, some mocked | All real |
+| **Isolation** | Complete | Partial | None |
+| **Failure precision** | Exact location | General area | Somewhere in the stack |
+| **Maintenance cost** | Low | Medium | High |
+| **Confidence level** | Logic correctness | Component compatibility | System works end-to-end |
+| **Setup complexity** | Minimal | Moderate (DB, services) | High (full environment) |
+| **Flakiness risk** | Very low | Low to moderate | High |
+| **Recommended quantity** | Many (thousands) | Some (hundreds) | Few (tens) |
+| **When they run** | Every save / commit | Every commit / PR | Every PR / pre-deploy |
+
+### Choosing the Right Level
+
+Ask yourself these questions:
+
+- **"Can I test this with a unit test?"** -- If yes, use a unit test. It is faster, cheaper, and more reliable.
+- **"Does this bug live at a boundary?"** -- If the issue is how components interact, write an integration test.
+- **"Is this a critical user journey?"** -- If failing here means lost revenue or broken user trust, write an E2E test.
+- **"Has this broken in production before?"** -- Write a test at the level that would have caught the bug.
+
+---
+
+## Next Steps
+
+Expand your testing knowledge with these related topics:
+
+<CardGrid>
+  <LinkCard
+    title="Testing Fundamentals"
+    description="Review the testing pyramid, test anatomy, and the F.I.R.S.T. principles of good tests."
+    href="/software-engineering/testing/"
+  />
+  <LinkCard
+    title="TDD & Mocking"
+    description="Practice Test-Driven Development and learn when and how to use mocks, stubs, and spies."
+    href="/software-engineering/testing/tdd-mocking/"
+  />
+  <LinkCard
+    title="Unit Testing"
+    description="Write effective unit tests using popular testing frameworks across multiple languages."
+    href="/software-engineering/testing/unit-testing/"
+  />
+</CardGrid>

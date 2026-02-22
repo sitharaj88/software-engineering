@@ -1,0 +1,1184 @@
+---
+title: "Unit Testing"
+description: "Write effective unit tests using popular testing frameworks across multiple languages"
+difficulty: "beginner"
+prerequisites: ["Testing Fundamentals"]
+timeToRead: "22 min"
+topics: ["unit-testing", "pytest", "jest", "junit", "assertions", "test-coverage"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+## What to Unit Test (and What Not To)
+
+Unit testing is about verifying the correctness of individual units of code -- functions, methods, or classes -- in isolation. Knowing what to test is just as important as knowing how to test.
+
+### What You Should Test
+
+- **Business logic** -- Calculations, transformations, and decision-making code that implements your domain rules.
+- **Edge cases** -- Boundary values, empty inputs, null values, maximum sizes, and off-by-one scenarios.
+- **Error handling** -- Ensure your code fails gracefully with meaningful error messages.
+- **Pure functions** -- Functions with no side effects are the easiest and most valuable to unit test.
+- **Complex conditionals** -- Code with multiple branches and conditions where bugs love to hide.
+
+### What You Should Not Unit Test
+
+- **Trivial code** -- Simple getters, setters, and pass-through methods provide little value when tested.
+- **Third-party libraries** -- Trust that well-maintained libraries work correctly. Test your usage of them, not the library itself.
+- **Configuration** -- Static configuration values do not need unit tests.
+- **Private implementation details** -- Test behavior through public interfaces. If you refactor internals, tests should still pass.
+- **UI layout** -- Pixel-level rendering is better suited to visual regression testing tools.
+
+---
+
+## Writing Your First Test
+
+Let us start with a simple example across multiple languages. We will test a function that determines whether a year is a leap year.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# leap_year.py
+def is_leap_year(year):
+    """Determine if a given year is a leap year."""
+    if year <= 0:
+        raise ValueError("Year must be a positive integer")
+    return (year % 4 == 0 and year % 100 != 0) or (year % 400 == 0)
+```
+
+```python
+# test_leap_year.py
+import pytest
+from leap_year import is_leap_year
+
+def test_common_year():
+    assert is_leap_year(2023) is False
+
+def test_typical_leap_year():
+    assert is_leap_year(2024) is True
+
+def test_century_year_not_leap():
+    assert is_leap_year(1900) is False
+
+def test_four_hundred_year_is_leap():
+    assert is_leap_year(2000) is True
+
+def test_negative_year_raises():
+    with pytest.raises(ValueError):
+        is_leap_year(-1)
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// leapYear.js
+function isLeapYear(year) {
+  if (year <= 0) {
+    throw new Error('Year must be a positive integer');
+  }
+  return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+}
+
+module.exports = { isLeapYear };
+```
+
+```javascript
+// leapYear.test.js
+const { isLeapYear } = require('./leapYear');
+
+describe('isLeapYear', () => {
+  it('returns false for a common year', () => {
+    expect(isLeapYear(2023)).toBe(false);
+  });
+
+  it('returns true for a typical leap year', () => {
+    expect(isLeapYear(2024)).toBe(true);
+  });
+
+  it('returns false for a century year', () => {
+    expect(isLeapYear(1900)).toBe(false);
+  });
+
+  it('returns true for a 400-year', () => {
+    expect(isLeapYear(2000)).toBe(true);
+  });
+
+  it('throws for a negative year', () => {
+    expect(() => isLeapYear(-1)).toThrow('Year must be a positive integer');
+  });
+});
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+// LeapYear.java
+public class LeapYear {
+    public static boolean isLeapYear(int year) {
+        if (year <= 0) {
+            throw new IllegalArgumentException("Year must be a positive integer");
+        }
+        return (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
+    }
+}
+```
+
+```java
+// LeapYearTest.java
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.DisplayName;
+import static org.junit.jupiter.api.Assertions.*;
+
+class LeapYearTest {
+
+    @Test
+    @DisplayName("Common year is not a leap year")
+    void commonYear() {
+        assertFalse(LeapYear.isLeapYear(2023));
+    }
+
+    @Test
+    @DisplayName("Typical leap year divisible by 4")
+    void typicalLeapYear() {
+        assertTrue(LeapYear.isLeapYear(2024));
+    }
+
+    @Test
+    @DisplayName("Century year is not a leap year")
+    void centuryYear() {
+        assertFalse(LeapYear.isLeapYear(1900));
+    }
+
+    @Test
+    @DisplayName("Year divisible by 400 is a leap year")
+    void fourHundredYear() {
+        assertTrue(LeapYear.isLeapYear(2000));
+    }
+
+    @Test
+    @DisplayName("Negative year throws exception")
+    void negativeYear() {
+        assertThrows(IllegalArgumentException.class, () -> {
+            LeapYear.isLeapYear(-1);
+        });
+    }
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+// leap_year.h
+#pragma once
+#include <stdexcept>
+
+inline bool isLeapYear(int year) {
+    if (year <= 0) {
+        throw std::invalid_argument("Year must be a positive integer");
+    }
+    return (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
+}
+```
+
+```cpp
+// leap_year_test.cpp
+#include <gtest/gtest.h>
+#include "leap_year.h"
+
+TEST(LeapYearTest, CommonYear) {
+    EXPECT_FALSE(isLeapYear(2023));
+}
+
+TEST(LeapYearTest, TypicalLeapYear) {
+    EXPECT_TRUE(isLeapYear(2024));
+}
+
+TEST(LeapYearTest, CenturyYear) {
+    EXPECT_FALSE(isLeapYear(1900));
+}
+
+TEST(LeapYearTest, FourHundredYear) {
+    EXPECT_TRUE(isLeapYear(2000));
+}
+
+TEST(LeapYearTest, NegativeYearThrows) {
+    EXPECT_THROW(isLeapYear(-1), std::invalid_argument);
+}
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## Test Structure
+
+Every well-organized test follows four phases: **Setup**, **Execution**, **Assertion**, and **Teardown**.
+
+### Setup (Arrange)
+
+Prepare the test's preconditions. Create objects, initialize state, and set up test data. Many frameworks provide special hooks for setup code that runs before each test.
+
+### Execution (Act)
+
+Invoke the behavior under test. This should be a single, focused action.
+
+### Assertion (Assert)
+
+Verify the outcome. Compare actual results against expected values.
+
+### Teardown (Cleanup)
+
+Restore the environment to a clean state. Close connections, delete temporary files, and reset shared resources. Most frameworks provide hooks for this.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+import pytest
+from shopping_cart import ShoppingCart, Item
+
+class TestShoppingCart:
+    def setup_method(self):
+        """Setup: Create a fresh cart before each test."""
+        self.cart = ShoppingCart()
+        self.apple = Item("Apple", price=1.50)
+        self.bread = Item("Bread", price=3.00)
+
+    def test_add_item_increases_count(self):
+        """Execute and Assert."""
+        self.cart.add(self.apple, quantity=3)
+        assert self.cart.item_count == 3
+
+    def test_total_reflects_quantities(self):
+        self.cart.add(self.apple, quantity=2)
+        self.cart.add(self.bread, quantity=1)
+        assert self.cart.total == 6.00
+
+    def teardown_method(self):
+        """Teardown: Clean up after each test."""
+        self.cart.clear()
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+const { ShoppingCart, Item } = require('./shoppingCart');
+
+describe('ShoppingCart', () => {
+  let cart;
+  let apple;
+  let bread;
+
+  // Setup: runs before each test
+  beforeEach(() => {
+    cart = new ShoppingCart();
+    apple = new Item('Apple', 1.50);
+    bread = new Item('Bread', 3.00);
+  });
+
+  it('increases item count when adding items', () => {
+    // Execute
+    cart.add(apple, 3);
+    // Assert
+    expect(cart.itemCount).toBe(3);
+  });
+
+  it('calculates total based on quantities', () => {
+    cart.add(apple, 2);
+    cart.add(bread, 1);
+    expect(cart.total).toBe(6.00);
+  });
+
+  // Teardown: runs after each test
+  afterEach(() => {
+    cart.clear();
+  });
+});
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+import org.junit.jupiter.api.*;
+import static org.junit.jupiter.api.Assertions.*;
+
+class ShoppingCartTest {
+    private ShoppingCart cart;
+    private Item apple;
+    private Item bread;
+
+    @BeforeEach
+    void setUp() {
+        // Setup: runs before each test
+        cart = new ShoppingCart();
+        apple = new Item("Apple", 1.50);
+        bread = new Item("Bread", 3.00);
+    }
+
+    @Test
+    void addItemIncreasesCount() {
+        // Execute
+        cart.add(apple, 3);
+        // Assert
+        assertEquals(3, cart.getItemCount());
+    }
+
+    @Test
+    void totalReflectsQuantities() {
+        cart.add(apple, 2);
+        cart.add(bread, 1);
+        assertEquals(6.00, cart.getTotal(), 0.001);
+    }
+
+    @AfterEach
+    void tearDown() {
+        // Teardown: runs after each test
+        cart.clear();
+    }
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+#include <gtest/gtest.h>
+#include "shopping_cart.h"
+
+class ShoppingCartTest : public ::testing::Test {
+protected:
+    ShoppingCart cart;
+    Item apple{"Apple", 1.50};
+    Item bread{"Bread", 3.00};
+
+    // Setup: runs before each test
+    void SetUp() override {
+        // cart is already default-constructed
+    }
+
+    // Teardown: runs after each test
+    void TearDown() override {
+        cart.clear();
+    }
+};
+
+TEST_F(ShoppingCartTest, AddItemIncreasesCount) {
+    // Execute
+    cart.add(apple, 3);
+    // Assert
+    EXPECT_EQ(cart.itemCount(), 3);
+}
+
+TEST_F(ShoppingCartTest, TotalReflectsQuantities) {
+    cart.add(apple, 2);
+    cart.add(bread, 1);
+    EXPECT_DOUBLE_EQ(cart.total(), 6.00);
+}
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## Naming Conventions
+
+Good test names describe the scenario and expected outcome without requiring the reader to examine the test body. Several conventions exist -- pick one and use it consistently across your project.
+
+| Convention | Example |
+|---|---|
+| `test_<behavior>_<scenario>` | `test_calculate_discount_with_negative_price_raises_error` |
+| `should <behavior> when <scenario>` | `should raise error when price is negative` |
+| `<method>_<scenario>_<expected>` | `calculateDiscount_negativePrice_throwsException` |
+| `given_<context>_when_<action>_then_<outcome>` | `given_negative_price_when_calculating_discount_then_raises_error` |
+
+The best name is the one your team agrees on and applies consistently. Aim for names that read like a sentence and act as documentation.
+
+---
+
+## Assertion Types
+
+Testing frameworks provide a rich set of assertion methods. Choosing the right assertion produces clearer failure messages and more readable tests.
+
+### Equality Assertions
+
+The most common assertion -- verify that an actual value matches an expected value.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def test_equality_assertions():
+    assert calculate_total(10, 5) == 15          # Exact equality
+    assert calculate_total(10.1, 5.2) == pytest.approx(15.3)  # Float comparison
+    assert result != "error"                      # Inequality
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+test('equality assertions', () => {
+  expect(calculateTotal(10, 5)).toBe(15);           // Exact equality (primitives)
+  expect(getUser()).toEqual({ name: 'Alice' });      // Deep equality (objects)
+  expect(0.1 + 0.2).toBeCloseTo(0.3);               // Float comparison
+  expect(result).not.toBe('error');                  // Inequality
+});
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+@Test
+void equalityAssertions() {
+    assertEquals(15, calculateTotal(10, 5));                  // Exact equality
+    assertEquals(15.3, calculateTotal(10.1, 5.2), 0.001);    // Float with delta
+    assertNotEquals("error", result);                         // Inequality
+    assertArrayEquals(new int[]{1, 2, 3}, getNumbers());      // Array equality
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+TEST(AssertionExamples, EqualityAssertions) {
+    EXPECT_EQ(calculateTotal(10, 5), 15);            // Exact equality
+    EXPECT_DOUBLE_EQ(calculateTotal(10.1, 5.2), 15.3); // Float comparison
+    EXPECT_NE(result, "error");                       // Inequality
+    EXPECT_NEAR(0.1 + 0.2, 0.3, 1e-9);              // Float with tolerance
+}
+```
+  </TabItem>
+</Tabs>
+
+### Truthiness Assertions
+
+Check boolean conditions, null values, and existence.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def test_truthiness():
+    assert is_valid is True          # Explicit boolean check
+    assert user is not None          # Not None
+    assert not errors                # Falsy (empty list, 0, None, "")
+    assert results                   # Truthy (non-empty)
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+test('truthiness assertions', () => {
+  expect(isValid).toBe(true);         // Exact boolean
+  expect(isValid).toBeTruthy();       // Truthy
+  expect(errors).toBeFalsy();         // Falsy
+  expect(user).toBeDefined();         // Not undefined
+  expect(user).not.toBeNull();        // Not null
+});
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+@Test
+void truthinessAssertions() {
+    assertTrue(isValid);                // True
+    assertFalse(hasErrors);             // False
+    assertNull(deletedUser);            // Null
+    assertNotNull(createdUser);         // Not null
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+TEST(AssertionExamples, TruthinessAssertions) {
+    EXPECT_TRUE(isValid());             // True
+    EXPECT_FALSE(hasErrors());          // False
+    EXPECT_EQ(deletedUser, nullptr);    // Null pointer
+    EXPECT_NE(createdUser, nullptr);    // Not null
+}
+```
+  </TabItem>
+</Tabs>
+
+### Exception Assertions
+
+Verify that code throws the expected exceptions for invalid inputs.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def test_exception_assertions():
+    with pytest.raises(ValueError) as exc_info:
+        withdraw(-100)
+    assert "negative" in str(exc_info.value).lower()
+
+    with pytest.raises(ZeroDivisionError):
+        divide(10, 0)
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+test('exception assertions', () => {
+  expect(() => withdraw(-100)).toThrow('negative');
+  expect(() => withdraw(-100)).toThrow(Error);
+
+  // Async exceptions
+  await expect(fetchUser('invalid')).rejects.toThrow('Not found');
+});
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+@Test
+void exceptionAssertions() {
+    IllegalArgumentException thrown = assertThrows(
+        IllegalArgumentException.class,
+        () -> withdraw(-100)
+    );
+    assertTrue(thrown.getMessage().contains("negative"));
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+TEST(AssertionExamples, ExceptionAssertions) {
+    EXPECT_THROW(withdraw(-100), std::invalid_argument);
+    EXPECT_NO_THROW(withdraw(50));
+
+    try {
+        withdraw(-100);
+        FAIL() << "Expected std::invalid_argument";
+    } catch (const std::invalid_argument& e) {
+        EXPECT_THAT(e.what(), ::testing::HasSubstr("negative"));
+    }
+}
+```
+  </TabItem>
+</Tabs>
+
+### Collection Assertions
+
+Verify properties of lists, sets, maps, and other collections.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+def test_collection_assertions():
+    fruits = ["apple", "banana", "cherry"]
+
+    assert len(fruits) == 3
+    assert "banana" in fruits
+    assert "grape" not in fruits
+    assert sorted(fruits) == ["apple", "banana", "cherry"]
+    assert all(isinstance(f, str) for f in fruits)
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+test('collection assertions', () => {
+  const fruits = ['apple', 'banana', 'cherry'];
+
+  expect(fruits).toHaveLength(3);
+  expect(fruits).toContain('banana');
+  expect(fruits).not.toContain('grape');
+  expect(fruits).toEqual(expect.arrayContaining(['banana', 'apple']));
+});
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+@Test
+void collectionAssertions() {
+    List<String> fruits = List.of("apple", "banana", "cherry");
+
+    assertEquals(3, fruits.size());
+    assertTrue(fruits.contains("banana"));
+    assertFalse(fruits.contains("grape"));
+    assertIterableEquals(List.of("apple", "banana", "cherry"), fruits);
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+TEST(AssertionExamples, CollectionAssertions) {
+    std::vector<std::string> fruits = {"apple", "banana", "cherry"};
+
+    EXPECT_EQ(fruits.size(), 3);
+    EXPECT_NE(std::find(fruits.begin(), fruits.end(), "banana"), fruits.end());
+    EXPECT_THAT(fruits, ::testing::Contains("banana"));
+    EXPECT_THAT(fruits, ::testing::UnorderedElementsAre("apple", "banana", "cherry"));
+}
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## Parameterized Tests
+
+When you need to test the same logic with many different inputs, parameterized tests eliminate duplication. Instead of writing ten nearly identical tests, you write one test and feed it a table of inputs and expected outputs.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+import pytest
+
+@pytest.mark.parametrize("input_str, expected", [
+    ("hello", "HELLO"),
+    ("Hello World", "HELLO WORLD"),
+    ("", ""),
+    ("123abc", "123ABC"),
+    ("ALREADY UPPER", "ALREADY UPPER"),
+])
+def test_to_uppercase(input_str, expected):
+    assert input_str.upper() == expected
+
+
+# Multiple parameters with IDs for clear test output
+@pytest.mark.parametrize("a, b, expected", [
+    pytest.param(2, 3, 5, id="positive numbers"),
+    pytest.param(-1, 1, 0, id="negative and positive"),
+    pytest.param(0, 0, 0, id="both zero"),
+    pytest.param(-5, -3, -8, id="both negative"),
+], ids=str)
+def test_add(a, b, expected):
+    assert add(a, b) == expected
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+describe('toUpperCase', () => {
+  it.each([
+    ['hello', 'HELLO'],
+    ['Hello World', 'HELLO WORLD'],
+    ['', ''],
+    ['123abc', '123ABC'],
+    ['ALREADY UPPER', 'ALREADY UPPER'],
+  ])('converts "%s" to "%s"', (input, expected) => {
+    expect(input.toUpperCase()).toBe(expected);
+  });
+});
+
+// With named parameters for readability
+describe('add', () => {
+  it.each`
+    a      | b      | expected
+    ${2}   | ${3}   | ${5}
+    ${-1}  | ${1}   | ${0}
+    ${0}   | ${0}   | ${0}
+    ${-5}  | ${-3}  | ${-8}
+  `('returns $expected when adding $a and $b', ({ a, b, expected }) => {
+    expect(add(a, b)).toBe(expected);
+  });
+});
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.*;
+
+class StringTest {
+
+    @ParameterizedTest
+    @CsvSource({
+        "hello,       HELLO",
+        "Hello World, HELLO WORLD",
+        "'',          ''",
+        "123abc,      123ABC"
+    })
+    void toUpperCase(String input, String expected) {
+        assertEquals(expected, input.toUpperCase());
+    }
+
+    @ParameterizedTest(name = "{0} + {1} = {2}")
+    @MethodSource("additionProvider")
+    void testAdd(int a, int b, int expected) {
+        assertEquals(expected, Calculator.add(a, b));
+    }
+
+    static Stream<Arguments> additionProvider() {
+        return Stream.of(
+            Arguments.of(2, 3, 5),
+            Arguments.of(-1, 1, 0),
+            Arguments.of(0, 0, 0),
+            Arguments.of(-5, -3, -8)
+        );
+    }
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+#include <gtest/gtest.h>
+#include <tuple>
+
+class AddTest : public ::testing::TestWithParam<std::tuple<int, int, int>> {};
+
+TEST_P(AddTest, ReturnsCorrectSum) {
+    auto [a, b, expected] = GetParam();
+    EXPECT_EQ(add(a, b), expected);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    AdditionTests,
+    AddTest,
+    ::testing::Values(
+        std::make_tuple(2, 3, 5),
+        std::make_tuple(-1, 1, 0),
+        std::make_tuple(0, 0, 0),
+        std::make_tuple(-5, -3, -8)
+    )
+);
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## Test Fixtures
+
+Test fixtures provide shared setup and teardown logic for groups of related tests. They ensure each test starts with a known, consistent state.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+import pytest
+from database import Database
+from user_repository import UserRepository
+
+# conftest.py - shared fixtures available to all test files in the directory
+@pytest.fixture
+def db():
+    """Provide a clean in-memory database for each test."""
+    database = Database(":memory:")
+    database.create_tables()
+    yield database
+    database.close()
+
+@pytest.fixture
+def user_repo(db):
+    """Provide a UserRepository backed by the test database."""
+    return UserRepository(db)
+
+@pytest.fixture
+def sample_users(user_repo):
+    """Pre-populate the database with sample users."""
+    users = [
+        user_repo.create("Alice", "alice@example.com"),
+        user_repo.create("Bob", "bob@example.com"),
+        user_repo.create("Charlie", "charlie@example.com"),
+    ]
+    return users
+
+# test_users.py
+def test_find_user_by_email(user_repo, sample_users):
+    user = user_repo.find_by_email("bob@example.com")
+    assert user.name == "Bob"
+
+def test_delete_user(user_repo, sample_users):
+    user_repo.delete(sample_users[0].id)
+    assert user_repo.count() == 2
+
+# Fixtures with different scopes
+@pytest.fixture(scope="module")
+def expensive_resource():
+    """Created once per test module, shared across tests."""
+    resource = create_expensive_resource()
+    yield resource
+    resource.cleanup()
+
+@pytest.fixture(scope="session")
+def global_config():
+    """Created once per entire test session."""
+    return load_test_config()
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// Shared setup with describe blocks and beforeEach
+describe('UserRepository', () => {
+  let db;
+  let userRepo;
+
+  beforeAll(async () => {
+    // Runs once before all tests in this describe block
+    db = await Database.createInMemory();
+    await db.createTables();
+  });
+
+  beforeEach(async () => {
+    // Runs before each test - clean slate
+    await db.truncateAll();
+    userRepo = new UserRepository(db);
+  });
+
+  afterAll(async () => {
+    // Runs once after all tests
+    await db.close();
+  });
+
+  describe('with sample users', () => {
+    let sampleUsers;
+
+    beforeEach(async () => {
+      sampleUsers = await Promise.all([
+        userRepo.create('Alice', 'alice@example.com'),
+        userRepo.create('Bob', 'bob@example.com'),
+        userRepo.create('Charlie', 'charlie@example.com'),
+      ]);
+    });
+
+    it('finds a user by email', async () => {
+      const user = await userRepo.findByEmail('bob@example.com');
+      expect(user.name).toBe('Bob');
+    });
+
+    it('deletes a user', async () => {
+      await userRepo.delete(sampleUsers[0].id);
+      expect(await userRepo.count()).toBe(2);
+    });
+  });
+});
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+import org.junit.jupiter.api.*;
+
+class UserRepositoryTest {
+    private static Database db;
+    private UserRepository userRepo;
+    private List<User> sampleUsers;
+
+    @BeforeAll
+    static void setUpClass() {
+        // Runs once before all tests
+        db = Database.createInMemory();
+        db.createTables();
+    }
+
+    @BeforeEach
+    void setUp() {
+        // Runs before each test
+        db.truncateAll();
+        userRepo = new UserRepository(db);
+        sampleUsers = List.of(
+            userRepo.create("Alice", "alice@example.com"),
+            userRepo.create("Bob", "bob@example.com"),
+            userRepo.create("Charlie", "charlie@example.com")
+        );
+    }
+
+    @Test
+    void findUserByEmail() {
+        User user = userRepo.findByEmail("bob@example.com");
+        assertEquals("Bob", user.getName());
+    }
+
+    @Test
+    void deleteUser() {
+        userRepo.delete(sampleUsers.get(0).getId());
+        assertEquals(2, userRepo.count());
+    }
+
+    @AfterAll
+    static void tearDownClass() {
+        // Runs once after all tests
+        db.close();
+    }
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+#include <gtest/gtest.h>
+#include "database.h"
+#include "user_repository.h"
+
+class UserRepositoryTest : public ::testing::Test {
+protected:
+    static Database* db;
+    UserRepository* userRepo;
+    std::vector<User> sampleUsers;
+
+    // Runs once before all tests in this suite
+    static void SetUpTestSuite() {
+        db = new Database(":memory:");
+        db->createTables();
+    }
+
+    // Runs before each test
+    void SetUp() override {
+        db->truncateAll();
+        userRepo = new UserRepository(db);
+        sampleUsers = {
+            userRepo->create("Alice", "alice@example.com"),
+            userRepo->create("Bob", "bob@example.com"),
+            userRepo->create("Charlie", "charlie@example.com")
+        };
+    }
+
+    // Runs after each test
+    void TearDown() override {
+        delete userRepo;
+    }
+
+    // Runs once after all tests in this suite
+    static void TearDownTestSuite() {
+        delete db;
+    }
+};
+
+Database* UserRepositoryTest::db = nullptr;
+
+TEST_F(UserRepositoryTest, FindUserByEmail) {
+    auto user = userRepo->findByEmail("bob@example.com");
+    EXPECT_EQ(user.name(), "Bob");
+}
+
+TEST_F(UserRepositoryTest, DeleteUser) {
+    userRepo->deleteUser(sampleUsers[0].id());
+    EXPECT_EQ(userRepo->count(), 2);
+}
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## Test Coverage
+
+Test coverage measures how much of your source code is exercised by your test suite. It is a useful metric, but it must be interpreted carefully.
+
+### Types of Coverage
+
+| Coverage Type | What It Measures | Example |
+|---|---|---|
+| **Line coverage** | Percentage of lines executed | Did the test run this line? |
+| **Branch coverage** | Percentage of decision branches taken | Were both the `if` and `else` paths tested? |
+| **Function coverage** | Percentage of functions called | Was this function invoked at all? |
+| **Path coverage** | Percentage of possible execution paths | Were all combinations of branches tested? |
+
+### What Percentage to Aim For
+
+There is no universal "right" coverage number, but here are practical guidelines:
+
+- **70-80%** -- A reasonable target for most projects. Covers the important logic without chasing trivial code.
+- **90%+** -- Appropriate for critical systems (financial calculations, medical software, security-sensitive code).
+- **100%** -- Rarely practical or beneficial. Pursuing 100% often leads to brittle tests of implementation details.
+
+### Coverage Pitfalls
+
+**High coverage does not mean good tests.** Consider this function:
+
+```python
+def divide(a, b):
+    return a / b
+```
+
+This test achieves 100% line coverage:
+
+```python
+def test_divide():
+    assert divide(10, 2) == 5
+```
+
+But it misses the critical edge case: `divide(10, 0)`. Coverage tells you what code was executed, not whether the assertions are meaningful. Use coverage as a guide for finding untested code, not as a measure of test quality.
+
+### Generating Coverage Reports
+
+<Tabs>
+  <TabItem label="Python">
+```bash
+# Install coverage tool
+pip install pytest-cov
+
+# Run tests with coverage
+pytest --cov=mypackage --cov-report=html
+
+# Enforce minimum coverage
+pytest --cov=mypackage --cov-fail-under=80
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```bash
+# Jest has built-in coverage support
+npx jest --coverage
+
+# Configure in package.json or jest.config.js
+# {
+#   "coverageThreshold": {
+#     "global": {
+#       "branches": 80,
+#       "functions": 80,
+#       "lines": 80
+#     }
+#   }
+# }
+```
+  </TabItem>
+  <TabItem label="Java">
+```xml
+<!-- Maven with JaCoCo plugin -->
+<plugin>
+    <groupId>org.jacoco</groupId>
+    <artifactId>jacoco-maven-plugin</artifactId>
+    <version>0.8.11</version>
+    <executions>
+        <execution>
+            <goals><goal>prepare-agent</goal></goals>
+        </execution>
+        <execution>
+            <id>report</id>
+            <phase>test</phase>
+            <goals><goal>report</goal></goals>
+        </execution>
+    </executions>
+</plugin>
+```
+  </TabItem>
+  <TabItem label="C++">
+```bash
+# Compile with coverage flags (GCC/Clang)
+g++ -fprofile-arcs -ftest-coverage -o tests tests.cpp
+
+# Run tests, then generate report
+./tests
+gcov tests.cpp
+lcov --capture --directory . --output-file coverage.info
+genhtml coverage.info --output-directory coverage_report
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## Testing Edge Cases
+
+Edge cases are where bugs hide. A thorough test suite explicitly covers boundary conditions and unusual inputs.
+
+### Common Edge Cases to Test
+
+| Category | Examples |
+|---|---|
+| **Empty inputs** | Empty strings, empty lists, null/None, zero |
+| **Boundary values** | Minimum, maximum, just inside/outside bounds |
+| **Type extremes** | `INT_MAX`, `INT_MIN`, `NaN`, `Infinity`, very long strings |
+| **Special characters** | Unicode, emojis, newlines, tabs, SQL injection strings |
+| **Concurrency** | Simultaneous access, race conditions, deadlocks |
+| **Resource limits** | Out of memory, disk full, network timeout |
+
+### Example: Testing a Password Validator
+
+<Tabs>
+  <TabItem label="Python">
+```python
+import pytest
+from password_validator import validate_password
+
+class TestPasswordValidator:
+    """Edge case testing for password validation."""
+
+    # Happy path
+    def test_valid_password(self):
+        assert validate_password("Str0ng!Pass") is True
+
+    # Length boundaries
+    def test_too_short(self):
+        assert validate_password("Ab1!") is False
+
+    def test_minimum_length(self):
+        assert validate_password("Abcde1!x") is True  # Exactly 8 chars
+
+    def test_maximum_length(self):
+        assert validate_password("A" * 127 + "1!") is True  # 129 chars
+
+    def test_exceeds_maximum_length(self):
+        assert validate_password("A" * 200 + "1!") is False
+
+    # Missing character types
+    def test_no_uppercase(self):
+        assert validate_password("lowercase1!") is False
+
+    def test_no_lowercase(self):
+        assert validate_password("UPPERCASE1!") is False
+
+    def test_no_digit(self):
+        assert validate_password("NoDigits!!") is False
+
+    def test_no_special_char(self):
+        assert validate_password("NoSpecial1") is False
+
+    # Edge cases
+    def test_empty_string(self):
+        assert validate_password("") is False
+
+    def test_only_spaces(self):
+        assert validate_password("        ") is False
+
+    def test_unicode_characters(self):
+        assert validate_password("Unicod3!Pass") is True
+
+    @pytest.mark.parametrize("password", [
+        None,
+        123,
+        [],
+        {},
+    ])
+    def test_non_string_input(self, password):
+        with pytest.raises(TypeError):
+            validate_password(password)
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+const { validatePassword } = require('./passwordValidator');
+
+describe('Password Validator - Edge Cases', () => {
+  // Happy path
+  test('accepts a valid password', () => {
+    expect(validatePassword('Str0ng!Pass')).toBe(true);
+  });
+
+  // Length boundaries
+  test('rejects passwords that are too short', () => {
+    expect(validatePassword('Ab1!')).toBe(false);
+  });
+
+  test('accepts passwords at minimum length', () => {
+    expect(validatePassword('Abcde1!x')).toBe(true); // 8 chars
+  });
+
+  // Missing character types
+  test.each([
+    ['lowercase1!', 'uppercase'],
+    ['UPPERCASE1!', 'lowercase'],
+    ['NoDigits!!', 'digit'],
+    ['NoSpecial1', 'special character'],
+  ])('rejects "%s" (missing %s)', (password) => {
+    expect(validatePassword(password)).toBe(false);
+  });
+
+  // Edge cases
+  test('rejects empty string', () => {
+    expect(validatePassword('')).toBe(false);
+  });
+
+  test('rejects only spaces', () => {
+    expect(validatePassword('        ')).toBe(false);
+  });
+
+  test('throws for non-string input', () => {
+    expect(() => validatePassword(null)).toThrow(TypeError);
+    expect(() => validatePassword(123)).toThrow(TypeError);
+    expect(() => validatePassword(undefined)).toThrow(TypeError);
+  });
+});
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## Next Steps
+
+Now that you can write effective unit tests, advance to more sophisticated testing techniques:
+
+<CardGrid>
+  <LinkCard
+    title="TDD & Mocking"
+    description="Practice Test-Driven Development and learn when and how to use mocks, stubs, and spies."
+    href="/software-engineering/testing/tdd-mocking/"
+  />
+  <LinkCard
+    title="Integration & E2E Testing"
+    description="Test how components work together with integration tests and end-to-end testing strategies."
+    href="/software-engineering/testing/integration-e2e/"
+  />
+</CardGrid>

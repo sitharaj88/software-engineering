@@ -1,0 +1,1189 @@
+---
+title: "Race Conditions & Common Pitfalls"
+description: "Identify and prevent race conditions, deadlocks, and other concurrency bugs"
+difficulty: "advanced"
+prerequisites: ["Threads & Synchronization", "Async Programming"]
+timeToRead: "18 min"
+topics: ["race-conditions", "deadlocks", "livelocks", "starvation", "dining-philosophers"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+Concurrency bugs are among the hardest defects to find and fix. They are non-deterministic -- a program may run correctly a thousand times and then fail on the thousand-and-first. This page covers the most common concurrency pitfalls, classic problems that illustrate them, and proven strategies for prevention and debugging.
+
+## Data Races
+
+A **data race** occurs when two or more threads access the same memory location concurrently, at least one access is a write, and there is no synchronization to order the accesses.
+
+### The Problem
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# BUG: Data race on shared counter
+import threading
+
+counter = 0
+
+def increment(n):
+    global counter
+    for _ in range(n):
+        counter += 1  # NOT atomic: read → increment → write
+
+threads = [threading.Thread(target=increment, args=(100000,)) for _ in range(4)]
+for t in threads:
+    t.start()
+for t in threads:
+    t.join()
+
+print(f"Expected: 400000, Got: {counter}")
+# Output varies: 287431, 312087, 400000, ...
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+// BUG: Data race on shared counter
+public class DataRaceDemo {
+    private static int counter = 0;
+
+    public static void main(String[] args) throws InterruptedException {
+        Thread[] threads = new Thread[4];
+        for (int i = 0; i < 4; i++) {
+            threads[i] = new Thread(() -> {
+                for (int j = 0; j < 100000; j++) {
+                    counter++; // NOT atomic: read → increment → write
+                }
+            });
+            threads[i].start();
+        }
+        for (Thread t : threads) t.join();
+
+        System.out.println("Expected: 400000, Got: " + counter);
+        // Output varies: 287431, 312087, 400000, ...
+    }
+}
+```
+  </TabItem>
+</Tabs>
+
+Why does this happen? The operation `counter += 1` is not atomic. It compiles to three separate steps:
+
+```
+Thread A                     Thread B
+────────                     ────────
+1. Read counter (= 5)
+                              1. Read counter (= 5)
+2. Increment (= 6)
+                              2. Increment (= 6)
+3. Write counter (= 6)
+                              3. Write counter (= 6)
+
+Both threads read 5 and write 6.
+One increment is lost. Counter should be 7 but is 6.
+```
+
+### The Fix
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# FIX: Protect the critical section with a lock
+import threading
+
+counter = 0
+lock = threading.Lock()
+
+def increment(n):
+    global counter
+    for _ in range(n):
+        with lock:
+            counter += 1  # Only one thread at a time
+
+threads = [threading.Thread(target=increment, args=(100000,)) for _ in range(4)]
+for t in threads:
+    t.start()
+for t in threads:
+    t.join()
+
+print(f"Expected: 400000, Got: {counter}")  # Always 400000
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+import java.util.concurrent.atomic.AtomicInteger;
+
+// FIX 1: Use synchronized
+public class DataRaceFixed {
+    private static int counter = 0;
+    private static final Object lock = new Object();
+
+    public static void incrementSync() {
+        synchronized (lock) {
+            counter++;
+        }
+    }
+}
+
+// FIX 2: Use atomic operations (lock-free, better performance)
+public class DataRaceAtomic {
+    private static final AtomicInteger counter = new AtomicInteger(0);
+
+    public static void main(String[] args) throws InterruptedException {
+        Thread[] threads = new Thread[4];
+        for (int i = 0; i < 4; i++) {
+            threads[i] = new Thread(() -> {
+                for (int j = 0; j < 100000; j++) {
+                    counter.incrementAndGet(); // Atomic operation
+                }
+            });
+            threads[i].start();
+        }
+        for (Thread t : threads) t.join();
+
+        System.out.println("Expected: 400000, Got: " + counter.get());
+        // Always 400000
+    }
+}
+```
+  </TabItem>
+</Tabs>
+
+## Race Condition Patterns
+
+### Check-Then-Act
+
+A thread checks a condition and then acts on it, but the condition may change between the check and the action.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# BUG: Check-then-act race condition
+import threading
+import os
+
+class LazyInitSingleton:
+    _instance = None
+
+    @classmethod
+    def get_instance(cls):
+        if cls._instance is None:        # Check
+            cls._instance = cls()         # Act -- another thread may also be here
+        return cls._instance
+
+# Two threads may both see _instance as None and create two instances
+
+# FIX: Use a lock (double-checked locking)
+class SafeSingleton:
+    _instance = None
+    _lock = threading.Lock()
+
+    @classmethod
+    def get_instance(cls):
+        if cls._instance is None:         # First check (no lock)
+            with cls._lock:
+                if cls._instance is None:  # Second check (with lock)
+                    cls._instance = cls()
+        return cls._instance
+
+# BUG: File system check-then-act
+def unsafe_write(filepath, data):
+    if not os.path.exists(filepath):   # Check
+        # Another thread/process could create the file here
+        with open(filepath, 'w') as f: # Act
+            f.write(data)
+
+# FIX: Use atomic file creation
+def safe_write(filepath, data):
+    try:
+        fd = os.open(filepath, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        with os.fdopen(fd, 'w') as f:
+            f.write(data)
+    except FileExistsError:
+        pass  # File already exists
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+// BUG: Check-then-act on a shared map
+import java.util.*;
+
+public class CheckThenAct {
+    private static Map<String, String> cache = new HashMap<>();
+
+    // BUG: Two threads may both check, both find key missing,
+    // and both compute the value
+    public static String getOrCompute(String key) {
+        if (!cache.containsKey(key)) {              // Check
+            String value = expensiveComputation(key); // Act
+            cache.put(key, value);
+        }
+        return cache.get(key);
+    }
+
+    // FIX: Use ConcurrentHashMap.computeIfAbsent (atomic)
+    private static Map<String, String> safeCache = new java.util.concurrent.ConcurrentHashMap<>();
+
+    public static String safeGetOrCompute(String key) {
+        return safeCache.computeIfAbsent(key, k -> expensiveComputation(k));
+        // Atomic check-and-act: only one thread computes for a given key
+    }
+
+    private static String expensiveComputation(String key) {
+        return "computed-" + key;
+    }
+}
+```
+  </TabItem>
+</Tabs>
+
+### Read-Modify-Write
+
+A thread reads a value, modifies it, and writes it back -- but another thread may modify the value between the read and the write.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# BUG: Read-modify-write on a shared list
+import threading
+
+results = []
+
+def append_result(value):
+    # Even list.append is not guaranteed to be atomic
+    # in all Python implementations
+    results.append(value)
+
+# FIX: Use a thread-safe queue
+import queue
+
+safe_results = queue.Queue()
+
+def safe_append(value):
+    safe_results.put(value)
+
+# BUG: Read-modify-write on a bank account
+class UnsafeAccount:
+    def __init__(self, balance):
+        self.balance = balance
+
+    def withdraw(self, amount):
+        if self.balance >= amount:      # Read
+            self.balance -= amount       # Modify + Write
+            return True
+        return False
+
+# FIX: Protect with a lock
+class SafeAccount:
+    def __init__(self, balance):
+        self.balance = balance
+        self.lock = threading.Lock()
+
+    def withdraw(self, amount):
+        with self.lock:
+            if self.balance >= amount:
+                self.balance -= amount
+                return True
+            return False
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+import java.util.concurrent.atomic.AtomicReference;
+
+// BUG: Read-modify-write on a bank account
+public class UnsafeAccount {
+    private double balance;
+
+    public boolean withdraw(double amount) {
+        if (balance >= amount) {     // Read
+            balance -= amount;       // Modify + Write
+            return true;             // Another thread may have withdrawn between
+        }
+        return false;
+    }
+}
+
+// FIX 1: synchronized
+public class SafeAccount {
+    private double balance;
+
+    public synchronized boolean withdraw(double amount) {
+        if (balance >= amount) {
+            balance -= amount;
+            return true;
+        }
+        return false;
+    }
+}
+
+// FIX 2: Compare-and-swap (lock-free)
+public class LockFreeAccount {
+    private final AtomicReference<Double> balance;
+
+    public LockFreeAccount(double initial) {
+        this.balance = new AtomicReference<>(initial);
+    }
+
+    public boolean withdraw(double amount) {
+        while (true) {
+            Double current = balance.get();
+            if (current < amount) return false;
+            Double next = current - amount;
+            if (balance.compareAndSet(current, next)) return true;
+            // If compareAndSet fails, another thread changed the value.
+            // Retry with the new value.
+        }
+    }
+}
+```
+  </TabItem>
+</Tabs>
+
+## Deadlocks
+
+A **deadlock** occurs when two or more threads are each waiting for the other to release a resource, creating a cycle of dependencies where no thread can make progress.
+
+### The Four Necessary Conditions (Coffman Conditions)
+
+All four conditions must hold simultaneously for a deadlock to occur:
+
+| Condition | Description |
+|-----------|-------------|
+| **Mutual Exclusion** | At least one resource is held in a non-shareable mode |
+| **Hold and Wait** | A thread holds at least one resource while waiting for another |
+| **No Preemption** | Resources cannot be forcibly taken away from a thread |
+| **Circular Wait** | A cycle of threads exists where each waits for a resource held by the next |
+
+### Deadlock Example
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# BUG: Deadlock -- threads acquire locks in different orders
+import threading
+
+lock_a = threading.Lock()
+lock_b = threading.Lock()
+
+def thread_1():
+    with lock_a:
+        print("Thread 1: acquired lock_a")
+        # Small delay increases chance of deadlock
+        import time; time.sleep(0.1)
+        with lock_b:                          # Waits for lock_b
+            print("Thread 1: acquired lock_b")
+
+def thread_2():
+    with lock_b:
+        print("Thread 2: acquired lock_b")
+        import time; time.sleep(0.1)
+        with lock_a:                          # Waits for lock_a
+            print("Thread 2: acquired lock_a")
+
+# Thread 1 holds lock_a, waits for lock_b
+# Thread 2 holds lock_b, waits for lock_a
+# DEADLOCK: neither can proceed
+
+t1 = threading.Thread(target=thread_1)
+t2 = threading.Thread(target=thread_2)
+t1.start(); t2.start()
+t1.join(timeout=5)  # Will timeout -- deadlocked
+t2.join(timeout=5)
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+// BUG: Deadlock -- threads acquire locks in different orders
+public class DeadlockDemo {
+    private static final Object lockA = new Object();
+    private static final Object lockB = new Object();
+
+    public static void main(String[] args) {
+        Thread t1 = new Thread(() -> {
+            synchronized (lockA) {
+                System.out.println("Thread 1: acquired lockA");
+                try { Thread.sleep(100); } catch (InterruptedException e) {}
+                synchronized (lockB) { // Waits for lockB
+                    System.out.println("Thread 1: acquired lockB");
+                }
+            }
+        });
+
+        Thread t2 = new Thread(() -> {
+            synchronized (lockB) {
+                System.out.println("Thread 2: acquired lockB");
+                try { Thread.sleep(100); } catch (InterruptedException e) {}
+                synchronized (lockA) { // Waits for lockA
+                    System.out.println("Thread 2: acquired lockA");
+                }
+            }
+        });
+
+        t1.start();
+        t2.start();
+        // DEADLOCK: t1 holds lockA, waits for lockB
+        //           t2 holds lockB, waits for lockA
+    }
+}
+```
+  </TabItem>
+</Tabs>
+
+### Deadlock Prevention
+
+Break any one of the four Coffman conditions:
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# FIX 1: Lock ordering -- always acquire locks in the same order
+import threading
+
+lock_a = threading.Lock()
+lock_b = threading.Lock()
+
+def thread_1():
+    with lock_a:           # Always lock_a first
+        with lock_b:
+            print("Thread 1: both locks acquired")
+
+def thread_2():
+    with lock_a:           # Always lock_a first (same order!)
+        with lock_b:
+            print("Thread 2: both locks acquired")
+
+# FIX 2: Timeout -- give up if the lock is not available
+def thread_with_timeout():
+    lock_a.acquire()
+    try:
+        acquired = lock_b.acquire(timeout=1.0)  # Wait at most 1 second
+        if acquired:
+            try:
+                print("Both locks acquired")
+            finally:
+                lock_b.release()
+        else:
+            print("Could not acquire lock_b -- backing off")
+    finally:
+        lock_a.release()
+
+# FIX 3: Use a single coarser lock (simpler but less concurrent)
+big_lock = threading.Lock()
+
+def thread_coarse():
+    with big_lock:
+        # Access both resources under one lock
+        print("Work with resource A and B")
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.TimeUnit;
+
+public class DeadlockPrevention {
+    private static final ReentrantLock lockA = new ReentrantLock();
+    private static final ReentrantLock lockB = new ReentrantLock();
+
+    // FIX 1: Lock ordering -- always acquire in the same order
+    public static void safeMethod1() {
+        lockA.lock();
+        try {
+            lockB.lock();
+            try {
+                System.out.println("Both locks acquired safely");
+            } finally {
+                lockB.unlock();
+            }
+        } finally {
+            lockA.unlock();
+        }
+    }
+
+    // FIX 2: tryLock with timeout
+    public static void safeMethod2() throws InterruptedException {
+        while (true) {
+            if (lockA.tryLock(100, TimeUnit.MILLISECONDS)) {
+                try {
+                    if (lockB.tryLock(100, TimeUnit.MILLISECONDS)) {
+                        try {
+                            System.out.println("Both locks acquired");
+                            return;
+                        } finally {
+                            lockB.unlock();
+                        }
+                    }
+                } finally {
+                    lockA.unlock();
+                }
+            }
+            // Back off and retry
+            Thread.sleep(50);
+        }
+    }
+}
+```
+  </TabItem>
+</Tabs>
+
+## Livelocks
+
+A **livelock** occurs when threads keep responding to each other's actions without making progress. Unlike a deadlock (where threads are stuck waiting), in a livelock the threads are actively running -- but doing useless work.
+
+### The Hallway Analogy
+
+Two people meet in a narrow hallway. Both step left to let the other pass. Then both step right. Then both step left again. They are both "active" but neither gets through.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# BUG: Livelock -- both threads keep backing off and retrying
+import threading
+import time
+
+lock_a = threading.Lock()
+lock_b = threading.Lock()
+
+def polite_thread_1():
+    while True:
+        lock_a.acquire()
+        if not lock_b.acquire(blocking=False):
+            lock_a.release()        # "After you!"
+            time.sleep(0)           # Yield and retry
+            continue
+        # Do work with both locks
+        print("Thread 1: working")
+        lock_b.release()
+        lock_a.release()
+        break
+
+def polite_thread_2():
+    while True:
+        lock_b.acquire()
+        if not lock_a.acquire(blocking=False):
+            lock_b.release()        # "After you!"
+            time.sleep(0)           # Yield and retry
+            continue
+        # Do work with both locks
+        print("Thread 2: working")
+        lock_a.release()
+        lock_b.release()
+        break
+
+# Both threads may keep acquiring one lock, failing on the second,
+# releasing, and retrying in lockstep -- forever.
+
+# FIX: Add randomized backoff
+import random
+
+def smart_thread(name, first_lock, second_lock):
+    attempts = 0
+    while True:
+        first_lock.acquire()
+        if not second_lock.acquire(blocking=False):
+            first_lock.release()
+            attempts += 1
+            # Random backoff breaks the symmetry
+            time.sleep(random.uniform(0.001, 0.01) * attempts)
+            continue
+        print(f"Thread {name}: working")
+        second_lock.release()
+        first_lock.release()
+        break
+```
+  </TabItem>
+</Tabs>
+
+## Starvation
+
+**Starvation** occurs when a thread is perpetually denied access to a resource because other threads continually acquire it first. The starved thread is runnable but never gets to run.
+
+Common causes:
+
+- **Unfair locks**: A lock always grants access to the most recently arrived thread
+- **Priority-based scheduling**: Low-priority threads never run when high-priority threads are active
+- **Writer starvation** with read-write locks: A continuous stream of readers prevents any writer from ever acquiring the lock
+
+<Tabs>
+  <TabItem label="Java">
+```java
+import java.util.concurrent.locks.ReentrantLock;
+
+// Unfair lock (default) -- can cause starvation
+ReentrantLock unfairLock = new ReentrantLock(false); // false = unfair
+
+// FIX: Fair lock -- threads are served in FIFO order
+ReentrantLock fairLock = new ReentrantLock(true); // true = fair
+
+// Fair locks prevent starvation but have lower throughput
+// due to the overhead of maintaining the queue order.
+```
+  </TabItem>
+  <TabItem label="Python">
+```python
+# FIX: Use a fair queue-based approach
+import threading
+import queue
+import time
+
+class FairResource:
+    def __init__(self):
+        self._queue = queue.Queue()
+        self._lock = threading.Lock()
+
+    def acquire(self, thread_id):
+        event = threading.Event()
+        self._queue.put((thread_id, event))
+        self._try_grant()
+        event.wait()  # Block until this thread's turn
+
+    def release(self):
+        with self._lock:
+            self._try_grant()
+
+    def _try_grant(self):
+        with self._lock:
+            if not self._queue.empty():
+                thread_id, event = self._queue.get()
+                event.set()  # Wake up the next thread in line
+```
+  </TabItem>
+</Tabs>
+
+## Priority Inversion
+
+**Priority inversion** occurs when a high-priority thread is blocked waiting for a lock held by a low-priority thread, while a medium-priority thread preempts the low-priority thread. The result is that the high-priority thread effectively runs at the lowest priority.
+
+```
+Priority:  High ─────────┐
+                          │ blocked waiting for lock
+           Med  ──────────┼─── runs and preempts Low ───
+                          │
+           Low  ──────────┘ holds lock but cannot run
+                              because Med keeps preempting it
+
+The high-priority thread waits for the low-priority thread,
+which cannot run because the medium-priority thread keeps preempting it.
+```
+
+### Solution: Priority Inheritance
+
+When a high-priority thread blocks on a lock held by a low-priority thread, the low-priority thread temporarily inherits the high priority. This ensures it can finish and release the lock without being preempted by medium-priority threads.
+
+:::note[Real-World Example]
+Priority inversion famously caused a system reset on the Mars Pathfinder spacecraft in 1997. The fix was to enable priority inheritance in the VxWorks real-time operating system.
+:::
+
+## Classic Concurrency Problems
+
+### Producer-Consumer
+
+One or more producer threads generate data and place it in a buffer. One or more consumer threads take data from the buffer and process it. The buffer has a fixed capacity.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+import threading
+import queue
+import time
+import random
+
+def producer(buffer, producer_id, num_items):
+    for i in range(num_items):
+        item = f"item-{producer_id}-{i}"
+        buffer.put(item)  # Blocks if buffer is full
+        print(f"Producer {producer_id} produced: {item}")
+        time.sleep(random.uniform(0.05, 0.2))
+    buffer.put(None)  # Sentinel to signal done
+
+def consumer(buffer, consumer_id):
+    while True:
+        item = buffer.get()  # Blocks if buffer is empty
+        if item is None:
+            buffer.put(None)  # Pass sentinel to other consumers
+            break
+        print(f"Consumer {consumer_id} consumed: {item}")
+        time.sleep(random.uniform(0.1, 0.3))
+
+buffer = queue.Queue(maxsize=5)
+
+producers = [threading.Thread(target=producer, args=(buffer, i, 5)) for i in range(2)]
+consumers = [threading.Thread(target=consumer, args=(buffer, i)) for i in range(2)]
+
+for t in producers + consumers:
+    t.start()
+for t in producers + consumers:
+    t.join()
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+import java.util.concurrent.*;
+
+public class ProducerConsumer {
+    public static void main(String[] args) {
+        BlockingQueue<String> buffer = new ArrayBlockingQueue<>(5);
+
+        // Producer
+        Thread producer = new Thread(() -> {
+            try {
+                for (int i = 0; i < 10; i++) {
+                    String item = "item-" + i;
+                    buffer.put(item); // Blocks if full
+                    System.out.println("Produced: " + item);
+                    Thread.sleep((long)(Math.random() * 200));
+                }
+                buffer.put("DONE"); // Sentinel
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+
+        // Consumer
+        Thread consumer = new Thread(() -> {
+            try {
+                while (true) {
+                    String item = buffer.take(); // Blocks if empty
+                    if ("DONE".equals(item)) break;
+                    System.out.println("Consumed: " + item);
+                    Thread.sleep((long)(Math.random() * 300));
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+
+        producer.start();
+        consumer.start();
+    }
+}
+```
+  </TabItem>
+</Tabs>
+
+### Readers-Writers
+
+Multiple readers can access a resource simultaneously, but writers require exclusive access.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+import threading
+import time
+import random
+
+class ReadersWriters:
+    def __init__(self):
+        self.data = "initial"
+        self.readers = 0
+        self.lock = threading.Lock()
+        self.write_lock = threading.Lock()
+
+    def read(self, reader_id):
+        with self.lock:
+            self.readers += 1
+            if self.readers == 1:
+                self.write_lock.acquire()  # First reader blocks writers
+
+        # Multiple readers can be here simultaneously
+        print(f"Reader {reader_id} reads: {self.data}")
+        time.sleep(random.uniform(0.1, 0.3))
+
+        with self.lock:
+            self.readers -= 1
+            if self.readers == 0:
+                self.write_lock.release()  # Last reader unblocks writers
+
+    def write(self, writer_id, new_data):
+        self.write_lock.acquire()
+        try:
+            print(f"Writer {writer_id} writing: {new_data}")
+            self.data = new_data
+            time.sleep(random.uniform(0.1, 0.2))
+        finally:
+            self.write_lock.release()
+
+rw = ReadersWriters()
+
+threads = []
+for i in range(5):
+    threads.append(threading.Thread(target=rw.read, args=(i,)))
+threads.append(threading.Thread(target=rw.write, args=(0, "updated")))
+for i in range(5, 8):
+    threads.append(threading.Thread(target=rw.read, args=(i,)))
+
+random.shuffle(threads)
+for t in threads:
+    t.start()
+for t in threads:
+    t.join()
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+import java.util.concurrent.locks.*;
+
+public class ReadersWriters {
+    private String data = "initial";
+    private final ReadWriteLock rwLock = new ReentrantReadWriteLock(true); // Fair
+
+    public String read(int readerId) {
+        rwLock.readLock().lock();
+        try {
+            System.out.println("Reader " + readerId + " reads: " + data);
+            Thread.sleep(100);
+            return data;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return null;
+        } finally {
+            rwLock.readLock().unlock();
+        }
+    }
+
+    public void write(int writerId, String newData) {
+        rwLock.writeLock().lock();
+        try {
+            System.out.println("Writer " + writerId + " writing: " + newData);
+            data = newData;
+            Thread.sleep(100);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } finally {
+            rwLock.writeLock().unlock();
+        }
+    }
+}
+```
+  </TabItem>
+</Tabs>
+
+### Dining Philosophers
+
+Five philosophers sit at a round table. Between each pair of philosophers is a single fork. To eat, a philosopher needs both the fork on their left and the fork on their right. This problem illustrates deadlock: if every philosopher picks up the left fork simultaneously, none can pick up the right fork.
+
+```
+          P1
+       /      \
+     F1        F2
+    /            \
+  P5              P2
+    \            /
+     F5        F3
+       \      /
+     P4 ─ F4 ─ P3
+
+  P = Philosopher, F = Fork
+  Each philosopher needs two adjacent forks to eat.
+```
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# BUG: Deadlock-prone dining philosophers
+import threading
+import time
+import random
+
+NUM_PHILOSOPHERS = 5
+forks = [threading.Lock() for _ in range(NUM_PHILOSOPHERS)]
+
+def philosopher_deadlock(id):
+    left = id
+    right = (id + 1) % NUM_PHILOSOPHERS
+
+    for _ in range(3):
+        print(f"Philosopher {id} is thinking")
+        time.sleep(random.uniform(0.1, 0.5))
+
+        forks[left].acquire()                    # Pick up left fork
+        print(f"Philosopher {id} picked up left fork {left}")
+        # If all philosophers reach this point, DEADLOCK
+        forks[right].acquire()                   # Pick up right fork
+        print(f"Philosopher {id} is eating")
+        time.sleep(random.uniform(0.1, 0.3))
+        forks[right].release()
+        forks[left].release()
+
+# FIX: Resource ordering -- always pick up the lower-numbered fork first
+def philosopher_safe(id):
+    # Acquire forks in consistent order (lower index first)
+    first = min(id, (id + 1) % NUM_PHILOSOPHERS)
+    second = max(id, (id + 1) % NUM_PHILOSOPHERS)
+
+    for _ in range(3):
+        print(f"Philosopher {id} is thinking")
+        time.sleep(random.uniform(0.1, 0.5))
+
+        forks[first].acquire()
+        forks[second].acquire()
+        print(f"Philosopher {id} is eating")
+        time.sleep(random.uniform(0.1, 0.3))
+        forks[second].release()
+        forks[first].release()
+
+# Run the safe version
+threads = [threading.Thread(target=philosopher_safe, args=(i,))
+           for i in range(NUM_PHILOSOPHERS)]
+for t in threads:
+    t.start()
+for t in threads:
+    t.join()
+print("All philosophers finished without deadlock")
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+import java.util.concurrent.locks.ReentrantLock;
+
+public class DiningPhilosophers {
+    private static final int NUM = 5;
+    private static final ReentrantLock[] forks = new ReentrantLock[NUM];
+
+    static {
+        for (int i = 0; i < NUM; i++) {
+            forks[i] = new ReentrantLock();
+        }
+    }
+
+    // FIX: Resource ordering -- lower-numbered fork first
+    static void philosopher(int id) {
+        int first = Math.min(id, (id + 1) % NUM);
+        int second = Math.max(id, (id + 1) % NUM);
+
+        for (int round = 0; round < 3; round++) {
+            System.out.println("Philosopher " + id + " thinking");
+            sleep(100);
+
+            forks[first].lock();
+            try {
+                forks[second].lock();
+                try {
+                    System.out.println("Philosopher " + id + " eating");
+                    sleep(100);
+                } finally {
+                    forks[second].unlock();
+                }
+            } finally {
+                forks[first].unlock();
+            }
+        }
+    }
+
+    public static void main(String[] args) throws InterruptedException {
+        Thread[] threads = new Thread[NUM];
+        for (int i = 0; i < NUM; i++) {
+            final int id = i;
+            threads[i] = new Thread(() -> philosopher(id));
+            threads[i].start();
+        }
+        for (Thread t : threads) t.join();
+        System.out.println("All philosophers finished without deadlock");
+    }
+
+    private static void sleep(long ms) {
+        try { Thread.sleep(ms); } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+}
+```
+  </TabItem>
+</Tabs>
+
+## Debugging Concurrency Bugs
+
+Concurrency bugs are notoriously difficult to reproduce because they depend on timing and scheduling. Here are effective debugging strategies.
+
+### Thread Sanitizers
+
+Thread sanitizers are runtime tools that detect data races and other concurrency errors. They instrument memory accesses and synchronization operations to catch bugs at runtime.
+
+| Tool | Language | How to Use |
+|------|----------|-----------|
+| **ThreadSanitizer (TSan)** | C/C++ | Compile with `-fsanitize=thread` (GCC/Clang) |
+| **ThreadSanitizer** | Go | Run with `go run -race` or `go test -race` |
+| **java -ea** | Java | Use `-ea` (enable assertions) and `jcmd` for thread dumps |
+| **helgrind** | C/C++ | Run with `valgrind --tool=helgrind ./program` |
+| **concurrency-visualizer** | Python | Third-party tools like `viztracer` for async tracing |
+
+```bash
+# C++ with ThreadSanitizer
+g++ -fsanitize=thread -g -O1 program.cpp -o program
+./program
+# TSan reports data races with source locations and stack traces
+
+# Go race detector
+go test -race ./...
+# Reports data races found during test execution
+
+# Java thread dump
+jcmd <pid> Thread.print
+# Shows all thread states -- useful for detecting deadlocks
+```
+
+### Logging Strategies
+
+When reproducing a concurrency bug is difficult, structured logging can help reconstruct the sequence of events.
+
+```python
+import logging
+import threading
+
+logging.basicConfig(
+    format='%(asctime)s.%(msecs)03d [%(threadName)s] %(message)s',
+    datefmt='%H:%M:%S',
+    level=logging.DEBUG
+)
+
+lock = threading.Lock()
+
+def worker(name):
+    logging.debug(f"Attempting to acquire lock")
+    with lock:
+        logging.debug(f"Lock acquired")
+        # ... work ...
+        logging.debug(f"Releasing lock")
+    logging.debug(f"Lock released")
+
+# Output includes precise timestamps and thread names:
+# 10:42:15.003 [Thread-1] Attempting to acquire lock
+# 10:42:15.003 [Thread-2] Attempting to acquire lock
+# 10:42:15.004 [Thread-1] Lock acquired
+# 10:42:15.104 [Thread-1] Releasing lock
+# 10:42:15.104 [Thread-1] Lock released
+# 10:42:15.105 [Thread-2] Lock acquired
+```
+
+### Deterministic Testing
+
+Make concurrent code testable by controlling the scheduling.
+
+```python
+# Strategy: Use dependency injection to make timing controllable
+class TransferService:
+    def __init__(self, lock_factory=threading.Lock):
+        self.lock = lock_factory()
+
+    def transfer(self, from_acct, to_acct, amount):
+        with self.lock:
+            from_acct.withdraw(amount)
+            to_acct.deposit(amount)
+
+# In tests, you can inject a mock lock or use barriers
+# to force specific interleavings.
+```
+
+## Prevention Strategies
+
+### 1. Immutability
+
+Immutable data cannot be modified after creation, so it is inherently thread-safe. No locks needed.
+
+```python
+# Python: use frozen dataclasses or namedtuples
+from dataclasses import dataclass
+
+@dataclass(frozen=True)
+class Point:
+    x: float
+    y: float
+
+# p.x = 5  # Raises FrozenInstanceError
+# Safe to share across threads without any synchronization
+```
+
+```java
+// Java: use record types (Java 16+) or final fields
+public record Point(double x, double y) {}
+// Records are immutable -- safe to share across threads
+```
+
+### 2. Lock Ordering
+
+Establish a global ordering of all locks and always acquire them in that order. This breaks the circular-wait condition and prevents deadlocks.
+
+### 3. Lock-Free Data Structures
+
+Use atomic operations (compare-and-swap) instead of locks. Lock-free structures guarantee system-wide progress even if individual threads are delayed.
+
+```java
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicInteger;
+
+// Java's concurrent collections are lock-free or use fine-grained locking
+ConcurrentLinkedQueue<String> queue = new ConcurrentLinkedQueue<>();
+queue.offer("item");        // Thread-safe, non-blocking
+String item = queue.poll();  // Thread-safe, non-blocking
+
+AtomicInteger counter = new AtomicInteger(0);
+counter.incrementAndGet();   // Lock-free atomic increment
+```
+
+### 4. Message Passing / Actor Model
+
+Eliminate shared mutable state entirely. Each actor or goroutine owns its data and communicates only through messages.
+
+```python
+# Python: use multiprocessing.Queue or asyncio.Queue
+# Go-style channels via the 'queue' module
+import queue
+import threading
+
+channel = queue.Queue()
+
+def sender():
+    channel.put("hello")
+
+def receiver():
+    msg = channel.get()
+    print(f"Received: {msg}")
+
+threading.Thread(target=sender).start()
+threading.Thread(target=receiver).start()
+```
+
+### 5. Minimize Shared State
+
+The less state threads share, the fewer opportunities for bugs. Design your system so that each thread owns its own data and only shares results at well-defined points.
+
+## Concurrency Bug Prevention Checklist
+
+| Strategy | Prevents |
+|----------|----------|
+| Use locks / synchronization | Data races |
+| Consistent lock ordering | Deadlocks |
+| Timeout on lock acquisition | Deadlocks, livelocks |
+| Random backoff on retry | Livelocks |
+| Fair locks / queuing | Starvation |
+| Immutable data | Data races, all synchronization bugs |
+| Thread-safe collections | Data races on shared collections |
+| Atomic operations | Data races on single variables |
+| Message passing | Data races, deadlocks |
+| Thread sanitizers | Early detection of data races |
+| Minimize critical sections | Contention, performance issues |
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="Concurrency & Parallelism Overview"
+    href="/software-engineering/concurrency/"
+    description="Revisit the fundamentals of concurrency models and Amdahl's Law"
+  />
+  <LinkCard
+    title="Threads & Synchronization"
+    href="/software-engineering/concurrency/threads-synchronization/"
+    description="Review thread creation and synchronization primitives in depth"
+  />
+  <LinkCard
+    title="Async Programming"
+    href="/software-engineering/concurrency/async-programming/"
+    description="Explore event loops, async/await, and non-blocking I/O patterns"
+  />
+  <LinkCard
+    title="System Design Fundamentals"
+    href="/software-engineering/system-design/fundamentals/"
+    description="Apply concurrency knowledge to designing scalable distributed systems"
+  />
+</CardGrid>

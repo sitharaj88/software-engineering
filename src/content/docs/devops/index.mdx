@@ -1,0 +1,178 @@
+---
+title: "DevOps"
+description: "Learn DevOps culture, practices, and tools for building, deploying, and operating software at scale"
+difficulty: "beginner"
+prerequisites: ["Basic programming knowledge", "Version Control"]
+timeToRead: "10 min"
+topics: ["devops", "ci-cd", "automation", "culture", "sre"]
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+## What is DevOps?
+
+DevOps is not just a set of tools or a job title -- it is a **culture**, a set of **practices**, and a collection of **tools** that unifies software development (Dev) and IT operations (Ops). The goal is to shorten the systems development lifecycle while delivering features, fixes, and updates frequently and reliably.
+
+At its core, DevOps breaks down the traditional wall between development teams who write code and operations teams who deploy and maintain it. Instead of working in silos, both groups collaborate throughout the entire software lifecycle.
+
+### The Three Pillars of DevOps
+
+| Pillar | Description |
+|---|---|
+| **Culture** | Shared responsibility, collaboration, transparency, and continuous learning across teams |
+| **Practices** | CI/CD, Infrastructure as Code, automated testing, monitoring, and incident response |
+| **Tools** | The platforms and technologies that enable automation and collaboration at every stage |
+
+## The DevOps Infinite Loop
+
+DevOps is often represented as an infinite loop (a figure-eight or lemniscate) that illustrates the continuous nature of software delivery:
+
+```
+        ┌──────────────────────────────────────────┐
+        │                                          │
+        ▼                                          │
+    ┌───────┐   ┌───────┐   ┌───────┐   ┌───────┐ │
+    │ Plan  │──▶│ Code  │──▶│ Build │──▶│ Test  │ │
+    └───────┘   └───────┘   └───────┘   └───────┘ │
+        ▲                                    │     │
+        │            DEV ◀──── / ────▶ OPS   │     │
+        │                                    ▼     │
+    ┌────────┐  ┌────────┐  ┌────────┐  ┌───────┐ │
+    │Monitor │◀─│Operate │◀─│ Deploy │◀─│Release│ │
+    └────────┘  └────────┘  └────────┘  └───────┘ │
+        │                                          │
+        └──────────────────────────────────────────┘
+```
+
+Each stage feeds into the next, creating a continuous cycle of improvement:
+
+1. **Plan** -- Define requirements, track work items, and prioritize the backlog.
+2. **Code** -- Develop features collaboratively using version control and code review.
+3. **Build** -- Compile, package, and create deployable artifacts automatically.
+4. **Test** -- Run automated unit, integration, and end-to-end tests.
+5. **Release** -- Approve and tag versioned releases ready for deployment.
+6. **Deploy** -- Push changes to staging and production environments automatically.
+7. **Operate** -- Manage infrastructure, scale resources, and handle incidents.
+8. **Monitor** -- Collect metrics, logs, and traces to detect issues and measure performance.
+
+## DevOps vs Traditional Operations
+
+In traditional IT organizations, development and operations are separate teams with conflicting goals:
+
+| Aspect | Traditional Ops | DevOps |
+|---|---|---|
+| **Team structure** | Siloed Dev and Ops teams | Cross-functional, collaborative teams |
+| **Release frequency** | Monthly or quarterly | Multiple times per day |
+| **Deployment process** | Manual, error-prone | Automated, repeatable |
+| **Feedback loop** | Weeks or months | Minutes to hours |
+| **Failure response** | Blame and postmortem | Blameless retrospectives and learning |
+| **Infrastructure** | Manual provisioning (tickets) | Infrastructure as Code |
+| **Testing** | Manual QA phase at end | Automated testing throughout |
+| **Risk management** | Large, risky releases | Small, incremental changes |
+
+## Key Principles of DevOps
+
+### 1. Automation
+
+Automate everything that can be automated -- builds, tests, deployments, infrastructure provisioning, monitoring, and incident response. Automation reduces human error, speeds up delivery, and makes processes repeatable.
+
+```
+Manual Process:
+  Developer → Email Ops → Ops creates server → Ops deploys → Ops configures → Hope it works
+
+Automated Process:
+  Developer pushes code → CI builds & tests → CD deploys to staging → Auto-promotes to production
+```
+
+### 2. Continuous Integration and Continuous Delivery (CI/CD)
+
+CI/CD is the backbone of DevOps. **Continuous Integration** means developers merge code changes frequently, with each merge triggering automated builds and tests. **Continuous Delivery** extends this by ensuring code is always in a deployable state, and **Continuous Deployment** goes further by automatically deploying every passing change to production.
+
+### 3. Infrastructure as Code (IaC)
+
+Treat infrastructure the same way you treat application code: version-controlled, reviewed, tested, and reproducible. Tools like Terraform, Pulumi, and AWS CloudFormation let you define servers, networks, and services in declarative configuration files.
+
+### 4. Monitoring and Observability
+
+You cannot improve what you cannot measure. DevOps emphasizes comprehensive monitoring of applications and infrastructure, collecting **metrics**, **logs**, and **traces** to understand system behavior, detect problems early, and make data-driven decisions.
+
+### 5. Collaboration and Shared Responsibility
+
+DevOps eliminates the "throw it over the wall" mentality. Developers take responsibility for how their code runs in production, and operations engineers participate in design and development decisions. Everyone shares ownership of the system's reliability.
+
+## DevOps vs SRE (Site Reliability Engineering)
+
+Site Reliability Engineering (SRE), pioneered by Google, is often described as "a specific implementation of DevOps." While DevOps is a broad cultural movement, SRE provides a concrete, opinionated framework for running reliable production systems.
+
+| Aspect | DevOps | SRE |
+|---|---|---|
+| **Origin** | Community-driven movement | Originated at Google |
+| **Focus** | Collaboration and delivery speed | Reliability and operational excellence |
+| **Error budgets** | Not explicitly defined | Core concept -- allows calculated risk |
+| **Toil reduction** | General automation emphasis | Explicit goal to cap toil at 50% of work |
+| **On-call** | Varies by organization | Structured on-call with clear escalation |
+| **Metrics** | Broad (DORA metrics, etc.) | SLIs, SLOs, and SLAs |
+| **Approach** | Cultural principles | Engineering discipline with specific practices |
+
+They complement each other well. Many organizations adopt DevOps culture broadly while applying SRE principles to their most critical services.
+
+### DORA Metrics
+
+The DevOps Research and Assessment (DORA) team identified four key metrics that measure software delivery performance:
+
+- **Deployment Frequency** -- How often code is deployed to production
+- **Lead Time for Changes** -- Time from code commit to running in production
+- **Change Failure Rate** -- Percentage of deployments causing a failure
+- **Time to Restore Service** -- How long it takes to recover from a failure
+
+Elite-performing teams deploy multiple times per day, with lead times under one hour, change failure rates under 5%, and recovery times under one hour.
+
+## Benefits of DevOps Adoption
+
+Organizations that embrace DevOps see measurable improvements across multiple dimensions:
+
+- **Faster time to market** -- Ship features and fixes in hours or days instead of weeks or months.
+- **Higher reliability** -- Automated testing and monitoring catch issues before customers do.
+- **Improved collaboration** -- Shared goals and tooling reduce friction between teams.
+- **Lower failure rates** -- Small, incremental changes are easier to debug and roll back.
+- **Faster recovery** -- When failures occur, automated processes restore service quickly.
+- **Greater scalability** -- Infrastructure as Code and container orchestration make scaling straightforward.
+- **Better employee satisfaction** -- Less toil, fewer firefighting emergencies, and more time for meaningful work.
+- **Cost efficiency** -- Automation reduces manual effort, and monitoring helps optimize resource usage.
+
+## Getting Started with DevOps
+
+The DevOps journey typically follows these stages:
+
+1. **Start with version control** -- Ensure all code and configuration is tracked in Git.
+2. **Add CI/CD** -- Automate builds and tests, then automate deployments.
+3. **Containerize applications** -- Package applications in Docker containers for consistency.
+4. **Adopt Infrastructure as Code** -- Manage infrastructure through version-controlled configuration.
+5. **Implement monitoring** -- Collect metrics, logs, and traces across your systems.
+6. **Orchestrate at scale** -- Use Kubernetes or similar platforms for container orchestration.
+7. **Continuously improve** -- Measure, learn from incidents, and iterate on your processes.
+
+## Explore DevOps Topics
+
+<CardGrid>
+  <LinkCard
+    title="CI/CD Pipelines"
+    description="Automate your build, test, and deployment workflow with continuous integration and delivery."
+    href="/software-engineering/devops/ci-cd/"
+  />
+  <LinkCard
+    title="Containers & Docker"
+    description="Package and run applications consistently across environments with Docker containers."
+    href="/software-engineering/devops/containers-docker/"
+  />
+  <LinkCard
+    title="Kubernetes Fundamentals"
+    description="Orchestrate containerized applications at scale with Kubernetes."
+    href="/software-engineering/devops/kubernetes/"
+  />
+  <LinkCard
+    title="Monitoring, Observability & IaC"
+    description="Monitor application health, gain observability insights, and manage infrastructure as code."
+    href="/software-engineering/devops/monitoring-iac/"
+  />
+</CardGrid>

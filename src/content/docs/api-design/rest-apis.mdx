@@ -1,0 +1,720 @@
+---
+title: "RESTful API Design"
+description: "Design clean, consistent RESTful APIs following industry best practices"
+difficulty: "intermediate"
+prerequisites: ["API Design Overview", "HTTP & HTTPS"]
+timeToRead: "22 min"
+topics: ["rest", "resources", "http-methods", "status-codes", "pagination", "hateoas"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+## What is REST?
+
+**REST (Representational State Transfer)** is an architectural style for designing networked applications, originally defined by Roy Fielding in his 2000 doctoral dissertation. REST is not a protocol or a standard -- it is a set of constraints that, when followed, produce systems that are scalable, stateless, and cacheable.
+
+A **RESTful API** is a web API that adheres to REST principles, using HTTP as its transport protocol and typically JSON as its data format.
+
+---
+
+## REST Principles
+
+### 1. Client-Server Separation
+
+The client and server are independent. The client does not need to know about database schemas, and the server does not need to know about the UI. This separation allows both to evolve independently.
+
+### 2. Statelessness
+
+Every request from the client to the server must contain all the information needed to understand and process that request. The server does not store any session state between requests. Authentication tokens, pagination cursors, and filter parameters must be sent with every request.
+
+### 3. Cacheability
+
+Responses must explicitly or implicitly define themselves as cacheable or non-cacheable. Properly configured caching can eliminate certain client-server interactions, improving scalability and performance.
+
+### 4. Uniform Interface
+
+The API should follow a consistent, predictable interface. This is the most distinguishing constraint of REST and includes:
+
+- **Resource identification** via URIs
+- **Resource manipulation** through representations (JSON, XML)
+- **Self-descriptive messages** using HTTP methods and headers
+- **Hypermedia as the engine of application state (HATEOAS)**
+
+### 5. Layered System
+
+The client should not be able to tell whether it is connected directly to the end server or to an intermediary (load balancer, CDN, API gateway). This enables scaling and security layers transparently.
+
+### 6. Code on Demand (Optional)
+
+Servers can extend client functionality by sending executable code (e.g., JavaScript). This is the only optional REST constraint and is rarely used in modern APIs.
+
+---
+
+## Resource Naming Conventions
+
+Resources are the fundamental concept in REST. A resource is any piece of information that can be named -- a user, a blog post, an order, a collection of items.
+
+### Use Nouns, Not Verbs
+
+URIs should identify resources (nouns), not actions (verbs). The HTTP method indicates the action.
+
+```
+# Good - resources as nouns
+GET    /users
+POST   /users
+GET    /users/42
+PUT    /users/42
+DELETE /users/42
+
+# Bad - verbs in URIs
+GET    /getUsers
+POST   /createUser
+GET    /getUserById?id=42
+POST   /updateUser/42
+POST   /deleteUser/42
+```
+
+### Use Plural Nouns
+
+Be consistent and always use plural nouns for collection resources.
+
+```
+# Good - plural, consistent
+GET /articles
+GET /articles/7
+GET /users/42/comments
+
+# Bad - inconsistent singular/plural
+GET /article
+GET /article/7
+GET /user/42/comment
+```
+
+### Use Kebab-Case for Multi-Word Resources
+
+```
+# Good
+GET /blog-posts
+GET /user-profiles/42/email-addresses
+
+# Bad
+GET /blogPosts
+GET /blog_posts
+GET /BlogPosts
+```
+
+### Nest Resources to Show Relationships
+
+Use nesting to express parent-child relationships, but avoid going more than two levels deep.
+
+```
+# Good - clear relationship
+GET /users/42/posts          # Posts by user 42
+GET /posts/7/comments        # Comments on post 7
+
+# Acceptable - but getting deep
+GET /users/42/posts/7/comments
+
+# Bad - too deeply nested
+GET /users/42/posts/7/comments/99/replies/3
+# Better: promote to a top-level resource
+GET /replies/3
+```
+
+---
+
+## HTTP Method Mapping
+
+Each HTTP method maps to a specific CRUD operation on a resource.
+
+| HTTP Method | CRUD Operation | Description | Idempotent | Safe |
+|---|---|---|---|---|
+| `GET` | Read | Retrieve a resource or collection | Yes | Yes |
+| `POST` | Create | Create a new resource | No | No |
+| `PUT` | Update (full) | Replace a resource entirely | Yes | No |
+| `PATCH` | Update (partial) | Modify specific fields of a resource | No* | No |
+| `DELETE` | Delete | Remove a resource | Yes | No |
+
+**Idempotent** means making the same request multiple times produces the same result. **Safe** means the request does not modify server state.
+
+*`PATCH` can be made idempotent depending on implementation, but is not required to be.
+
+### Example: Blog Post API
+
+```
+GET    /posts              # List all posts
+POST   /posts              # Create a new post
+GET    /posts/42           # Get post 42
+PUT    /posts/42           # Replace post 42 entirely
+PATCH  /posts/42           # Update specific fields of post 42
+DELETE /posts/42           # Delete post 42
+```
+
+---
+
+## Proper Status Code Usage
+
+HTTP status codes communicate the result of a request. Using them correctly is critical for a good API.
+
+### 2xx -- Success
+
+| Code | Name | When to Use |
+|---|---|---|
+| `200` | OK | Successful GET, PUT, PATCH, or DELETE |
+| `201` | Created | Successful POST that created a resource |
+| `202` | Accepted | Request accepted for async processing |
+| `204` | No Content | Successful DELETE with no response body |
+
+### 3xx -- Redirection
+
+| Code | Name | When to Use |
+|---|---|---|
+| `301` | Moved Permanently | Resource has a new permanent URI |
+| `304` | Not Modified | Cached response is still valid |
+
+### 4xx -- Client Errors
+
+| Code | Name | When to Use |
+|---|---|---|
+| `400` | Bad Request | Malformed request syntax, invalid data |
+| `401` | Unauthorized | Missing or invalid authentication |
+| `403` | Forbidden | Authenticated but lacks permission |
+| `404` | Not Found | Resource does not exist |
+| `405` | Method Not Allowed | HTTP method not supported for this resource |
+| `409` | Conflict | Request conflicts with current state (e.g., duplicate) |
+| `422` | Unprocessable Entity | Valid syntax but semantic errors (validation failures) |
+| `429` | Too Many Requests | Rate limit exceeded |
+
+### 5xx -- Server Errors
+
+| Code | Name | When to Use |
+|---|---|---|
+| `500` | Internal Server Error | Unexpected server-side failure |
+| `502` | Bad Gateway | Upstream service returned an invalid response |
+| `503` | Service Unavailable | Server is temporarily overloaded or under maintenance |
+| `504` | Gateway Timeout | Upstream service did not respond in time |
+
+---
+
+## Request and Response Design
+
+### Request Bodies
+
+Use JSON for request bodies. Include only the fields that are relevant.
+
+```json
+// POST /posts
+{
+  "title": "Getting Started with REST APIs",
+  "content": "REST is an architectural style...",
+  "tags": ["api", "rest", "tutorial"],
+  "published": false
+}
+```
+
+### Response Envelope
+
+Wrap responses in a consistent envelope for collections. Individual resources can be returned directly.
+
+```json
+// GET /posts?page=2&limit=10
+{
+  "data": [
+    {
+      "id": 42,
+      "title": "Getting Started with REST APIs",
+      "author": {
+        "id": 7,
+        "name": "Jane Doe"
+      },
+      "createdAt": "2025-06-15T10:30:00Z",
+      "updatedAt": "2025-06-15T14:22:00Z"
+    }
+  ],
+  "pagination": {
+    "page": 2,
+    "limit": 10,
+    "totalItems": 47,
+    "totalPages": 5,
+    "hasNext": true,
+    "hasPrev": true
+  }
+}
+```
+
+### Use Consistent Naming
+
+Pick a convention and stick to it. **camelCase** is the most common for JSON APIs.
+
+```json
+// Good - consistent camelCase
+{
+  "firstName": "Jane",
+  "lastName": "Doe",
+  "emailAddress": "jane@example.com",
+  "createdAt": "2025-06-15T10:30:00Z"
+}
+
+// Bad - mixed conventions
+{
+  "first_name": "Jane",
+  "LastName": "Doe",
+  "email-address": "jane@example.com",
+  "created_at": "2025-06-15T10:30:00Z"
+}
+```
+
+### Use ISO 8601 for Dates
+
+Always use ISO 8601 format with timezone information.
+
+```json
+{
+  "createdAt": "2025-06-15T10:30:00Z",
+  "expiresAt": "2025-12-31T23:59:59+05:30"
+}
+```
+
+---
+
+## Pagination Strategies
+
+For any collection that could grow large, pagination is essential.
+
+### Offset-Based Pagination
+
+The simplest approach. The client specifies a page number and page size.
+
+```
+GET /posts?page=3&limit=20
+```
+
+```json
+{
+  "data": [...],
+  "pagination": {
+    "page": 3,
+    "limit": 20,
+    "totalItems": 245,
+    "totalPages": 13
+  }
+}
+```
+
+**Pros:** Simple to implement, allows jumping to any page.
+**Cons:** Performance degrades on large offsets (`OFFSET 100000`), inconsistent results when data changes between pages.
+
+### Cursor-Based Pagination
+
+Uses an opaque cursor (usually an encoded ID or timestamp) to mark the position in the dataset.
+
+```
+GET /posts?limit=20&after=eyJpZCI6NDJ9
+```
+
+```json
+{
+  "data": [...],
+  "cursors": {
+    "after": "eyJpZCI6NjJ9",
+    "before": "eyJpZCI6NDN9",
+    "hasNext": true,
+    "hasPrev": true
+  }
+}
+```
+
+**Pros:** Consistent performance regardless of position, stable results when data changes.
+**Cons:** Cannot jump to arbitrary pages, more complex to implement.
+
+### Keyset Pagination
+
+Similar to cursor-based but uses actual column values instead of encoded cursors.
+
+```
+GET /posts?limit=20&created_after=2025-06-15T10:30:00Z&id_after=42
+```
+
+**Pros:** Best performance (uses indexed columns), stable results.
+**Cons:** Requires a unique, sequential column; cannot jump to arbitrary pages.
+
+### Which Pagination Strategy to Use?
+
+| Use Case | Recommended Strategy |
+|---|---|
+| Simple admin panels, small datasets | Offset-based |
+| Social feeds, infinite scroll | Cursor-based |
+| High-volume data, real-time feeds | Keyset |
+| Public APIs (general purpose) | Cursor-based |
+
+---
+
+## Filtering and Sorting
+
+### Filtering
+
+Allow clients to filter collections using query parameters.
+
+```
+# Filter by status
+GET /posts?status=published
+
+# Filter by multiple values
+GET /posts?status=published,draft
+
+# Filter by date range
+GET /posts?createdAfter=2025-01-01&createdBefore=2025-06-30
+
+# Filter by related resource
+GET /posts?authorId=42
+
+# Combine filters
+GET /posts?status=published&authorId=42&tag=api
+```
+
+### Sorting
+
+Use a `sort` parameter with field names. Prefix with `-` for descending order.
+
+```
+# Sort by creation date, newest first
+GET /posts?sort=-createdAt
+
+# Sort by multiple fields
+GET /posts?sort=-createdAt,title
+
+# Sort ascending (default)
+GET /posts?sort=title
+```
+
+### Partial Responses (Field Selection)
+
+Allow clients to request only the fields they need, reducing payload size.
+
+```
+# Only return id, title, and author
+GET /posts?fields=id,title,author
+
+# Nested field selection
+GET /posts?fields=id,title,author.name
+```
+
+---
+
+## HATEOAS
+
+**Hypermedia as the Engine of Application State (HATEOAS)** is the idea that API responses should include links to related actions and resources, so clients can navigate the API dynamically rather than hardcoding URLs.
+
+```json
+// GET /posts/42
+{
+  "id": 42,
+  "title": "Getting Started with REST APIs",
+  "status": "draft",
+  "_links": {
+    "self": { "href": "/posts/42" },
+    "author": { "href": "/users/7" },
+    "comments": { "href": "/posts/42/comments" },
+    "publish": { "href": "/posts/42/publish", "method": "POST" },
+    "collection": { "href": "/posts" }
+  }
+}
+```
+
+When the post is published, the `publish` link disappears and an `unpublish` link appears instead. The client does not need to know the business rules -- the API tells it what actions are available.
+
+### Benefits of HATEOAS
+
+- Clients are decoupled from URL structure
+- Discoverable APIs that are self-documenting
+- Server can change URLs without breaking clients
+- Available actions are context-dependent
+
+### Reality Check
+
+While HATEOAS is a core REST constraint, many production APIs skip it in favor of simpler, well-documented static URLs. Use it when building APIs that benefit from discoverability, such as public APIs with many consumers.
+
+---
+
+## Error Response Format (RFC 7807)
+
+Consistent error responses are essential for a good developer experience. **RFC 7807 (Problem Details for HTTP APIs)** provides a standard format.
+
+```json
+// 422 Unprocessable Entity
+{
+  "type": "https://api.example.com/errors/validation-error",
+  "title": "Validation Error",
+  "status": 422,
+  "detail": "The request body contains invalid fields.",
+  "instance": "/posts",
+  "errors": [
+    {
+      "field": "title",
+      "message": "Title is required and must be between 5 and 200 characters."
+    },
+    {
+      "field": "tags",
+      "message": "At least one tag is required."
+    }
+  ]
+}
+```
+
+```json
+// 404 Not Found
+{
+  "type": "https://api.example.com/errors/not-found",
+  "title": "Resource Not Found",
+  "status": 404,
+  "detail": "Post with ID 999 does not exist.",
+  "instance": "/posts/999"
+}
+```
+
+### Error Response Fields
+
+| Field | Required | Description |
+|---|---|---|
+| `type` | Yes | A URI identifying the error type |
+| `title` | Yes | A short, human-readable summary |
+| `status` | Yes | The HTTP status code |
+| `detail` | Yes | A human-readable explanation of this specific error |
+| `instance` | No | The URI of the request that caused the error |
+| `errors` | No | Array of field-level validation errors |
+
+---
+
+## API Versioning
+
+APIs evolve. Versioning allows you to make breaking changes without disrupting existing consumers.
+
+### URL Path Versioning
+
+```
+GET /v1/posts
+GET /v2/posts
+```
+
+**Pros:** Explicit, easy to understand, simple to route.
+**Cons:** Duplicates URL space, can lead to maintaining multiple codebases.
+
+### Header Versioning
+
+```
+GET /posts
+Accept: application/vnd.myapi.v2+json
+```
+
+**Pros:** Clean URLs, version is metadata not a resource.
+**Cons:** Harder to test in a browser, less discoverable.
+
+### Query Parameter Versioning
+
+```
+GET /posts?version=2
+```
+
+**Pros:** Easy to add, easy to test.
+**Cons:** Mixes versioning with resource query, easy to forget.
+
+### Recommendation
+
+**URL path versioning** is the most common and practical approach. It is explicit, easy to route, and simple for developers to understand. Most major APIs (GitHub, Stripe, Twilio) use this approach.
+
+---
+
+## OpenAPI / Swagger Specification
+
+The **OpenAPI Specification (OAS)** is the industry standard for describing RESTful APIs. It allows you to define your API in a machine-readable format (YAML or JSON) that can generate documentation, client SDKs, and server stubs.
+
+```yaml
+openapi: 3.1.0
+info:
+  title: Blog API
+  version: 1.0.0
+  description: A simple blog API for managing posts and comments.
+
+paths:
+  /posts:
+    get:
+      summary: List all posts
+      operationId: listPosts
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        '200':
+          description: A paginated list of posts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Post'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+    post:
+      summary: Create a new post
+      operationId: createPost
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePostRequest'
+      responses:
+        '201':
+          description: Post created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Post'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+
+components:
+  schemas:
+    Post:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        content:
+          type: string
+        status:
+          type: string
+          enum: [draft, published, archived]
+        createdAt:
+          type: string
+          format: date-time
+
+    CreatePostRequest:
+      type: object
+      required: [title, content]
+      properties:
+        title:
+          type: string
+          minLength: 5
+          maxLength: 200
+        content:
+          type: string
+          minLength: 1
+        tags:
+          type: array
+          items:
+            type: string
+```
+
+### Tools for Working with OpenAPI
+
+- **Swagger UI** -- Interactive API documentation
+- **Swagger Editor** -- Online editor for OpenAPI specs
+- **Redoc** -- Beautiful, three-panel API documentation
+- **openapi-generator** -- Generate client SDKs and server stubs in 50+ languages
+- **Prism** -- Mock server from OpenAPI specs for testing
+
+---
+
+## Good vs Bad API Design: A Comparison
+
+Let us design an API for a simple blog application and compare good and bad approaches.
+
+### Bad Design
+
+```
+# Verbs in URLs, inconsistent naming, wrong methods
+GET    /getAllPosts
+POST   /createNewPost
+GET    /getPostById?id=42
+POST   /updatePost/42
+GET    /deletePost/42
+POST   /post/42/addComment
+GET    /getCommentsByPostID?post_id=42
+
+# Flat error response with no structure
+{ "error": "something went wrong" }
+
+# No pagination on list endpoints
+# No status codes -- always returns 200
+# Inconsistent field naming (snake_case mixed with camelCase)
+```
+
+### Good Design
+
+```
+# Resource-based, consistent, proper HTTP methods
+GET    /v1/posts                    # List posts (paginated)
+POST   /v1/posts                    # Create a post
+GET    /v1/posts/42                 # Get post 42
+PUT    /v1/posts/42                 # Replace post 42
+PATCH  /v1/posts/42                 # Partially update post 42
+DELETE /v1/posts/42                 # Delete post 42
+GET    /v1/posts/42/comments        # List comments on post 42
+POST   /v1/posts/42/comments        # Add comment to post 42
+
+# Proper status codes: 200, 201, 204, 400, 401, 404, 422, 500
+# RFC 7807 error responses with field-level details
+# Consistent camelCase field naming
+# Cursor-based pagination on all collection endpoints
+# Content-Type: application/json on all requests and responses
+```
+
+---
+
+## Summary
+
+Designing a great REST API comes down to consistency, predictability, and adherence to HTTP semantics. The key principles to remember are:
+
+- Use **nouns** for resource URIs, **HTTP methods** for actions
+- Return **appropriate status codes** for every response
+- Adopt a **consistent error format** like RFC 7807
+- Implement **pagination** for all collection endpoints
+- Define your API with **OpenAPI** before writing code
+- Version your API from **day one**
+
+---
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="GraphQL"
+    description="Learn how GraphQL solves over-fetching and under-fetching with client-defined queries and a strong type system."
+    href="/software-engineering/api-design/graphql/"
+  />
+  <LinkCard
+    title="gRPC & Protocol Buffers"
+    description="Explore high-performance APIs using gRPC for inter-service communication with streaming support."
+    href="/software-engineering/api-design/grpc-protobuf/"
+  />
+  <LinkCard
+    title="Auth, Versioning & Rate Limiting"
+    description="Secure your APIs with authentication, manage versions, and protect against abuse."
+    href="/software-engineering/api-design/api-auth-versioning/"
+  />
+  <LinkCard
+    title="API Design Overview"
+    description="Return to the API Design overview to explore other paradigms and topics."
+    href="/software-engineering/api-design/"
+  />
+</CardGrid>

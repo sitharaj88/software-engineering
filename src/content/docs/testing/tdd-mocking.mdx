@@ -1,0 +1,742 @@
+---
+title: "TDD & Mocking"
+description: "Practice Test-Driven Development and learn when and how to use mocks, stubs, and spies"
+difficulty: "intermediate"
+prerequisites: ["Unit Testing"]
+timeToRead: "20 min"
+topics: ["tdd", "red-green-refactor", "mocking", "stubs", "spies", "test-doubles"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+## Test-Driven Development (TDD)
+
+Test-Driven Development is a software development practice where you write a failing test before writing the production code that makes it pass. It inverts the traditional "write code, then test" workflow and fundamentally changes how you approach design.
+
+### The Red-Green-Refactor Cycle
+
+TDD follows a tight, disciplined cycle of three steps:
+
+**1. Red -- Write a Failing Test**
+
+Write a test that describes the behavior you want. Run it and confirm that it fails. This step is critical: if the test passes before you write any production code, either the test is wrong or the behavior already exists.
+
+The failing test serves as a specification. It defines what "done" looks like before you start writing implementation code.
+
+**2. Green -- Make It Pass**
+
+Write the simplest, most direct code that makes the failing test pass. Do not worry about elegance, performance, or covering every edge case. The only goal is to turn the red test green.
+
+This step is intentionally minimal. You are not writing the "final" solution -- you are writing just enough code to satisfy the current test.
+
+**3. Refactor -- Clean Up**
+
+Now that the test passes, improve the code. Remove duplication, extract methods, rename variables, and apply design patterns. The key constraint is that all tests must continue to pass after refactoring.
+
+Refactoring with confidence is the payoff. You can restructure code aggressively because your test suite will catch any mistakes immediately.
+
+```
+    +-------+
+    |  RED  |  <-- Write a failing test
+    +---+---+
+        |
+        v
+    +-------+
+    | GREEN |  <-- Write minimal code to pass
+    +---+---+
+        |
+        v
+  +-----------+
+  | REFACTOR  |  <-- Clean up, all tests still pass
+  +-----+-----+
+        |
+        +-------> Back to RED (next behavior)
+```
+
+Each cycle should be short -- typically a few minutes. If you find yourself spending 30 minutes writing code before running a test, you are taking too large a step.
+
+---
+
+### TDD Benefits
+
+- **Design emerges from usage.** Writing the test first forces you to think about how the code will be called, leading to cleaner APIs and better interfaces.
+- **High test coverage is automatic.** Every line of production code exists because a test demanded it.
+- **Fewer bugs.** The tight feedback loop catches errors immediately, before they compound.
+- **Fearless refactoring.** A comprehensive test suite lets you restructure code without worrying about breaking things.
+- **Living documentation.** The test suite describes exactly what the system does, and it never goes stale because it is executed constantly.
+
+### TDD Criticisms and Responses
+
+| Criticism | Response |
+|---|---|
+| "TDD slows me down" | Initial velocity may decrease, but long-term velocity increases because you spend less time debugging and fixing regressions. |
+| "Not everything can be TDD'd" | True for some areas (UI layout, exploratory prototyping), but TDD works well for business logic, algorithms, and APIs. |
+| "Tests become coupled to implementation" | This happens when you test private methods or mock too aggressively. Test behavior, not implementation. |
+| "100% coverage is wasteful" | TDD does not require 100% coverage. It produces high coverage as a side effect, but you can skip trivial code. |
+
+---
+
+## TDD Walkthrough: Building a String Calculator
+
+Let us build a simple string calculator using TDD, step by step. The function `add(numbers)` takes a string of comma-separated numbers and returns their sum.
+
+### Step 1: Empty String Returns Zero
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# RED: Write the test first
+def test_empty_string_returns_zero():
+    assert add("") == 0
+
+# GREEN: Simplest implementation
+def add(numbers):
+    return 0
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// RED: Write the test first
+test('returns 0 for empty string', () => {
+  expect(add('')).toBe(0);
+});
+
+// GREEN: Simplest implementation
+function add(numbers) {
+  return 0;
+}
+```
+  </TabItem>
+</Tabs>
+
+### Step 2: Single Number Returns Itself
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# RED: New failing test
+def test_single_number_returns_its_value():
+    assert add("5") == 5
+
+# GREEN: Handle single number
+def add(numbers):
+    if numbers == "":
+        return 0
+    return int(numbers)
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// RED: New failing test
+test('returns the number for a single number', () => {
+  expect(add('5')).toBe(5);
+});
+
+// GREEN: Handle single number
+function add(numbers) {
+  if (numbers === '') return 0;
+  return parseInt(numbers, 10);
+}
+```
+  </TabItem>
+</Tabs>
+
+### Step 3: Two Numbers Return Their Sum
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# RED: Another failing test
+def test_two_numbers_returns_sum():
+    assert add("1,2") == 3
+
+# GREEN: Handle multiple numbers
+def add(numbers):
+    if numbers == "":
+        return 0
+    return sum(int(n) for n in numbers.split(","))
+
+# REFACTOR: The implementation now handles all previous cases too.
+# Run all tests to confirm they still pass.
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// RED: Another failing test
+test('returns sum of two numbers', () => {
+  expect(add('1,2')).toBe(3);
+});
+
+// GREEN: Handle multiple numbers
+function add(numbers) {
+  if (numbers === '') return 0;
+  return numbers.split(',').reduce((sum, n) => sum + parseInt(n, 10), 0);
+}
+
+// REFACTOR: The implementation now handles all previous cases too.
+// Run all tests to confirm they still pass.
+```
+  </TabItem>
+</Tabs>
+
+### Step 4: Negative Numbers Throw an Exception
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# RED: Test for error behavior
+def test_negative_numbers_raise_exception():
+    with pytest.raises(ValueError, match="negatives not allowed: -3"):
+        add("1,-3,5")
+
+# GREEN: Add validation
+def add(numbers):
+    if numbers == "":
+        return 0
+    nums = [int(n) for n in numbers.split(",")]
+    negatives = [n for n in nums if n < 0]
+    if negatives:
+        raise ValueError(f"negatives not allowed: {', '.join(str(n) for n in negatives)}")
+    return sum(nums)
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// RED: Test for error behavior
+test('throws for negative numbers', () => {
+  expect(() => add('1,-3,5')).toThrow('negatives not allowed: -3');
+});
+
+// GREEN: Add validation
+function add(numbers) {
+  if (numbers === '') return 0;
+  const nums = numbers.split(',').map(n => parseInt(n, 10));
+  const negatives = nums.filter(n => n < 0);
+  if (negatives.length > 0) {
+    throw new Error(`negatives not allowed: ${negatives.join(', ')}`);
+  }
+  return nums.reduce((sum, n) => sum + n, 0);
+}
+```
+  </TabItem>
+</Tabs>
+
+Notice how each step is small and focused. The design of the function emerges naturally from the tests.
+
+---
+
+## Test Doubles Taxonomy
+
+When unit testing, you often need to replace real dependencies with controlled substitutes. These substitutes are collectively called **test doubles**. Understanding the different types helps you choose the right tool for each situation.
+
+### Dummy
+
+A dummy is an object passed to satisfy a parameter requirement but never actually used. It fills a slot in a method signature.
+
+```python
+# The logger is required by the constructor but not relevant to this test
+def test_user_creation():
+    dummy_logger = None  # or a no-op logger
+    user = User("Alice", logger=dummy_logger)
+    assert user.name == "Alice"
+```
+
+### Stub
+
+A stub provides canned answers to method calls. It returns predetermined responses without any logic. Use stubs when you need a dependency to return specific values for your test scenario.
+
+```python
+# Stub the weather service to return a known forecast
+class StubWeatherService:
+    def get_forecast(self, city):
+        return {"temperature": 72, "condition": "sunny"}
+
+def test_trip_planner_recommends_outdoor_activity():
+    planner = TripPlanner(weather_service=StubWeatherService())
+    recommendation = planner.suggest_activity("Portland")
+    assert recommendation == "hiking"
+```
+
+### Spy
+
+A spy records information about how it was called -- which methods, with what arguments, how many times. Use spies when you need to verify that your code interacts with a dependency correctly.
+
+```python
+# Spy tracks calls to send_email
+class SpyEmailService:
+    def __init__(self):
+        self.sent_emails = []
+
+    def send(self, to, subject, body):
+        self.sent_emails.append({"to": to, "subject": subject, "body": body})
+
+def test_registration_sends_welcome_email():
+    spy = SpyEmailService()
+    registration = UserRegistration(email_service=spy)
+    registration.register("alice@example.com", "password123")
+
+    assert len(spy.sent_emails) == 1
+    assert spy.sent_emails[0]["to"] == "alice@example.com"
+    assert "welcome" in spy.sent_emails[0]["subject"].lower()
+```
+
+### Mock
+
+A mock is a pre-programmed object with expectations about how it will be called. Unlike a spy (which records and lets you assert after the fact), a mock typically verifies expectations during the test. In practice, most modern frameworks blur the line between spies and mocks.
+
+### Fake
+
+A fake is a working implementation that takes a shortcut unsuitable for production. Common examples include in-memory databases, local file system caches instead of cloud storage, and fake SMTP servers.
+
+```python
+# Fake in-memory database for testing
+class FakeUserDatabase:
+    def __init__(self):
+        self._users = {}
+        self._next_id = 1
+
+    def save(self, user):
+        user.id = self._next_id
+        self._users[self._next_id] = user
+        self._next_id += 1
+        return user
+
+    def find_by_id(self, user_id):
+        return self._users.get(user_id)
+```
+
+---
+
+## When to Mock
+
+### You Should Mock
+
+- **External services** -- HTTP APIs, third-party services, payment gateways. You cannot control their behavior or availability.
+- **I/O operations** -- File system, network calls, database queries (in unit tests). These are slow and non-deterministic.
+- **Non-deterministic inputs** -- Current time, random numbers, UUIDs. Mock these to make tests repeatable.
+- **Expensive operations** -- Heavy computations or operations with rate limits that would slow down your test suite.
+
+### You Should NOT Mock
+
+- **The system under test** -- Never mock the thing you are testing. If you mock it, you are not testing it.
+- **Simple value objects** -- Data classes, DTOs, and value types are cheap to construct. Use real instances.
+- **Implementation details** -- Do not mock private methods or internal collaborators. This couples tests to implementation, making refactoring painful.
+- **Everything** -- Over-mocking leads to tests that verify your mocks work, not that your code works. If a test has more mock setup than assertions, reconsider.
+
+---
+
+## Mocking in Practice
+
+<Tabs>
+  <TabItem label="Python">
+```python
+from unittest.mock import patch, MagicMock, PropertyMock
+import pytest
+from order_service import OrderService
+from payment_gateway import PaymentGateway
+
+class TestOrderService:
+    """Mocking examples with unittest.mock."""
+
+    # Using patch as a decorator to replace a dependency
+    @patch("order_service.PaymentGateway")
+    def test_successful_order_charges_payment(self, MockGateway):
+        # Configure the mock
+        mock_gateway = MockGateway.return_value
+        mock_gateway.charge.return_value = {"status": "success", "transaction_id": "txn_123"}
+
+        service = OrderService()
+        result = service.place_order(user_id=1, amount=99.99)
+
+        # Verify the mock was called correctly
+        mock_gateway.charge.assert_called_once_with(amount=99.99, currency="USD")
+        assert result.transaction_id == "txn_123"
+
+    # Using patch as a context manager
+    def test_order_fails_when_payment_declines(self):
+        with patch("order_service.PaymentGateway") as MockGateway:
+            mock_gateway = MockGateway.return_value
+            mock_gateway.charge.return_value = {"status": "declined"}
+
+            service = OrderService()
+            with pytest.raises(PaymentDeclinedError):
+                service.place_order(user_id=1, amount=99.99)
+
+    # Using MagicMock with side_effect for exceptions
+    def test_order_handles_gateway_timeout(self):
+        mock_gateway = MagicMock(spec=PaymentGateway)
+        mock_gateway.charge.side_effect = TimeoutError("Gateway timeout")
+
+        service = OrderService(payment_gateway=mock_gateway)
+        with pytest.raises(OrderError, match="payment service unavailable"):
+            service.place_order(user_id=1, amount=99.99)
+
+    # Using side_effect for sequential return values
+    def test_retry_logic_on_transient_failure(self):
+        mock_gateway = MagicMock(spec=PaymentGateway)
+        mock_gateway.charge.side_effect = [
+            TimeoutError("First attempt failed"),
+            {"status": "success", "transaction_id": "txn_456"},
+        ]
+
+        service = OrderService(payment_gateway=mock_gateway)
+        result = service.place_order(user_id=1, amount=50.00)
+
+        assert mock_gateway.charge.call_count == 2
+        assert result.transaction_id == "txn_456"
+
+    # Patching a built-in / standard library function
+    @patch("order_service.datetime")
+    def test_order_records_timestamp(self, mock_datetime):
+        mock_datetime.now.return_value = datetime(2025, 6, 15, 10, 30, 0)
+
+        service = OrderService()
+        order = service.create_order(user_id=1, items=["widget"])
+
+        assert order.created_at == datetime(2025, 6, 15, 10, 30, 0)
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+const { OrderService } = require('./orderService');
+const { PaymentGateway } = require('./paymentGateway');
+
+// Mock the entire module
+jest.mock('./paymentGateway');
+
+describe('OrderService', () => {
+  let service;
+  let mockGateway;
+
+  beforeEach(() => {
+    // Clear all mock state between tests
+    jest.clearAllMocks();
+    mockGateway = new PaymentGateway();
+    service = new OrderService(mockGateway);
+  });
+
+  // jest.fn() - create a mock function
+  test('successful order charges payment', async () => {
+    mockGateway.charge.mockResolvedValue({
+      status: 'success',
+      transactionId: 'txn_123',
+    });
+
+    const result = await service.placeOrder(1, 99.99);
+
+    expect(mockGateway.charge).toHaveBeenCalledWith({
+      amount: 99.99,
+      currency: 'USD',
+    });
+    expect(mockGateway.charge).toHaveBeenCalledTimes(1);
+    expect(result.transactionId).toBe('txn_123');
+  });
+
+  // Mock rejection for error handling
+  test('handles payment gateway timeout', async () => {
+    mockGateway.charge.mockRejectedValue(new Error('Gateway timeout'));
+
+    await expect(service.placeOrder(1, 99.99)).rejects.toThrow(
+      'payment service unavailable'
+    );
+  });
+
+  // Sequential return values
+  test('retries on transient failure', async () => {
+    mockGateway.charge
+      .mockRejectedValueOnce(new Error('Timeout'))
+      .mockResolvedValueOnce({
+        status: 'success',
+        transactionId: 'txn_456',
+      });
+
+    const result = await service.placeOrder(1, 50.0);
+
+    expect(mockGateway.charge).toHaveBeenCalledTimes(2);
+    expect(result.transactionId).toBe('txn_456');
+  });
+
+  // jest.spyOn - spy on an existing method
+  test('logs order creation', async () => {
+    const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+    mockGateway.charge.mockResolvedValue({ status: 'success', transactionId: 'txn_789' });
+
+    await service.placeOrder(1, 25.0);
+
+    expect(consoleSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Order created')
+    );
+    consoleSpy.mockRestore();
+  });
+
+  // Mocking timers
+  test('order expires after timeout', () => {
+    jest.useFakeTimers();
+    const order = service.createOrder(1, ['widget']);
+
+    jest.advanceTimersByTime(30 * 60 * 1000); // 30 minutes
+
+    expect(order.isExpired()).toBe(true);
+    jest.useRealTimers();
+  });
+});
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.*;
+
+@ExtendWith(MockitoExtension.class)
+class OrderServiceTest {
+
+    @Mock
+    private PaymentGateway paymentGateway;
+
+    private OrderService service;
+
+    @BeforeEach
+    void setUp() {
+        service = new OrderService(paymentGateway);
+    }
+
+    // when/thenReturn for stubbing
+    @Test
+    void successfulOrderChargesPayment() {
+        when(paymentGateway.charge(99.99, "USD"))
+            .thenReturn(new PaymentResult("success", "txn_123"));
+
+        OrderResult result = service.placeOrder(1, 99.99);
+
+        // verify the interaction
+        verify(paymentGateway).charge(99.99, "USD");
+        verify(paymentGateway, times(1)).charge(anyDouble(), anyString());
+        assertEquals("txn_123", result.getTransactionId());
+    }
+
+    // thenThrow for error simulation
+    @Test
+    void handlesGatewayTimeout() {
+        when(paymentGateway.charge(anyDouble(), anyString()))
+            .thenThrow(new TimeoutException("Gateway timeout"));
+
+        assertThrows(OrderException.class, () -> {
+            service.placeOrder(1, 99.99);
+        });
+    }
+
+    // Sequential return values
+    @Test
+    void retriesOnTransientFailure() {
+        when(paymentGateway.charge(anyDouble(), anyString()))
+            .thenThrow(new TimeoutException("First attempt"))
+            .thenReturn(new PaymentResult("success", "txn_456"));
+
+        OrderResult result = service.placeOrder(1, 50.00);
+
+        verify(paymentGateway, times(2)).charge(anyDouble(), anyString());
+        assertEquals("txn_456", result.getTransactionId());
+    }
+
+    // Argument capturing
+    @Test
+    void capturesPaymentDetails() {
+        when(paymentGateway.charge(anyDouble(), anyString()))
+            .thenReturn(new PaymentResult("success", "txn_789"));
+
+        service.placeOrder(1, 75.00);
+
+        ArgumentCaptor<Double> amountCaptor = ArgumentCaptor.forClass(Double.class);
+        ArgumentCaptor<String> currencyCaptor = ArgumentCaptor.forClass(String.class);
+
+        verify(paymentGateway).charge(amountCaptor.capture(), currencyCaptor.capture());
+        assertEquals(75.00, amountCaptor.getValue(), 0.001);
+        assertEquals("USD", currencyCaptor.getValue());
+    }
+
+    // Verifying no unwanted interactions
+    @Test
+    void doesNotChargeWhenAmountIsZero() {
+        assertThrows(IllegalArgumentException.class, () -> {
+            service.placeOrder(1, 0.00);
+        });
+
+        verifyNoInteractions(paymentGateway);
+    }
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
+#include "order_service.h"
+#include "payment_gateway.h"
+
+using ::testing::_;
+using ::testing::Return;
+using ::testing::Throw;
+using ::testing::AtLeast;
+using ::testing::InSequence;
+
+// Define the mock class
+class MockPaymentGateway : public PaymentGateway {
+public:
+    MOCK_METHOD(PaymentResult, charge, (double amount, const std::string& currency), (override));
+    MOCK_METHOD(bool, refund, (const std::string& transactionId), (override));
+};
+
+class OrderServiceTest : public ::testing::Test {
+protected:
+    MockPaymentGateway mockGateway;
+    OrderService service{&mockGateway};
+};
+
+// EXPECT_CALL with Return
+TEST_F(OrderServiceTest, SuccessfulOrderChargesPayment) {
+    EXPECT_CALL(mockGateway, charge(99.99, "USD"))
+        .Times(1)
+        .WillOnce(Return(PaymentResult{"success", "txn_123"}));
+
+    auto result = service.placeOrder(1, 99.99);
+    EXPECT_EQ(result.transactionId, "txn_123");
+}
+
+// EXPECT_CALL with Throw
+TEST_F(OrderServiceTest, HandlesGatewayTimeout) {
+    EXPECT_CALL(mockGateway, charge(_, _))
+        .WillOnce(Throw(std::runtime_error("Gateway timeout")));
+
+    EXPECT_THROW(service.placeOrder(1, 99.99), OrderException);
+}
+
+// Sequential expectations
+TEST_F(OrderServiceTest, RetriesOnTransientFailure) {
+    InSequence seq;
+
+    EXPECT_CALL(mockGateway, charge(_, _))
+        .WillOnce(Throw(std::runtime_error("Timeout")));
+    EXPECT_CALL(mockGateway, charge(_, _))
+        .WillOnce(Return(PaymentResult{"success", "txn_456"}));
+
+    auto result = service.placeOrder(1, 50.00);
+    EXPECT_EQ(result.transactionId, "txn_456");
+}
+
+// ON_CALL for default behavior
+TEST_F(OrderServiceTest, DefaultGatewayBehavior) {
+    ON_CALL(mockGateway, charge(_, _))
+        .WillByDefault(Return(PaymentResult{"success", "txn_default"}));
+
+    // Any test calling charge will get the default response
+    auto result = service.placeOrder(1, 25.00);
+    EXPECT_EQ(result.transactionId, "txn_default");
+}
+
+// Verifying no calls were made
+TEST_F(OrderServiceTest, DoesNotChargeWhenAmountIsZero) {
+    EXPECT_CALL(mockGateway, charge(_, _)).Times(0);
+
+    EXPECT_THROW(service.placeOrder(1, 0.00), std::invalid_argument);
+}
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## Common Mocking Mistakes
+
+### Over-Mocking
+
+When a test has more mock setup than actual assertions, it becomes fragile and meaningless.
+
+```python
+# Bad: Over-mocked - testing nothing real
+def test_process_order_over_mocked():
+    mock_db = MagicMock()
+    mock_email = MagicMock()
+    mock_logger = MagicMock()
+    mock_inventory = MagicMock()
+    mock_analytics = MagicMock()
+
+    mock_db.get_user.return_value = MagicMock(name="Alice")
+    mock_db.get_product.return_value = MagicMock(price=10)
+    mock_inventory.check_stock.return_value = True
+
+    service = OrderService(mock_db, mock_email, mock_logger, mock_inventory, mock_analytics)
+    service.process_order(user_id=1, product_id=2)
+
+    # We are just verifying that mocks were called - not testing real behavior
+    mock_db.get_user.assert_called_once()
+    mock_email.send.assert_called_once()
+```
+
+```python
+# Better: Use real objects where practical, mock only external I/O
+def test_process_order(fake_db, sample_user, sample_product):
+    mock_email = MagicMock()
+    fake_db.insert_user(sample_user)
+    fake_db.insert_product(sample_product)
+
+    service = OrderService(fake_db, mock_email)
+    order = service.process_order(user_id=sample_user.id, product_id=sample_product.id)
+
+    # Assert real behavior
+    assert order.total == sample_product.price
+    assert order.status == "confirmed"
+    # Only mock the truly external dependency
+    mock_email.send.assert_called_once_with(
+        to=sample_user.email,
+        subject="Order Confirmation"
+    )
+```
+
+### Mocking What You Do Not Own
+
+Do not mock third-party library interfaces directly. Instead, create your own wrapper (adapter) and mock that.
+
+```python
+# Bad: Mocking requests directly couples your test to the library's API
+@patch("requests.get")
+def test_get_weather(mock_get):
+    mock_get.return_value.json.return_value = {"temp": 72}
+    ...
+
+# Better: Create an adapter and mock your own interface
+class WeatherClient:
+    def get_temperature(self, city: str) -> float:
+        response = requests.get(f"https://api.weather.com/{city}")
+        return response.json()["temp"]
+
+# Now mock your own WeatherClient interface
+def test_trip_planner():
+    mock_client = MagicMock(spec=WeatherClient)
+    mock_client.get_temperature.return_value = 72.0
+    planner = TripPlanner(weather_client=mock_client)
+    ...
+```
+
+---
+
+## Next Steps
+
+Continue building your testing skills:
+
+<CardGrid>
+  <LinkCard
+    title="Integration & E2E Testing"
+    description="Test how components work together with integration tests and end-to-end testing strategies."
+    href="/software-engineering/testing/integration-e2e/"
+  />
+  <LinkCard
+    title="Unit Testing"
+    description="Review unit testing fundamentals and multi-language framework examples."
+    href="/software-engineering/testing/unit-testing/"
+  />
+</CardGrid>

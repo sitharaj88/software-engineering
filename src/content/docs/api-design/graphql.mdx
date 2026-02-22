@@ -1,0 +1,969 @@
+---
+title: "GraphQL"
+description: "Build flexible APIs with GraphQL schemas, queries, mutations, and subscriptions"
+difficulty: "intermediate"
+prerequisites: ["RESTful API Design"]
+timeToRead: "20 min"
+topics: ["graphql", "schema", "queries", "mutations", "subscriptions", "resolvers"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+## What is GraphQL?
+
+**GraphQL** is a query language for APIs and a runtime for executing those queries against your data. Developed internally by Facebook in 2012 and open-sourced in 2015, GraphQL provides a complete and understandable description of the data in your API, gives clients the power to ask for exactly what they need, and makes it easier to evolve APIs over time.
+
+Unlike REST, where the server defines what data each endpoint returns, GraphQL lets the **client** specify exactly what data it needs in a single request.
+
+---
+
+## What Problems Does GraphQL Solve?
+
+### Over-Fetching
+
+With REST, endpoints return fixed data structures. When you only need a user's name and avatar, `GET /users/42` still returns their email, address, phone number, preferences, and every other field.
+
+```
+// REST: GET /users/42
+// You only need name and avatar, but you get everything
+{
+  "id": 42,
+  "name": "Jane Doe",
+  "email": "jane@example.com",
+  "avatar": "https://cdn.example.com/jane.jpg",
+  "phone": "+1-555-0100",
+  "address": { ... },
+  "preferences": { ... },
+  "createdAt": "2025-01-15T10:30:00Z"
+}
+```
+
+```graphql
+# GraphQL: Ask for exactly what you need
+query {
+  user(id: 42) {
+    name
+    avatar
+  }
+}
+
+# Response -- nothing extra
+{
+  "data": {
+    "user": {
+      "name": "Jane Doe",
+      "avatar": "https://cdn.example.com/jane.jpg"
+    }
+  }
+}
+```
+
+### Under-Fetching
+
+With REST, getting related data often requires multiple roundtrips. To display a blog post with its author and comments, you might need three requests.
+
+```
+// REST: Three separate requests
+GET /posts/7            --> post data
+GET /users/42           --> author data
+GET /posts/7/comments   --> comments
+```
+
+```graphql
+# GraphQL: One request, all the data
+query {
+  post(id: 7) {
+    title
+    content
+    author {
+      name
+      avatar
+    }
+    comments {
+      body
+      createdAt
+      author {
+        name
+      }
+    }
+  }
+}
+```
+
+### The N+1 Problem
+
+When a REST endpoint returns a list of items and each item references a related resource, the client must make N additional requests to fetch the related data. GraphQL solves this at the resolver level using batching techniques like DataLoader.
+
+---
+
+## Schema Definition Language (SDL)
+
+GraphQL APIs are defined by a **schema** that describes every type, field, query, and mutation available. The schema serves as the contract between client and server.
+
+```graphql
+# A complete blog schema
+
+type Query {
+  posts(first: Int, after: String): PostConnection!
+  post(id: ID!): Post
+  user(id: ID!): User
+  searchPosts(query: String!): [Post!]!
+}
+
+type Mutation {
+  createPost(input: CreatePostInput!): Post!
+  updatePost(id: ID!, input: UpdatePostInput!): Post!
+  deletePost(id: ID!): Boolean!
+  addComment(postId: ID!, input: AddCommentInput!): Comment!
+}
+
+type Subscription {
+  postPublished: Post!
+  commentAdded(postId: ID!): Comment!
+}
+```
+
+---
+
+## Type System
+
+GraphQL has a rich type system that ensures type safety and enables powerful tooling.
+
+### Scalar Types
+
+Built-in scalar types represent primitive values.
+
+```graphql
+type Example {
+  id: ID!            # Unique identifier (serialized as String)
+  name: String!      # UTF-8 character sequence
+  age: Int!          # 32-bit signed integer
+  rating: Float!     # Double-precision floating-point
+  active: Boolean!   # true or false
+}
+```
+
+The `!` suffix means the field is **non-nullable** -- it will always return a value.
+
+You can also define custom scalars for domain-specific types:
+
+```graphql
+scalar DateTime
+scalar Email
+scalar URL
+```
+
+### Object Types
+
+Object types define the shape of data returned by the API.
+
+```graphql
+type Post {
+  id: ID!
+  title: String!
+  content: String!
+  status: PostStatus!
+  author: User!
+  comments: [Comment!]!
+  tags: [String!]!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type User {
+  id: ID!
+  name: String!
+  email: String!
+  avatar: String
+  posts: [Post!]!
+}
+
+type Comment {
+  id: ID!
+  body: String!
+  author: User!
+  post: Post!
+  createdAt: DateTime!
+}
+```
+
+### Enum Types
+
+Enums restrict a field to a predefined set of values.
+
+```graphql
+enum PostStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum SortOrder {
+  ASC
+  DESC
+}
+```
+
+### Input Types
+
+Input types define the shape of data sent as arguments to queries and mutations.
+
+```graphql
+input CreatePostInput {
+  title: String!
+  content: String!
+  tags: [String!]
+  status: PostStatus = DRAFT
+}
+
+input UpdatePostInput {
+  title: String
+  content: String
+  tags: [String!]
+  status: PostStatus
+}
+
+input AddCommentInput {
+  body: String!
+}
+```
+
+### Interface Types
+
+Interfaces define a set of fields that multiple types must implement.
+
+```graphql
+interface Node {
+  id: ID!
+  createdAt: DateTime!
+}
+
+type Post implements Node {
+  id: ID!
+  createdAt: DateTime!
+  title: String!
+  content: String!
+}
+
+type Comment implements Node {
+  id: ID!
+  createdAt: DateTime!
+  body: String!
+}
+```
+
+### Union Types
+
+Unions represent a value that could be one of several types, without requiring shared fields.
+
+```graphql
+union SearchResult = Post | User | Comment
+
+type Query {
+  search(query: String!): [SearchResult!]!
+}
+```
+
+When querying a union, use inline fragments to select type-specific fields:
+
+```graphql
+query {
+  search(query: "graphql") {
+    ... on Post {
+      title
+      content
+    }
+    ... on User {
+      name
+      email
+    }
+    ... on Comment {
+      body
+    }
+  }
+}
+```
+
+---
+
+## Queries
+
+Queries are read operations. They follow the shape of the schema and let clients request exactly the fields they need.
+
+```graphql
+# Simple query
+query GetPost {
+  post(id: "7") {
+    title
+    content
+    author {
+      name
+    }
+  }
+}
+
+# Query with variables
+query GetPost($postId: ID!) {
+  post(id: $postId) {
+    title
+    content
+    status
+    author {
+      name
+      avatar
+    }
+    comments {
+      body
+      author {
+        name
+      }
+    }
+  }
+}
+```
+
+Variables are passed separately as JSON:
+
+```json
+{
+  "postId": "7"
+}
+```
+
+---
+
+## Mutations
+
+Mutations are write operations that create, update, or delete data.
+
+```graphql
+mutation CreatePost($input: CreatePostInput!) {
+  createPost(input: $input) {
+    id
+    title
+    status
+    createdAt
+  }
+}
+```
+
+```json
+// Variables
+{
+  "input": {
+    "title": "Getting Started with GraphQL",
+    "content": "GraphQL is a query language for APIs...",
+    "tags": ["graphql", "api"]
+  }
+}
+```
+
+```json
+// Response
+{
+  "data": {
+    "createPost": {
+      "id": "101",
+      "title": "Getting Started with GraphQL",
+      "status": "DRAFT",
+      "createdAt": "2025-06-15T10:30:00Z"
+    }
+  }
+}
+```
+
+---
+
+## Subscriptions
+
+Subscriptions provide real-time updates when data changes, typically implemented over WebSocket connections.
+
+```graphql
+subscription OnCommentAdded($postId: ID!) {
+  commentAdded(postId: $postId) {
+    id
+    body
+    author {
+      name
+      avatar
+    }
+    createdAt
+  }
+}
+```
+
+When a new comment is added to the specified post, the server pushes the data to all subscribed clients.
+
+---
+
+## Resolvers
+
+Resolvers are functions that execute on the server to fetch the data for each field in the schema. Every field in a GraphQL schema is backed by a resolver.
+
+<Tabs>
+  <TabItem label="JavaScript (Apollo Server)">
+```js
+// schema.js
+import { ApolloServer } from '@apollo/server';
+import { startStandaloneServer } from '@apollo/server/standalone';
+
+const typeDefs = `#graphql
+  type Query {
+    posts(first: Int = 10, after: String): PostConnection!
+    post(id: ID!): Post
+  }
+
+  type Mutation {
+    createPost(input: CreatePostInput!): Post!
+    updatePost(id: ID!, input: UpdatePostInput!): Post!
+    deletePost(id: ID!): Boolean!
+  }
+
+  type Post {
+    id: ID!
+    title: String!
+    content: String!
+    author: User!
+    comments: [Comment!]!
+    createdAt: String!
+  }
+
+  type User {
+    id: ID!
+    name: String!
+    email: String!
+    posts: [Post!]!
+  }
+
+  type Comment {
+    id: ID!
+    body: String!
+    author: User!
+    createdAt: String!
+  }
+
+  type PostConnection {
+    edges: [PostEdge!]!
+    pageInfo: PageInfo!
+  }
+
+  type PostEdge {
+    node: Post!
+    cursor: String!
+  }
+
+  type PageInfo {
+    hasNextPage: Boolean!
+    endCursor: String
+  }
+
+  input CreatePostInput {
+    title: String!
+    content: String!
+    tags: [String!]
+  }
+
+  input UpdatePostInput {
+    title: String
+    content: String
+    tags: [String!]
+  }
+`;
+
+const resolvers = {
+  Query: {
+    posts: async (_, { first, after }, { dataSources }) => {
+      return dataSources.postAPI.getPosts({ first, after });
+    },
+    post: async (_, { id }, { dataSources }) => {
+      return dataSources.postAPI.getPostById(id);
+    },
+  },
+
+  Mutation: {
+    createPost: async (_, { input }, { dataSources, user }) => {
+      if (!user) throw new Error('Authentication required');
+      return dataSources.postAPI.createPost({ ...input, authorId: user.id });
+    },
+    updatePost: async (_, { id, input }, { dataSources, user }) => {
+      if (!user) throw new Error('Authentication required');
+      return dataSources.postAPI.updatePost(id, input);
+    },
+    deletePost: async (_, { id }, { dataSources, user }) => {
+      if (!user) throw new Error('Authentication required');
+      return dataSources.postAPI.deletePost(id);
+    },
+  },
+
+  // Field-level resolvers for relationships
+  Post: {
+    author: async (post, _, { dataSources }) => {
+      return dataSources.userAPI.getUserById(post.authorId);
+    },
+    comments: async (post, _, { dataSources }) => {
+      return dataSources.commentAPI.getCommentsByPostId(post.id);
+    },
+  },
+
+  User: {
+    posts: async (user, _, { dataSources }) => {
+      return dataSources.postAPI.getPostsByAuthor(user.id);
+    },
+  },
+
+  Comment: {
+    author: async (comment, _, { dataSources }) => {
+      return dataSources.userAPI.getUserById(comment.authorId);
+    },
+  },
+};
+
+const server = new ApolloServer({ typeDefs, resolvers });
+
+const { url } = await startStandaloneServer(server, {
+  context: async ({ req }) => {
+    const token = req.headers.authorization || '';
+    const user = await getUserFromToken(token);
+    return {
+      user,
+      dataSources: {
+        postAPI: new PostAPI(),
+        userAPI: new UserAPI(),
+        commentAPI: new CommentAPI(),
+      },
+    };
+  },
+  listen: { port: 4000 },
+});
+
+console.log(`Server running at ${url}`);
+```
+  </TabItem>
+  <TabItem label="Python (Strawberry)">
+```python
+# schema.py
+import strawberry
+from strawberry.types import Info
+from typing import Optional
+from datetime import datetime
+
+
+@strawberry.type
+class User:
+    id: strawberry.ID
+    name: str
+    email: str
+
+    @strawberry.field
+    async def posts(self, info: Info) -> list["Post"]:
+        return await info.context["post_loader"].load_by_author(self.id)
+
+
+@strawberry.type
+class Comment:
+    id: strawberry.ID
+    body: str
+    created_at: datetime
+
+    @strawberry.field
+    async def author(self, info: Info) -> User:
+        return await info.context["user_loader"].load(self.author_id)
+
+
+@strawberry.type
+class Post:
+    id: strawberry.ID
+    title: str
+    content: str
+    created_at: datetime
+
+    @strawberry.field
+    async def author(self, info: Info) -> User:
+        return await info.context["user_loader"].load(self.author_id)
+
+    @strawberry.field
+    async def comments(self, info: Info) -> list[Comment]:
+        return await info.context["comment_loader"].load_by_post(self.id)
+
+
+@strawberry.type
+class PageInfo:
+    has_next_page: bool
+    end_cursor: Optional[str]
+
+
+@strawberry.type
+class PostEdge:
+    node: Post
+    cursor: str
+
+
+@strawberry.type
+class PostConnection:
+    edges: list[PostEdge]
+    page_info: PageInfo
+
+
+@strawberry.input
+class CreatePostInput:
+    title: str
+    content: str
+    tags: Optional[list[str]] = None
+
+
+@strawberry.input
+class UpdatePostInput:
+    title: Optional[str] = None
+    content: Optional[str] = None
+    tags: Optional[list[str]] = None
+
+
+@strawberry.type
+class Query:
+    @strawberry.field
+    async def posts(
+        self,
+        info: Info,
+        first: int = 10,
+        after: Optional[str] = None,
+    ) -> PostConnection:
+        post_service = info.context["post_service"]
+        return await post_service.get_posts(first=first, after=after)
+
+    @strawberry.field
+    async def post(self, info: Info, id: strawberry.ID) -> Optional[Post]:
+        post_service = info.context["post_service"]
+        return await post_service.get_post_by_id(id)
+
+
+@strawberry.type
+class Mutation:
+    @strawberry.mutation
+    async def create_post(self, info: Info, input: CreatePostInput) -> Post:
+        user = info.context.get("user")
+        if not user:
+            raise Exception("Authentication required")
+        post_service = info.context["post_service"]
+        return await post_service.create_post(
+            title=input.title,
+            content=input.content,
+            tags=input.tags,
+            author_id=user.id,
+        )
+
+    @strawberry.mutation
+    async def update_post(
+        self, info: Info, id: strawberry.ID, input: UpdatePostInput
+    ) -> Post:
+        user = info.context.get("user")
+        if not user:
+            raise Exception("Authentication required")
+        post_service = info.context["post_service"]
+        return await post_service.update_post(id, input)
+
+    @strawberry.mutation
+    async def delete_post(self, info: Info, id: strawberry.ID) -> bool:
+        user = info.context.get("user")
+        if not user:
+            raise Exception("Authentication required")
+        post_service = info.context["post_service"]
+        return await post_service.delete_post(id)
+
+
+schema = strawberry.Schema(query=Query, mutation=Mutation)
+
+
+# main.py
+from strawberry.fastapi import GraphQLRouter
+from fastapi import FastAPI
+
+app = FastAPI()
+graphql_app = GraphQLRouter(schema)
+app.include_router(graphql_app, prefix="/graphql")
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## The DataLoader Pattern
+
+When a query fetches a list of posts and each post resolves its author, naive resolvers would execute N separate database queries for N posts (the N+1 problem). **DataLoader** solves this by batching and caching.
+
+<Tabs>
+  <TabItem label="JavaScript">
+```js
+import DataLoader from 'dataloader';
+
+// Create a batch loading function
+const userLoader = new DataLoader(async (userIds) => {
+  // Single query: SELECT * FROM users WHERE id IN (1, 2, 3, 7, 42)
+  const users = await db.users.findMany({
+    where: { id: { in: userIds } },
+  });
+
+  // Return in the same order as the input IDs
+  const userMap = new Map(users.map((u) => [u.id, u]));
+  return userIds.map((id) => userMap.get(id));
+});
+
+// In resolver
+const resolvers = {
+  Post: {
+    author: (post) => userLoader.load(post.authorId),
+  },
+  Comment: {
+    author: (comment) => userLoader.load(comment.authorId),
+  },
+};
+
+// Even if 50 posts each need an author,
+// DataLoader batches them into a SINGLE database query
+```
+  </TabItem>
+  <TabItem label="Python">
+```python
+from strawberry.dataloader import DataLoader
+from typing import List
+
+
+async def batch_load_users(user_ids: list[int]) -> list[User]:
+    """Load multiple users in a single database query."""
+    # Single query: SELECT * FROM users WHERE id = ANY($1)
+    users = await db.users.find_many(where={"id": {"in": user_ids}})
+
+    # Return users in the same order as the input IDs
+    user_map = {user.id: user for user in users}
+    return [user_map.get(uid) for uid in user_ids]
+
+
+# Create loader per request (important for caching isolation)
+async def get_context():
+    return {
+        "user_loader": DataLoader(load_fn=batch_load_users),
+    }
+
+
+# In the Post type resolver
+@strawberry.type
+class Post:
+    id: strawberry.ID
+    title: str
+    author_id: int  # stored but not exposed
+
+    @strawberry.field
+    async def author(self, info: Info) -> User:
+        # Uses DataLoader -- batched automatically
+        return await info.context["user_loader"].load(self.author_id)
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## Fragments
+
+Fragments allow you to reuse sets of fields across multiple queries, reducing duplication.
+
+```graphql
+# Define reusable fragments
+fragment PostSummary on Post {
+  id
+  title
+  createdAt
+  author {
+    name
+    avatar
+  }
+}
+
+fragment PostDetail on Post {
+  ...PostSummary
+  content
+  tags
+  comments {
+    id
+    body
+    author {
+      name
+    }
+  }
+}
+
+# Use fragments in queries
+query HomePage {
+  featuredPosts: posts(first: 5, featured: true) {
+    edges {
+      node {
+        ...PostSummary
+      }
+    }
+  }
+  recentPosts: posts(first: 10) {
+    edges {
+      node {
+        ...PostSummary
+      }
+    }
+  }
+}
+
+query PostPage($id: ID!) {
+  post(id: $id) {
+    ...PostDetail
+  }
+}
+```
+
+---
+
+## Directives
+
+Directives modify query execution at the field or fragment level. GraphQL includes two built-in directives.
+
+```graphql
+query GetPost($id: ID!, $includeComments: Boolean!, $skipAuthor: Boolean!) {
+  post(id: $id) {
+    title
+    content
+    author @skip(if: $skipAuthor) {
+      name
+      avatar
+    }
+    comments @include(if: $includeComments) {
+      body
+      createdAt
+    }
+  }
+}
+```
+
+You can also define custom directives for cross-cutting concerns like authentication, caching, and rate limiting:
+
+```graphql
+directive @auth(role: Role!) on FIELD_DEFINITION
+directive @cacheControl(maxAge: Int!) on FIELD_DEFINITION
+
+type Mutation {
+  deletePost(id: ID!): Boolean! @auth(role: ADMIN)
+}
+
+type Post {
+  id: ID!
+  title: String! @cacheControl(maxAge: 300)
+}
+```
+
+---
+
+## Introspection
+
+GraphQL APIs are self-documenting through **introspection**. Clients can query the schema itself to discover available types, fields, and operations.
+
+```graphql
+# Discover all types in the schema
+query {
+  __schema {
+    types {
+      name
+      kind
+      description
+    }
+  }
+}
+
+# Get details about a specific type
+query {
+  __type(name: "Post") {
+    name
+    fields {
+      name
+      type {
+        name
+        kind
+      }
+    }
+  }
+}
+```
+
+Introspection powers tools like **GraphQL Playground**, **GraphiQL**, and IDE extensions that provide autocomplete, documentation, and query validation.
+
+:::caution
+Disable introspection in production for public APIs to prevent exposing your entire schema to potential attackers.
+:::
+
+---
+
+## GraphQL vs REST Comparison
+
+| Aspect | REST | GraphQL |
+|---|---|---|
+| **Endpoints** | Multiple (one per resource) | Single endpoint (`/graphql`) |
+| **Data Fetching** | Server decides response shape | Client decides response shape |
+| **Over-fetching** | Common | Eliminated by design |
+| **Under-fetching** | Common (multiple roundtrips) | Eliminated (nested queries) |
+| **Versioning** | URL or header versioning | Schema evolution (deprecation) |
+| **Caching** | HTTP caching (simple, effective) | Complex (needs client-side solutions) |
+| **File Upload** | Native multipart support | Requires extensions |
+| **Error Handling** | HTTP status codes | Always 200, errors in response body |
+| **Real-time** | WebSocket or SSE (separate) | Subscriptions (built-in) |
+| **Tooling** | Swagger/OpenAPI, Postman | GraphQL Playground, Apollo DevTools |
+| **Learning Curve** | Low | Medium |
+| **Best For** | Simple CRUD, public APIs, caching-heavy | Complex frontends, mobile apps, microservice aggregation |
+
+### When to Choose GraphQL
+
+- Multiple client types (web, mobile, TV) with different data needs
+- Complex, deeply nested data relationships
+- Rapid frontend development with evolving requirements
+- Aggregating data from multiple backend services (API gateway)
+
+### When to Stick with REST
+
+- Simple CRUD APIs with predictable data shapes
+- Heavy use of HTTP caching
+- File uploads and downloads
+- Public APIs where simplicity matters
+- Teams already experienced with REST
+
+---
+
+## Summary
+
+GraphQL provides a powerful, flexible approach to API design that puts the client in control of data fetching. Its strong type system, introspection capabilities, and ability to fetch complex data in a single request make it an excellent choice for modern applications with diverse client requirements.
+
+Key takeaways:
+
+- GraphQL eliminates **over-fetching** and **under-fetching** by letting clients specify exactly what they need
+- The **Schema Definition Language** provides a clear, typed contract between client and server
+- **Resolvers** map schema fields to data sources and can be composed with **DataLoader** to avoid N+1 queries
+- **Fragments** and **variables** keep queries reusable and parameterized
+- GraphQL is not a replacement for REST -- each has strengths in different scenarios
+
+---
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="gRPC & Protocol Buffers"
+    description="Explore high-performance APIs using gRPC for inter-service communication with bidirectional streaming."
+    href="/software-engineering/api-design/grpc-protobuf/"
+  />
+  <LinkCard
+    title="Auth, Versioning & Rate Limiting"
+    description="Secure your APIs with authentication, manage versions, and protect against abuse."
+    href="/software-engineering/api-design/api-auth-versioning/"
+  />
+  <LinkCard
+    title="RESTful API Design"
+    description="Review REST best practices for resource naming, status codes, pagination, and error handling."
+    href="/software-engineering/api-design/rest-apis/"
+  />
+  <LinkCard
+    title="API Design Overview"
+    description="Return to the API Design overview for a high-level comparison of all API paradigms."
+    href="/software-engineering/api-design/"
+  />
+</CardGrid>

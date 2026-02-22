@@ -1,0 +1,680 @@
+---
+title: "Transactions, ACID & NoSQL"
+description: "Understand database transactions, isolation levels, and NoSQL database categories"
+difficulty: "advanced"
+prerequisites: ["SQL Fundamentals", "Normalization & Schema Design"]
+timeToRead: "20 min"
+topics: ["transactions", "acid", "isolation-levels", "nosql", "cap-theorem", "mvcc"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+## What Is a Transaction?
+
+A **transaction** is a sequence of one or more database operations that are treated as a single, indivisible unit of work. Either all operations succeed and are permanently saved, or none of them take effect.
+
+The classic example is a bank transfer:
+
+```sql
+-- Transfer $500 from Alice's account to Bob's account
+BEGIN;
+  UPDATE accounts SET balance = balance - 500 WHERE owner = 'Alice';
+  UPDATE accounts SET balance = balance + 500 WHERE owner = 'Bob';
+COMMIT;
+```
+
+If the system crashes between the two UPDATE statements, without transactions you would have $500 vanish into thin air — Alice's balance decreased but Bob's never increased. Transactions prevent this.
+
+## ACID Properties
+
+Every reliable relational database guarantees four properties for transactions, collectively known as **ACID**:
+
+### Atomicity — "All or Nothing"
+
+All operations within a transaction either complete successfully or are entirely rolled back. There is no partial state.
+
+```sql
+BEGIN;
+  INSERT INTO orders (customer_id, order_date) VALUES (1, '2024-03-15');
+  -- Suppose this fails due to a constraint violation:
+  INSERT INTO order_items (order_id, product_id, quantity)
+    VALUES (999, 9999, 1);  -- product_id 9999 doesn't exist
+ROLLBACK;  -- Automatically rolled back; the order is NOT created
+```
+
+### Consistency — "Valid State to Valid State"
+
+A transaction moves the database from one valid state to another. All constraints (foreign keys, unique constraints, check constraints) must be satisfied after the transaction completes. If any constraint is violated, the entire transaction is rolled back.
+
+```sql
+-- The database enforces that account balances cannot go negative
+ALTER TABLE accounts ADD CONSTRAINT positive_balance CHECK (balance >= 0);
+
+BEGIN;
+  UPDATE accounts SET balance = balance - 10000 WHERE owner = 'Alice';
+  -- If Alice only has $500, this violates the CHECK constraint
+  -- The transaction is rolled back, maintaining consistency
+COMMIT;
+```
+
+### Isolation — "Concurrent Transactions Do Not Interfere"
+
+Even when multiple transactions execute concurrently, each transaction behaves as if it were running alone. The **isolation level** determines exactly how much of other transactions' work is visible.
+
+### Durability — "Committed Data Survives Failures"
+
+Once a transaction is committed, the changes are permanently saved — even if the system crashes immediately afterward. Databases achieve this through **write-ahead logging (WAL)**: changes are written to a durable log before being applied to the actual data files.
+
+```
+Transaction Lifecycle:
+
+  BEGIN ──→ Operation 1 ──→ Operation 2 ──→ ... ──→ COMMIT
+    │                                                  │
+    │         (changes are tentative)                  │
+    │                                                  ↓
+    │                                           Changes are
+    │                                           permanent (durable)
+    │
+    └──→ ROLLBACK (at any point before COMMIT)
+              │
+              ↓
+         All changes undone
+```
+
+## Isolation Levels and Concurrency Anomalies
+
+Isolation levels represent a trade-off between **correctness** and **performance**. Higher isolation prevents more anomalies but reduces concurrency (throughput).
+
+### Concurrency Anomalies
+
+Three types of problems can occur when transactions run concurrently:
+
+**Dirty Read:** Transaction A reads data that Transaction B has modified but not yet committed. If B rolls back, A has read data that never existed.
+
+```
+Timeline:
+  T1: BEGIN
+  T1: UPDATE products SET price = 25.00 WHERE id = 1;  (was 20.00)
+                T2: BEGIN
+                T2: SELECT price FROM products WHERE id = 1;
+                T2: → reads 25.00  ← DIRTY READ (T1 hasn't committed)
+  T1: ROLLBACK  (price goes back to 20.00)
+                T2: ... uses 25.00, which was never real
+```
+
+**Non-Repeatable Read:** Transaction A reads a row, Transaction B modifies and commits it, then A reads the same row again and gets a different value.
+
+```
+Timeline:
+  T1: BEGIN
+  T1: SELECT price FROM products WHERE id = 1;  → 20.00
+                T2: BEGIN
+                T2: UPDATE products SET price = 25.00 WHERE id = 1;
+                T2: COMMIT
+  T1: SELECT price FROM products WHERE id = 1;  → 25.00  ← DIFFERENT!
+  T1: (same query, different result within the same transaction)
+```
+
+**Phantom Read:** Transaction A queries a set of rows, Transaction B inserts or deletes rows that match A's query, then A runs the same query again and gets different rows.
+
+```
+Timeline:
+  T1: BEGIN
+  T1: SELECT COUNT(*) FROM orders WHERE status = 'pending';  → 5
+                T2: BEGIN
+                T2: INSERT INTO orders (status) VALUES ('pending');
+                T2: COMMIT
+  T1: SELECT COUNT(*) FROM orders WHERE status = 'pending';  → 6  ← PHANTOM!
+```
+
+### Isolation Level Matrix
+
+| Isolation Level      | Dirty Read | Non-Repeatable Read | Phantom Read | Performance |
+|----------------------|------------|---------------------|--------------|-------------|
+| **Read Uncommitted** | Possible   | Possible            | Possible     | Fastest     |
+| **Read Committed**   | Prevented  | Possible            | Possible     | Fast        |
+| **Repeatable Read**  | Prevented  | Prevented           | Possible     | Moderate    |
+| **Serializable**     | Prevented  | Prevented           | Prevented    | Slowest     |
+
+:::note[Database Defaults]
+- **PostgreSQL** defaults to **Read Committed**
+- **MySQL (InnoDB)** defaults to **Repeatable Read**
+- **SQL Server** defaults to **Read Committed**
+- **Oracle** defaults to **Read Committed**
+:::
+
+### Setting Isolation Levels
+
+<Tabs>
+  <TabItem label="SQL (PostgreSQL)">
+```sql
+-- Set for a single transaction
+BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+  SELECT * FROM accounts WHERE owner = 'Alice';
+  UPDATE accounts SET balance = balance - 100 WHERE owner = 'Alice';
+COMMIT;
+
+-- Set for the entire session
+SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+```
+  </TabItem>
+  <TabItem label="SQL (MySQL)">
+```sql
+-- Set for the next transaction
+SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+START TRANSACTION;
+  SELECT * FROM accounts WHERE owner = 'Alice' FOR UPDATE;
+  UPDATE accounts SET balance = balance - 100 WHERE owner = 'Alice';
+COMMIT;
+
+-- Set globally or for session
+SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+```
+  </TabItem>
+</Tabs>
+
+## MVCC — Multi-Version Concurrency Control
+
+Most modern databases (PostgreSQL, MySQL InnoDB, Oracle) use **MVCC** to provide isolation without heavy locking. Instead of blocking readers when a writer modifies data, MVCC keeps multiple versions of each row.
+
+```
+How MVCC Works:
+
+Row: product_id=1, price=20.00
+
+  T1 (writer):  UPDATE price = 25.00
+  ┌─────────────────────────────────────────────┐
+  │ Version 1: price=20.00  (visible to T2)     │
+  │ Version 2: price=25.00  (visible only to T1 │
+  │                          until COMMIT)       │
+  └─────────────────────────────────────────────┘
+
+  T2 (reader):  SELECT price → sees 20.00 (Version 1)
+                (T2 is never blocked by T1's write)
+
+  T1: COMMIT
+  ┌─────────────────────────────────────────────┐
+  │ Version 1: price=20.00  (old, can be GC'd)  │
+  │ Version 2: price=25.00  (now visible to all) │
+  └─────────────────────────────────────────────┘
+
+  T2: SELECT price → sees 25.00 (at Read Committed level)
+      or still 20.00 (at Repeatable Read / snapshot level)
+```
+
+**Key benefits of MVCC:**
+- Readers never block writers
+- Writers never block readers
+- Only writers block other writers (on the same row)
+
+:::tip[Practical Impact]
+MVCC is why PostgreSQL and MySQL can handle high concurrency. Understanding MVCC helps you reason about what your application sees during concurrent operations and why `VACUUM` (PostgreSQL) or purge threads (InnoDB) are necessary — old row versions must eventually be cleaned up.
+:::
+
+## Transaction Code Examples
+
+<Tabs>
+  <TabItem label="SQL">
+```sql
+-- Bank transfer with error handling
+BEGIN;
+
+SAVEPOINT before_transfer;
+
+UPDATE accounts SET balance = balance - 500
+WHERE owner = 'Alice' AND balance >= 500;
+
+-- Check if the debit succeeded (row was found and updated)
+-- In a real application, your code checks the affected row count
+
+UPDATE accounts SET balance = balance + 500
+WHERE owner = 'Bob';
+
+-- If anything went wrong:
+-- ROLLBACK TO SAVEPOINT before_transfer;
+
+COMMIT;
+```
+  </TabItem>
+  <TabItem label="Python (psycopg2)">
+```python
+import psycopg2
+
+conn = psycopg2.connect("dbname=mydb user=admin")
+conn.autocommit = False  # enable transaction mode
+
+try:
+    with conn.cursor() as cur:
+        # Debit Alice
+        cur.execute("""
+            UPDATE accounts SET balance = balance - %s
+            WHERE owner = %s AND balance >= %s
+        """, (500, 'Alice', 500))
+
+        if cur.rowcount == 0:
+            raise ValueError("Insufficient funds")
+
+        # Credit Bob
+        cur.execute("""
+            UPDATE accounts SET balance = balance + %s
+            WHERE owner = %s
+        """, (500, 'Bob'))
+
+    conn.commit()
+    print("Transfer successful")
+
+except Exception as e:
+    conn.rollback()
+    print(f"Transfer failed: {e}")
+
+finally:
+    conn.close()
+```
+  </TabItem>
+  <TabItem label="Python (SQLAlchemy)">
+```python
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import Session
+
+engine = create_engine("postgresql://admin@localhost/mydb")
+
+with Session(engine) as session:
+    try:
+        # Debit Alice
+        result = session.execute(
+            text("""
+                UPDATE accounts SET balance = balance - :amount
+                WHERE owner = :owner AND balance >= :amount
+            """),
+            {"amount": 500, "owner": "Alice"}
+        )
+
+        if result.rowcount == 0:
+            raise ValueError("Insufficient funds")
+
+        # Credit Bob
+        session.execute(
+            text("""
+                UPDATE accounts SET balance = balance + :amount
+                WHERE owner = :owner
+            """),
+            {"amount": 500, "owner": "Bob"}
+        )
+
+        session.commit()
+        print("Transfer successful")
+
+    except Exception as e:
+        session.rollback()
+        print(f"Transfer failed: {e}")
+```
+  </TabItem>
+  <TabItem label="Java (JDBC)">
+```java
+Connection conn = DriverManager.getConnection(
+    "jdbc:postgresql://localhost/mydb", "admin", "password"
+);
+
+try {
+    conn.setAutoCommit(false);
+    conn.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
+
+    // Debit Alice
+    PreparedStatement debit = conn.prepareStatement(
+        "UPDATE accounts SET balance = balance - ? WHERE owner = ? AND balance >= ?"
+    );
+    debit.setBigDecimal(1, new BigDecimal("500"));
+    debit.setString(2, "Alice");
+    debit.setBigDecimal(3, new BigDecimal("500"));
+
+    int rowsAffected = debit.executeUpdate();
+    if (rowsAffected == 0) {
+        throw new RuntimeException("Insufficient funds");
+    }
+
+    // Credit Bob
+    PreparedStatement credit = conn.prepareStatement(
+        "UPDATE accounts SET balance = balance + ? WHERE owner = ?"
+    );
+    credit.setBigDecimal(1, new BigDecimal("500"));
+    credit.setString(2, "Bob");
+    credit.executeUpdate();
+
+    conn.commit();
+    System.out.println("Transfer successful");
+
+} catch (Exception e) {
+    conn.rollback();
+    System.err.println("Transfer failed: " + e.getMessage());
+
+} finally {
+    conn.setAutoCommit(true);
+    conn.close();
+}
+```
+  </TabItem>
+</Tabs>
+
+## NoSQL Databases
+
+NoSQL ("Not Only SQL") databases emerged to handle use cases where relational databases struggle: massive scale, flexible schemas, high write throughput, and specific access patterns. They trade some relational guarantees for other advantages.
+
+### Document Databases
+
+Store data as **JSON/BSON documents**. Each document is self-contained and can have a different structure.
+
+**Best for:** Content management, user profiles, product catalogs, event logging
+
+**Representative database:** MongoDB
+
+```javascript
+// MongoDB document example
+{
+  "_id": ObjectId("65a1b2c3d4e5f6a7b8c9d0e1"),
+  "name": "Alice Johnson",
+  "email": "alice@example.com",
+  "addresses": [
+    {
+      "type": "home",
+      "street": "123 Main St",
+      "city": "New York",
+      "zip": "10001"
+    },
+    {
+      "type": "work",
+      "street": "456 Office Blvd",
+      "city": "New York",
+      "zip": "10018"
+    }
+  ],
+  "orders": [
+    {
+      "order_id": "ORD-001",
+      "date": ISODate("2024-01-15"),
+      "items": [
+        { "product": "Laptop", "price": 999.99, "qty": 1 },
+        { "product": "Mouse", "price": 29.99, "qty": 1 }
+      ],
+      "total": 1029.98
+    }
+  ]
+}
+```
+
+```javascript
+// MongoDB queries
+// Find customers in New York
+db.customers.find({ "addresses.city": "New York" });
+
+// Aggregation: total spending per customer
+db.customers.aggregate([
+  { $unwind: "$orders" },
+  { $group: {
+      _id: "$name",
+      totalSpent: { $sum: "$orders.total" },
+      orderCount: { $sum: 1 }
+  }},
+  { $sort: { totalSpent: -1 } }
+]);
+```
+
+### Key-Value Stores
+
+The simplest NoSQL model: every entry is a **key** mapped to a **value**. Values are opaque to the database — all operations are by key.
+
+**Best for:** Caching, session storage, real-time leaderboards, rate limiting, pub/sub messaging
+
+**Representative database:** Redis
+
+```redis
+# Redis command examples
+
+# Simple key-value
+SET user:1001:name "Alice Johnson"
+GET user:1001:name
+# → "Alice Johnson"
+
+# Hash (structured data under one key)
+HSET user:1001 name "Alice Johnson" email "alice@example.com" city "New York"
+HGET user:1001 name
+# → "Alice Johnson"
+HGETALL user:1001
+# → {"name": "Alice Johnson", "email": "alice@example.com", "city": "New York"}
+
+# Sorted set (leaderboard)
+ZADD leaderboard 1500 "Alice" 2300 "Bob" 1800 "Carol"
+ZREVRANGE leaderboard 0 2 WITHSCORES
+# → [("Bob", 2300), ("Carol", 1800), ("Alice", 1500)]
+
+# Expiring keys (caching with TTL)
+SET session:abc123 "{\"user_id\": 1001}" EX 3600
+# → Key expires automatically after 3600 seconds (1 hour)
+
+# Atomic increment (rate limiting)
+INCR api:rate:user:1001
+EXPIRE api:rate:user:1001 60
+# → Increment counter, expire after 60 seconds
+```
+
+### Column-Family Stores
+
+Data is organized by **column families** (groups of columns). Rows can have different columns, and data is stored column-by-column on disk rather than row-by-row, making them excellent for write-heavy workloads and time-series data.
+
+**Best for:** Time-series data, IoT sensor data, messaging systems, activity feeds, large-scale logging
+
+**Representative database:** Apache Cassandra
+
+```cql
+-- Cassandra CQL (Cassandra Query Language) examples
+
+-- Create a keyspace (like a database)
+CREATE KEYSPACE iot_data
+WITH replication = {
+  'class': 'NetworkTopologyStrategy',
+  'datacenter1': 3
+};
+
+-- Table for sensor readings (partitioned by sensor, clustered by time)
+CREATE TABLE sensor_readings (
+    sensor_id    UUID,
+    reading_time TIMESTAMP,
+    temperature  DOUBLE,
+    humidity     DOUBLE,
+    pressure     DOUBLE,
+    PRIMARY KEY (sensor_id, reading_time)
+) WITH CLUSTERING ORDER BY (reading_time DESC);
+
+-- Insert a reading
+INSERT INTO sensor_readings (sensor_id, reading_time, temperature, humidity, pressure)
+VALUES (uuid(), '2024-03-15T10:30:00Z', 22.5, 45.2, 1013.25);
+
+-- Query: last 24 hours of readings for a specific sensor
+SELECT reading_time, temperature, humidity
+FROM sensor_readings
+WHERE sensor_id = a1b2c3d4-e5f6-7890-abcd-ef1234567890
+  AND reading_time > '2024-03-14T10:30:00Z';
+```
+
+:::note[Cassandra Data Modeling]
+In Cassandra, you design your schema around your **queries**, not your entities. Each table is optimized for a specific query pattern. This often means duplicating data across tables — the opposite of normalization. This is by design: writes are cheap, reads must be fast.
+:::
+
+### Graph Databases
+
+Store data as **nodes** (entities) and **edges** (relationships). Both nodes and edges can have properties. Traversing relationships is a first-class, highly optimized operation.
+
+**Best for:** Social networks, recommendation engines, fraud detection, knowledge graphs, access control
+
+**Representative database:** Neo4j
+
+```cypher
+// Neo4j Cypher query language examples
+
+// Create nodes and relationships
+CREATE (alice:Person {name: 'Alice', age: 30})
+CREATE (bob:Person {name: 'Bob', age: 28})
+CREATE (laptop:Product {name: 'Laptop', price: 999.99})
+CREATE (alice)-[:FRIENDS_WITH {since: 2020}]->(bob)
+CREATE (alice)-[:PURCHASED {date: '2024-01-15'}]->(laptop)
+CREATE (bob)-[:PURCHASED {date: '2024-02-20'}]->(laptop);
+
+// Find Alice's friends
+MATCH (alice:Person {name: 'Alice'})-[:FRIENDS_WITH]->(friend)
+RETURN friend.name;
+// → "Bob"
+
+// Friends of friends (2 hops)
+MATCH (alice:Person {name: 'Alice'})-[:FRIENDS_WITH*2]->(fof)
+WHERE fof <> alice
+RETURN DISTINCT fof.name;
+
+// Recommendation: products bought by Alice's friends but not by Alice
+MATCH (alice:Person {name: 'Alice'})-[:FRIENDS_WITH]->(friend)-[:PURCHASED]->(product)
+WHERE NOT (alice)-[:PURCHASED]->(product)
+RETURN product.name, COUNT(friend) AS friend_count
+ORDER BY friend_count DESC;
+```
+
+```
+Graph Visualization:
+
+    (Alice)──FRIENDS_WITH──▶(Bob)
+       │                      │
+   PURCHASED              PURCHASED
+       │                      │
+       ▼                      ▼
+   (Laptop)               (Laptop)
+```
+
+## CAP Theorem
+
+The **CAP theorem** (Brewer's theorem) states that a distributed database system can provide at most **two out of three** guarantees simultaneously:
+
+```
+                    Consistency
+                       /\
+                      /  \
+                     /    \
+                    / CA   \
+                   /        \
+                  /   CP     \
+                 /____________\
+        Availability ──── Partition
+                              Tolerance
+
+  CA: Consistent + Available (not partition tolerant)
+      → Traditional RDBMS (single node)
+
+  CP: Consistent + Partition-tolerant (may sacrifice availability)
+      → MongoDB (with majority write concern), HBase, etcd
+
+  AP: Available + Partition-tolerant (may sacrifice consistency)
+      → Cassandra, DynamoDB, CouchDB
+```
+
+| Property               | Meaning                                                              |
+|------------------------|----------------------------------------------------------------------|
+| **Consistency**        | Every read receives the most recent write (all nodes see the same data) |
+| **Availability**       | Every request receives a response (no timeouts or errors)              |
+| **Partition Tolerance**| The system continues operating despite network partitions               |
+
+:::note[In Practice]
+Network partitions **will** happen in distributed systems. So the real choice is between **CP** (sacrifice availability during partitions) and **AP** (sacrifice consistency during partitions). Most modern distributed databases let you tune this trade-off per-query.
+:::
+
+## BASE vs ACID
+
+NoSQL databases often follow the **BASE** model instead of ACID:
+
+| Property       | ACID                                        | BASE                                        |
+|----------------|---------------------------------------------|---------------------------------------------|
+| **Full name**  | Atomicity, Consistency, Isolation, Durability | Basically Available, Soft state, Eventually consistent |
+| **Consistency**| Strong (immediate)                           | Eventual (converges over time)              |
+| **Availability**| May block during contention                 | Prioritizes availability                    |
+| **Design goal**| Correctness above all                       | Availability and partition tolerance        |
+| **Best for**   | Financial transactions, inventory           | Social feeds, analytics, caching            |
+
+### Eventual Consistency in Practice
+
+```
+Eventual Consistency Example (3-node cluster):
+
+Write "price = 25.00" to Node A:
+
+  Time 0:   Node A: 25.00    Node B: 20.00    Node C: 20.00
+  Time 1:   Node A: 25.00 ──▶ Node B: 25.00    Node C: 20.00
+  Time 2:   Node A: 25.00    Node B: 25.00 ──▶ Node C: 25.00
+
+  After replication completes, all nodes are consistent.
+  During replication, different clients may read different values
+  depending on which node they connect to.
+```
+
+## Decision Framework: SQL vs NoSQL
+
+Use this framework to guide your database choice:
+
+| Question                                                      | SQL (Relational)              | NoSQL                                 |
+|---------------------------------------------------------------|-------------------------------|---------------------------------------|
+| Is your data highly structured with clear relationships?      | Strong fit                    | Possible but requires denormalization |
+| Do you need complex JOINs and ad-hoc queries?                 | Strong fit                    | Limited or no JOIN support            |
+| Do you need strict ACID transactions?                         | Strong fit                    | Limited (some offer per-doc ACID)     |
+| Is your schema evolving rapidly?                              | Migrations required           | Flexible schema — strong fit          |
+| Do you need horizontal scaling for writes?                    | Difficult (sharding is complex) | Designed for this — strong fit      |
+| Is your access pattern simple key-based lookups?              | Overkill                      | Perfect fit (key-value store)         |
+| Are relationships between entities the primary query pattern? | Possible with JOINs           | Graph database — strong fit           |
+| Do you need sub-millisecond latency?                          | Possible with tuning          | Key-value stores excel               |
+
+### Practical Decision Tree
+
+```
+Start Here
+│
+├── Do you need ACID transactions across multiple entities?
+│   └── YES → Use a relational database (PostgreSQL, MySQL)
+│
+├── Is your primary access pattern key-based lookup?
+│   └── YES → Key-Value store (Redis for cache, DynamoDB for persistence)
+│
+├── Is your data document-shaped with nested objects?
+│   └── YES → Document database (MongoDB)
+│
+├── Are you storing time-series or high-volume append-only data?
+│   └── YES → Column-family store (Cassandra, TimescaleDB)
+│
+├── Are relationships the core of your data model?
+│   └── YES → Graph database (Neo4j)
+│
+└── Not sure?
+    └── Start with PostgreSQL — it handles JSON, full-text search,
+        and most workloads well. Add specialized stores as needs emerge.
+```
+
+:::tip[Start Simple]
+The best database choice is the one your team knows well and that meets your current requirements. PostgreSQL covers an enormous range of use cases. Do not reach for a specialized database until you have concrete evidence that a general-purpose one cannot meet your needs.
+:::
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="SQL Fundamentals"
+    description="Review the SQL query syntax used in transaction examples"
+    href="/software-engineering/database-engineering/sql-fundamentals/"
+  />
+  <LinkCard
+    title="Normalization & Schema Design"
+    description="Learn how to design the schemas that ACID transactions protect"
+    href="/software-engineering/database-engineering/normalization-schema/"
+  />
+  <LinkCard
+    title="Indexing & Query Performance"
+    description="Optimize the performance of your queries across SQL and NoSQL databases"
+    href="/software-engineering/database-engineering/indexing-performance/"
+  />
+  <LinkCard
+    title="Database Engineering Overview"
+    description="Return to the section overview and explore the database landscape"
+    href="/software-engineering/database-engineering/"
+  />
+</CardGrid>

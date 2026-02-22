@@ -1,0 +1,291 @@
+---
+title: "Code Review Best Practices"
+description: "Learn effective code review practices for better code quality and team collaboration"
+difficulty: "intermediate"
+prerequisites: ["Git Fundamentals", "Branching Strategies"]
+timeToRead: "15 min"
+topics: ["code-review", "pull-requests", "collaboration", "best-practices"]
+---
+
+import { LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+## Why Code Review Matters
+
+Code review is the practice of having one or more team members examine code changes before they are merged into the main branch. It is one of the most impactful practices a development team can adopt, and for good reason:
+
+- **Catches bugs early** -- A second pair of eyes often spots issues that the author missed, from off-by-one errors to logic flaws.
+- **Improves code quality** -- Reviews encourage cleaner, more readable, and more maintainable code because developers know their work will be read by others.
+- **Shares knowledge** -- Reviewing code is one of the best ways to learn a codebase. It spreads understanding of the system across the team, reducing the "bus factor."
+- **Enforces standards** -- Reviews ensure that coding conventions, architectural patterns, and best practices are followed consistently.
+- **Builds team culture** -- Thoughtful reviews foster trust, collaboration, and a shared sense of ownership over the codebase.
+
+Studies have shown that code review catches **60-90% of defects** before they reach production, making it far more cost-effective than finding and fixing bugs after deployment.
+
+## Writing a Good Pull Request
+
+A well-crafted pull request makes the reviewer's job easier and leads to faster, higher-quality feedback.
+
+### PR Title
+
+The title should be a concise summary of what the change does:
+
+| Bad | Good |
+|-----|------|
+| "Updates" | "Add email validation to signup form" |
+| "Fix bug" | "Fix race condition in payment processing" |
+| "WIP stuff" | "Refactor user service to use dependency injection" |
+
+### PR Description
+
+A thorough PR description should include:
+
+1. **What** -- A summary of the change and which components are affected.
+2. **Why** -- The motivation behind the change. Link to the relevant issue or ticket.
+3. **How** -- A brief explanation of the approach taken, especially if there were alternatives considered.
+4. **Testing** -- How the change was tested (unit tests, manual testing, screenshots for UI changes).
+5. **Screenshots or recordings** -- For visual changes, include before/after screenshots.
+
+**Example PR description:**
+
+```markdown
+## What
+Add email validation to the signup form to prevent invalid email addresses
+from being submitted.
+
+## Why
+We are seeing a high rate of bounced emails from new signups (see issue #234).
+Adding client-side and server-side validation will reduce invalid entries.
+
+## How
+- Added a regex-based validator on the frontend (src/validators/email.js)
+- Added server-side validation in the signup endpoint (src/api/auth.js)
+- Both validators use the same regex pattern imported from a shared module
+
+## Testing
+- Added 12 unit tests covering valid and invalid email formats
+- Manually tested on Chrome, Firefox, and Safari
+- Tested edge cases: unicode domains, plus addressing, subdomains
+
+## Screenshots
+[Before]: The form accepts "notanemail" without error
+[After]: The form displays "Please enter a valid email address"
+```
+
+### PR Size
+
+Keep pull requests **small and focused**. Large PRs are harder to review, take longer, and are more likely to contain unnoticed issues.
+
+| PR Size | Lines Changed | Review Quality |
+|---------|---------------|----------------|
+| Small | < 200 lines | Thorough, fast review |
+| Medium | 200 - 400 lines | Adequate review |
+| Large | 400 - 800 lines | Review quality drops |
+| Very Large | 800+ lines | Superficial review likely |
+
+If a feature requires significant changes, break it into a series of smaller, incremental PRs that can be reviewed independently.
+
+## What to Look for in a Code Review
+
+### Correctness
+
+- Does the code do what it claims to do?
+- Are edge cases handled (null values, empty arrays, boundary conditions)?
+- Are error paths handled properly (try/catch, error responses, fallbacks)?
+- Could this change introduce regressions in other parts of the system?
+
+### Readability and Maintainability
+
+- Is the code easy to understand without the PR description?
+- Are variable and function names descriptive and consistent?
+- Is the code structured logically (small functions, clear separation of concerns)?
+- Are comments used where necessary, but not excessively?
+- Is there duplicated code that should be extracted?
+
+### Performance
+
+- Are there unnecessary database queries, API calls, or computations?
+- Could loops be optimized or replaced with more efficient data structures?
+- Are there potential memory leaks or unbounded growth issues?
+- For UI code: will this cause unnecessary re-renders?
+
+### Security
+
+- Is user input validated and sanitized?
+- Are authentication and authorization checks in place?
+- Is sensitive data (passwords, tokens, PII) handled securely?
+- Are SQL queries parameterized to prevent injection?
+- Are dependencies up to date and free of known vulnerabilities?
+
+### Testing
+
+- Are there tests for the new or changed functionality?
+- Do the tests cover edge cases and error paths?
+- Are the tests readable and maintainable?
+- Do existing tests still pass?
+
+### Architecture and Design
+
+- Does the change fit within the existing architecture?
+- Are the right abstractions used (not over-engineered, not under-engineered)?
+- Does the change introduce new dependencies, and are they justified?
+- Will this change be easy to extend or modify in the future?
+
+## Giving Constructive Feedback
+
+How you deliver feedback is just as important as the feedback itself. Code review comments shape team culture and can either build trust or erode it.
+
+### Principles for Good Feedback
+
+**1. Comment on the code, not the person.**
+
+| Avoid | Better |
+|-------|--------|
+| "You always forget error handling." | "This function could benefit from error handling for the case where the API returns a 500 status." |
+| "This is wrong." | "I think this condition should be `>=` instead of `>` because the boundary value of 100 should be included. What do you think?" |
+
+**2. Ask questions instead of making demands.**
+
+| Avoid | Better |
+|-------|--------|
+| "Change this to use a Map." | "Have you considered using a Map here? It would give O(1) lookups instead of O(n) with the array filter." |
+| "This needs to be refactored." | "What do you think about extracting this logic into a separate function? It would make the main function easier to follow." |
+
+**3. Explain the reasoning behind suggestions.**
+
+Do not just say *what* to change -- explain *why*. This helps the author learn and makes the feedback feel less arbitrary.
+
+```
+// Instead of:
+"Use `const` here."
+
+// Say:
+"Consider using `const` here since `userList` is never reassigned.
+This signals intent to other readers and prevents accidental mutation."
+```
+
+**4. Distinguish between must-fix and nice-to-have.**
+
+Use clear prefixes to indicate the severity of your comment:
+
+- **Blocker:** "This will cause a null pointer exception in production. Must fix before merging."
+- **Suggestion:** "Nit: consider renaming `data` to `userProfiles` for clarity."
+- **Question:** "Curiosity: is there a reason you chose a recursive approach over iteration here?"
+- **Praise:** "Nice use of the builder pattern here -- really clean!"
+
+**5. Offer praise, not just criticism.**
+
+When you see well-written code, good test coverage, or clever solutions, say so. Positive reinforcement encourages good practices and makes the review process more enjoyable for everyone.
+
+## Receiving Feedback Gracefully
+
+As the author of a pull request, how you receive feedback matters just as much as how it is given.
+
+- **Do not take it personally.** The reviewer is commenting on the code, not on you as a person.
+- **Assume good intent.** Most reviewers are trying to help, even if the wording is imperfect.
+- **Ask for clarification.** If a comment is unclear, ask the reviewer to elaborate rather than guessing.
+- **Explain your reasoning.** If you disagree with a suggestion, explain why you chose your approach. This often leads to productive discussion.
+- **Be willing to change your mind.** Sometimes the reviewer has a perspective you missed. Being open to feedback is a sign of professional maturity.
+- **Say thank you.** Reviewing code takes time and effort. Acknowledge that investment.
+
+## Automated Checks
+
+Manual code review is most effective when combined with automated tooling. Let machines handle the tedious, objective checks so human reviewers can focus on logic, design, and readability.
+
+### Types of Automated Checks
+
+| Check | Purpose | Tools |
+|-------|---------|-------|
+| **Linting** | Enforce code style and catch common errors | ESLint, Pylint, RuboCop, Clippy |
+| **Formatting** | Ensure consistent formatting | Prettier, Black, gofmt, rustfmt |
+| **Type checking** | Catch type errors before runtime | TypeScript, mypy, Flow |
+| **Unit tests** | Verify individual functions and modules | Jest, pytest, JUnit, Go test |
+| **Integration tests** | Verify components work together | Cypress, Playwright, Selenium |
+| **Security scanning** | Detect vulnerabilities in code and dependencies | Snyk, Dependabot, CodeQL |
+| **Code coverage** | Measure how much code is tested | Istanbul, Coverage.py, JaCoCo |
+| **Build verification** | Ensure the project compiles and builds successfully | CI pipelines (GitHub Actions, GitLab CI) |
+
+### Setting Up CI for Pull Requests
+
+Most Git hosting platforms support configuring required checks that must pass before a PR can be merged:
+
+```yaml
+# Example: GitHub Actions workflow (.github/workflows/ci.yml)
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+```
+
+By requiring these checks to pass, you ensure that no PR can be merged with broken tests, lint errors, or build failures, freeing reviewers to focus on higher-level concerns.
+
+## Code Review Checklist
+
+Use this checklist as a quick reference when reviewing pull requests:
+
+| Category | Check | Priority |
+|----------|-------|----------|
+| **PR Quality** | Title clearly describes the change | High |
+| **PR Quality** | Description explains what, why, and how | High |
+| **PR Quality** | PR is appropriately sized (< 400 lines preferred) | Medium |
+| **Correctness** | Code does what it claims to do | High |
+| **Correctness** | Edge cases are handled | High |
+| **Correctness** | Error handling is adequate | High |
+| **Readability** | Names are descriptive and consistent | Medium |
+| **Readability** | Code is logically structured | Medium |
+| **Readability** | No unnecessary complexity | Medium |
+| **Performance** | No unnecessary computations or queries | Medium |
+| **Performance** | Efficient data structures and algorithms | Low |
+| **Security** | User input is validated and sanitized | High |
+| **Security** | No hardcoded secrets or credentials | High |
+| **Security** | Authentication and authorization are correct | High |
+| **Testing** | New functionality has tests | High |
+| **Testing** | Edge cases and error paths are tested | Medium |
+| **Testing** | All existing tests pass | High |
+| **Architecture** | Change fits within existing patterns | Medium |
+| **Architecture** | No unnecessary new dependencies | Low |
+| **Documentation** | Public APIs are documented | Medium |
+| **Documentation** | Complex logic has explanatory comments | Low |
+
+## Next Steps
+
+Continue building your software engineering skills with these related topics:
+
+<CardGrid>
+  <LinkCard
+    title="Version Control Overview"
+    description="Review the fundamentals of version control systems"
+    href="/software-engineering/version-control/"
+  />
+  <LinkCard
+    title="Git Fundamentals"
+    description="Brush up on essential Git commands and workflows"
+    href="/software-engineering/version-control/git-fundamentals/"
+  />
+  <LinkCard
+    title="Branching Strategies"
+    description="Revisit branching models and how they relate to code review workflows"
+    href="/software-engineering/version-control/branching-strategies/"
+  />
+</CardGrid>

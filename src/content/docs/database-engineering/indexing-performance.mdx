@@ -1,0 +1,586 @@
+---
+title: "Indexing & Query Performance"
+description: "Optimize database performance with proper indexing strategies and query analysis"
+difficulty: "intermediate"
+prerequisites: ["SQL Fundamentals"]
+timeToRead: "18 min"
+topics: ["indexing", "b-tree", "hash-index", "query-optimization", "explain-plan"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+## What Is an Index?
+
+An index is a separate data structure that the database maintains alongside your table, designed to speed up data retrieval. Think of it like the index at the back of a textbook — instead of reading every page to find a topic, you look it up in the index and jump directly to the right page.
+
+**Without an index**, the database must perform a **full table scan** — reading every row to find the ones matching your query. For a table with 10 million rows, this is extremely slow.
+
+**With an index**, the database can locate matching rows in logarithmic time, typically examining only a handful of pages instead of millions.
+
+```
+Without Index (Full Table Scan)          With Index (B-tree Lookup)
+┌──────────────────────────┐             ┌──────────────────────────┐
+│ Row 1  → check           │             │         [M]              │
+│ Row 2  → check           │             │        /   \             │
+│ Row 3  → check           │             │     [D]     [R]          │
+│ Row 4  → check           │             │    / \     / \           │
+│  ...                     │             │  [A] [G] [N] [W]         │
+│ Row N  → check           │             │   ↓   ↓   ↓   ↓         │
+│                          │             │  → Direct to matching    │
+│ Time: O(N)               │             │    rows on disk          │
+│ 10M rows = 10M checks    │             │  Time: O(log N)          │
+└──────────────────────────┘             │  10M rows ≈ 23 checks   │
+                                         └──────────────────────────┘
+```
+
+## How B-tree Indexes Work
+
+The **B-tree** (balanced tree) is the default and most common index type in virtually all relational databases (PostgreSQL, MySQL, SQL Server, Oracle).
+
+### Structure
+
+A B-tree is a self-balancing tree where:
+- Each node contains multiple keys in sorted order
+- Internal nodes contain pointers to child nodes
+- Leaf nodes contain pointers to actual table rows
+- All leaf nodes are at the same depth (balanced)
+
+```
+                        ┌──────────────────┐
+                        │   [35, 70]       │  ← Root node
+                        └──┬─────┬─────┬───┘
+                   ________│     │     │________
+                  ↓              ↓              ↓
+         ┌──────────┐   ┌──────────┐   ┌──────────┐
+         │ [10, 20] │   │ [42, 55] │   │ [80, 95] │  ← Internal nodes
+         └─┬──┬──┬──┘   └─┬──┬──┬──┘   └─┬──┬──┬──┘
+           ↓  ↓  ↓        ↓  ↓  ↓        ↓  ↓  ↓
+          Leaf nodes → pointers to actual rows on disk
+
+Looking up value 55:
+  1. Root: 55 > 35, 55 < 70 → go to middle child
+  2. Internal: 55 = 55 → found! Follow pointer to row
+  3. Total comparisons: 2 (instead of scanning all rows)
+```
+
+### Why B-trees Excel
+
+| Operation                  | B-tree Performance | Full Scan Performance |
+|----------------------------|--------------------|-----------------------|
+| Exact match (`WHERE id = 42`) | O(log N)        | O(N)                  |
+| Range query (`WHERE price > 50 AND price < 100`) | O(log N + K) | O(N) |
+| Sorted output (`ORDER BY name`) | Already sorted | O(N log N) sort needed |
+| Min/Max (`MIN(price)`)    | O(log N)           | O(N)                  |
+
+Where N is total rows and K is the number of matching rows.
+
+## Hash Indexes
+
+Hash indexes use a hash function to map keys directly to row locations. They are extremely fast for exact-match lookups but cannot handle range queries.
+
+```
+Hash Function: h(key) → bucket
+
+┌──────────────────────────────────┐
+│  Key: "alice@example.com"        │
+│  h("alice@example.com") → 7     │
+│                                  │
+│  Bucket 7 → Row pointer         │
+│  Lookup: O(1) average           │
+└──────────────────────────────────┘
+```
+
+| Feature           | B-tree Index                | Hash Index                   |
+|-------------------|-----------------------------|------------------------------|
+| Exact match       | O(log N)                    | O(1) average                 |
+| Range queries     | Supported                   | **Not supported**            |
+| Sorting           | Supported                   | **Not supported**            |
+| Prefix matching   | Supported (`LIKE 'abc%'`)   | **Not supported**            |
+| Default in most DBs | Yes                       | No (explicit in PostgreSQL)  |
+
+:::note
+In PostgreSQL, you create a hash index explicitly: `CREATE INDEX idx_email_hash ON users USING hash (email);`. In MySQL InnoDB, only B-tree indexes are supported (the MEMORY engine supports hash). For most use cases, B-tree indexes are the better default choice.
+:::
+
+## Types of Indexes
+
+### Primary Key Index
+
+Automatically created when you define a primary key. In InnoDB (MySQL), the primary key index **is** the table — data is stored in primary key order (a **clustered index**).
+
+```sql
+CREATE TABLE users (
+    user_id SERIAL PRIMARY KEY,  -- Index automatically created
+    name    VARCHAR(100)
+);
+```
+
+### Secondary Index
+
+Any index other than the primary key. Stores a copy of the indexed column(s) plus a pointer back to the full row.
+
+```sql
+CREATE INDEX idx_users_email ON users (email);
+```
+
+### Composite (Multi-Column) Index
+
+Indexes multiple columns together. The column order matters significantly.
+
+```sql
+CREATE INDEX idx_orders_customer_date
+ON orders (customer_id, order_date);
+```
+
+This index is efficient for:
+
+```sql
+-- Uses the index (leftmost prefix)
+WHERE customer_id = 42
+WHERE customer_id = 42 AND order_date > '2024-01-01'
+
+-- Cannot efficiently use this index
+WHERE order_date > '2024-01-01'  -- skips the first column
+```
+
+:::tip[The Leftmost Prefix Rule]
+A composite index on `(A, B, C)` can be used for queries filtering on:
+- `A` alone
+- `A, B` together
+- `A, B, C` together
+
+But it **cannot** efficiently serve queries filtering on `B` alone, `C` alone, or `B, C` without `A`. Think of it like a phone book sorted by last name, then first name — you can look up "Smith" but not efficiently look up everyone named "Alice" regardless of last name.
+:::
+
+### Covering Index
+
+An index that contains **all** the columns a query needs, so the database never has to read the actual table row — it can answer the query entirely from the index.
+
+```sql
+-- Query that needs customer_id, order_date, and status
+SELECT order_date, status
+FROM orders
+WHERE customer_id = 42;
+
+-- Covering index for this query
+CREATE INDEX idx_orders_covering
+ON orders (customer_id, order_date, status);
+-- The database can satisfy the entire query from the index alone
+```
+
+### Partial (Filtered) Index
+
+Indexes only a subset of rows, making the index smaller and more efficient for specific query patterns.
+
+```sql
+-- Only index active orders (most queries filter on active orders)
+CREATE INDEX idx_active_orders
+ON orders (customer_id, order_date)
+WHERE status = 'active';
+
+-- This index helps:
+SELECT * FROM orders WHERE status = 'active' AND customer_id = 42;
+
+-- This index does NOT help:
+SELECT * FROM orders WHERE status = 'completed' AND customer_id = 42;
+```
+
+### Unique Index
+
+Enforces uniqueness on the indexed columns. Automatically created for `UNIQUE` and `PRIMARY KEY` constraints.
+
+```sql
+CREATE UNIQUE INDEX idx_users_email_unique ON users (email);
+-- Attempting to insert a duplicate email will raise an error
+```
+
+### Index Types Summary
+
+| Index Type    | Use Case                                      | Key Benefit                    |
+|---------------|-----------------------------------------------|--------------------------------|
+| Primary Key   | Row identity                                  | Automatic, clustered (InnoDB)  |
+| Secondary     | Speed up queries on non-PK columns            | Faster lookups                 |
+| Composite     | Queries filtering/sorting on multiple columns | Multi-column optimization      |
+| Covering      | Queries reading only indexed columns          | Avoids table row lookups       |
+| Partial       | Queries targeting a subset of rows            | Smaller, faster index          |
+| Unique        | Enforcing uniqueness                          | Constraint + performance       |
+
+## When to Create Indexes
+
+**Create indexes on:**
+- Columns used frequently in `WHERE` clauses
+- Columns used in `JOIN` conditions (foreign keys)
+- Columns used in `ORDER BY` and `GROUP BY`
+- Columns with high selectivity (many distinct values)
+
+**Avoid excessive indexes because:**
+- Each index slows down `INSERT`, `UPDATE`, and `DELETE` operations
+- Indexes consume additional disk space
+- The query planner may become confused with too many index options
+
+### Index Selectivity
+
+**Selectivity** = number of distinct values / total number of rows. Higher selectivity means the index is more useful.
+
+```sql
+-- High selectivity (good for indexing)
+SELECT COUNT(DISTINCT email) / COUNT(*)::float AS selectivity
+FROM users;
+-- Result: 1.0 (every email is unique → perfect selectivity)
+
+-- Low selectivity (poor for indexing)
+SELECT COUNT(DISTINCT status) / COUNT(*)::float AS selectivity
+FROM orders;
+-- Result: 0.0003 (only 3 distinct statuses across 10,000 rows)
+```
+
+:::caution
+Indexing a column with very low selectivity (for example, a boolean `is_active` column) is usually wasteful. The database may decide a full table scan is faster than using such an index. The exception is partial indexes targeting the rare value: `CREATE INDEX idx_inactive ON users (user_id) WHERE is_active = false;`
+:::
+
+## Reading EXPLAIN Plans
+
+The `EXPLAIN` command reveals how the database plans to execute your query. It is the single most important tool for diagnosing query performance.
+
+### PostgreSQL EXPLAIN
+
+<Tabs>
+  <TabItem label="PostgreSQL">
+```sql
+EXPLAIN ANALYZE
+SELECT c.name, COUNT(o.order_id) AS total_orders
+FROM customers c
+LEFT JOIN orders o ON c.customer_id = o.customer_id
+WHERE c.city = 'New York'
+GROUP BY c.customer_id, c.name;
+```
+
+```
+Hash Left Join  (cost=1.05..2.18 rows=2 width=40) (actual time=0.045..0.052 rows=2 loops=1)
+  Hash Cond: (o.customer_id = c.customer_id)
+  ->  Seq Scan on orders o  (cost=0.00..1.03 rows=3 width=8) (actual time=0.003..0.004 rows=3 loops=1)
+  ->  Hash  (cost=1.04..1.04 rows=1 width=36) (actual time=0.020..0.021 rows=2 loops=1)
+        Buckets: 1024  Batches: 1  Memory Usage: 9kB
+        ->  Seq Scan on customers c  (cost=0.00..1.04 rows=1 width=36) (actual time=0.010..0.013 rows=2 loops=1)
+              Filter: ((city)::text = 'New York'::text)
+              Rows Removed by Filter: 2
+```
+
+**Key things to look for:**
+
+| Term               | Meaning                                              | Good or Bad?            |
+|--------------------|------------------------------------------------------|-------------------------|
+| `Seq Scan`         | Full table scan (reads every row)                    | Bad on large tables     |
+| `Index Scan`       | Uses an index to find rows                           | Good                    |
+| `Index Only Scan`  | Answers query entirely from index (covering)         | Best                    |
+| `Bitmap Index Scan`| Uses index to build a bitmap, then reads table       | Good for many matches   |
+| `Hash Join`        | Builds hash table from one side, probes from other   | Good for equality joins |
+| `Nested Loop`      | For each row in outer, scan inner                    | Good for small datasets |
+| `Sort`             | Sorting operation (check if index could avoid this)  | Depends on size         |
+| `actual time`      | Real execution time in milliseconds                  | Lower is better         |
+| `rows`             | Estimated vs actual row count                        | Should be close         |
+  </TabItem>
+  <TabItem label="MySQL">
+```sql
+EXPLAIN
+SELECT c.name, COUNT(o.order_id) AS total_orders
+FROM customers c
+LEFT JOIN orders o ON c.customer_id = o.customer_id
+WHERE c.city = 'New York'
+GROUP BY c.customer_id, c.name;
+```
+
+```
++----+-------------+-------+------+---------------+------+---------+-----------+------+-----------+
+| id | select_type | table | type | possible_keys | key  | key_len | ref       | rows | Extra     |
++----+-------------+-------+------+---------------+------+---------+-----------+------+-----------+
+|  1 | SIMPLE      | c     | ALL  | PRIMARY       | NULL | NULL    | NULL      |    4 | Using where|
+|  1 | SIMPLE      | o     | ref  | idx_cust      | idx  | 4       | c.cust_id |    2 | NULL      |
++----+-------------+-------+------+---------------+------+---------+-----------+------+-----------+
+```
+
+**Key columns in MySQL EXPLAIN:**
+
+| Column         | What to Look For                                    |
+|----------------|-----------------------------------------------------|
+| `type`         | `ALL` = full scan (bad), `ref` = index lookup (good), `const` = single row (best) |
+| `possible_keys`| Which indexes the optimizer considered               |
+| `key`          | Which index was actually chosen                      |
+| `rows`         | Estimated rows to examine (lower is better)          |
+| `Extra`        | `Using index` = covering index, `Using filesort` = extra sort needed |
+  </TabItem>
+</Tabs>
+
+### Before and After: Adding an Index
+
+**Scenario:** Finding all orders for a specific customer on a table with 1,000,000 rows.
+
+<Tabs>
+  <TabItem label="Before (No Index)">
+```sql
+EXPLAIN ANALYZE
+SELECT * FROM orders WHERE customer_id = 42;
+
+-- Result:
+-- Seq Scan on orders (cost=0.00..18334.00 rows=125 width=44)
+--   (actual time=0.215..98.453 rows=118 loops=1)
+--   Filter: (customer_id = 42)
+--   Rows Removed by Filter: 999882
+-- Planning Time: 0.089 ms
+-- Execution Time: 98.512 ms
+```
+
+**Problem:** Sequential scan reads all 1,000,000 rows, removing 999,882. Takes ~98ms.
+  </TabItem>
+  <TabItem label="After (With Index)">
+```sql
+CREATE INDEX idx_orders_customer ON orders (customer_id);
+
+EXPLAIN ANALYZE
+SELECT * FROM orders WHERE customer_id = 42;
+
+-- Result:
+-- Index Scan using idx_orders_customer on orders
+--   (cost=0.42..468.15 rows=125 width=44)
+--   (actual time=0.028..0.312 rows=118 loops=1)
+-- Planning Time: 0.152 ms
+-- Execution Time: 0.358 ms
+```
+
+**Improvement:** Index scan reads only 118 matching rows. Execution time drops from **98ms to 0.36ms** — a **273x speedup**.
+  </TabItem>
+</Tabs>
+
+## Query Optimization Techniques
+
+### 1. Avoid SELECT *
+
+```sql
+-- Bad: fetches all columns, even those you do not need
+SELECT * FROM orders WHERE customer_id = 42;
+
+-- Good: fetch only what you need (enables covering index)
+SELECT order_id, order_date, status
+FROM orders WHERE customer_id = 42;
+```
+
+### 2. Use WHERE on Indexed Columns
+
+```sql
+-- Bad: function on indexed column prevents index use
+SELECT * FROM users WHERE LOWER(email) = 'alice@example.com';
+
+-- Good: use a functional index or store normalized data
+CREATE INDEX idx_users_email_lower ON users (LOWER(email));
+-- Or store email in lowercase and query directly
+SELECT * FROM users WHERE email = 'alice@example.com';
+```
+
+### 3. Optimize JOINs
+
+```sql
+-- Ensure JOIN columns are indexed
+CREATE INDEX idx_order_items_order ON order_items (order_id);
+CREATE INDEX idx_order_items_product ON order_items (product_id);
+
+-- Join on indexed columns
+SELECT o.order_id, p.name, oi.quantity
+FROM orders o
+INNER JOIN order_items oi ON o.order_id = oi.order_id
+INNER JOIN products p ON oi.product_id = p.product_id
+WHERE o.customer_id = 42;
+```
+
+### 4. Use LIMIT for Pagination
+
+```sql
+-- Bad: offset-based pagination degrades for large offsets
+SELECT * FROM products ORDER BY product_id LIMIT 20 OFFSET 100000;
+-- Database must scan and discard 100,000 rows
+
+-- Good: keyset (cursor) pagination
+SELECT * FROM products
+WHERE product_id > 100000  -- last seen ID from previous page
+ORDER BY product_id
+LIMIT 20;
+-- Database jumps directly to the right position via index
+```
+
+### 5. Avoid OR on Different Columns
+
+```sql
+-- Bad: often prevents index use
+SELECT * FROM users WHERE email = 'alice@example.com' OR city = 'New York';
+
+-- Better: use UNION to allow each branch to use its own index
+SELECT * FROM users WHERE email = 'alice@example.com'
+UNION
+SELECT * FROM users WHERE city = 'New York';
+```
+
+## The N+1 Query Problem
+
+The N+1 problem is one of the most common performance issues in applications using ORMs. It occurs when your code executes 1 query to fetch a list, then N additional queries to fetch related data for each item.
+
+```
+N+1 Problem Example:
+
+Query 1:  SELECT * FROM authors;                    -- Returns 100 authors
+Query 2:  SELECT * FROM books WHERE author_id = 1;  -- For author 1
+Query 3:  SELECT * FROM books WHERE author_id = 2;  -- For author 2
+...
+Query 101: SELECT * FROM books WHERE author_id = 100; -- For author 100
+
+Total: 101 queries for what should be 1 or 2 queries!
+```
+
+**Solutions:**
+
+<Tabs>
+  <TabItem label="SQL (Single Query)">
+```sql
+-- One query with a JOIN — no N+1 problem
+SELECT a.name, b.title, b.published
+FROM authors a
+LEFT JOIN books b ON a.author_id = b.author_id
+ORDER BY a.name;
+```
+  </TabItem>
+  <TabItem label="Python (SQLAlchemy - Eager Loading)">
+```python
+from sqlalchemy.orm import joinedload
+
+# Eager loading: fetches authors and books in a single query
+authors = (
+    session.query(Author)
+    .options(joinedload(Author.books))
+    .all()
+)
+
+for author in authors:
+    for book in author.books:  # No additional query
+        print(f"{author.name}: {book.title}")
+```
+  </TabItem>
+  <TabItem label="JavaScript (Prisma - Include)">
+```javascript
+// Prisma: use include to eager-load related data
+const authors = await prisma.author.findMany({
+  include: {
+    books: true  // Fetched in a single additional query (not N queries)
+  }
+});
+
+authors.forEach(author => {
+  author.books.forEach(book => {
+    console.log(`${author.name}: ${book.title}`);
+  });
+});
+```
+  </TabItem>
+</Tabs>
+
+## Connection Pooling
+
+Opening a database connection is expensive (TCP handshake, authentication, memory allocation). **Connection pooling** maintains a pool of reusable connections, dramatically reducing overhead.
+
+```
+Without Pooling:                    With Pooling:
+┌──────────┐                        ┌──────────┐
+│ Request 1│─── open ──── close     │ Request 1│──┐
+│ Request 2│─── open ──── close     │ Request 2│──┤  ┌──────────────┐
+│ Request 3│─── open ──── close     │ Request 3│──┼──│ Connection   │──── Database
+│ Request 4│─── open ──── close     │ Request 4│──┤  │ Pool (5-20   │
+│ Request 5│─── open ──── close     │ Request 5│──┘  │ connections) │
+└──────────┘                        └──────────┘     └──────────────┘
+  5 connections opened/closed         Connections reused across requests
+  ~50ms overhead each                 ~0ms overhead after initial setup
+```
+
+**Common connection pool settings:**
+
+| Setting            | Description                                   | Typical Value     |
+|--------------------|-----------------------------------------------|-------------------|
+| `min_connections`  | Minimum idle connections kept open             | 2-5               |
+| `max_connections`  | Maximum total connections allowed              | 10-20 per app instance |
+| `idle_timeout`     | Close idle connections after this duration     | 300 seconds       |
+| `connection_timeout` | Max time to wait for an available connection | 30 seconds        |
+
+<Tabs>
+  <TabItem label="Python (SQLAlchemy)">
+```python
+from sqlalchemy import create_engine
+
+engine = create_engine(
+    "postgresql://user:pass@localhost/mydb",
+    pool_size=10,          # max connections in pool
+    max_overflow=5,        # extra connections beyond pool_size
+    pool_timeout=30,       # wait time for available connection
+    pool_recycle=1800,     # recycle connections after 30 minutes
+)
+```
+  </TabItem>
+  <TabItem label="JavaScript (Node.js pg)">
+```javascript
+const { Pool } = require('pg');
+
+const pool = new Pool({
+  host: 'localhost',
+  database: 'mydb',
+  user: 'user',
+  password: 'pass',
+  max: 20,               // max connections in pool
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000,
+});
+
+const result = await pool.query('SELECT * FROM users WHERE id = $1', [42]);
+```
+  </TabItem>
+  <TabItem label="External Pooler (PgBouncer)">
+```ini
+; pgbouncer.ini
+[databases]
+mydb = host=localhost port=5432 dbname=mydb
+
+[pgbouncer]
+listen_port = 6432
+pool_mode = transaction    ; release connection after each transaction
+default_pool_size = 20
+max_client_conn = 200      ; support many app connections with fewer DB connections
+```
+  </TabItem>
+</Tabs>
+
+## Performance Optimization Checklist
+
+Use this checklist when diagnosing slow queries:
+
+1. **Run EXPLAIN ANALYZE** on the slow query
+2. **Look for Seq Scans** on large tables — add indexes for filtered columns
+3. **Check estimated vs actual rows** — large discrepancies mean stale statistics (`ANALYZE` the table)
+4. **Verify indexes are being used** — functions on columns, implicit type casts, and `OR` conditions can prevent index use
+5. **Check for N+1 queries** — enable query logging and look for repeated similar queries
+6. **Consider covering indexes** — eliminate table lookups entirely
+7. **Review connection pooling** — ensure connections are reused, not opened per request
+8. **Monitor slow query logs** — PostgreSQL: `log_min_duration_statement`, MySQL: `slow_query_log`
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="Transactions, ACID & NoSQL"
+    description="Learn how databases protect data integrity with transactions and explore NoSQL alternatives"
+    href="/software-engineering/database-engineering/transactions-nosql/"
+  />
+  <LinkCard
+    title="Normalization & Schema Design"
+    description="Design the schemas that your indexes will optimize"
+    href="/software-engineering/database-engineering/normalization-schema/"
+  />
+  <LinkCard
+    title="SQL Fundamentals"
+    description="Review the query syntax that EXPLAIN plans analyze"
+    href="/software-engineering/database-engineering/sql-fundamentals/"
+  />
+</CardGrid>

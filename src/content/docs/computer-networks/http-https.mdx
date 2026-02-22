@@ -1,0 +1,694 @@
+---
+title: "HTTP & HTTPS"
+description: "Master HTTP methods, status codes, headers, and the TLS handshake for secure communication"
+difficulty: "intermediate"
+prerequisites: ["OSI Model & TCP/IP"]
+timeToRead: "20 min"
+topics: ["http", "https", "tls", "status-codes", "headers", "cookies"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+HTTP (HyperText Transfer Protocol) is the application-layer protocol that powers the web. Every time you open a web page, call an API, or submit a form, you are using HTTP. Understanding HTTP deeply is one of the most practically valuable skills a software engineer can develop, as it directly impacts API design, debugging, performance optimization, and security.
+
+---
+
+## HTTP Versions: Evolution of the Protocol
+
+HTTP has evolved significantly since its inception. Each version addressed limitations of its predecessor.
+
+### HTTP/1.1 vs HTTP/2 vs HTTP/3
+
+| Feature | HTTP/1.1 (1997) | HTTP/2 (2015) | HTTP/3 (2022) |
+|---------|-----------------|---------------|---------------|
+| **Transport** | TCP | TCP | QUIC (UDP-based) |
+| **Multiplexing** | No (one request per connection) | Yes (multiple streams over one connection) | Yes |
+| **Head-of-line blocking** | Yes (at HTTP and TCP level) | Solved at HTTP level, persists at TCP level | Fully solved |
+| **Header compression** | None | HPACK | QPACK |
+| **Server push** | No | Yes | Yes |
+| **Connection setup** | TCP handshake + TLS handshake | Same as HTTP/1.1 | 0-RTT or 1-RTT (faster) |
+| **Text/Binary** | Text-based | Binary framing | Binary framing |
+| **Prioritization** | N/A | Stream prioritization | Improved prioritization |
+
+```
+HTTP/1.1 — Sequential requests on separate connections:
+
+Client ──GET /page──────────────────────► Server
+Client ◄────────────────── 200 OK ─────── Server
+Client ──GET /style.css─────────────────► Server
+Client ◄────────────────── 200 OK ─────── Server
+Client ──GET /script.js─────────────────► Server
+Client ◄────────────────── 200 OK ─────── Server
+
+HTTP/2 — Multiplexed streams on a single connection:
+
+Client ═══ Stream 1: GET /page ═══════►
+       ═══ Stream 2: GET /style.css ══► Server
+       ═══ Stream 3: GET /script.js ══►
+Client ◄══ Stream 1: 200 OK ══════════
+       ◄══ Stream 3: 200 OK ══════════ Server
+       ◄══ Stream 2: 200 OK ══════════
+```
+
+**When to use each**:
+- **HTTP/1.1**: Legacy systems, simple APIs, environments where HTTP/2 is not supported
+- **HTTP/2**: Modern web applications, APIs serving multiple resources (enabled by default in most browsers and servers)
+- **HTTP/3**: Low-latency applications, mobile users on unreliable networks, where connection migration matters
+
+---
+
+## HTTP Request/Response Structure
+
+Every HTTP transaction consists of a **request** from the client and a **response** from the server.
+
+### Request Structure
+
+```
+POST /api/users HTTP/1.1              ← Request line (method, path, version)
+Host: api.example.com                 ← Headers
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOi...
+Accept: application/json
+Content-Length: 52
+                                      ← Blank line separates headers from body
+{"name": "Alice", "email": "a@b.com"} ← Request body
+```
+
+### Response Structure
+
+```
+HTTP/1.1 201 Created                  ← Status line (version, code, reason)
+Content-Type: application/json        ← Headers
+Location: /api/users/42
+Cache-Control: no-cache
+X-Request-Id: abc-123-def
+Content-Length: 89
+                                      ← Blank line separates headers from body
+{"id": 42, "name": "Alice",           ← Response body
+ "email": "a@b.com",
+ "created_at": "2025-01-15T10:30:00Z"}
+```
+
+---
+
+## HTTP Methods
+
+HTTP defines several methods (also called verbs) that indicate the desired action to be performed on a resource.
+
+| Method | Purpose | Request Body | Idempotent | Safe | Cacheable |
+|--------|---------|-------------|-----------|------|-----------|
+| **GET** | Retrieve a resource | No | Yes | Yes | Yes |
+| **POST** | Create a new resource or trigger an action | Yes | No | No | Conditional |
+| **PUT** | Replace a resource entirely | Yes | Yes | No | No |
+| **PATCH** | Partially update a resource | Yes | Not guaranteed | No | No |
+| **DELETE** | Remove a resource | Optional | Yes | No | No |
+| **HEAD** | Same as GET but returns headers only | No | Yes | Yes | Yes |
+| **OPTIONS** | Describe communication options (CORS preflight) | No | Yes | Yes | No |
+
+**Key definitions**:
+- **Idempotent**: Making the same request multiple times produces the same result. `PUT /users/42` with the same body always results in the same state. `POST /users` may create duplicates.
+- **Safe**: The method does not modify the resource. `GET` and `HEAD` are safe — they only read data.
+
+### Method Usage Examples
+
+```
+# CRUD operations on a "users" resource
+
+GET    /api/users          → List all users
+GET    /api/users/42       → Get user with ID 42
+POST   /api/users          → Create a new user
+PUT    /api/users/42       → Replace user 42 entirely
+PATCH  /api/users/42       → Update specific fields of user 42
+DELETE /api/users/42       → Delete user 42
+HEAD   /api/users/42       → Check if user 42 exists (headers only)
+OPTIONS /api/users         → Get allowed methods and CORS info
+```
+
+---
+
+## HTTP Status Codes
+
+Status codes are 3-digit numbers in the response that indicate the result of the request. They are grouped into five categories.
+
+### 1xx: Informational
+
+The request was received, and the server is continuing to process it.
+
+| Code | Name | Description |
+|------|------|-------------|
+| **100** | Continue | Client should continue with the request body |
+| **101** | Switching Protocols | Server is switching to a different protocol (e.g., WebSocket upgrade) |
+| **103** | Early Hints | Allows preloading resources while the server prepares the final response |
+
+### 2xx: Success
+
+The request was successfully received, understood, and accepted.
+
+| Code | Name | Description |
+|------|------|-------------|
+| **200** | OK | Standard success response for GET, PUT, PATCH, DELETE |
+| **201** | Created | Resource was successfully created (response to POST) |
+| **202** | Accepted | Request accepted for processing but not yet complete (async operations) |
+| **204** | No Content | Success with no response body (common for DELETE) |
+
+### 3xx: Redirection
+
+The client needs to take additional action to complete the request.
+
+| Code | Name | Description |
+|------|------|-------------|
+| **301** | Moved Permanently | Resource has permanently moved to a new URL (cacheable) |
+| **302** | Found | Temporary redirect (historically ambiguous, prefer 307) |
+| **304** | Not Modified | Resource has not changed since last request (use cached version) |
+| **307** | Temporary Redirect | Same as 302 but preserves the HTTP method |
+| **308** | Permanent Redirect | Same as 301 but preserves the HTTP method |
+
+### 4xx: Client Error
+
+The request contains an error or cannot be fulfilled due to client-side issues.
+
+| Code | Name | Description |
+|------|------|-------------|
+| **400** | Bad Request | Malformed request syntax or invalid parameters |
+| **401** | Unauthorized | Authentication is required but missing or invalid |
+| **403** | Forbidden | Authenticated but not authorized to access the resource |
+| **404** | Not Found | Resource does not exist |
+| **405** | Method Not Allowed | HTTP method is not supported for this resource |
+| **409** | Conflict | Request conflicts with current state (e.g., duplicate resource) |
+| **413** | Payload Too Large | Request body exceeds server limits |
+| **415** | Unsupported Media Type | Server does not support the Content-Type of the request |
+| **422** | Unprocessable Entity | Request is well-formed but contains semantic errors (validation failure) |
+| **429** | Too Many Requests | Rate limit exceeded |
+
+### 5xx: Server Error
+
+The server encountered an error while processing a valid request.
+
+| Code | Name | Description |
+|------|------|-------------|
+| **500** | Internal Server Error | Unexpected server error (generic catch-all) |
+| **502** | Bad Gateway | Server acting as proxy received an invalid response from upstream |
+| **503** | Service Unavailable | Server is temporarily overloaded or under maintenance |
+| **504** | Gateway Timeout | Server acting as proxy did not receive a timely response from upstream |
+
+---
+
+## HTTP Headers
+
+Headers provide metadata about the request or response. They are key-value pairs separated by colons.
+
+### Common Request Headers
+
+| Header | Purpose | Example |
+|--------|---------|---------|
+| **Host** | Target server hostname (required in HTTP/1.1) | `Host: api.example.com` |
+| **Authorization** | Authentication credentials | `Authorization: Bearer eyJhbG...` |
+| **Content-Type** | Media type of the request body | `Content-Type: application/json` |
+| **Accept** | Media types the client can handle | `Accept: application/json, text/html` |
+| **User-Agent** | Client software identification | `User-Agent: Mozilla/5.0 ...` |
+| **Cookie** | Previously stored cookies | `Cookie: session_id=abc123` |
+| **If-None-Match** | Conditional request (ETag-based) | `If-None-Match: "v2.6"` |
+| **If-Modified-Since** | Conditional request (date-based) | `If-Modified-Since: Wed, 21 Oct 2023 07:28:00 GMT` |
+
+### Common Response Headers
+
+| Header | Purpose | Example |
+|--------|---------|---------|
+| **Content-Type** | Media type of the response body | `Content-Type: application/json; charset=utf-8` |
+| **Cache-Control** | Caching directives | `Cache-Control: public, max-age=3600` |
+| **Set-Cookie** | Store a cookie on the client | `Set-Cookie: session_id=abc123; HttpOnly; Secure` |
+| **Location** | Redirect URL or location of created resource | `Location: /api/users/42` |
+| **ETag** | Entity tag for cache validation | `ETag: "v2.6"` |
+| **X-Request-Id** | Unique request identifier for tracing | `X-Request-Id: req-abc-123` |
+
+### CORS Headers
+
+Cross-Origin Resource Sharing (CORS) headers control which origins can access resources from a different domain.
+
+| Header | Purpose | Example |
+|--------|---------|---------|
+| **Access-Control-Allow-Origin** | Allowed origins | `Access-Control-Allow-Origin: https://app.example.com` |
+| **Access-Control-Allow-Methods** | Allowed HTTP methods | `Access-Control-Allow-Methods: GET, POST, PUT, DELETE` |
+| **Access-Control-Allow-Headers** | Allowed request headers | `Access-Control-Allow-Headers: Content-Type, Authorization` |
+| **Access-Control-Max-Age** | Preflight cache duration (seconds) | `Access-Control-Max-Age: 86400` |
+| **Access-Control-Allow-Credentials** | Allow cookies/auth cross-origin | `Access-Control-Allow-Credentials: true` |
+
+### Cache-Control Directives
+
+| Directive | Meaning |
+|-----------|---------|
+| `public` | Response can be cached by any cache (browser, CDN, proxy) |
+| `private` | Response can only be cached by the browser (not shared caches) |
+| `no-cache` | Cache must revalidate with the server before using the cached response |
+| `no-store` | Response must not be cached at all |
+| `max-age=N` | Response is fresh for N seconds |
+| `s-maxage=N` | Like max-age but only for shared caches (CDN, proxy) |
+| `must-revalidate` | Once stale, cache must revalidate before using |
+| `immutable` | Response will never change (avoid revalidation requests) |
+
+---
+
+## Cookies and Sessions
+
+HTTP is a **stateless** protocol — each request is independent. Cookies provide a mechanism for maintaining state across requests.
+
+### How Cookies Work
+
+```
+1. Client sends login request:
+   POST /login  {username: "alice", password: "..."}
+
+2. Server creates a session and returns a Set-Cookie header:
+   HTTP/1.1 200 OK
+   Set-Cookie: session_id=abc123; HttpOnly; Secure; SameSite=Strict; Max-Age=3600
+
+3. Client includes the cookie in subsequent requests:
+   GET /api/profile
+   Cookie: session_id=abc123
+
+4. Server looks up the session by ID and identifies the user.
+```
+
+### Cookie Attributes
+
+| Attribute | Purpose |
+|-----------|---------|
+| `HttpOnly` | Cookie is inaccessible to JavaScript (prevents XSS theft) |
+| `Secure` | Cookie is only sent over HTTPS connections |
+| `SameSite=Strict` | Cookie is not sent with cross-site requests (CSRF protection) |
+| `SameSite=Lax` | Cookie is sent with top-level navigations but not cross-site subrequests |
+| `Max-Age=N` | Cookie expires after N seconds |
+| `Domain=.example.com` | Cookie is valid for the domain and all subdomains |
+| `Path=/api` | Cookie is only sent for requests matching this path prefix |
+
+### Sessions vs Tokens
+
+| Aspect | Session-Based (Cookies) | Token-Based (JWT) |
+|--------|------------------------|-------------------|
+| **Storage** | Server-side (session store) | Client-side (localStorage, cookie) |
+| **Scalability** | Requires shared session store across servers | Stateless, any server can validate |
+| **Revocation** | Easy (delete from session store) | Harder (token valid until expiry) |
+| **Size** | Small cookie (just session ID) | Larger (contains claims/payload) |
+| **Best for** | Traditional web apps | SPAs, mobile apps, microservices |
+
+---
+
+## HTTPS and the TLS Handshake
+
+HTTPS is HTTP over TLS (Transport Layer Security). It provides three critical security properties:
+
+- **Encryption**: Data is encrypted in transit, preventing eavesdropping
+- **Authentication**: The server's identity is verified using digital certificates
+- **Integrity**: Data cannot be tampered with without detection
+
+### The TLS 1.3 Handshake
+
+TLS 1.3 (the current version) simplified the handshake to just **1 round trip** (down from 2 in TLS 1.2).
+
+```
+Client                                         Server
+  │                                               │
+  │─── ClientHello ──────────────────────────────►│
+  │    - Supported TLS versions                   │
+  │    - Supported cipher suites                  │
+  │    - Client random                            │
+  │    - Key share (Diffie-Hellman public key)    │
+  │                                               │
+  │◄── ServerHello + EncryptedExtensions ────────│
+  │    - Selected TLS version and cipher suite    │
+  │    - Server random                            │
+  │    - Server key share                         │
+  │    - Server certificate                       │
+  │    - Certificate verify (signature)           │
+  │    - Finished                                 │
+  │                                               │
+  │─── Finished ─────────────────────────────────►│
+  │    (Client verifies certificate,              │
+  │     computes shared secret)                   │
+  │                                               │
+  │════ Encrypted Application Data ══════════════►│
+  │◄═══════════════════════════════════════════════│
+```
+
+### Digital Certificates
+
+Certificates are issued by **Certificate Authorities (CAs)** and form a chain of trust.
+
+```
+Root CA Certificate (pre-installed in OS/browser)
+  │
+  └── Intermediate CA Certificate
+        │
+        └── Server Certificate (your-site.com)
+              Contains:
+              - Domain name
+              - Public key
+              - Issuer (CA)
+              - Validity period
+              - Digital signature
+```
+
+**Key concepts**:
+- **Certificate chain**: Server cert -> Intermediate CA cert -> Root CA cert
+- **Let's Encrypt**: Free, automated CA that issues certificates (used by the majority of HTTPS sites)
+- **Certificate pinning**: Hardcoding the expected certificate in the client (used in mobile apps for extra security)
+
+---
+
+## Making HTTP Requests: Code Examples
+
+Here are practical examples of making HTTP requests in popular languages.
+
+### GET Request
+
+<Tabs>
+  <TabItem label="Python">
+    ```python
+    import requests
+
+    # Simple GET request
+    response = requests.get(
+        "https://api.example.com/users/42",
+        headers={
+            "Authorization": "Bearer your-token-here",
+            "Accept": "application/json"
+        },
+        timeout=10
+    )
+
+    # Check status and parse response
+    if response.status_code == 200:
+        user = response.json()
+        print(f"User: {user['name']}, Email: {user['email']}")
+    elif response.status_code == 404:
+        print("User not found")
+    else:
+        print(f"Error: {response.status_code} - {response.text}")
+    ```
+  </TabItem>
+  <TabItem label="JavaScript">
+    ```javascript
+    // Using fetch (browser and Node.js 18+)
+    async function getUser(userId) {
+      const response = await fetch(
+        `https://api.example.com/users/${userId}`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: "Bearer your-token-here",
+            Accept: "application/json",
+          },
+        }
+      );
+
+      if (response.ok) {
+        const user = await response.json();
+        console.log(`User: ${user.name}, Email: ${user.email}`);
+      } else if (response.status === 404) {
+        console.log("User not found");
+      } else {
+        console.error(`Error: ${response.status} ${response.statusText}`);
+      }
+    }
+
+    getUser(42);
+    ```
+  </TabItem>
+  <TabItem label="Java">
+    ```java
+    import java.net.URI;
+    import java.net.http.HttpClient;
+    import java.net.http.HttpRequest;
+    import java.net.http.HttpResponse;
+
+    public class HttpExample {
+        public static void main(String[] args) throws Exception {
+            HttpClient client = HttpClient.newHttpClient();
+
+            HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create("https://api.example.com/users/42"))
+                .header("Authorization", "Bearer your-token-here")
+                .header("Accept", "application/json")
+                .GET()
+                .build();
+
+            HttpResponse<String> response = client.send(
+                request, HttpResponse.BodyHandlers.ofString()
+            );
+
+            if (response.statusCode() == 200) {
+                System.out.println("User: " + response.body());
+            } else if (response.statusCode() == 404) {
+                System.out.println("User not found");
+            } else {
+                System.out.println("Error: " + response.statusCode());
+            }
+        }
+    }
+    ```
+  </TabItem>
+  <TabItem label="C++">
+    ```cpp
+    #include <iostream>
+    #include <string>
+    #include <curl/curl.h>
+
+    // Callback function to capture response data
+    size_t WriteCallback(void* contents, size_t size,
+                         size_t nmemb, std::string* output) {
+        size_t totalSize = size * nmemb;
+        output->append((char*)contents, totalSize);
+        return totalSize;
+    }
+
+    int main() {
+        CURL* curl = curl_easy_init();
+        if (!curl) return 1;
+
+        std::string responseBody;
+        struct curl_slist* headers = nullptr;
+        headers = curl_slist_append(headers,
+            "Authorization: Bearer your-token-here");
+        headers = curl_slist_append(headers,
+            "Accept: application/json");
+
+        curl_easy_setopt(curl, CURLOPT_URL,
+            "https://api.example.com/users/42");
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &responseBody);
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);
+
+        CURLcode res = curl_easy_perform(curl);
+        if (res == CURLE_OK) {
+            long httpCode = 0;
+            curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE,
+                              &httpCode);
+            if (httpCode == 200) {
+                std::cout << "User: " << responseBody << std::endl;
+            } else {
+                std::cout << "Error: " << httpCode << std::endl;
+            }
+        } else {
+            std::cerr << "Request failed: "
+                      << curl_easy_strerror(res) << std::endl;
+        }
+
+        curl_slist_free_all(headers);
+        curl_easy_cleanup(curl);
+        return 0;
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+### POST Request
+
+<Tabs>
+  <TabItem label="Python">
+    ```python
+    import requests
+
+    # Create a new user
+    response = requests.post(
+        "https://api.example.com/users",
+        json={
+            "name": "Alice Johnson",
+            "email": "alice@example.com",
+            "role": "engineer"
+        },
+        headers={
+            "Authorization": "Bearer your-token-here"
+        },
+        timeout=10
+    )
+
+    if response.status_code == 201:
+        user = response.json()
+        print(f"Created user with ID: {user['id']}")
+        print(f"Location: {response.headers.get('Location')}")
+    elif response.status_code == 422:
+        errors = response.json()
+        print(f"Validation errors: {errors}")
+    else:
+        print(f"Error: {response.status_code}")
+    ```
+  </TabItem>
+  <TabItem label="JavaScript">
+    ```javascript
+    async function createUser(userData) {
+      const response = await fetch("https://api.example.com/users", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer your-token-here",
+        },
+        body: JSON.stringify(userData),
+      });
+
+      if (response.status === 201) {
+        const user = await response.json();
+        console.log(`Created user with ID: ${user.id}`);
+        console.log(`Location: ${response.headers.get("Location")}`);
+      } else if (response.status === 422) {
+        const errors = await response.json();
+        console.error("Validation errors:", errors);
+      } else {
+        console.error(`Error: ${response.status}`);
+      }
+    }
+
+    createUser({
+      name: "Alice Johnson",
+      email: "alice@example.com",
+      role: "engineer",
+    });
+    ```
+  </TabItem>
+  <TabItem label="Java">
+    ```java
+    import java.net.URI;
+    import java.net.http.HttpClient;
+    import java.net.http.HttpRequest;
+    import java.net.http.HttpResponse;
+
+    public class HttpPostExample {
+        public static void main(String[] args) throws Exception {
+            HttpClient client = HttpClient.newHttpClient();
+
+            String jsonBody = """
+                {
+                    "name": "Alice Johnson",
+                    "email": "alice@example.com",
+                    "role": "engineer"
+                }
+                """;
+
+            HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create("https://api.example.com/users"))
+                .header("Content-Type", "application/json")
+                .header("Authorization", "Bearer your-token-here")
+                .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
+                .build();
+
+            HttpResponse<String> response = client.send(
+                request, HttpResponse.BodyHandlers.ofString()
+            );
+
+            if (response.statusCode() == 201) {
+                System.out.println("Created: " + response.body());
+            } else {
+                System.out.println("Error: " + response.statusCode());
+            }
+        }
+    }
+    ```
+  </TabItem>
+  <TabItem label="C++">
+    ```cpp
+    #include <iostream>
+    #include <string>
+    #include <curl/curl.h>
+
+    size_t WriteCallback(void* contents, size_t size,
+                         size_t nmemb, std::string* output) {
+        size_t totalSize = size * nmemb;
+        output->append((char*)contents, totalSize);
+        return totalSize;
+    }
+
+    int main() {
+        CURL* curl = curl_easy_init();
+        if (!curl) return 1;
+
+        std::string responseBody;
+        std::string jsonData =
+            R"({"name":"Alice Johnson",)"
+            R"("email":"alice@example.com",)"
+            R"("role":"engineer"})";
+
+        struct curl_slist* headers = nullptr;
+        headers = curl_slist_append(headers,
+            "Content-Type: application/json");
+        headers = curl_slist_append(headers,
+            "Authorization: Bearer your-token-here");
+
+        curl_easy_setopt(curl, CURLOPT_URL,
+            "https://api.example.com/users");
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDS,
+            jsonData.c_str());
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION,
+            WriteCallback);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &responseBody);
+
+        CURLcode res = curl_easy_perform(curl);
+        if (res == CURLE_OK) {
+            long httpCode = 0;
+            curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE,
+                              &httpCode);
+            std::cout << "Status: " << httpCode << std::endl;
+            std::cout << "Body: " << responseBody << std::endl;
+        }
+
+        curl_slist_free_all(headers);
+        curl_easy_cleanup(curl);
+        return 0;
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+---
+
+## Key Takeaways
+
+- **HTTP/2** multiplexes requests over a single connection, significantly improving performance over HTTP/1.1
+- **HTTP/3** uses QUIC (UDP-based) to eliminate head-of-line blocking at the transport level
+- Know the correct **HTTP method** for each operation: GET for retrieval, POST for creation, PUT for replacement, PATCH for partial updates, DELETE for removal
+- **Status codes** communicate the result: 2xx for success, 4xx for client errors, 5xx for server errors
+- **Headers** control caching, authentication, content negotiation, and cross-origin access
+- **HTTPS** with TLS provides encryption, authentication, and integrity for all web communication
+- The **TLS 1.3 handshake** completes in just 1 round trip, making HTTPS nearly as fast as HTTP
+
+---
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="DNS, CDN & Routing"
+    href="/software-engineering/computer-networks/dns-and-routing/"
+    description="Learn how DNS resolves domain names, how CDNs deliver content globally, and how packets are routed"
+  />
+  <LinkCard
+    title="WebSockets & Real-Time Communication"
+    href="/software-engineering/computer-networks/websockets-realtime/"
+    description="Implement real-time features using WebSockets, Server-Sent Events, and other techniques"
+  />
+  <LinkCard
+    title="System Design Fundamentals"
+    href="/software-engineering/system-design/fundamentals/"
+    description="Apply HTTP knowledge to design scalable APIs and distributed systems"
+  />
+</CardGrid>

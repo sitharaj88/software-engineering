@@ -1,0 +1,128 @@
+---
+title: "Version Control"
+description: "Understand version control systems and why they are essential for modern software development"
+difficulty: "beginner"
+prerequisites: ["Basic programming knowledge"]
+timeToRead: "8 min"
+topics: ["git", "version-control", "vcs", "collaboration"]
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+## What Is Version Control?
+
+Version control is a system that records changes to files over time so you can recall specific versions later. It allows multiple developers to collaborate on the same codebase without overwriting each other's work, provides a complete history of every modification, and makes it possible to revert to any previous state of a project.
+
+Think of version control as an **unlimited undo system** for your entire project, combined with a **time machine** that lets you inspect the state of your code at any point in its history.
+
+## Why Version Control Matters
+
+Whether you are working solo or on a team of hundreds, version control is indispensable for the following reasons:
+
+- **History and Accountability** -- Every change is recorded with a timestamp, author, and description. You can always answer the question: *who changed what, when, and why?*
+- **Collaboration** -- Multiple developers can work on the same project simultaneously without stepping on each other's toes. Changes are merged together systematically.
+- **Branching and Experimentation** -- You can create isolated branches to develop features, fix bugs, or experiment, all without affecting the stable version of your code.
+- **Backup and Recovery** -- Your code repository acts as a distributed backup. If a machine fails, the full project history is preserved on other copies.
+- **Continuous Integration and Deployment** -- Modern CI/CD pipelines rely on version control as their foundation, triggering automated builds, tests, and deployments on every commit.
+
+## A Brief History of Version Control
+
+Version control has evolved through several generations:
+
+| Era | System | Model | Notes |
+|-----|--------|-------|-------|
+| 1970s | SCCS | Local | Single-file locking on Unix systems |
+| 1980s | RCS | Local | Improved on SCCS with reverse deltas |
+| 1990s | CVS | Centralized | First widely adopted networked VCS |
+| 2000s | SVN (Subversion) | Centralized | Addressed many CVS shortcomings |
+| 2005 | **Git** | Distributed | Created by Linus Torvalds for the Linux kernel |
+| 2005 | Mercurial | Distributed | Developed in parallel with Git |
+
+Git emerged in 2005 when the Linux kernel community needed a new version control tool. Linus Torvalds designed it with three priorities: **speed**, **data integrity**, and **support for distributed workflows**. Today, Git is the de facto standard for version control in the software industry.
+
+## Centralized vs. Distributed Version Control
+
+### Centralized Version Control (CVCS)
+
+In a centralized model (e.g., SVN, CVS), there is a single central server that contains the complete history of the repository. Developers check out a working copy from this server and commit changes back to it.
+
+```
+Developer A ──┐
+               ├──► Central Server (full history)
+Developer B ──┘
+```
+
+**Advantages:**
+- Simple mental model
+- Fine-grained access control
+- Single source of truth
+
+**Disadvantages:**
+- Single point of failure -- if the server goes down, no one can commit
+- Requires network access for most operations
+- Branching and merging tend to be slow and cumbersome
+
+### Distributed Version Control (DVCS)
+
+In a distributed model (e.g., Git, Mercurial), every developer has a full copy of the repository, including its complete history. Developers can commit, branch, and merge entirely offline, then synchronize with others when ready.
+
+```
+Developer A (full history) ◄──► Remote Repository (full history)
+                                       ▲
+Developer B (full history) ◄───────────┘
+```
+
+**Advantages:**
+- No single point of failure -- every clone is a full backup
+- Most operations are local and extremely fast
+- Flexible workflows (centralized, hierarchical, peer-to-peer)
+- Powerful branching and merging
+
+**Disadvantages:**
+- Slightly steeper learning curve
+- Larger initial clone size (full history is downloaded)
+
+## Introduction to Git
+
+Git is by far the most widely used version control system today. Platforms like **GitHub**, **GitLab**, and **Bitbucket** are built on top of Git and add collaboration features such as pull requests, issue tracking, and CI/CD integration.
+
+### Key Concepts
+
+- **Repository (repo)** -- A directory tracked by Git, containing your project files and the entire history of changes in a hidden `.git` folder.
+- **Commit** -- A snapshot of your project at a specific point in time. Each commit has a unique identifier (SHA hash), an author, a timestamp, and a message describing the change.
+- **Branch** -- A lightweight, movable pointer to a commit. Branches let you work on features or fixes in isolation.
+- **Remote** -- A copy of the repository hosted elsewhere (e.g., on GitHub). You push to and pull from remotes to share work.
+- **Merge** -- The process of combining changes from one branch into another.
+
+### The Basic Git Workflow
+
+```
+1. Modify files in your working directory
+2. Stage the changes you want to include in the next commit
+3. Commit the staged changes, creating a permanent snapshot
+4. Push your commits to a remote repository to share with others
+```
+
+This three-stage architecture (working directory, staging area, repository) is one of Git's most distinctive features, and understanding it is the key to mastering Git.
+
+## Next Steps
+
+Dive deeper into version control with the following topics:
+
+<CardGrid>
+  <LinkCard
+    title="Git Fundamentals"
+    description="Master essential Git commands and workflows for effective version control"
+    href="/software-engineering/version-control/git-fundamentals/"
+  />
+  <LinkCard
+    title="Branching Strategies"
+    description="Compare Git Flow, GitHub Flow, and Trunk-Based Development"
+    href="/software-engineering/version-control/branching-strategies/"
+  />
+  <LinkCard
+    title="Code Review Best Practices"
+    description="Learn effective code review practices for better code quality and team collaboration"
+    href="/software-engineering/version-control/code-review/"
+  />
+</CardGrid>

@@ -1,0 +1,770 @@
+---
+title: "WebSockets & Real-Time Communication"
+description: "Implement real-time communication using WebSockets, SSE, and other techniques"
+difficulty: "advanced"
+prerequisites: ["HTTP & HTTPS"]
+timeToRead: "18 min"
+topics: ["websockets", "sse", "long-polling", "real-time", "grpc-streaming"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+Traditional HTTP follows a strict request-response pattern: the client asks, the server answers, and the connection is done. But many modern applications need data to flow from the server to the client without the client asking for it first — chat messages, live notifications, stock tickers, collaborative editing, multiplayer games, and real-time dashboards all require some form of **real-time communication**.
+
+This page covers the major techniques for achieving real-time communication on the web, from simple polling to full-duplex WebSockets, and helps you choose the right approach for your use case.
+
+---
+
+## Techniques Overview
+
+There are four primary approaches to real-time communication, each with distinct characteristics and trade-offs.
+
+### Short Polling
+
+The simplest approach: the client repeatedly sends HTTP requests at a fixed interval to check for new data.
+
+```
+Client                                 Server
+  │                                      │
+  │──── GET /messages?since=100 ────────►│
+  │◄─── 200 OK (no new messages) ───────│
+  │                                      │
+  │     ... wait 5 seconds ...           │
+  │                                      │
+  │──── GET /messages?since=100 ────────►│
+  │◄─── 200 OK (no new messages) ───────│
+  │                                      │
+  │     ... wait 5 seconds ...           │
+  │                                      │
+  │──── GET /messages?since=100 ────────►│
+  │◄─── 200 OK [{id: 101, text: "Hi"}] ─│
+  │                                      │
+```
+
+**Pros**: Simple to implement, works everywhere, stateless on the server
+**Cons**: Wasteful (many empty responses), high latency (up to one polling interval), high server load at scale
+
+### Long Polling
+
+The client sends a request, and the server **holds the connection open** until new data is available or a timeout occurs.
+
+```
+Client                                 Server
+  │                                      │
+  │──── GET /messages?since=100 ────────►│
+  │                                      │  (Server holds connection
+  │     ... server waits for data ...    │   until data is available
+  │                                      │   or timeout)
+  │                                      │
+  │◄─── 200 OK [{id: 101, text: "Hi"}] ─│  New data arrived!
+  │                                      │
+  │──── GET /messages?since=101 ────────►│  Client immediately
+  │                                      │  reconnects
+  │     ... server waits again ...       │
+  │                                      │
+```
+
+**Pros**: Lower latency than short polling, less wasted bandwidth, widely supported
+**Cons**: Still uses HTTP overhead per message, connection management complexity, not truly real-time
+
+### Server-Sent Events (SSE)
+
+A one-way communication channel where the server pushes events to the client over a single, long-lived HTTP connection.
+
+```
+Client                                 Server
+  │                                      │
+  │──── GET /events (Accept: text/      │
+  │     event-stream) ─────────────────►│
+  │                                      │
+  │◄─── 200 OK                          │
+  │     Content-Type: text/event-stream  │
+  │                                      │
+  │◄─── data: {"user": "Alice"} ────────│  Server pushes event
+  │                                      │
+  │◄─── data: {"user": "Bob"} ──────────│  Server pushes event
+  │                                      │
+  │     ... connection stays open ...    │
+  │                                      │
+  │◄─── data: {"user": "Charlie"} ──────│  Server pushes event
+  │                                      │
+```
+
+**Pros**: Simple, built on HTTP, automatic reconnection, event IDs for resume
+**Cons**: Unidirectional (server to client only), limited to text data, no binary support, limited browser connections per domain (6 in HTTP/1.1)
+
+### WebSockets
+
+A full-duplex communication protocol that provides **bidirectional** data flow over a single, persistent TCP connection.
+
+```
+Client                                 Server
+  │                                      │
+  │──── HTTP Upgrade Request ──────────►│
+  │◄─── 101 Switching Protocols ────────│
+  │                                      │
+  │═══════ WebSocket Connection ════════│
+  │                                      │
+  │──── "Hello from client" ───────────►│
+  │◄─── "Hello from server" ────────────│
+  │◄─── "New notification" ─────────────│
+  │──── "Typing..." ───────────────────►│
+  │◄─── "User joined" ─────────────────│
+  │                                      │
+  │     ... bidirectional at any time ...│
+  │                                      │
+  │──── Close frame ───────────────────►│
+  │◄─── Close frame ────────────────────│
+```
+
+**Pros**: Full-duplex, low latency, low overhead per message, binary and text support
+**Cons**: More complex to implement, requires WebSocket-aware infrastructure (load balancers, proxies), connection state management
+
+---
+
+## Comprehensive Comparison Table
+
+| Feature | Short Polling | Long Polling | SSE | WebSockets |
+|---------|--------------|-------------|-----|------------|
+| **Direction** | Client to server | Client to server | Server to client | Bidirectional |
+| **Protocol** | HTTP | HTTP | HTTP | WS (over TCP) |
+| **Connection** | New connection per request | Held open, reconnect after response | Single persistent HTTP | Single persistent TCP |
+| **Latency** | Up to polling interval | Low (near real-time) | Low (near real-time) | Very low (real-time) |
+| **Server overhead** | High (frequent requests) | Medium (held connections) | Low (single connection) | Low (single connection) |
+| **Binary data** | Yes (via HTTP) | Yes (via HTTP) | No (text only) | Yes |
+| **Auto-reconnect** | Client manages | Client manages | Built-in (EventSource API) | Manual implementation |
+| **Browser support** | Universal | Universal | All modern browsers | All modern browsers |
+| **Through proxies/firewalls** | Always works | Usually works | Usually works | May need configuration |
+| **Scalability** | Poor | Moderate | Good | Good |
+| **Complexity** | Very low | Low | Low | Medium |
+| **Best for** | Simple dashboards, low-frequency updates | Chat, notifications (simple) | Live feeds, notifications, logs | Chat, gaming, collaboration, trading |
+
+---
+
+## WebSocket Protocol Deep Dive
+
+### The Upgrade Handshake
+
+WebSocket connections begin as a standard HTTP request with an `Upgrade` header. This allows WebSockets to work through HTTP infrastructure (proxies, load balancers).
+
+```
+Client Request:
+───────────────
+GET /chat HTTP/1.1
+Host: server.example.com
+Upgrade: websocket
+Connection: Upgrade
+Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==
+Sec-WebSocket-Version: 13
+Sec-WebSocket-Protocol: chat, superchat
+Origin: http://example.com
+
+Server Response:
+────────────────
+HTTP/1.1 101 Switching Protocols
+Upgrade: websocket
+Connection: Upgrade
+Sec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=
+Sec-WebSocket-Protocol: chat
+```
+
+**Key headers**:
+- `Upgrade: websocket` — requests protocol switch from HTTP to WebSocket
+- `Sec-WebSocket-Key` — a random Base64-encoded value for security verification
+- `Sec-WebSocket-Accept` — the server's proof that it received and accepted the key (computed as `Base64(SHA1(key + GUID))`)
+- `Sec-WebSocket-Protocol` — optional subprotocol negotiation
+
+### WebSocket Frames
+
+After the handshake, data is exchanged as **frames**. Each frame has a small header (2-14 bytes) followed by the payload.
+
+```
+WebSocket Frame Structure:
+
+ 0                   1                   2                   3
+ 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
++-+-+-+-+-------+-+-------------+-------------------------------+
+|F|R|R|R| opcode|M| Payload len |    Extended payload length    |
+|I|S|S|S|  (4)  |A|     (7)     |           (16/64)             |
+|N|V|V|V|       |S|             |   (if payload len == 126/127) |
+| |1|2|3|       |K|             |                               |
++-+-+-+-+-------+-+-------------+-------------------------------+
+|     Masking-key, if MASK set to 1 (4 bytes)                   |
++---------------------------------------------------------------+
+|     Payload Data                                              |
++---------------------------------------------------------------+
+
+Frame types (opcodes):
+  0x0 = Continuation frame
+  0x1 = Text frame (UTF-8)
+  0x2 = Binary frame
+  0x8 = Close frame
+  0x9 = Ping frame
+  0xA = Pong frame
+```
+
+**Key concepts**:
+- **FIN bit**: Indicates the final fragment of a message (1 = final, 0 = more fragments coming)
+- **Masking**: Client-to-server frames must be masked (XOR with a 4-byte key) to prevent proxy cache poisoning
+- **Ping/Pong**: Heartbeat mechanism to keep the connection alive and detect disconnections
+
+### Connection Close
+
+WebSocket connections are closed with a **close handshake** — either side can initiate.
+
+```
+Initiator                          Responder
+    │                                  │
+    │──── Close frame (code, reason) ─►│
+    │                                  │
+    │◄─── Close frame (code, reason) ──│
+    │                                  │
+    │    TCP connection closed          │
+```
+
+**Common close codes**:
+
+| Code | Meaning |
+|------|---------|
+| 1000 | Normal closure |
+| 1001 | Going away (e.g., page navigation, server shutdown) |
+| 1002 | Protocol error |
+| 1003 | Unsupported data type |
+| 1006 | Abnormal closure (no close frame received) |
+| 1008 | Policy violation |
+| 1011 | Unexpected server error |
+
+---
+
+## Server-Sent Events (SSE) in Detail
+
+SSE provides a standardized way for servers to push events to clients over HTTP. The client uses the `EventSource` API, which handles connection management, reconnection, and event parsing automatically.
+
+### SSE Message Format
+
+```
+HTTP/1.1 200 OK
+Content-Type: text/event-stream
+Cache-Control: no-cache
+Connection: keep-alive
+
+id: 1
+event: message
+data: {"user": "Alice", "text": "Hello!"}
+
+id: 2
+event: message
+data: {"user": "Bob", "text": "Hi Alice!"}
+
+id: 3
+event: user-joined
+data: {"user": "Charlie"}
+
+: this is a comment (ignored by the client)
+
+id: 4
+event: message
+data: This is a multi-line message.
+data: It spans two lines.
+
+retry: 5000
+```
+
+**Fields**:
+- `data:` — the event payload (multiple `data:` lines are concatenated with newlines)
+- `event:` — the event type (default is "message"; custom types trigger specific event listeners)
+- `id:` — the event ID (sent as `Last-Event-ID` header on reconnection for resuming)
+- `retry:` — reconnection interval in milliseconds
+- Lines starting with `:` are comments (useful for keepalive)
+
+### SSE Features
+
+| Feature | Description |
+|---------|-------------|
+| **Automatic reconnection** | The `EventSource` API reconnects automatically after disconnection |
+| **Event IDs and resumption** | Server sends `id:` fields; on reconnect, client sends `Last-Event-ID` header |
+| **Custom event types** | Different event types can trigger different handlers |
+| **Simple text protocol** | Easy to debug with `curl` or browser dev tools |
+| **HTTP compatible** | Works through existing HTTP infrastructure without configuration |
+
+---
+
+## When to Use Each Technique
+
+| Scenario | Recommended Technique | Why |
+|----------|----------------------|-----|
+| **Live sports scores** | SSE | Server-to-client updates, no client interaction needed |
+| **Chat application** | WebSockets | Bidirectional messaging, low latency required |
+| **Notification feed** | SSE or Long Polling | Server-to-client, moderate update frequency |
+| **Multiplayer game** | WebSockets | Bidirectional, very low latency, binary data |
+| **Stock ticker** | WebSockets or SSE | High-frequency updates, server-to-client dominant |
+| **Collaborative document editing** | WebSockets | Bidirectional, operational transforms or CRDTs |
+| **Dashboard with 30s refresh** | Short Polling | Simple, low-frequency, tolerance for delay |
+| **Log streaming** | SSE | Server-to-client, text data, auto-reconnect |
+| **IoT device commands** | WebSockets | Bidirectional communication with devices |
+| **File upload progress** | SSE or Short Polling | Server-to-client progress updates |
+
+**Decision framework**:
+1. Do you need **bidirectional** communication? Use **WebSockets**
+2. Is it **server-to-client only**? Use **SSE**
+3. Can you tolerate **seconds of delay**? Use **Long Polling** or **Short Polling**
+4. Do you need **binary data**? Use **WebSockets** (SSE is text-only)
+5. Must it work through **restrictive proxies**? Start with **Long Polling**, fall back from WebSockets if needed
+
+---
+
+## Code Examples
+
+### WebSocket Client and Server
+
+<Tabs>
+  <TabItem label="Python">
+    ```python
+    # Server (using websockets library)
+    # pip install websockets
+    import asyncio
+    import websockets
+    import json
+
+    connected_clients = set()
+
+    async def handler(websocket):
+        # Register the client
+        connected_clients.add(websocket)
+        try:
+            async for message in websocket:
+                # Parse and broadcast to all clients
+                data = json.loads(message)
+                print(f"Received: {data}")
+
+                # Broadcast to all connected clients
+                broadcast_msg = json.dumps({
+                    "user": data.get("user", "Anonymous"),
+                    "text": data.get("text", ""),
+                    "timestamp": "2025-01-15T10:30:00Z"
+                })
+                websockets.broadcast(connected_clients, broadcast_msg)
+        except websockets.ConnectionClosed:
+            print("Client disconnected")
+        finally:
+            connected_clients.discard(websocket)
+
+    async def main():
+        async with websockets.serve(handler, "localhost", 8765):
+            print("WebSocket server started on ws://localhost:8765")
+            await asyncio.Future()  # Run forever
+
+    asyncio.run(main())
+
+
+    # Client
+    import asyncio
+    import websockets
+    import json
+
+    async def client():
+        async with websockets.connect("ws://localhost:8765") as ws:
+            # Send a message
+            await ws.send(json.dumps({
+                "user": "Alice",
+                "text": "Hello, everyone!"
+            }))
+
+            # Listen for messages
+            async for message in ws:
+                data = json.loads(message)
+                print(f"{data['user']}: {data['text']}")
+
+    asyncio.run(client())
+    ```
+  </TabItem>
+  <TabItem label="JavaScript">
+    ```javascript
+    // Browser Client (WebSocket API)
+    const socket = new WebSocket("wss://server.example.com/chat");
+
+    // Connection opened
+    socket.addEventListener("open", (event) => {
+      console.log("Connected to WebSocket server");
+      socket.send(
+        JSON.stringify({
+          user: "Alice",
+          text: "Hello, everyone!",
+        })
+      );
+    });
+
+    // Listen for messages
+    socket.addEventListener("message", (event) => {
+      const data = JSON.parse(event.data);
+      console.log(`${data.user}: ${data.text}`);
+      // Update your UI here
+    });
+
+    // Handle errors
+    socket.addEventListener("error", (event) => {
+      console.error("WebSocket error:", event);
+    });
+
+    // Connection closed
+    socket.addEventListener("close", (event) => {
+      console.log(
+        `Disconnected: code=${event.code}, reason=${event.reason}`
+      );
+
+      // Implement reconnection logic
+      if (event.code !== 1000) {
+        console.log("Reconnecting in 3 seconds...");
+        setTimeout(() => {
+          // Recreate the WebSocket connection
+        }, 3000);
+      }
+    });
+
+    // Send a message (check readyState first)
+    function sendMessage(text) {
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ user: "Alice", text }));
+      } else {
+        console.warn("WebSocket is not open. State:", socket.readyState);
+      }
+    }
+
+    // Graceful close
+    function disconnect() {
+      socket.close(1000, "User logged out");
+    }
+    ```
+  </TabItem>
+  <TabItem label="Java">
+    ```java
+    // Client using javax.websocket (Jakarta WebSocket)
+    import jakarta.websocket.*;
+    import java.net.URI;
+
+    @ClientEndpoint
+    public class ChatClient {
+
+        private Session session;
+
+        @OnOpen
+        public void onOpen(Session session) {
+            this.session = session;
+            System.out.println("Connected to WebSocket server");
+            sendMessage("{\"user\":\"Alice\",\"text\":\"Hello!\"}");
+        }
+
+        @OnMessage
+        public void onMessage(String message) {
+            System.out.println("Received: " + message);
+        }
+
+        @OnClose
+        public void onClose(Session session, CloseReason reason) {
+            System.out.println("Disconnected: " + reason);
+        }
+
+        @OnError
+        public void onError(Session session, Throwable error) {
+            System.err.println("Error: " + error.getMessage());
+        }
+
+        public void sendMessage(String message) {
+            if (session != null && session.isOpen()) {
+                session.getAsyncRemote().sendText(message);
+            }
+        }
+
+        public static void main(String[] args) throws Exception {
+            WebSocketContainer container =
+                ContainerProvider.getWebSocketContainer();
+            URI uri = new URI("wss://server.example.com/chat");
+            container.connectToServer(ChatClient.class, uri);
+
+            // Keep the client running
+            Thread.sleep(Long.MAX_VALUE);
+        }
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+### Server-Sent Events (SSE)
+
+<Tabs>
+  <TabItem label="Python">
+    ```python
+    # Server using Flask
+    # pip install flask
+    from flask import Flask, Response
+    import json
+    import time
+
+    app = Flask(__name__)
+
+    def event_stream():
+        """Generator that yields SSE-formatted events."""
+        event_id = 0
+        while True:
+            event_id += 1
+            data = json.dumps({
+                "id": event_id,
+                "message": f"Server event #{event_id}",
+                "timestamp": time.time()
+            })
+            # SSE format: id, event type, and data fields
+            yield f"id: {event_id}\nevent: update\ndata: {data}\n\n"
+            time.sleep(2)  # Send an event every 2 seconds
+
+    @app.route("/events")
+    def sse():
+        return Response(
+            event_stream(),
+            mimetype="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "X-Accel-Buffering": "no"  # Disable nginx buffering
+            }
+        )
+
+    if __name__ == "__main__":
+        app.run(port=5000, threaded=True)
+    ```
+  </TabItem>
+  <TabItem label="JavaScript">
+    ```javascript
+    // Browser Client (EventSource API)
+    const eventSource = new EventSource("/events");
+
+    // Default "message" event
+    eventSource.addEventListener("message", (event) => {
+      const data = JSON.parse(event.data);
+      console.log("Message:", data);
+    });
+
+    // Custom "update" event
+    eventSource.addEventListener("update", (event) => {
+      const data = JSON.parse(event.data);
+      console.log(`Update #${event.lastEventId}:`, data);
+      // Update your UI here
+    });
+
+    // Connection opened
+    eventSource.addEventListener("open", () => {
+      console.log("SSE connection established");
+    });
+
+    // Error handling (includes automatic reconnection)
+    eventSource.addEventListener("error", (event) => {
+      if (eventSource.readyState === EventSource.CONNECTING) {
+        console.log("Reconnecting...");
+      } else if (eventSource.readyState === EventSource.CLOSED) {
+        console.log("Connection closed by server");
+      }
+    });
+
+    // Close the connection when done
+    function stopListening() {
+      eventSource.close();
+      console.log("SSE connection closed");
+    }
+
+
+    // Node.js Server (Express)
+    // npm install express
+    const express = require("express");
+    const app = express();
+
+    app.get("/events", (req, res) => {
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+      res.setHeader("X-Accel-Buffering", "no");
+
+      let eventId = 0;
+      const interval = setInterval(() => {
+        eventId++;
+        const data = JSON.stringify({
+          id: eventId,
+          message: `Server event #${eventId}`,
+          timestamp: Date.now(),
+        });
+        res.write(`id: ${eventId}\n`);
+        res.write(`event: update\n`);
+        res.write(`data: ${data}\n\n`);
+      }, 2000);
+
+      // Clean up when client disconnects
+      req.on("close", () => {
+        clearInterval(interval);
+        res.end();
+      });
+    });
+
+    app.listen(3000, () => {
+      console.log("SSE server running on port 3000");
+    });
+    ```
+  </TabItem>
+  <TabItem label="Java">
+    ```java
+    // Spring Boot SSE Controller
+    import org.springframework.http.MediaType;
+    import org.springframework.web.bind.annotation.GetMapping;
+    import org.springframework.web.bind.annotation.RestController;
+    import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+
+    import java.io.IOException;
+    import java.util.concurrent.Executors;
+
+    @RestController
+    public class SseController {
+
+        @GetMapping(path = "/events",
+                    produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+        public SseEmitter streamEvents() {
+            SseEmitter emitter = new SseEmitter(0L); // No timeout
+            var executor = Executors.newSingleThreadExecutor();
+
+            executor.execute(() -> {
+                try {
+                    int eventId = 0;
+                    while (true) {
+                        eventId++;
+                        SseEmitter.SseEventBuilder event =
+                            SseEmitter.event()
+                                .id(String.valueOf(eventId))
+                                .name("update")
+                                .data(String.format(
+                                    "{\"id\":%d,\"message\":\"Event #%d\"}",
+                                    eventId, eventId
+                                ));
+                        emitter.send(event);
+                        Thread.sleep(2000);
+                    }
+                } catch (IOException | InterruptedException e) {
+                    emitter.completeWithError(e);
+                }
+            });
+
+            emitter.onCompletion(executor::shutdown);
+            emitter.onTimeout(executor::shutdown);
+            return emitter;
+        }
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+---
+
+## Production Considerations
+
+### WebSocket Scaling Challenges
+
+| Challenge | Solution |
+|-----------|---------|
+| **Sticky sessions** | WebSocket connections are stateful; use load balancer sticky sessions or a pub/sub system (Redis, Kafka) to broadcast across servers |
+| **Connection limits** | Each WebSocket connection consumes a file descriptor; tune OS limits (`ulimit`), use connection pooling |
+| **Heartbeats** | Implement ping/pong frames to detect dead connections and free resources |
+| **Reconnection** | Client must implement exponential backoff reconnection with jitter |
+| **Authentication** | Authenticate during the HTTP upgrade handshake (cookies, tokens in query params, or first message) |
+| **Message ordering** | Use sequence numbers or timestamps to handle out-of-order delivery |
+| **Graceful shutdown** | Send close frames and drain connections before server restart |
+
+### Reconnection with Exponential Backoff
+
+```
+Attempt 1: Wait 1 second   + random jitter (0-500ms)
+Attempt 2: Wait 2 seconds  + random jitter (0-500ms)
+Attempt 3: Wait 4 seconds  + random jitter (0-500ms)
+Attempt 4: Wait 8 seconds  + random jitter (0-500ms)
+Attempt 5: Wait 16 seconds + random jitter (0-500ms)
+...
+Maximum:   Wait 60 seconds + random jitter (0-500ms)
+```
+
+**Why jitter?** Without jitter, if the server goes down and 10,000 clients try to reconnect, they all hit the server at the same exponential intervals (the "thundering herd" problem). Random jitter spreads reconnection attempts over time.
+
+---
+
+## gRPC Streaming
+
+gRPC natively supports four streaming patterns over HTTP/2, making it a powerful choice for real-time service-to-service communication.
+
+| Pattern | Description | Use Case |
+|---------|-------------|----------|
+| **Unary** | Single request, single response | Standard API call |
+| **Server streaming** | Single request, stream of responses | Live feeds, log streaming |
+| **Client streaming** | Stream of requests, single response | File upload, sensor data |
+| **Bidirectional streaming** | Both sides stream simultaneously | Chat, real-time sync |
+
+```protobuf
+// gRPC service definition
+syntax = "proto3";
+
+service ChatService {
+  // Unary - single request/response
+  rpc GetRoom (GetRoomRequest) returns (Room);
+
+  // Server streaming - server sends stream of messages
+  rpc StreamMessages (StreamRequest) returns (stream ChatMessage);
+
+  // Client streaming - client sends stream of messages
+  rpc SendBulkMessages (stream ChatMessage) returns (Summary);
+
+  // Bidirectional streaming - both sides stream
+  rpc Chat (stream ChatMessage) returns (stream ChatMessage);
+}
+
+message ChatMessage {
+  string user = 1;
+  string text = 2;
+  int64 timestamp = 3;
+}
+```
+
+**When to use gRPC streaming over WebSockets**:
+- Internal service-to-service communication (not browser-facing)
+- You need strong typing and code generation from `.proto` files
+- You want built-in flow control, cancellation, and deadline propagation
+- You are already using gRPC for unary calls and want to add streaming
+
+---
+
+## Key Takeaways
+
+- **Short polling** is the simplest approach but wastes bandwidth and has high latency
+- **Long polling** reduces wasted requests but still has HTTP overhead per message
+- **Server-Sent Events (SSE)** are ideal for server-to-client streams with automatic reconnection and event IDs
+- **WebSockets** provide full-duplex, low-latency communication for bidirectional real-time features
+- Choose based on your requirements: direction of data flow, latency tolerance, binary data needs, and infrastructure constraints
+- In production, WebSockets require careful attention to connection management, heartbeats, reconnection, authentication, and horizontal scaling
+- **gRPC streaming** is the best choice for typed, real-time service-to-service communication
+
+---
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="Computer Networks Overview"
+    href="/software-engineering/computer-networks/"
+    description="Review the fundamentals of networking that underpin all real-time communication"
+  />
+  <LinkCard
+    title="HTTP & HTTPS"
+    href="/software-engineering/computer-networks/http-https/"
+    description="Deepen your understanding of the HTTP protocol that WebSockets and SSE build upon"
+  />
+  <LinkCard
+    title="System Design: Scalability"
+    href="/software-engineering/system-design/scalability/"
+    description="Learn scaling patterns for real-time systems including load balancing and message queues"
+  />
+  <LinkCard
+    title="System Design: Case Studies"
+    href="/software-engineering/system-design/case-studies/"
+    description="See real-time techniques applied in complete system designs like chat systems"
+  />
+</CardGrid>

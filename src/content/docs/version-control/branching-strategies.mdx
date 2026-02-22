@@ -1,0 +1,332 @@
+---
+title: "Branching Strategies"
+description: "Compare Git Flow, GitHub Flow, and Trunk-Based Development to choose the right workflow"
+difficulty: "intermediate"
+prerequisites: ["Git Fundamentals"]
+timeToRead: "15 min"
+topics: ["git-flow", "github-flow", "trunk-based", "branching", "workflows"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+## Why Branching Strategies Matter
+
+A branching strategy defines how a team uses branches to organize development, testing, and releases. Without a clear strategy, teams quickly end up with dozens of long-lived branches, painful merge conflicts, and confusion about which branch holds the production-ready code.
+
+A good branching strategy provides:
+
+- **Clarity** -- Everyone on the team knows where to start new work and how to ship it.
+- **Stability** -- The main branch always stays in a deployable state.
+- **Traceability** -- The history of changes is organized and easy to follow.
+- **Speed** -- Developers can work in parallel without blocking each other.
+
+The three most widely adopted strategies are **Git Flow**, **GitHub Flow**, and **Trunk-Based Development**. Each makes different trade-offs between structure and simplicity.
+
+## Git Flow
+
+Git Flow, introduced by Vincent Driessen in 2010, is a comprehensive branching model designed for projects with scheduled releases.
+
+### Branch Structure
+
+```
+──── main ──────────────────────────────────────────────────────►
+       │                                          ▲
+       │                                          │ (merge)
+       ▼                                          │
+──── develop ───────────────────────────────────────────────────►
+       │         ▲              │           ▲
+       │         │ (merge)      │           │ (merge)
+       ▼         │              ▼           │
+     feature/   feature/      release/    hotfix/
+     login      search        v1.2        fix-crash
+```
+
+Git Flow uses five types of branches:
+
+| Branch | Purpose | Branches from | Merges into |
+|--------|---------|---------------|-------------|
+| `main` | Production-ready code | -- | -- |
+| `develop` | Integration branch for features | `main` | `main` (via release) |
+| `feature/*` | New features | `develop` | `develop` |
+| `release/*` | Prepare a versioned release | `develop` | `main` and `develop` |
+| `hotfix/*` | Urgent production fixes | `main` | `main` and `develop` |
+
+### Workflow Example
+
+<Tabs>
+  <TabItem label="Feature Development">
+    ```bash
+    # Start a new feature from develop
+    git checkout develop
+    git checkout -b feature/user-profile
+
+    # Work on the feature (commit as needed)
+    git add .
+    git commit -m "Add user profile page"
+
+    # When complete, merge back into develop
+    git checkout develop
+    git merge --no-ff feature/user-profile
+    git branch -d feature/user-profile
+    ```
+
+    The `--no-ff` flag ensures a merge commit is always created, preserving the history of the feature branch.
+  </TabItem>
+  <TabItem label="Creating a Release">
+    ```bash
+    # Create a release branch from develop
+    git checkout develop
+    git checkout -b release/v1.2
+
+    # Perform final testing, bump version numbers, fix minor issues
+    git commit -am "Bump version to 1.2.0"
+
+    # Merge into main and tag it
+    git checkout main
+    git merge --no-ff release/v1.2
+    git tag -a v1.2.0 -m "Release version 1.2.0"
+
+    # Also merge back into develop
+    git checkout develop
+    git merge --no-ff release/v1.2
+
+    # Clean up
+    git branch -d release/v1.2
+    ```
+  </TabItem>
+  <TabItem label="Hotfix">
+    ```bash
+    # Create a hotfix branch from main
+    git checkout main
+    git checkout -b hotfix/fix-login-crash
+
+    # Fix the bug
+    git commit -am "Fix null pointer in login handler"
+
+    # Merge into main and tag it
+    git checkout main
+    git merge --no-ff hotfix/fix-login-crash
+    git tag -a v1.2.1 -m "Hotfix: fix login crash"
+
+    # Also merge into develop so the fix is included
+    git checkout develop
+    git merge --no-ff hotfix/fix-login-crash
+
+    # Clean up
+    git branch -d hotfix/fix-login-crash
+    ```
+  </TabItem>
+</Tabs>
+
+### When to Use Git Flow
+
+- Projects with **scheduled, versioned releases** (e.g., desktop software, mobile apps, libraries)
+- Teams that need to **maintain multiple versions** in production simultaneously
+- Organizations with **separate QA and staging environments**
+
+### When to Avoid Git Flow
+
+- Web applications or services with **continuous deployment**
+- Small teams that find the overhead of multiple long-lived branches excessive
+- Projects where the distinction between `develop` and `main` adds confusion without value
+
+## GitHub Flow
+
+GitHub Flow is a simplified branching model designed for teams that deploy frequently. It was popularized by GitHub and is well-suited for web applications and SaaS products.
+
+### Branch Structure
+
+```
+──── main ──────────────────────────────────────────────────────►
+       │         ▲         │         ▲         │         ▲
+       │         │         │         │         │         │
+       ▼         │         ▼         │         ▼         │
+     feature/   (PR +    feature/   (PR +    bugfix/    (PR +
+     search     merge)   dashboard  merge)   fix-nav    merge)
+```
+
+GitHub Flow uses only two types of branches:
+
+| Branch | Purpose | Branches from | Merges into |
+|--------|---------|---------------|-------------|
+| `main` | Always deployable production code | -- | -- |
+| `feature/*` or `bugfix/*` | Any change (feature, fix, experiment) | `main` | `main` (via PR) |
+
+### Workflow Example
+
+```bash
+# 1. Create a branch from main
+git checkout main
+git pull origin main
+git checkout -b feature/search-autocomplete
+
+# 2. Make changes and commit
+git add .
+git commit -m "Add autocomplete to search bar"
+git commit -m "Add debounce to search input"
+
+# 3. Push the branch to remote
+git push -u origin feature/search-autocomplete
+
+# 4. Open a Pull Request on GitHub
+#    - Describe the change
+#    - Request reviews
+#    - CI runs automated checks
+
+# 5. After approval, merge into main (usually via the GitHub UI)
+#    - The branch is deployed automatically after merging
+
+# 6. Delete the feature branch
+git branch -d feature/search-autocomplete
+```
+
+### Rules of GitHub Flow
+
+1. **`main` is always deployable.** Anything merged into `main` must be tested and ready for production.
+2. **Create descriptive branch names.** Use names like `feature/add-search` or `bugfix/fix-nav-overflow`.
+3. **Open a Pull Request early.** PRs are not just for finished work -- they are a communication tool. Open a draft PR to discuss your approach.
+4. **Deploy after merging.** Every merge to `main` should trigger an automated deployment.
+
+### When to Use GitHub Flow
+
+- **Web applications and APIs** deployed continuously
+- Small to medium teams that value **simplicity**
+- Teams practicing **continuous delivery or continuous deployment**
+- Projects where there is only **one version in production**
+
+## Trunk-Based Development
+
+Trunk-Based Development (TBD) takes simplicity even further. Developers commit directly to the main branch (the "trunk") or use very short-lived feature branches that are merged within one to two days.
+
+### Branch Structure
+
+```
+──── main (trunk) ──────────────────────────────────────────────►
+       │    ▲    │    ▲    │    ▲
+       │    │    │    │    │    │
+       ▼    │    ▼    │    ▼    │
+     short  │  short  │  short  │
+     lived  │  lived  │  lived  │
+    (< 2d)  │ (< 1d)  │ (< 2d)  │
+```
+
+### Key Principles
+
+- **Short-lived branches only.** Feature branches should live no longer than one to two days. Many developers commit directly to the trunk.
+- **Feature flags.** Incomplete features are hidden behind feature flags so they can be merged into the trunk without affecting users.
+- **Continuous integration.** Every commit to the trunk is built and tested automatically. The build must always be green.
+- **Small, frequent commits.** Rather than large, infrequent merges, developers push small incremental changes multiple times per day.
+
+### Workflow Example
+
+<Tabs>
+  <TabItem label="Direct to Trunk">
+    ```bash
+    # Pull the latest changes
+    git checkout main
+    git pull origin main
+
+    # Make a small, focused change
+    git add src/utils.js
+    git commit -m "Add input validation helper"
+
+    # Push directly to main
+    git push origin main
+    ```
+  </TabItem>
+  <TabItem label="Short-Lived Branch">
+    ```bash
+    # Create a short-lived branch
+    git checkout main
+    git pull origin main
+    git checkout -b add-validation
+
+    # Work for a few hours (not days)
+    git add .
+    git commit -m "Add input validation for signup form"
+
+    # Merge back into main quickly
+    git checkout main
+    git pull origin main
+    git merge add-validation
+    git push origin main
+
+    # Delete the branch immediately
+    git branch -d add-validation
+    ```
+  </TabItem>
+  <TabItem label="Feature Flags">
+    ```javascript
+    // Feature flag: hide incomplete work behind a toggle
+    function renderDashboard() {
+      return (
+        <div>
+          <Header />
+          <MainContent />
+
+          {featureFlags.newAnalytics && (
+            <AnalyticsPanel />  // Merged but hidden in production
+          )}
+
+          <Footer />
+        </div>
+      );
+    }
+    ```
+
+    Feature flags allow you to merge work-in-progress into the trunk safely. When the feature is ready, simply enable the flag.
+  </TabItem>
+</Tabs>
+
+### When to Use Trunk-Based Development
+
+- Teams with **strong CI/CD pipelines** and comprehensive test suites
+- Organizations practicing **continuous deployment** (e.g., deploying multiple times per day)
+- **Experienced teams** comfortable with feature flags and small incremental changes
+- Companies like Google, Facebook, and Netflix that operate at scale
+
+## Comparison
+
+| Aspect | Git Flow | GitHub Flow | Trunk-Based |
+|--------|----------|-------------|-------------|
+| **Complexity** | High | Low | Very Low |
+| **Number of long-lived branches** | 2 (`main`, `develop`) | 1 (`main`) | 1 (`main`) |
+| **Feature branch lifespan** | Days to weeks | Days | Hours to 1-2 days |
+| **Release process** | Dedicated release branches | Merge to `main` = release | Merge to `main` = release |
+| **Best for** | Versioned releases, multiple environments | Web apps, continuous delivery | High-velocity teams, continuous deployment |
+| **Merge conflicts** | More frequent (long-lived branches) | Moderate | Rare (small, frequent merges) |
+| **Learning curve** | Steep | Gentle | Gentle (but requires discipline) |
+| **Requires feature flags** | No | No | Often yes |
+| **CI/CD dependency** | Low | Medium | High |
+
+## Choosing the Right Strategy
+
+There is no universally correct branching strategy. Your choice should depend on:
+
+1. **Release cadence** -- Do you release on a schedule or continuously?
+2. **Team size and experience** -- Can your team handle the discipline required for trunk-based development?
+3. **Deployment infrastructure** -- Do you have robust CI/CD pipelines and feature flag systems?
+4. **Product type** -- Is it a web app, mobile app, library, or embedded system?
+
+**General guidance:**
+
+- Starting a new project or small team? Begin with **GitHub Flow**. It is simple and effective.
+- Building a product with versioned releases? Consider **Git Flow**.
+- Mature team with strong CI/CD? Move toward **Trunk-Based Development**.
+
+You can also evolve your strategy over time. Many teams start with GitHub Flow and gradually adopt trunk-based practices as their CI/CD infrastructure matures.
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="Code Review Best Practices"
+    description="Learn how to conduct effective code reviews that complement your branching strategy"
+    href="/software-engineering/version-control/code-review/"
+  />
+  <LinkCard
+    title="Git Fundamentals"
+    description="Review essential Git commands and workflows"
+    href="/software-engineering/version-control/git-fundamentals/"
+  />
+</CardGrid>

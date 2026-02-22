@@ -1,0 +1,506 @@
+---
+title: "Agile & Scrum"
+description: "Master Agile principles and the Scrum framework for iterative, collaborative software delivery"
+difficulty: "beginner"
+prerequisites: ["Software Development Lifecycle"]
+timeToRead: "20 min"
+topics: ["agile", "scrum", "sprint", "user-stories", "retrospective", "agile-manifesto"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+Agile is the dominant approach to software development in the modern industry. Born out of frustration with heavyweight, documentation-driven methodologies that delivered software too slowly and often built the wrong thing, Agile puts **working software, customer collaboration, and responsiveness to change** at the center of the development process.
+
+**Scrum** is the most widely adopted Agile framework. It provides a lightweight structure of roles, events, and artifacts that helps teams deliver value in short, predictable cycles called **sprints**. Understanding Scrum is essential for any software engineer working in a team environment, whether at a startup or a Fortune 500 company.
+
+---
+
+## The Agile Manifesto
+
+In February 2001, seventeen software practitioners met at a ski resort in Snowbird, Utah, and produced the **Manifesto for Agile Software Development**. This brief document redefined how the industry thinks about building software.
+
+### The Four Core Values
+
+The manifesto expresses four values. Each value acknowledges that the items on the right have worth, but the items on the **left are valued more**.
+
+| We value... | Over... |
+|---|---|
+| **Individuals and interactions** | Processes and tools |
+| **Working software** | Comprehensive documentation |
+| **Customer collaboration** | Contract negotiation |
+| **Responding to change** | Following a plan |
+
+#### What Each Value Means in Practice
+
+**Individuals and interactions over processes and tools** -- The best tools in the world cannot compensate for a dysfunctional team. A whiteboard conversation between two developers often resolves more than a 50-page specification. Invest in people, communication, and collaboration first.
+
+**Working software over comprehensive documentation** -- Documentation has value, but it is not the primary measure of progress. A running feature that users can interact with provides far more clarity than a requirements document. Ship working software frequently and let it speak for itself.
+
+**Customer collaboration over contract negotiation** -- Instead of locking down every requirement in a contract and building to that specification, work *with* the customer throughout the project. Their understanding of what they need will evolve as they see the software take shape, and that is a feature, not a failure.
+
+**Responding to change over following a plan** -- Plans are essential, but rigid adherence to an initial plan in the face of new information is counterproductive. Agile teams welcome changing requirements, even late in development, because adapting to change delivers more value than sticking to an outdated plan.
+
+### The Twelve Principles Behind the Manifesto
+
+The four values are supported by twelve principles that provide more specific guidance:
+
+1. Our highest priority is to satisfy the customer through **early and continuous delivery** of valuable software.
+2. **Welcome changing requirements**, even late in development. Agile processes harness change for the customer's competitive advantage.
+3. **Deliver working software frequently**, from a couple of weeks to a couple of months, with a preference for the shorter timescale.
+4. Business people and developers must **work together daily** throughout the project.
+5. Build projects around **motivated individuals**. Give them the environment and support they need, and trust them to get the job done.
+6. The most efficient method of conveying information is **face-to-face conversation**.
+7. **Working software** is the primary measure of progress.
+8. Agile processes promote **sustainable development**. The sponsors, developers, and users should be able to maintain a constant pace indefinitely.
+9. Continuous attention to **technical excellence and good design** enhances agility.
+10. **Simplicity** -- the art of maximizing the amount of work not done -- is essential.
+11. The best architectures, requirements, and designs emerge from **self-organizing teams**.
+12. At regular intervals, the team **reflects on how to become more effective**, then tunes and adjusts its behavior accordingly.
+
+:::note[Values vs. Rules]
+The Agile Manifesto is deliberately a set of *values and principles*, not a set of rules. It tells you what to prioritize, not exactly what to do. Specific frameworks like Scrum, Kanban, and XP provide the concrete practices.
+:::
+
+---
+
+## Agile vs. Waterfall
+
+Understanding the contrast between Agile and Waterfall clarifies why Agile has become the preferred approach for most software teams.
+
+| Aspect | Waterfall | Agile |
+|---|---|---|
+| **Planning** | Comprehensive upfront planning | Just enough planning, refined continuously |
+| **Requirements** | Fixed at the start | Evolve throughout the project |
+| **Delivery** | Single release at the end | Incremental releases every 1-4 weeks |
+| **Feedback** | At the end (often too late) | After every sprint |
+| **Risk** | Discovered late, expensive to fix | Discovered early, cheap to address |
+| **Documentation** | Extensive, formal | Lightweight, just enough |
+| **Customer involvement** | Limited to start and end | Continuous throughout |
+| **Change** | Resisted (expensive) | Welcomed (competitive advantage) |
+| **Team structure** | Specialized silos | Cross-functional, self-organizing |
+| **Measure of progress** | Completed phases | Working software |
+
+Neither approach is universally better. Waterfall is appropriate for projects with stable, well-understood requirements and regulatory constraints. Agile excels when requirements are uncertain, user feedback is critical, and time-to-market matters.
+
+---
+
+## The Scrum Framework
+
+Scrum is a lightweight framework that helps teams work together to deliver complex products. It is intentionally incomplete -- it defines only the minimum structure needed to enable empirical process control through transparency, inspection, and adaptation.
+
+### The Three Pillars of Scrum
+
+Scrum is founded on **empiricism** -- the idea that knowledge comes from experience and decisions should be based on what is observed. Three pillars support empiricism:
+
+1. **Transparency** -- All aspects of the process must be visible to those responsible for the outcome. A shared Product Backlog, visible Sprint Backlog, and the Definition of Done ensure everyone sees the same picture.
+
+2. **Inspection** -- Scrum artifacts and progress are inspected frequently to detect undesirable variances. Sprint Reviews, Daily Standups, and Retrospectives are all inspection points.
+
+3. **Adaptation** -- When inspection reveals that a process or artifact has deviated beyond acceptable limits, the team adjusts. Sprint Retrospectives are the primary mechanism for adaptation.
+
+### Scrum Roles
+
+Scrum defines three roles. Together, they form the **Scrum Team**, which is typically 5-9 people. There are no sub-teams, hierarchies, or titles beyond these three roles.
+
+#### Product Owner
+
+The Product Owner is the **single person responsible for maximizing the value** of the product. They represent the stakeholders and the business.
+
+**Responsibilities:**
+- Own and manage the Product Backlog (the ordered list of everything that could be done)
+- Clearly express Product Backlog items (usually as user stories)
+- Order backlog items to maximize value delivery
+- Ensure the backlog is visible, transparent, and understood by the team
+- Accept or reject completed work based on the Definition of Done
+- Make trade-off decisions between scope, timeline, and quality
+
+**Key traits:** Decisive, available, deeply understands user needs, empowered to make product decisions.
+
+#### Scrum Master
+
+The Scrum Master is a **servant-leader** who helps the team understand and adopt Scrum. They are not a project manager -- they do not assign work or make decisions for the team.
+
+**Responsibilities:**
+- Coach the team on Scrum theory, practices, and rules
+- Facilitate Scrum events (or ensure they happen effectively)
+- Remove impediments that block the team's progress
+- Shield the team from external distractions and interruptions
+- Help the organization adopt Scrum effectively
+- Foster an environment of psychological safety and continuous improvement
+
+**Key traits:** Patient, facilitative, protective of the team, focused on process improvement.
+
+#### Development Team
+
+The Development Team consists of **cross-functional professionals** who do the actual work of delivering a potentially releasable Increment each sprint. "Development" includes design, coding, testing, documentation -- whatever is needed.
+
+**Characteristics:**
+- Self-organizing -- the team decides *how* to turn backlog items into increments
+- Cross-functional -- the team collectively has all skills needed to deliver
+- No titles beyond "Developer" -- regardless of specialization
+- Accountable as a whole team, not as individuals
+- Optimal size: 3-9 people (large enough for skill diversity, small enough for agility)
+
+### Scrum Events
+
+Scrum prescribes five events. Each event is a formal opportunity for **inspection and adaptation**. All events are time-boxed to prevent waste and ensure focus.
+
+#### The Sprint
+
+The Sprint is the **heartbeat of Scrum** -- a fixed-length time-box (typically 2 weeks, though 1-4 weeks are common) during which a "Done", usable, and potentially releasable Increment is created.
+
+**Rules of the Sprint:**
+- Sprint length is consistent (e.g., always 2 weeks)
+- No changes are made that endanger the Sprint Goal
+- Quality does not decrease
+- Scope may be clarified and renegotiated with the Product Owner as more is learned
+- Each Sprint begins immediately after the previous Sprint ends
+
+#### Sprint Planning
+
+Sprint Planning kicks off each Sprint. The entire Scrum Team collaborates to determine **what can be delivered** in the upcoming Sprint and **how the work will be achieved**.
+
+**Time-box:** Maximum 8 hours for a 4-week Sprint (proportionally less for shorter Sprints).
+
+**Two key questions:**
+1. **What can be done this Sprint?** -- The team selects items from the Product Backlog based on priority, capacity, and past velocity. They craft a **Sprint Goal** that gives the Sprint a coherent purpose.
+2. **How will the chosen work get done?** -- The team decomposes backlog items into tasks (typically 1 day or less) and creates the Sprint Backlog.
+
+#### Daily Standup (Daily Scrum)
+
+A short, focused meeting held **every day at the same time and place**. The purpose is to inspect progress toward the Sprint Goal and adapt the Sprint Backlog as needed.
+
+**Time-box:** 15 minutes maximum.
+
+**Each team member addresses three questions:**
+1. What did I do yesterday that helped meet the Sprint Goal?
+2. What will I do today to help meet the Sprint Goal?
+3. Do I see any impediments that prevent me or the team from meeting the Sprint Goal?
+
+:::caution[Common Anti-Patterns]
+The Daily Standup is **not** a status report to the Scrum Master or a manager. It is a coordination meeting *for the team*. If it turns into a reporting session, it loses its value. Keep it peer-to-peer, keep it brief, and take detailed discussions offline.
+:::
+
+#### Sprint Review
+
+At the end of the Sprint, the team holds a Sprint Review to **demonstrate the Increment** to stakeholders and collect feedback.
+
+**Time-box:** Maximum 4 hours for a 4-week Sprint.
+
+**Activities:**
+- The team demonstrates completed work (live demo, not a slide deck)
+- The Product Owner confirms which items are "Done" and which are not
+- Stakeholders provide feedback and discuss what to do next
+- The Product Backlog may be updated based on new insights
+- The group discusses timeline, budget, and market context
+
+#### Sprint Retrospective
+
+The Sprint Retrospective occurs after the Sprint Review and before the next Sprint Planning. It is the team's opportunity to **inspect itself and create a plan for improvement**.
+
+**Time-box:** Maximum 3 hours for a 4-week Sprint.
+
+**The team discusses:**
+1. What went well during the Sprint?
+2. What did not go well?
+3. What improvements can we commit to in the next Sprint?
+
+The retrospective is arguably the most important Scrum event because it drives **continuous improvement**. At least one concrete improvement action should be added to the next Sprint Backlog.
+
+### Scrum Artifacts
+
+Scrum defines three artifacts. Each artifact is designed to maximize **transparency** and provide opportunities for inspection and adaptation.
+
+#### Product Backlog
+
+The Product Backlog is an **ordered list of everything that might be needed** in the product. It is the single source of requirements and is owned by the Product Owner.
+
+**Characteristics:**
+- Never complete -- it evolves as the product and market evolve
+- Items at the top are refined, detailed, and ready for Sprint Planning
+- Items lower down are less detailed and may be large epics
+- Constantly reprioritized based on value, risk, and dependencies
+- Visible to everyone
+
+#### Sprint Backlog
+
+The Sprint Backlog is the **set of Product Backlog items selected for the Sprint**, plus the plan for delivering them and achieving the Sprint Goal. It is owned by the Development Team.
+
+**Characteristics:**
+- Updated daily as the team learns more about the work
+- Only the Development Team can add or remove items
+- Highly visible (typically on a physical or digital task board)
+- Includes the Sprint Goal as a guiding objective
+
+#### Increment
+
+The Increment is the **sum of all Product Backlog items completed during the Sprint**, combined with all previous Increments. Each Increment must meet the Definition of Done and be in a usable condition, regardless of whether the Product Owner decides to release it.
+
+### Definition of Done
+
+The **Definition of Done (DoD)** is a shared agreement within the team about what it means for work to be complete. It ensures transparency and quality consistency.
+
+A typical Definition of Done might include:
+- Code is written and peer-reviewed
+- Unit tests are written and passing
+- Integration tests pass
+- Code meets team coding standards
+- Documentation is updated
+- Feature is deployed to a staging environment
+- Product Owner has accepted the work
+
+:::tip[Why DoD Matters]
+Without a clear Definition of Done, "done" means different things to different people. One developer might consider a feature done when the code compiles; another might require full test coverage and deployment. The DoD eliminates this ambiguity and prevents technical debt from accumulating silently.
+:::
+
+---
+
+## User Stories
+
+User stories are the primary way Agile teams capture requirements. A user story describes a feature from the **perspective of the person who will use it**, focusing on the value it delivers rather than the technical implementation.
+
+### User Story Format
+
+```
+As a [type of user],
+I want [an action or feature],
+So that [a benefit or value].
+```
+
+**Examples:**
+
+```
+As a registered customer,
+I want to reset my password via email,
+So that I can regain access to my account without contacting support.
+```
+
+```
+As a warehouse manager,
+I want to receive low-stock alerts,
+So that I can reorder inventory before it runs out.
+```
+
+```
+As a mobile user,
+I want to save articles for offline reading,
+So that I can catch up on content during my commute.
+```
+
+### Acceptance Criteria
+
+Every user story should include **acceptance criteria** -- specific, testable conditions that must be true for the story to be considered complete.
+
+**Example for the password reset story:**
+
+```
+Given I am on the login page,
+When I click "Forgot Password" and enter my email,
+Then I receive a password reset link within 5 minutes.
+
+Given I click the reset link,
+When I enter a new password that meets complexity requirements,
+Then my password is updated and I can log in with the new password.
+
+Given the reset link is older than 24 hours,
+When I click it,
+Then I see an error message and must request a new link.
+```
+
+### The INVEST Criteria
+
+Good user stories follow the **INVEST** criteria:
+
+| Letter | Criterion | Meaning |
+|---|---|---|
+| **I** | Independent | Can be developed and delivered independently of other stories |
+| **N** | Negotiable | Details can be discussed and refined; it is not a rigid contract |
+| **V** | Valuable | Delivers clear value to the user or business |
+| **E** | Estimable | Small and clear enough that the team can estimate the effort |
+| **S** | Small | Can be completed within a single Sprint |
+| **T** | Testable | Has clear acceptance criteria that can be verified |
+
+---
+
+## Story Points and Estimation
+
+Story points are a **relative measure of effort** used to estimate how much work a user story requires. Rather than estimating in hours (which varies by developer skill and experience), teams compare stories to each other.
+
+### The Fibonacci Sequence
+
+Most teams use a modified Fibonacci sequence for story point values:
+
+```
+1, 2, 3, 5, 8, 13, 21
+```
+
+The increasing gaps between numbers reflect the inherent **uncertainty** in larger items. The difference between a 1 and a 2 is small and easy to judge. The difference between a 13 and a 21 is much harder -- and that difficulty is the point. Large stories should be broken down.
+
+### What Story Points Capture
+
+Story points account for three factors:
+1. **Complexity** -- How technically difficult is the work?
+2. **Effort** -- How much work is involved?
+3. **Uncertainty** -- How much is unknown or risky?
+
+### Planning Poker
+
+Planning Poker is a consensus-based estimation technique:
+
+1. The Product Owner reads a user story aloud
+2. The team discusses the story and asks clarifying questions
+3. Each team member privately selects a story point card
+4. Everyone reveals their cards simultaneously
+5. If estimates vary significantly, the highest and lowest estimators explain their reasoning
+6. The team discusses and re-estimates until consensus is reached
+
+Planning Poker leverages the **wisdom of the crowd** while preventing anchoring bias (where one person's estimate influences everyone else).
+
+---
+
+## The Sprint Lifecycle
+
+Here is how all the pieces fit together in a typical two-week sprint:
+
+```
+Week 1                                    Week 2
+Mon   Tue   Wed   Thu   Fri    Mon   Tue   Wed   Thu   Fri
+ │     │     │     │     │      │     │     │     │     │
+ ▼     ▼     ▼     ▼     ▼      ▼     ▼     ▼     ▼     ▼
+┌───┐ ┌───┐ ┌───┐ ┌───┐ ┌───┐ ┌───┐ ┌───┐ ┌───┐ ┌───┐ ┌───┐
+│ S │ │ D │ │ D │ │ D │ │ D │ │ D │ │ D │ │ D │ │ D │ │S/R│
+│ P │ │ S │ │ S │ │ S │ │ S │ │ S │ │ S │ │ S │ │ S │ │Ret│
+└───┘ └───┘ └───┘ └───┘ └───┘ └───┘ └───┘ └───┘ └───┘ └───┘
+
+SP  = Sprint Planning (2-4 hours)
+DS  = Daily Standup (15 min each day)
+D   = Development work (design, code, test)
+S/R = Sprint Review (1-2 hours)
+Ret = Sprint Retrospective (1-1.5 hours)
+```
+
+**Day 1 (Monday, Week 1):**
+1. Sprint Planning -- Team selects stories from the backlog, defines the Sprint Goal, and breaks stories into tasks
+2. Development work begins
+
+**Days 2-9 (Tuesday Week 1 through Thursday Week 2):**
+1. Daily Standup each morning (15 minutes)
+2. Development work -- coding, testing, code reviews
+3. Stories move across the board: To Do -> In Progress -> In Review -> Done
+4. Product Owner is available for questions and clarifications
+
+**Day 10 (Friday, Week 2):**
+1. Sprint Review -- Team demonstrates completed work to stakeholders
+2. Sprint Retrospective -- Team reflects on the process and identifies improvements
+3. Next Sprint Planning may begin (or occurs Monday of the following week)
+
+---
+
+## Scrum Cheat Sheet
+
+| Element | Description | Time-box / Details |
+|---|---|---|
+| **Sprint** | Fixed iteration cycle | 1-4 weeks (typically 2 weeks) |
+| **Sprint Planning** | Define Sprint Goal and Sprint Backlog | Max 8 hours (4-week Sprint) |
+| **Daily Standup** | Sync on progress and impediments | 15 minutes, same time/place daily |
+| **Sprint Review** | Demo Increment and gather feedback | Max 4 hours (4-week Sprint) |
+| **Sprint Retrospective** | Reflect and improve the process | Max 3 hours (4-week Sprint) |
+| **Product Backlog** | Ordered list of all desired work | Owned by Product Owner, continuously refined |
+| **Sprint Backlog** | Items selected for current Sprint + plan | Owned by Development Team, updated daily |
+| **Increment** | Sum of completed items meeting DoD | Must be usable and potentially releasable |
+| **Product Owner** | Maximizes product value | One person, not a committee |
+| **Scrum Master** | Facilitates Scrum adoption | Servant-leader, removes impediments |
+| **Development Team** | Builds the Increment | Cross-functional, self-organizing, 3-9 people |
+| **Definition of Done** | Shared quality standard | Agreed upon by the entire Scrum Team |
+| **User Story** | Feature from the user's perspective | "As a... I want... So that..." |
+| **Story Points** | Relative effort estimate | Fibonacci: 1, 2, 3, 5, 8, 13, 21 |
+| **Velocity** | Story points completed per Sprint | Used for forecasting, not performance evaluation |
+| **Burndown Chart** | Remaining work over time | Updated daily, shows progress toward Sprint Goal |
+
+---
+
+## Common Scrum Anti-Patterns
+
+Understanding what *not* to do is just as important as understanding the framework itself.
+
+### Anti-Pattern 1: Sprints Without a Goal
+When a Sprint is just a container for unrelated tasks rather than a cohesive effort toward a meaningful goal, the team loses focus and the Sprint Review becomes a disjointed list of demos.
+
+**Fix:** Every Sprint should have a clear, concise Sprint Goal that the team can articulate in one sentence.
+
+### Anti-Pattern 2: The Scrum Master as Project Manager
+When the Scrum Master assigns tasks, makes technical decisions, or reports team status to management, the team loses its self-organizing nature.
+
+**Fix:** The Scrum Master facilitates and coaches. The team decides how to do the work. Managers get visibility through Sprint Reviews and artifacts, not through the Scrum Master.
+
+### Anti-Pattern 3: Skipping the Retrospective
+When the team is "too busy" for retrospectives, process problems accumulate. The team keeps making the same mistakes sprint after sprint.
+
+**Fix:** The retrospective is non-negotiable. Even 30 minutes of honest reflection is valuable. Focus on one actionable improvement per sprint.
+
+### Anti-Pattern 4: Incomplete Definition of Done
+When "done" means "code written" instead of "code written, tested, reviewed, and deployed", technical debt grows silently until it cripples velocity.
+
+**Fix:** Define Done explicitly and expand it over time as the team matures.
+
+### Anti-Pattern 5: Overcommitting in Sprint Planning
+When the team consistently takes on more work than it can complete, sprints end with unfinished stories, morale drops, and velocity becomes unpredictable.
+
+**Fix:** Use historical velocity as a guide. It is better to finish early and pull additional work than to leave stories incomplete.
+
+---
+
+## Agile Beyond Scrum
+
+Scrum is the most popular Agile framework, but it is not the only one. Other notable Agile methodologies include:
+
+- **Kanban** -- A flow-based system that emphasizes continuous delivery, WIP limits, and visual management. No sprints, no fixed iterations.
+- **Extreme Programming (XP)** -- Focuses on engineering practices: pair programming, test-driven development (TDD), continuous integration, collective code ownership, and frequent releases.
+- **Lean Software Development** -- Adapts lean manufacturing principles (eliminate waste, amplify learning, decide as late as possible, deliver as fast as possible).
+- **Crystal** -- A family of methodologies tailored to team size and project criticality, emphasizing people and communication over process.
+- **SAFe (Scaled Agile Framework)** -- Extends Agile to large organizations with multiple teams working on the same product.
+
+---
+
+## Key Takeaways
+
+1. **Agile is a mindset, not a process.** The Manifesto's values and principles guide decision-making. Scrum, Kanban, and XP are concrete implementations of that mindset.
+
+2. **Scrum provides just enough structure.** Three roles, five events, and three artifacts -- nothing more. The simplicity is intentional. Complexity should live in the product, not in the process.
+
+3. **Working software is the primary measure of progress.** Not documents written, not meetings attended, not story points estimated. Shipping is what counts.
+
+4. **The retrospective is where teams get better.** Continuous improvement is the engine that turns a good team into a great one. Never skip it.
+
+5. **User stories keep the focus on value.** By expressing requirements from the user's perspective, teams avoid building technically impressive features that nobody needs.
+
+6. **Velocity is a planning tool, not a performance metric.** Using velocity to compare teams or pressure developers undermines trust and leads to point inflation.
+
+7. **Self-organization requires trust.** Management must trust the team to decide how to do the work. The team earns that trust by delivering consistently.
+
+---
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="Kanban & Lean"
+    href="/software-engineering/sdlc-agile/kanban-lean/"
+    description="Explore flow-based workflow management and waste elimination with Kanban and Lean principles"
+  />
+  <LinkCard
+    title="Estimation & Planning"
+    href="/software-engineering/sdlc-agile/estimation-planning/"
+    description="Dive deeper into estimation techniques, velocity tracking, and release planning strategies"
+  />
+  <LinkCard
+    title="Testing"
+    href="/software-engineering/testing/"
+    description="Learn testing strategies that support Agile delivery, from unit tests to continuous testing"
+  />
+  <LinkCard
+    title="Version Control"
+    href="/software-engineering/version-control/"
+    description="Master Git workflows that enable Agile teams to collaborate effectively on code"
+  />
+</CardGrid>

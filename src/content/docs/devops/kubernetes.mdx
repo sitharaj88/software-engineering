@@ -1,0 +1,785 @@
+---
+title: "Kubernetes Fundamentals"
+description: "Orchestrate containerized applications at scale with Kubernetes"
+difficulty: "advanced"
+prerequisites: ["Containers & Docker"]
+timeToRead: "22 min"
+topics: ["kubernetes", "k8s", "pods", "services", "deployments", "orchestration"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+## Why Kubernetes?
+
+Running a single container on a single server is straightforward. But what happens when you need to run hundreds of containers across dozens of servers? You need answers to these questions:
+
+- How do you distribute containers across machines?
+- What happens when a container or server crashes?
+- How do you scale up during traffic spikes and scale down when demand drops?
+- How do containers find and communicate with each other?
+- How do you roll out updates without downtime?
+
+**Kubernetes** (often abbreviated as **K8s**) is an open-source container orchestration platform that answers all of these questions. Originally designed by Google and now maintained by the Cloud Native Computing Foundation (CNCF), Kubernetes has become the industry standard for running containerized workloads in production.
+
+## Kubernetes Architecture
+
+Kubernetes follows a master-worker architecture with a **control plane** managing the cluster and **worker nodes** running the actual workloads:
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                         Control Plane                                │
+│                                                                      │
+│  ┌──────────────┐  ┌───────────┐  ┌─────────────┐  ┌──────────────┐ │
+│  │  API Server   │  │   etcd    │  │  Scheduler  │  │  Controller  │ │
+│  │  (kube-       │  │           │  │             │  │  Manager     │ │
+│  │   apiserver)  │  │ Key-value │  │ Assigns pods│  │              │ │
+│  │              │  │ store for │  │ to nodes    │  │ Ensures      │ │
+│  │ Gateway for  │  │ all       │  │ based on    │  │ desired      │ │
+│  │ all cluster  │  │ cluster   │  │ resources & │  │ state =      │ │
+│  │ operations   │  │ state     │  │ constraints │  │ actual state │ │
+│  └──────┬───────┘  └───────────┘  └─────────────┘  └──────────────┘ │
+│         │                                                            │
+└─────────┼────────────────────────────────────────────────────────────┘
+          │
+          │  kubectl / API calls
+          │
+┌─────────┼────────────────────────────────────────────────────────────┐
+│         ▼           Worker Node 1                                    │
+│  ┌─────────────┐  ┌─────────────┐  ┌──────────────────────────────┐  │
+│  │   kubelet   │  │ kube-proxy  │  │    Container Runtime         │  │
+│  │             │  │             │  │    (containerd / CRI-O)      │  │
+│  │ Node agent  │  │ Network     │  │                              │  │
+│  │ manages     │  │ proxy for   │  │  ┌───────┐ ┌───────┐        │  │
+│  │ pods on     │  │ service     │  │  │ Pod A │ │ Pod B │        │  │
+│  │ this node   │  │ routing     │  │  └───────┘ └───────┘        │  │
+│  └─────────────┘  └─────────────┘  └──────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────────┐
+│                       Worker Node 2                                  │
+│  ┌─────────────┐  ┌─────────────┐  ┌──────────────────────────────┐  │
+│  │   kubelet   │  │ kube-proxy  │  │    Container Runtime         │  │
+│  │             │  │             │  │                              │  │
+│  │             │  │             │  │  ┌───────┐ ┌───────┐        │  │
+│  │             │  │             │  │  │ Pod C │ │ Pod D │        │  │
+│  │             │  │             │  │  └───────┘ └───────┘        │  │
+│  └─────────────┘  └─────────────┘  └──────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+### Control Plane Components
+
+| Component | Role |
+|---|---|
+| **API Server** (`kube-apiserver`) | The front door to the cluster. All `kubectl` commands and internal components communicate through it. |
+| **etcd** | A distributed key-value store that holds all cluster state and configuration. The single source of truth. |
+| **Scheduler** (`kube-scheduler`) | Watches for newly created Pods and assigns them to nodes based on resource requirements, constraints, and affinity rules. |
+| **Controller Manager** (`kube-controller-manager`) | Runs controller loops that watch the cluster state and make changes to move from the current state toward the desired state. |
+
+### Worker Node Components
+
+| Component | Role |
+|---|---|
+| **kubelet** | An agent running on each node that ensures containers described in Pod specs are running and healthy. |
+| **kube-proxy** | Maintains network rules on each node, enabling Service abstraction and load balancing across Pods. |
+| **Container Runtime** | The software responsible for running containers (containerd, CRI-O). Docker was used historically but is no longer required. |
+
+## Core Kubernetes Objects
+
+### Pods
+
+A Pod is the smallest deployable unit in Kubernetes. It represents one or more containers that share the same network namespace (same IP address) and storage volumes:
+
+```yaml
+# pod.yaml - Single container Pod
+apiVersion: v1
+kind: Pod
+metadata:
+  name: my-app
+  labels:
+    app: my-app
+    environment: production
+spec:
+  containers:
+    - name: app
+      image: my-app:1.0.0
+      ports:
+        - containerPort: 8080
+      resources:
+        requests:
+          memory: "128Mi"
+          cpu: "250m"
+        limits:
+          memory: "256Mi"
+          cpu: "500m"
+      livenessProbe:
+        httpGet:
+          path: /health
+          port: 8080
+        initialDelaySeconds: 10
+        periodSeconds: 30
+      readinessProbe:
+        httpGet:
+          path: /ready
+          port: 8080
+        initialDelaySeconds: 5
+        periodSeconds: 10
+```
+
+#### Multi-Container Pods
+
+Multi-container Pods are used when containers are tightly coupled and need to share resources. Common patterns include:
+
+```yaml
+# Multi-container Pod with sidecar pattern
+apiVersion: v1
+kind: Pod
+metadata:
+  name: web-with-sidecar
+spec:
+  containers:
+    # Main application container
+    - name: web
+      image: my-web-app:1.0.0
+      ports:
+        - containerPort: 8080
+      volumeMounts:
+        - name: shared-logs
+          mountPath: /var/log/app
+
+    # Sidecar: log collector
+    - name: log-collector
+      image: fluentd:latest
+      volumeMounts:
+        - name: shared-logs
+          mountPath: /var/log/app
+          readOnly: true
+
+  volumes:
+    - name: shared-logs
+      emptyDir: {}
+```
+
+:::note
+You rarely create Pods directly. Instead, you use higher-level objects like Deployments that manage Pods for you, providing self-healing, scaling, and rolling updates.
+:::
+
+### ReplicaSets
+
+A ReplicaSet ensures that a specified number of Pod replicas are running at any given time. If a Pod fails, the ReplicaSet creates a new one to replace it:
+
+```yaml
+# replicaset.yaml
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata:
+  name: my-app
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: my-app
+  template:
+    metadata:
+      labels:
+        app: my-app
+    spec:
+      containers:
+        - name: app
+          image: my-app:1.0.0
+          ports:
+            - containerPort: 8080
+```
+
+In practice, you almost never create ReplicaSets directly -- Deployments manage them for you.
+
+### Deployments
+
+A Deployment is the most common way to run stateless applications. It manages ReplicaSets and provides declarative updates, rolling updates, and rollback capabilities:
+
+```yaml
+# deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app
+  labels:
+    app: my-app
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: my-app
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1          # Max extra pods during update
+      maxUnavailable: 0    # Zero downtime
+  template:
+    metadata:
+      labels:
+        app: my-app
+        version: "1.0.0"
+    spec:
+      containers:
+        - name: app
+          image: my-app:1.0.0
+          ports:
+            - containerPort: 8080
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: database-url
+            - name: LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: log-level
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "250m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+```
+
+### Services
+
+A Service provides a stable network endpoint for a set of Pods. Pods are ephemeral -- they come and go -- but Services provide a consistent way to reach them:
+
+```
+                    ┌─────────────────┐
+                    │     Service     │
+                    │  my-app-svc     │
+                    │  10.96.0.100    │
+                    └────────┬────────┘
+                             │
+              ┌──────────────┼──────────────┐
+              │              │              │
+        ┌─────────┐   ┌─────────┐   ┌─────────┐
+        │  Pod 1  │   │  Pod 2  │   │  Pod 3  │
+        │ 10.1.0.5│   │10.1.0.6 │   │10.1.1.3 │
+        └─────────┘   └─────────┘   └─────────┘
+```
+
+#### Service Types
+
+<Tabs>
+  <TabItem label="ClusterIP (Default)">
+```yaml
+# Accessible only within the cluster
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-app-svc
+spec:
+  type: ClusterIP
+  selector:
+    app: my-app
+  ports:
+    - port: 80            # Service port
+      targetPort: 8080     # Container port
+      protocol: TCP
+```
+Internal-only access. Other Pods in the cluster can reach this Service at `my-app-svc:80` or `my-app-svc.default.svc.cluster.local:80`.
+  </TabItem>
+  <TabItem label="NodePort">
+```yaml
+# Accessible on each node's IP at a static port
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-app-svc
+spec:
+  type: NodePort
+  selector:
+    app: my-app
+  ports:
+    - port: 80
+      targetPort: 8080
+      nodePort: 30080      # Port on each node (30000-32767)
+```
+Exposes the Service on each node's IP at port 30080. Accessible at `<NodeIP>:30080`. Typically used for development or when a cloud load balancer is not available.
+  </TabItem>
+  <TabItem label="LoadBalancer">
+```yaml
+# Provisions a cloud load balancer
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-app-svc
+spec:
+  type: LoadBalancer
+  selector:
+    app: my-app
+  ports:
+    - port: 80
+      targetPort: 8080
+```
+Provisions an external load balancer (on cloud providers like AWS, GCP, Azure). Traffic from the internet reaches the load balancer, which routes to the Service, which routes to the Pods.
+  </TabItem>
+</Tabs>
+
+### Ingress
+
+An Ingress manages external HTTP/HTTPS access to Services, providing routing rules, TLS termination, and virtual hosting:
+
+```yaml
+# ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: my-app-ingress
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - app.example.com
+        - api.example.com
+      secretName: app-tls-cert
+  rules:
+    - host: app.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend-svc
+                port:
+                  number: 80
+
+    - host: api.example.com
+      http:
+        paths:
+          - path: /v1
+            pathType: Prefix
+            backend:
+              service:
+                name: api-v1-svc
+                port:
+                  number: 80
+          - path: /v2
+            pathType: Prefix
+            backend:
+              service:
+                name: api-v2-svc
+                port:
+                  number: 80
+```
+
+### ConfigMaps and Secrets
+
+**ConfigMaps** store non-sensitive configuration data. **Secrets** store sensitive data (base64-encoded, and optionally encrypted at rest):
+
+<Tabs>
+  <TabItem label="ConfigMap">
+```yaml
+# configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+data:
+  log-level: "info"
+  max-connections: "100"
+  feature-flags: |
+    enable_new_ui=true
+    enable_dark_mode=false
+
+---
+# Using ConfigMap in a Pod
+spec:
+  containers:
+    - name: app
+      envFrom:
+        - configMapRef:
+            name: app-config
+      # Or mount as files
+      volumeMounts:
+        - name: config-volume
+          mountPath: /etc/config
+  volumes:
+    - name: config-volume
+      configMap:
+        name: app-config
+```
+  </TabItem>
+  <TabItem label="Secret">
+```yaml
+# secret.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: app-secrets
+type: Opaque
+data:
+  # Values are base64-encoded
+  database-url: cG9zdGdyZXNxbDovL3VzZXI6cGFzc0BkYjo1NDMyL215YXBw
+  api-key: c3VwZXItc2VjcmV0LWtleQ==
+
+---
+# Using Secret in a Pod
+spec:
+  containers:
+    - name: app
+      env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: database-url
+        - name: API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: api-key
+```
+  </TabItem>
+</Tabs>
+
+:::caution
+Kubernetes Secrets are base64-encoded, **not encrypted** by default. For production, enable encryption at rest, use a secrets manager (HashiCorp Vault, AWS Secrets Manager), or use a tool like Sealed Secrets or External Secrets Operator.
+:::
+
+### Namespaces
+
+Namespaces provide logical isolation within a cluster. They are useful for separating environments, teams, or applications:
+
+```yaml
+# namespace.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: production
+  labels:
+    environment: production
+
+---
+# Deploy resources into a namespace
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app
+  namespace: production
+spec:
+  # ... deployment spec
+```
+
+### Persistent Volumes
+
+For stateful workloads, Kubernetes provides Persistent Volumes (PV) and Persistent Volume Claims (PVC) to manage storage that outlives individual Pods:
+
+```yaml
+# persistent-volume-claim.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-data
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: standard
+  resources:
+    requests:
+      storage: 10Gi
+
+---
+# Using a PVC in a Pod
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: password
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: postgres-data
+```
+
+## kubectl Essential Commands
+
+`kubectl` is the command-line tool for interacting with Kubernetes clusters. Here is a reference of the most commonly used commands:
+
+### Cluster and Context
+
+| Command | Description |
+|---|---|
+| `kubectl cluster-info` | Display cluster information |
+| `kubectl config get-contexts` | List available contexts |
+| `kubectl config use-context my-cluster` | Switch to a different cluster context |
+| `kubectl get nodes` | List all nodes in the cluster |
+
+### Working with Resources
+
+| Command | Description |
+|---|---|
+| `kubectl get pods` | List all Pods in the current namespace |
+| `kubectl get pods -A` | List all Pods across all namespaces |
+| `kubectl get pods -o wide` | List Pods with additional details (node, IP) |
+| `kubectl get deployments` | List all Deployments |
+| `kubectl get services` | List all Services |
+| `kubectl get all` | List all common resources |
+| `kubectl describe pod my-pod` | Show detailed information about a Pod |
+| `kubectl describe deployment my-app` | Show detailed Deployment information |
+
+### Creating and Updating
+
+| Command | Description |
+|---|---|
+| `kubectl apply -f manifest.yaml` | Create or update resources from a file |
+| `kubectl apply -f ./k8s/` | Apply all manifests in a directory |
+| `kubectl create namespace staging` | Create a new namespace |
+| `kubectl scale deployment my-app --replicas=5` | Scale a Deployment |
+| `kubectl set image deployment/my-app app=my-app:2.0.0` | Update the image of a Deployment |
+
+### Debugging
+
+| Command | Description |
+|---|---|
+| `kubectl logs my-pod` | View Pod logs |
+| `kubectl logs my-pod -c sidecar` | View logs for a specific container in a Pod |
+| `kubectl logs -f my-pod` | Stream Pod logs in real time |
+| `kubectl exec -it my-pod -- /bin/sh` | Open a shell inside a running Pod |
+| `kubectl port-forward my-pod 8080:8080` | Forward a local port to a Pod |
+| `kubectl top pods` | Show CPU and memory usage of Pods |
+| `kubectl get events --sort-by=.lastTimestamp` | View cluster events sorted by time |
+
+### Deleting Resources
+
+| Command | Description |
+|---|---|
+| `kubectl delete pod my-pod` | Delete a specific Pod |
+| `kubectl delete -f manifest.yaml` | Delete resources defined in a file |
+| `kubectl delete deployment my-app` | Delete a Deployment and its Pods |
+
+## Deployment Strategies
+
+Kubernetes supports multiple deployment strategies for updating applications:
+
+### Rolling Update (Default)
+
+```
+  Start:    [v1] [v1] [v1] [v1]
+  Step 1:   [v1] [v1] [v1] [v2]  ← new Pod added, old Pod terminating
+  Step 2:   [v1] [v1] [v2] [v2]
+  Step 3:   [v1] [v2] [v2] [v2]
+  Step 4:   [v2] [v2] [v2] [v2]  ← all Pods updated
+```
+
+```yaml
+spec:
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1          # Create 1 extra Pod during update
+      maxUnavailable: 0    # Never have fewer than desired Pods
+```
+
+### Recreate
+
+```
+  Start:    [v1] [v1] [v1] [v1]
+  Step 1:   [ ] [ ] [ ] [ ]       ← all v1 Pods terminated (downtime!)
+  Step 2:   [v2] [v2] [v2] [v2]   ← all v2 Pods created
+```
+
+```yaml
+spec:
+  strategy:
+    type: Recreate
+```
+
+Use Recreate when your application cannot run two versions simultaneously (for example, database migrations that are not backward compatible).
+
+### Blue-Green with Kubernetes
+
+Blue-green deployments in Kubernetes are achieved by running two separate Deployments and switching the Service selector:
+
+```yaml
+# Blue Deployment (current production)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app-blue
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: my-app
+      version: blue
+  template:
+    metadata:
+      labels:
+        app: my-app
+        version: blue
+    spec:
+      containers:
+        - name: app
+          image: my-app:1.0.0
+
+---
+# Green Deployment (new version)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app-green
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: my-app
+      version: green
+  template:
+    metadata:
+      labels:
+        app: my-app
+        version: green
+    spec:
+      containers:
+        - name: app
+          image: my-app:2.0.0
+
+---
+# Service - switch selector to route traffic
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-app-svc
+spec:
+  selector:
+    app: my-app
+    version: blue     # Change to "green" to switch traffic
+  ports:
+    - port: 80
+      targetPort: 8080
+```
+
+### Canary with Kubernetes
+
+Canary deployments route a small portion of traffic to the new version. With native Kubernetes, you can achieve this by running different replica counts:
+
+```yaml
+# Stable: 9 replicas of v1
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app-stable
+spec:
+  replicas: 9
+  selector:
+    matchLabels:
+      app: my-app
+      track: stable
+  template:
+    metadata:
+      labels:
+        app: my-app
+        track: stable
+    spec:
+      containers:
+        - name: app
+          image: my-app:1.0.0
+
+---
+# Canary: 1 replica of v2 (~10% traffic)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app-canary
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: my-app
+      track: canary
+  template:
+    metadata:
+      labels:
+        app: my-app
+        track: canary
+    spec:
+      containers:
+        - name: app
+          image: my-app:2.0.0
+
+---
+# Service selects both stable and canary by the shared "app" label
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-app-svc
+spec:
+  selector:
+    app: my-app       # Matches both stable and canary Pods
+  ports:
+    - port: 80
+      targetPort: 8080
+```
+
+For more precise traffic splitting, use a service mesh like Istio or Linkerd, or tools like Argo Rollouts and Flagger.
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="Monitoring, Observability & IaC"
+    description="Monitor your Kubernetes clusters and manage infrastructure as code."
+    href="/software-engineering/devops/monitoring-iac/"
+  />
+  <LinkCard
+    title="Containers & Docker"
+    description="Review Docker fundamentals for building container images."
+    href="/software-engineering/devops/containers-docker/"
+  />
+  <LinkCard
+    title="CI/CD Pipelines"
+    description="Integrate Kubernetes deployments into your CI/CD pipelines."
+    href="/software-engineering/devops/ci-cd/"
+  />
+  <LinkCard
+    title="DevOps Overview"
+    description="Return to the DevOps overview for the big picture."
+    href="/software-engineering/devops/"
+  />
+</CardGrid>

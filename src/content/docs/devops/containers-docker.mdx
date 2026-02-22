@@ -1,0 +1,614 @@
+---
+title: "Containers & Docker"
+description: "Package and run applications consistently with Docker containers"
+difficulty: "intermediate"
+prerequisites: ["CI/CD Pipelines"]
+timeToRead: "22 min"
+topics: ["docker", "containers", "dockerfile", "docker-compose", "images", "registries"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+## Containers vs Virtual Machines
+
+Containers and virtual machines both provide isolation, but they do so at different levels:
+
+```
+┌─────────────────────────────────────┐  ┌─────────────────────────────────────┐
+│         Virtual Machines            │  │           Containers                │
+│                                     │  │                                     │
+│  ┌─────────┐ ┌─────────┐ ┌───────┐ │  │  ┌─────────┐ ┌─────────┐ ┌───────┐ │
+│  │  App A  │ │  App B  │ │ App C │ │  │  │  App A  │ │  App B  │ │ App C │ │
+│  ├─────────┤ ├─────────┤ ├───────┤ │  │  ├─────────┤ ├─────────┤ ├───────┤ │
+│  │  Bins/  │ │  Bins/  │ │ Bins/ │ │  │  │  Bins/  │ │  Bins/  │ │ Bins/ │ │
+│  │  Libs   │ │  Libs   │ │ Libs  │ │  │  │  Libs   │ │  Libs   │ │ Libs  │ │
+│  ├─────────┤ ├─────────┤ ├───────┤ │  │  └─────────┘ └─────────┘ └───────┘ │
+│  │Guest OS │ │Guest OS │ │GuestOS│ │  │  ┌─────────────────────────────────┐ │
+│  │ (Linux) │ │(Windows)│ │(Linux)│ │  │  │        Container Runtime        │ │
+│  └─────────┘ └─────────┘ └───────┘ │  │  │         (e.g., Docker)          │ │
+│  ┌─────────────────────────────────┐│  │  └─────────────────────────────────┘ │
+│  │          Hypervisor             ││  │  ┌─────────────────────────────────┐ │
+│  │    (VMware, KVM, Hyper-V)       ││  │  │          Host OS (Linux)        │ │
+│  └─────────────────────────────────┘│  │  └─────────────────────────────────┘ │
+│  ┌─────────────────────────────────┐│  │  ┌─────────────────────────────────┐ │
+│  │          Host OS                ││  │  │        Infrastructure           │ │
+│  └─────────────────────────────────┘│  │  └─────────────────────────────────┘ │
+│  ┌─────────────────────────────────┐│  │                                     │
+│  │        Infrastructure           ││  └─────────────────────────────────────┘
+│  └─────────────────────────────────┘│
+└─────────────────────────────────────┘
+```
+
+| Aspect | Virtual Machines | Containers |
+|---|---|---|
+| **Isolation** | Full OS-level isolation | Process-level isolation (shared kernel) |
+| **Size** | Gigabytes (includes full OS) | Megabytes (just app + dependencies) |
+| **Startup time** | Minutes | Seconds |
+| **Resource usage** | Heavy (full OS overhead) | Lightweight (shared kernel) |
+| **Portability** | Limited by hypervisor | Runs anywhere Docker is installed |
+| **Use case** | Running different OS types, strong isolation | Microservices, CI/CD, consistent environments |
+
+Containers are not a replacement for VMs in all cases. VMs are still preferred when you need to run different operating systems, require strong security boundaries between workloads, or need full kernel isolation.
+
+## Docker Architecture
+
+Docker uses a client-server architecture with three main components:
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                        Docker Host                           │
+│                                                              │
+│  ┌──────────┐     ┌──────────────────────────────────────┐   │
+│  │  Docker   │────▶│          Docker Daemon (dockerd)     │   │
+│  │  Client   │     │                                      │   │
+│  │ (docker)  │     │  ┌────────────┐  ┌────────────────┐  │   │
+│  │           │     │  │ Containers │  │    Images       │  │   │
+│  │  build    │     │  │            │  │                 │  │   │
+│  │  pull     │     │  │  ┌──────┐  │  │  ┌───────────┐ │  │   │
+│  │  run      │     │  │  │App A │  │  │  │  node:20  │ │  │   │
+│  │  push     │     │  │  └──────┘  │  │  └───────────┘ │  │   │
+│  │  ...      │     │  │  ┌──────┐  │  │  ┌───────────┐ │  │   │
+│  └──────────┘     │  │  │App B │  │  │  │ python:3  │ │  │   │
+│                    │  │  └──────┘  │  │  └───────────┘ │  │   │
+│                    │  └────────────┘  └────────────────┘  │   │
+│                    └──────────────────────────────────────┘   │
+│                              │                                │
+└──────────────────────────────┼────────────────────────────────┘
+                               │
+                    ┌──────────▼──────────┐
+                    │   Docker Registry   │
+                    │   (Docker Hub,      │
+                    │    ECR, GCR, etc.)  │
+                    └─────────────────────┘
+```
+
+- **Docker Client** -- The CLI tool (`docker`) that sends commands to the Docker daemon.
+- **Docker Daemon** (`dockerd`) -- The background service that manages images, containers, networks, and volumes.
+- **Docker Registry** -- A repository for storing and distributing Docker images (Docker Hub is the default public registry).
+
+## Core Docker Concepts
+
+### Images
+
+A Docker image is a read-only template containing your application, its dependencies, and the instructions to run it. Images are built in **layers**, where each layer represents a filesystem change:
+
+```
+┌─────────────────────────────┐
+│  Layer 5: CMD ["node", ...] │  ◀── Run command
+├─────────────────────────────┤
+│  Layer 4: COPY . /app       │  ◀── Application code
+├─────────────────────────────┤
+│  Layer 3: RUN npm install   │  ◀── Dependencies
+├─────────────────────────────┤
+│  Layer 2: WORKDIR /app      │  ◀── Working directory
+├─────────────────────────────┤
+│  Layer 1: node:20-alpine    │  ◀── Base image
+└─────────────────────────────┘
+```
+
+Layers are cached and shared between images. If you change only your application code (Layer 4), Docker reuses the cached layers below it, making rebuilds fast.
+
+### Containers
+
+A container is a **running instance** of an image. You can run multiple containers from the same image, each with its own writable layer on top:
+
+```bash
+# Run a container from an image
+docker run -d --name my-app -p 3000:3000 my-app:latest
+
+# List running containers
+docker ps
+
+# View container logs
+docker logs my-app
+
+# Execute a command inside a running container
+docker exec -it my-app /bin/sh
+
+# Stop and remove a container
+docker stop my-app && docker rm my-app
+```
+
+### Volumes
+
+Volumes persist data beyond the lifecycle of a container. Without volumes, all data inside a container is lost when the container is removed:
+
+```bash
+# Create a named volume
+docker volume create my-data
+
+# Mount a volume to a container
+docker run -d -v my-data:/app/data my-app:latest
+
+# Mount a host directory (bind mount)
+docker run -d -v $(pwd)/data:/app/data my-app:latest
+```
+
+### Networks
+
+Docker networks allow containers to communicate with each other:
+
+```bash
+# Create a custom network
+docker network create my-network
+
+# Run containers on the same network
+docker run -d --name api --network my-network my-api:latest
+docker run -d --name db --network my-network postgres:15
+
+# Containers can reach each other by name:
+# api can connect to db at hostname "db"
+```
+
+## Dockerfile Instructions
+
+A Dockerfile is a text file containing instructions to build a Docker image. Here are the essential instructions:
+
+| Instruction | Purpose | Example |
+|---|---|---|
+| `FROM` | Set the base image | `FROM node:20-alpine` |
+| `RUN` | Execute a command during build | `RUN npm install` |
+| `COPY` | Copy files from host to image | `COPY package.json .` |
+| `ADD` | Like COPY but handles URLs and archives | `ADD app.tar.gz /app` |
+| `WORKDIR` | Set the working directory | `WORKDIR /app` |
+| `EXPOSE` | Document which ports the container listens on | `EXPOSE 3000` |
+| `ENV` | Set environment variables | `ENV NODE_ENV=production` |
+| `ARG` | Define build-time variables | `ARG VERSION=1.0` |
+| `CMD` | Default command when container starts | `CMD ["node", "server.js"]` |
+| `ENTRYPOINT` | Fixed executable for the container | `ENTRYPOINT ["python"]` |
+| `VOLUME` | Create a mount point for volumes | `VOLUME ["/data"]` |
+| `USER` | Set the user for subsequent instructions | `USER appuser` |
+
+### CMD vs ENTRYPOINT
+
+- **CMD** provides default arguments that can be overridden: `docker run my-app other-command`
+- **ENTRYPOINT** sets the fixed executable; CMD provides default arguments to it
+- Use **ENTRYPOINT** when the container should always run a specific program
+- Use **CMD** when you want flexibility to override the command
+
+```dockerfile
+# CMD only -- can be fully overridden
+CMD ["python", "app.py"]
+# docker run my-app             → runs: python app.py
+# docker run my-app bash        → runs: bash
+
+# ENTRYPOINT + CMD -- entrypoint is fixed, CMD provides default args
+ENTRYPOINT ["python"]
+CMD ["app.py"]
+# docker run my-app             → runs: python app.py
+# docker run my-app test.py     → runs: python test.py
+```
+
+## Dockerfile Examples
+
+<Tabs>
+  <TabItem label="Python">
+```dockerfile
+# Python application Dockerfile
+FROM python:3.12-slim AS builder
+
+WORKDIR /app
+
+# Install dependencies first (layer caching)
+COPY requirements.txt .
+RUN pip install --no-cache-dir --user -r requirements.txt
+
+# --- Production stage ---
+FROM python:3.12-slim
+
+# Create non-root user
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+
+WORKDIR /app
+
+# Copy installed packages from builder
+COPY --from=builder /root/.local /home/appuser/.local
+
+# Copy application code
+COPY . .
+
+# Set ownership
+RUN chown -R appuser:appuser /app
+USER appuser
+
+# Ensure scripts in .local are usable
+ENV PATH=/home/appuser/.local/bin:$PATH
+ENV PYTHONUNBUFFERED=1
+
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
+
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "4", "app:create_app()"]
+```
+  </TabItem>
+  <TabItem label="Node.js">
+```dockerfile
+# Node.js application Dockerfile
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Install dependencies first (layer caching)
+COPY package.json package-lock.json ./
+RUN npm ci --only=production
+
+# Copy source and build
+COPY . .
+RUN npm run build
+
+# --- Production stage ---
+FROM node:20-alpine
+
+# Create non-root user
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
+WORKDIR /app
+
+# Copy only production dependencies and built assets
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/package.json ./
+
+# Set ownership and switch user
+RUN chown -R appuser:appgroup /app
+USER appuser
+
+ENV NODE_ENV=production
+
+EXPOSE 3000
+
+HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1
+
+CMD ["node", "dist/server.js"]
+```
+  </TabItem>
+  <TabItem label="Java (Spring Boot)">
+```dockerfile
+# Java Spring Boot application Dockerfile
+FROM eclipse-temurin:21-jdk-alpine AS builder
+
+WORKDIR /app
+
+# Copy build files first (layer caching)
+COPY pom.xml mvnw ./
+COPY .mvn .mvn
+RUN ./mvnw dependency:resolve
+
+# Copy source and build
+COPY src ./src
+RUN ./mvnw package -DskipTests
+
+# Extract layered JAR for better caching
+RUN java -Djarmode=layertools -jar target/*.jar extract --destination extracted
+
+# --- Production stage ---
+FROM eclipse-temurin:21-jre-alpine
+
+# Create non-root user
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
+WORKDIR /app
+
+# Copy layers individually for optimal caching
+COPY --from=builder /app/extracted/dependencies/ ./
+COPY --from=builder /app/extracted/spring-boot-loader/ ./
+COPY --from=builder /app/extracted/snapshot-dependencies/ ./
+COPY --from=builder /app/extracted/application/ ./
+
+RUN chown -R appuser:appgroup /app
+USER appuser
+
+EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:8080/actuator/health || exit 1
+
+ENTRYPOINT ["java", "org.springframework.boot.loader.launch.JarLauncher"]
+```
+  </TabItem>
+</Tabs>
+
+## Multi-Stage Builds
+
+Multi-stage builds use multiple `FROM` statements to create smaller, more secure production images. Each stage can use a different base image, and you selectively copy only what you need into the final stage:
+
+```dockerfile
+# Stage 1: Build (includes compilers, dev tools, source code)
+FROM golang:1.22-alpine AS builder
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -o /app/server ./cmd/server
+
+# Stage 2: Production (minimal image, only the binary)
+FROM alpine:3.19
+RUN apk --no-cache add ca-certificates
+COPY --from=builder /app/server /usr/local/bin/server
+USER nobody
+EXPOSE 8080
+CMD ["server"]
+```
+
+**Benefits:**
+- The build stage might be 1 GB+ (compilers, source code, dev dependencies).
+- The production stage can be as small as 10-20 MB (just the binary and minimal OS).
+- Attack surface is dramatically reduced since build tools are not in the final image.
+
+## Docker Compose
+
+Docker Compose lets you define and run multi-container applications with a single YAML file. It is ideal for local development, testing, and simple deployments:
+
+```yaml
+# docker-compose.yml
+services:
+  # Web application
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://user:password@db:5432/myapp
+      - REDIS_URL=redis://cache:6379
+    volumes:
+      - .:/app          # Mount source code for hot reload
+      - /app/node_modules  # Prevent overwriting node_modules
+    depends_on:
+      db:
+        condition: service_healthy
+      cache:
+        condition: service_started
+    restart: unless-stopped
+
+  # PostgreSQL database
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: myapp
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d myapp"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis cache
+  cache:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  # Nginx reverse proxy
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - web
+
+volumes:
+  postgres_data:
+  redis_data:
+```
+
+### Common Docker Compose Commands
+
+```bash
+# Start all services in the background
+docker compose up -d
+
+# View logs across all services
+docker compose logs -f
+
+# Stop all services
+docker compose down
+
+# Rebuild images and restart
+docker compose up -d --build
+
+# Scale a service
+docker compose up -d --scale web=3
+
+# Run a one-off command in a service
+docker compose exec web npm run migrate
+```
+
+## Image Registries
+
+Docker images are stored in and distributed from registries:
+
+| Registry | Provider | Use Case |
+|---|---|---|
+| **Docker Hub** | Docker | Default public registry, free for public images |
+| **GitHub Container Registry (ghcr.io)** | GitHub | Tied to GitHub repositories and permissions |
+| **Amazon ECR** | AWS | Private registry integrated with AWS services |
+| **Google Container Registry (GCR)** | GCP | Private registry integrated with Google Cloud |
+| **Azure Container Registry (ACR)** | Azure | Private registry integrated with Azure services |
+| **Harbor** | CNCF | Self-hosted, open-source enterprise registry |
+
+### Working with Registries
+
+```bash
+# Tag an image for a registry
+docker tag my-app:latest ghcr.io/myorg/my-app:1.0.0
+
+# Push to the registry
+docker push ghcr.io/myorg/my-app:1.0.0
+
+# Pull from the registry
+docker pull ghcr.io/myorg/my-app:1.0.0
+```
+
+### Image Tagging Strategy
+
+Use meaningful, immutable tags for production images:
+
+```bash
+# Good: Specific and immutable
+ghcr.io/myorg/my-app:1.2.3
+ghcr.io/myorg/my-app:abc1234    # Git commit SHA
+ghcr.io/myorg/my-app:2025.01.15  # Date-based
+
+# Avoid for production: Mutable and ambiguous
+ghcr.io/myorg/my-app:latest
+ghcr.io/myorg/my-app:stable
+```
+
+## Container Best Practices
+
+### 1. Run as Non-Root User
+
+Never run containers as root in production. If the container is compromised, the attacker gains root privileges on the container filesystem:
+
+```dockerfile
+# Create and switch to a non-root user
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+USER appuser
+```
+
+### 2. Use .dockerignore
+
+Exclude files that should not be included in the image to reduce size and avoid leaking secrets:
+
+```
+# .dockerignore
+.git
+.gitignore
+node_modules
+npm-debug.log
+Dockerfile
+docker-compose.yml
+.env
+.env.*
+*.md
+tests/
+coverage/
+.vscode/
+```
+
+### 3. Optimize Layer Caching
+
+Order instructions from least to most frequently changing. Dependencies change less often than source code:
+
+```dockerfile
+# Good: Dependencies cached separately from source
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY . .
+
+# Bad: Any source change invalidates the npm install cache
+COPY . .
+RUN npm ci
+```
+
+### 4. Use Minimal Base Images
+
+Choose the smallest appropriate base image to reduce attack surface and image size:
+
+| Base Image | Size | Use Case |
+|---|---|---|
+| `alpine:3.19` | ~5 MB | Minimal Linux, good for compiled binaries |
+| `node:20-alpine` | ~130 MB | Node.js on Alpine Linux |
+| `python:3.12-slim` | ~150 MB | Python without extras |
+| `ubuntu:24.04` | ~75 MB | When you need apt and broader compatibility |
+| `scratch` | 0 MB | For statically compiled binaries (Go, Rust) |
+| `distroless` | ~20 MB | Google's minimal images, no shell |
+
+### 5. Use HEALTHCHECK
+
+Define health checks so Docker (and orchestrators) know when your container is truly ready:
+
+```dockerfile
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+  CMD curl -f http://localhost:8080/health || exit 1
+```
+
+### 6. Pin Dependency Versions
+
+Always use specific versions to ensure reproducible builds:
+
+```dockerfile
+# Good: Pinned versions
+FROM node:20.11.0-alpine3.19
+RUN apk add --no-cache curl=8.5.0-r0
+
+# Bad: Unpinned versions can break builds unexpectedly
+FROM node:latest
+RUN apk add curl
+```
+
+### 7. Scan Images for Vulnerabilities
+
+Regularly scan your images for known vulnerabilities:
+
+```bash
+# Using Docker Scout
+docker scout cves my-app:latest
+
+# Using Trivy
+trivy image my-app:latest
+
+# Using Snyk
+snyk container test my-app:latest
+```
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="Kubernetes Fundamentals"
+    description="Learn how to orchestrate and scale containerized applications with Kubernetes."
+    href="/software-engineering/devops/kubernetes/"
+  />
+  <LinkCard
+    title="Monitoring, Observability & IaC"
+    description="Monitor your containers and manage infrastructure as code."
+    href="/software-engineering/devops/monitoring-iac/"
+  />
+  <LinkCard
+    title="CI/CD Pipelines"
+    description="Integrate Docker builds into your CI/CD pipelines."
+    href="/software-engineering/devops/ci-cd/"
+  />
+  <LinkCard
+    title="DevOps Overview"
+    description="Return to the DevOps overview for the big picture."
+    href="/software-engineering/devops/"
+  />
+</CardGrid>

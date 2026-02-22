@@ -1,0 +1,150 @@
+---
+title: "Database Engineering"
+description: "Master database fundamentals from SQL queries to schema design, indexing, and transactions"
+difficulty: "beginner"
+prerequisites: ["Basic programming knowledge"]
+timeToRead: "8 min"
+topics: ["databases", "sql", "nosql", "data-modeling"]
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+## Why Databases Matter
+
+Every meaningful software application needs to store, retrieve, and manipulate data. Whether you are building a personal blog, a banking system, or a social network with billions of users, the database is the foundation that everything else rests upon. Understanding how databases work — not just how to write queries, but how data is organized, indexed, and protected — is one of the most valuable skills a software engineer can develop.
+
+Database engineering is the discipline of designing, building, and maintaining the systems that manage this data reliably and efficiently.
+
+## The Database Landscape
+
+Modern software engineering offers a rich ecosystem of database technologies. Each category is optimized for different access patterns, consistency requirements, and scale characteristics.
+
+### Relational Databases (SQL)
+
+Relational databases organize data into **tables** (relations) with rows and columns. They enforce a strict schema and use **Structured Query Language (SQL)** for data manipulation. Relationships between tables are expressed through foreign keys, and the database engine guarantees **ACID** properties for transactions.
+
+| Database      | Strengths                                  | Common Use Cases                    |
+|---------------|--------------------------------------------|-------------------------------------|
+| PostgreSQL    | Extensibility, standards compliance, JSON  | General purpose, analytics, GIS     |
+| MySQL/MariaDB | Simplicity, read-heavy performance         | Web applications, CMS platforms     |
+| SQLite        | Zero-config, embedded, single-file         | Mobile apps, prototyping, testing   |
+| SQL Server    | Enterprise tooling, Windows integration    | Enterprise applications, BI         |
+
+### Document Databases
+
+Document databases store data as semi-structured **documents** (typically JSON or BSON). Each document can have a different structure, which makes them flexible for evolving schemas.
+
+| Database       | Key Feature                  | Best For                           |
+|----------------|------------------------------|------------------------------------|
+| MongoDB        | Flexible schema, aggregation | Content management, catalogs       |
+| CouchDB        | Multi-master replication     | Offline-first applications         |
+| Amazon DynamoDB| Managed, auto-scaling        | Serverless apps, high throughput   |
+
+### Key-Value Stores
+
+The simplest data model: every piece of data is stored as a **key** mapped to a **value**. Extremely fast for lookups by key, but limited querying capability.
+
+| Database  | Key Feature               | Best For                            |
+|-----------|---------------------------|-------------------------------------|
+| Redis     | In-memory, data structures| Caching, sessions, real-time leaderboards |
+| Memcached | Simple, distributed cache | Application-layer caching           |
+| etcd      | Distributed consensus     | Configuration management, service discovery |
+
+### Column-Family Stores
+
+Data is organized by **columns** rather than rows, making them efficient for analytical queries that scan large volumes of data across a few columns.
+
+| Database    | Key Feature                  | Best For                          |
+|-------------|------------------------------|-----------------------------------|
+| Apache Cassandra | Distributed, no single point of failure | Time-series, IoT, messaging |
+| Apache HBase     | Hadoop integration          | Large-scale analytics             |
+| ScyllaDB         | C++ rewrite of Cassandra    | Ultra-low-latency workloads       |
+
+### Graph Databases
+
+Graph databases model data as **nodes** (entities) and **edges** (relationships). They excel when relationships between data points are as important as the data itself.
+
+| Database   | Key Feature               | Best For                           |
+|------------|---------------------------|------------------------------------|
+| Neo4j      | Cypher query language     | Social networks, fraud detection   |
+| Amazon Neptune | Managed, multi-model  | Knowledge graphs, recommendations  |
+| ArangoDB   | Multi-model (graph+doc)   | Versatile graph + document needs   |
+
+## When to Use What
+
+Choosing the right database depends on your data shape, access patterns, consistency requirements, and operational constraints. Here is a practical decision framework:
+
+```
+Start Here
+│
+├── Is your data highly relational with complex joins?
+│   └── YES → Relational Database (PostgreSQL, MySQL)
+│
+├── Is your data semi-structured or schema-less?
+│   └── YES → Document Database (MongoDB, DynamoDB)
+│
+├── Do you need sub-millisecond lookups by key?
+│   └── YES → Key-Value Store (Redis, Memcached)
+│
+├── Are you storing time-series or wide-column analytical data?
+│   └── YES → Column-Family Store (Cassandra, HBase)
+│
+├── Are relationships between entities the primary concern?
+│   └── YES → Graph Database (Neo4j, Neptune)
+│
+└── Not sure?
+    └── Start with PostgreSQL — it handles most use cases well
+```
+
+:::tip[Practical Advice]
+Many production systems use **multiple databases** (polyglot persistence). For example, a web application might use PostgreSQL for core business data, Redis for caching and sessions, and Elasticsearch for full-text search. Start simple and add specialized stores as concrete needs emerge.
+:::
+
+## A Brief History of Databases
+
+| Era         | Development                                                  |
+|-------------|--------------------------------------------------------------|
+| 1960s       | Hierarchical and network databases (IMS, CODASYL)            |
+| 1970        | Edgar F. Codd publishes the relational model                 |
+| 1970s-80s   | SQL is developed; Oracle, DB2, and Ingres emerge             |
+| 1990s       | MySQL, PostgreSQL, and SQL Server gain adoption              |
+| 2000s       | NoSQL movement begins — MongoDB, Cassandra, Redis appear     |
+| 2010s       | NewSQL (CockroachDB, Spanner) blends SQL with distributed scale |
+| 2020s       | Serverless databases, embedded analytics (DuckDB), vector databases for AI |
+
+## Scope of This Section
+
+This section focuses on the **implementation and engineering** side of databases:
+
+- Writing effective SQL queries
+- Designing normalized schemas
+- Building and using indexes for performance
+- Understanding transactions and consistency guarantees
+- Working with NoSQL data models
+
+For **architectural decisions** about databases at scale — replication, sharding, partitioning, distributed consensus, and database selection in system design — see the [System Design](/software-engineering/system-design/) section.
+
+## What You Will Learn
+
+<CardGrid>
+  <LinkCard
+    title="SQL Fundamentals"
+    description="Master SELECT, JOINs, aggregations, CTEs, and window functions with hands-on examples"
+    href="/software-engineering/database-engineering/sql-fundamentals/"
+  />
+  <LinkCard
+    title="Normalization & Schema Design"
+    description="Design efficient schemas using normal forms, ER modeling, and proven patterns"
+    href="/software-engineering/database-engineering/normalization-schema/"
+  />
+  <LinkCard
+    title="Indexing & Query Performance"
+    description="Optimize queries with B-tree indexes, EXPLAIN plans, and performance tuning techniques"
+    href="/software-engineering/database-engineering/indexing-performance/"
+  />
+  <LinkCard
+    title="Transactions, ACID & NoSQL"
+    description="Understand isolation levels, MVCC, and when to choose NoSQL over relational databases"
+    href="/software-engineering/database-engineering/transactions-nosql/"
+  />
+</CardGrid>

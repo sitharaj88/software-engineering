@@ -1,0 +1,444 @@
+---
+title: "OSI Model & TCP/IP"
+description: "Understand the OSI 7-layer model and TCP/IP protocol stack that powers the internet"
+difficulty: "intermediate"
+prerequisites: ["Computer Networks Overview"]
+timeToRead: "20 min"
+topics: ["osi", "tcp-ip", "layers", "protocols", "encapsulation"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+import NetworkLayerVisualizer from '../../../components/interactive/NetworkLayerVisualizer';
+
+The OSI model and TCP/IP protocol stack provide the conceptual framework for understanding how data travels from one application to another across a network. Every time you load a web page, send an email, or stream a video, your data passes through multiple layers of processing, each responsible for a specific aspect of communication.
+
+---
+
+## The OSI 7-Layer Model
+
+The **Open Systems Interconnection (OSI)** model is a reference framework developed by the International Organization for Standardization (ISO) that divides network communication into seven distinct layers. Each layer has a specific role and communicates with the layers directly above and below it.
+
+```
+┌─────────────────────────────────────────────────────┐
+│  Layer 7 │ Application   │ HTTP, FTP, SMTP, DNS     │
+├──────────┼───────────────┼──────────────────────────┤
+│  Layer 6 │ Presentation  │ TLS/SSL, JPEG, ASCII     │
+├──────────┼───────────────┼──────────────────────────┤
+│  Layer 5 │ Session       │ NetBIOS, RPC, PPTP       │
+├──────────┼───────────────┼──────────────────────────┤
+│  Layer 4 │ Transport     │ TCP, UDP                 │
+├──────────┼───────────────┼──────────────────────────┤
+│  Layer 3 │ Network       │ IP, ICMP, ARP            │
+├──────────┼───────────────┼──────────────────────────┤
+│  Layer 2 │ Data Link     │ Ethernet, Wi-Fi, PPP     │
+├──────────┼───────────────┼──────────────────────────┤
+│  Layer 1 │ Physical      │ Cables, Radio, Fiber     │
+└─────────────────────────────────────────────────────┘
+```
+
+A helpful mnemonic to remember the layers from bottom to top: **"Please Do Not Throw Sausage Pizza Away"** (Physical, Data Link, Network, Transport, Session, Presentation, Application).
+
+### Interactive Visualizer
+
+Explore how data gets encapsulated as it travels down through the layers and decapsulated on the receiving end. Toggle between OSI and TCP/IP models.
+
+<NetworkLayerVisualizer client:load />
+
+---
+
+### Layer 1: Physical Layer
+
+**Purpose**: Transmits raw bits (0s and 1s) over a physical medium.
+
+| Aspect | Details |
+|--------|---------|
+| **Data unit** | Bits |
+| **Function** | Electrical signals, light pulses, radio waves |
+| **Protocols/Standards** | Ethernet (IEEE 802.3), Wi-Fi (IEEE 802.11), USB, Bluetooth |
+| **Devices** | Hubs, repeaters, cables, network interface cards |
+
+**Real-world analogy**: The physical road on which vehicles travel. It defines the road surface, number of lanes, and speed limits, but knows nothing about the vehicles themselves.
+
+**What can go wrong**: Cable damage, electromagnetic interference, signal attenuation over long distances, faulty network interface cards.
+
+---
+
+### Layer 2: Data Link Layer
+
+**Purpose**: Provides node-to-node data transfer between two directly connected devices. Handles error detection and MAC addressing.
+
+| Aspect | Details |
+|--------|---------|
+| **Data unit** | Frames |
+| **Function** | MAC addressing, error detection (CRC), flow control |
+| **Protocols** | Ethernet, Wi-Fi (802.11), PPP, ARP |
+| **Devices** | Switches, bridges, network interface cards |
+
+**Real-world analogy**: The local postal service within a neighborhood. It knows how to deliver a letter to a specific house on the same street (MAC address) but cannot route mail to a different city.
+
+**Key concepts**:
+- **MAC Address**: A unique 48-bit hardware address assigned to every network interface (e.g., `AA:BB:CC:DD:EE:FF`)
+- **ARP (Address Resolution Protocol)**: Resolves IP addresses to MAC addresses on a local network
+- **Error Detection**: Uses CRC (Cyclic Redundancy Check) to detect corrupted frames
+
+---
+
+### Layer 3: Network Layer
+
+**Purpose**: Routes packets across different networks from source to destination using logical addressing (IP addresses).
+
+| Aspect | Details |
+|--------|---------|
+| **Data unit** | Packets |
+| **Function** | Routing, logical addressing, fragmentation |
+| **Protocols** | IPv4, IPv6, ICMP, OSPF, BGP |
+| **Devices** | Routers, Layer 3 switches |
+
+**Real-world analogy**: The national postal system that routes mail between cities. It uses zip codes (IP addresses) to determine the best path from the sender's city to the recipient's city.
+
+**Key concepts**:
+- **IP Addressing**: IPv4 (32-bit, e.g., `192.168.1.1`) and IPv6 (128-bit, e.g., `2001:0db8::1`)
+- **Routing**: Determining the optimal path for packets using routing tables and algorithms
+- **ICMP**: Used by tools like `ping` and `traceroute` for diagnostics
+
+---
+
+### Layer 4: Transport Layer
+
+**Purpose**: Provides end-to-end communication between applications on different hosts. Handles segmentation, flow control, and error recovery.
+
+| Aspect | Details |
+|--------|---------|
+| **Data unit** | Segments (TCP) / Datagrams (UDP) |
+| **Function** | Segmentation, flow control, error recovery, port addressing |
+| **Protocols** | TCP, UDP, SCTP |
+| **Devices** | Firewalls (stateful), load balancers |
+
+**Real-world analogy**: The courier service that guarantees delivery (TCP) or the regular mail that delivers quickly but without tracking (UDP). Both use the postal system (Network layer) underneath but provide different levels of service.
+
+**Key concepts**:
+- **Ports**: Numbers (0-65535) that identify specific applications on a host
+- **Well-known ports**: HTTP (80), HTTPS (443), SSH (22), DNS (53), FTP (21)
+- **Segmentation**: Breaking large data into smaller segments for transmission
+
+---
+
+### Layer 5: Session Layer
+
+**Purpose**: Manages sessions (connections) between applications. Controls dialog establishment, maintenance, and termination.
+
+| Aspect | Details |
+|--------|---------|
+| **Data unit** | Data |
+| **Function** | Session establishment, synchronization, checkpointing |
+| **Protocols** | NetBIOS, RPC, PPTP, SIP |
+| **Devices** | Gateways (application-level) |
+
+**Real-world analogy**: A phone call operator who connects two parties, keeps the line open during the conversation, and ensures a proper goodbye when the call ends.
+
+**Note**: In practice, session management is often handled at the application layer (e.g., HTTP cookies, JWT tokens) rather than as a distinct protocol layer.
+
+---
+
+### Layer 6: Presentation Layer
+
+**Purpose**: Translates data between the application and the network. Handles encoding, encryption, and compression.
+
+| Aspect | Details |
+|--------|---------|
+| **Data unit** | Data |
+| **Function** | Encryption/decryption, compression, data format translation |
+| **Protocols/Standards** | TLS/SSL, JPEG, GIF, MPEG, ASCII, Unicode |
+| **Devices** | N/A (implemented in software) |
+
+**Real-world analogy**: A translator at an international conference. They convert the speaker's message into a language the audience understands, without changing the meaning of the message.
+
+**Key concepts**:
+- **Encryption**: TLS/SSL encrypts data before transmission
+- **Serialization**: Converting data structures to a transmittable format (JSON, XML, Protocol Buffers)
+- **Compression**: Reducing data size for efficient transmission
+
+---
+
+### Layer 7: Application Layer
+
+**Purpose**: Provides the interface between the user's application and the network. This is the layer that software engineers interact with most directly.
+
+| Aspect | Details |
+|--------|---------|
+| **Data unit** | Data / Messages |
+| **Function** | Application-specific protocols and services |
+| **Protocols** | HTTP, HTTPS, FTP, SMTP, DNS, SSH, WebSocket |
+| **Devices** | Application gateways, proxies, firewalls (Layer 7) |
+
+**Real-world analogy**: The actual letter you write, specifying the recipient, subject, and content. The postal system (lower layers) handles delivery, but this layer defines what is being communicated.
+
+---
+
+## The TCP/IP 4-Layer Model
+
+While the OSI model is a theoretical reference, the **TCP/IP model** (also called the Internet Protocol Suite) is the practical model that the internet actually uses. It consolidates the 7 OSI layers into 4.
+
+```
+┌────────────────────────────────────────────────────────────┐
+│ TCP/IP Layer      │ OSI Layers           │ Protocols       │
+├───────────────────┼──────────────────────┼─────────────────┤
+│ Application       │ Application (7)      │ HTTP, DNS, SMTP │
+│                   │ Presentation (6)     │ FTP, SSH, TLS   │
+│                   │ Session (5)          │ WebSocket, DHCP │
+├───────────────────┼──────────────────────┼─────────────────┤
+│ Transport         │ Transport (4)        │ TCP, UDP        │
+├───────────────────┼──────────────────────┼─────────────────┤
+│ Internet          │ Network (3)          │ IP, ICMP, ARP   │
+├───────────────────┼──────────────────────┼─────────────────┤
+│ Network Access    │ Data Link (2)        │ Ethernet, Wi-Fi │
+│ (Link)            │ Physical (1)         │ Fiber, DSL      │
+└────────────────────────────────────────────────────────────┘
+```
+
+### Why Two Models?
+
+| Aspect | OSI Model | TCP/IP Model |
+|--------|-----------|-------------|
+| **Purpose** | Theoretical reference | Practical implementation |
+| **Layers** | 7 | 4 |
+| **Developed by** | ISO | DARPA / IETF |
+| **Approach** | Top-down (design first) | Bottom-up (implemented first) |
+| **Real-world use** | Teaching, troubleshooting | Actual internet protocols |
+| **Layer boundaries** | Strictly defined | More flexible |
+
+**In practice**, most engineers use OSI terminology (e.g., "Layer 7 load balancer") but work with TCP/IP protocols daily.
+
+---
+
+## Encapsulation and Decapsulation
+
+As data moves down the protocol stack (from application to physical), each layer adds its own **header** (and sometimes a trailer) to the data. This process is called **encapsulation**. At the receiving end, each layer strips its header in the reverse order — this is **decapsulation**.
+
+```
+Sending Side (Encapsulation)                Receiving Side (Decapsulation)
+─────────────────────────────              ─────────────────────────────
+
+Application Layer                          Application Layer
+┌──────────────────────┐                   ┌──────────────────────┐
+│       DATA           │                   │       DATA           │
+└──────────────────────┘                   └──────────────────────┘
+         │                                          ▲
+         ▼                                          │
+Transport Layer                            Transport Layer
+┌─────┬──────────────────────┐             ┌─────┬──────────────────────┐
+│ TCP │       DATA           │             │ TCP │       DATA           │
+│ HDR │                      │             │ HDR │                      │
+└─────┴──────────────────────┘             └─────┴──────────────────────┘
+         │                                          ▲
+         ▼                                          │
+Network Layer                              Network Layer
+┌────┬─────┬──────────────────────┐        ┌────┬─────┬──────────────────────┐
+│ IP │ TCP │       DATA           │        │ IP │ TCP │       DATA           │
+│HDR │ HDR │                      │        │HDR │ HDR │                      │
+└────┴─────┴──────────────────────┘        └────┴─────┴──────────────────────┘
+         │                                          ▲
+         ▼                                          │
+Data Link Layer                            Data Link Layer
+┌─────┬────┬─────┬───────────────────┬─────┐ ┌─────┬────┬─────┬───────────────────┬─────┐
+│Frame│ IP │ TCP │       DATA        │ FCS │ │Frame│ IP │ TCP │       DATA        │ FCS │
+│ HDR │HDR │ HDR │                   │     │ │ HDR │HDR │ HDR │                   │     │
+└─────┴────┴─────┴───────────────────┴─────┘ └─────┴────┴─────┴───────────────────┴─────┘
+         │                                          ▲
+         ▼                                          │
+Physical Layer ═══════ Bits on the wire ═══════════►
+```
+
+**Key terminology for data units at each layer**:
+
+| Layer | Data Unit Name |
+|-------|---------------|
+| Application | Data / Message |
+| Transport | Segment (TCP) / Datagram (UDP) |
+| Network | Packet |
+| Data Link | Frame |
+| Physical | Bits |
+
+---
+
+## TCP vs UDP
+
+The two dominant transport-layer protocols serve fundamentally different use cases. Choosing the right one is a critical design decision.
+
+### TCP (Transmission Control Protocol)
+
+TCP is a **connection-oriented**, **reliable** protocol. It guarantees that data arrives in order, without duplication or loss.
+
+**Features**:
+- **Connection-oriented**: Requires a handshake before data transfer
+- **Reliable delivery**: Retransmits lost packets using acknowledgments and timeouts
+- **Ordered**: Reassembles packets in the correct sequence using sequence numbers
+- **Flow control**: Prevents the sender from overwhelming the receiver (sliding window)
+- **Congestion control**: Adjusts transmission rate based on network conditions (slow start, congestion avoidance)
+
+### UDP (User Datagram Protocol)
+
+UDP is a **connectionless**, **unreliable** protocol. It sends datagrams without establishing a connection and provides no guarantees about delivery.
+
+**Features**:
+- **Connectionless**: No handshake required, just send
+- **No guarantees**: Packets may arrive out of order, be duplicated, or be lost entirely
+- **Low overhead**: 8-byte header (vs. 20+ bytes for TCP)
+- **Fast**: No waiting for acknowledgments or retransmissions
+- **Supports broadcast and multicast**: Can send to multiple recipients
+
+### Comprehensive Comparison
+
+| Feature | TCP | UDP |
+|---------|-----|-----|
+| **Connection** | Connection-oriented (handshake) | Connectionless |
+| **Reliability** | Guaranteed delivery | Best-effort delivery |
+| **Ordering** | Guaranteed order | No ordering guarantee |
+| **Error checking** | Checksum + retransmission | Checksum only |
+| **Flow control** | Yes (sliding window) | No |
+| **Congestion control** | Yes (slow start, AIMD) | No |
+| **Header size** | 20-60 bytes | 8 bytes |
+| **Speed** | Slower (overhead) | Faster (minimal overhead) |
+| **Use cases** | Web, email, file transfer | Streaming, gaming, DNS, VoIP |
+| **Overhead** | Higher | Lower |
+
+### When to Use Each
+
+| Protocol | Use Cases | Why |
+|----------|-----------|-----|
+| **TCP** | HTTP/HTTPS, email (SMTP), file transfer (FTP), SSH, database connections | Data must arrive completely and in order |
+| **UDP** | Video/audio streaming, online gaming, DNS lookups, IoT sensor data, VoIP | Low latency matters more than perfect delivery |
+| **Either** | Custom application protocols | Depends on your reliability vs. latency trade-off |
+
+---
+
+## TCP Three-Way Handshake
+
+Before any data can be exchanged over TCP, the client and server must establish a connection through a **three-way handshake**. This process synchronizes sequence numbers and confirms both sides are ready to communicate.
+
+```
+Client                                Server
+  │                                     │
+  │                                     │  Server is LISTENING
+  │                                     │  on a port (e.g., 80)
+  │                                     │
+  │──── SYN (seq=100) ────────────────►│
+  │     "I want to connect.            │
+  │      My starting sequence is 100." │  Server receives SYN,
+  │                                     │  moves to SYN-RECEIVED
+  │                                     │
+  │◄─── SYN-ACK (seq=300, ack=101) ───│
+  │     "I acknowledge your seq 100.   │
+  │      My starting sequence is 300." │
+  │                                     │
+  │  Client receives SYN-ACK,          │
+  │  moves to ESTABLISHED              │
+  │                                     │
+  │──── ACK (ack=301) ────────────────►│
+  │     "I acknowledge your seq 300."  │  Server moves to
+  │                                     │  ESTABLISHED
+  │                                     │
+  │═══════ Connection Established ═════│
+  │     Data can now flow both ways     │
+  │◄═══════════════════════════════════►│
+```
+
+**Step-by-step breakdown**:
+
+1. **SYN** (Synchronize): The client sends a segment with the SYN flag set and a random initial sequence number (ISN). This says "I want to start a conversation, and I will begin numbering my bytes from this sequence number."
+
+2. **SYN-ACK** (Synchronize-Acknowledge): The server responds with both SYN and ACK flags set. The ACK acknowledges the client's sequence number (client ISN + 1), and the SYN provides the server's own initial sequence number.
+
+3. **ACK** (Acknowledge): The client sends an acknowledgment of the server's sequence number (server ISN + 1). The connection is now established, and data transfer can begin.
+
+### TCP Connection Termination (Four-Way Handshake)
+
+Closing a TCP connection requires a **four-way handshake** because each direction must be closed independently.
+
+```
+Client                                Server
+  │                                     │
+  │──── FIN ──────────────────────────►│  Client wants to close
+  │                                     │
+  │◄─── ACK ──────────────────────────│  Server acknowledges
+  │                                     │
+  │     (Server may still send data)    │
+  │                                     │
+  │◄─── FIN ──────────────────────────│  Server ready to close
+  │                                     │
+  │──── ACK ──────────────────────────►│  Client acknowledges
+  │                                     │
+  │         Connection Closed           │
+```
+
+---
+
+## Comprehensive Layer Comparison Table
+
+| Layer | OSI Name | TCP/IP Name | Data Unit | Key Protocols | Devices | Primary Function |
+|-------|----------|-------------|-----------|---------------|---------|-----------------|
+| 7 | Application | Application | Data | HTTP, DNS, SMTP, FTP, SSH | Proxy, WAF | Application services and user interface |
+| 6 | Presentation | Application | Data | TLS/SSL, JPEG, MPEG | N/A | Encryption, compression, translation |
+| 5 | Session | Application | Data | NetBIOS, RPC, SIP | N/A | Session management |
+| 4 | Transport | Transport | Segment / Datagram | TCP, UDP, SCTP | Firewall, Load Balancer | End-to-end delivery, flow control |
+| 3 | Network | Internet | Packet | IP, ICMP, OSPF, BGP | Router | Routing and logical addressing |
+| 2 | Data Link | Network Access | Frame | Ethernet, Wi-Fi, ARP | Switch, Bridge | Node-to-node transfer, MAC addressing |
+| 1 | Physical | Network Access | Bits | Ethernet (physical), DSL, Fiber | Hub, Repeater, Cable | Raw bit transmission |
+
+---
+
+## Common Debugging Scenarios by Layer
+
+Understanding the layer model helps you diagnose network issues systematically.
+
+| Symptom | Likely Layer | Tools | What to Check |
+|---------|-------------|-------|---------------|
+| No physical connectivity | Layer 1 (Physical) | Cable tester, link lights | Cable connections, NIC status |
+| Cannot reach devices on local network | Layer 2 (Data Link) | `arp`, Wireshark | MAC address table, switch config |
+| Cannot reach remote hosts | Layer 3 (Network) | `ping`, `traceroute`, `ip route` | IP addresses, routing table, firewall rules |
+| Connection timeouts, slow transfers | Layer 4 (Transport) | `netstat`, `ss`, `tcpdump` | Port availability, TCP state, firewall |
+| Application errors (HTTP 500, etc.) | Layer 7 (Application) | `curl`, browser dev tools, logs | Application config, DNS, TLS certs |
+
+### Troubleshooting from the Bottom Up
+
+When debugging a network issue, start at the lowest layer and work your way up:
+
+1. **Physical**: Is the cable plugged in? Is the wireless connected? Do link lights show activity?
+2. **Data Link**: Can you see other devices on the local network? Is ARP resolving correctly?
+3. **Network**: Can you ping the default gateway? Can you ping the remote host by IP?
+4. **Transport**: Can you connect to the specific port? Is the service listening? Are firewalls blocking traffic?
+5. **Application**: Is the application returning errors? Are certificates valid? Is DNS resolving correctly?
+
+---
+
+## Key Takeaways
+
+- The **OSI model** provides a 7-layer conceptual framework for understanding network communication
+- The **TCP/IP model** is the 4-layer practical model used by the internet
+- **Encapsulation** wraps data with headers as it moves down the stack; **decapsulation** unwraps at the receiving end
+- **TCP** provides reliable, ordered delivery at the cost of overhead and latency
+- **UDP** provides fast, lightweight delivery without guarantees
+- The **three-way handshake** (SYN, SYN-ACK, ACK) establishes TCP connections
+- Layer-based thinking helps you systematically debug network issues
+
+---
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="HTTP & HTTPS"
+    href="/software-engineering/computer-networks/http-https/"
+    description="Master the application-layer protocol that powers the web — methods, status codes, headers, and TLS"
+  />
+  <LinkCard
+    title="DNS, CDN & Routing"
+    href="/software-engineering/computer-networks/dns-and-routing/"
+    description="Learn how domain names resolve to IP addresses and how packets are routed across the internet"
+  />
+  <LinkCard
+    title="System Design Fundamentals"
+    href="/software-engineering/system-design/fundamentals/"
+    description="Apply your networking knowledge to design scalable, distributed systems"
+  />
+</CardGrid>

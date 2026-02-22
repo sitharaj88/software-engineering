@@ -1,0 +1,898 @@
+---
+title: "SQL Fundamentals"
+description: "Learn essential SQL from SELECT queries to JOINs, subqueries, and window functions"
+difficulty: "beginner"
+prerequisites: ["Database Engineering Overview"]
+timeToRead: "25 min"
+topics: ["sql", "select", "join", "group-by", "subqueries", "window-functions"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+## SQL Categories
+
+SQL statements are organized into four major categories, each serving a distinct purpose:
+
+| Category | Full Name                      | Purpose                        | Key Statements                    |
+|----------|-------------------------------|--------------------------------|-----------------------------------|
+| **DDL**  | Data Definition Language       | Define and modify schema       | `CREATE`, `ALTER`, `DROP`, `TRUNCATE` |
+| **DML**  | Data Manipulation Language     | Query and modify data          | `SELECT`, `INSERT`, `UPDATE`, `DELETE` |
+| **DCL**  | Data Control Language          | Manage permissions             | `GRANT`, `REVOKE`                 |
+| **TCL**  | Transaction Control Language   | Manage transactions            | `BEGIN`, `COMMIT`, `ROLLBACK`, `SAVEPOINT` |
+
+This page focuses primarily on **DML** — the statements you will use most frequently as a developer.
+
+## Sample Database
+
+All examples in this page use the following tables. Imagine a simple e-commerce system:
+
+```sql
+CREATE TABLE customers (
+    customer_id   SERIAL PRIMARY KEY,
+    name          VARCHAR(100) NOT NULL,
+    email         VARCHAR(150) UNIQUE NOT NULL,
+    city          VARCHAR(50),
+    created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE products (
+    product_id    SERIAL PRIMARY KEY,
+    name          VARCHAR(100) NOT NULL,
+    category      VARCHAR(50),
+    price         DECIMAL(10, 2) NOT NULL
+);
+
+CREATE TABLE orders (
+    order_id      SERIAL PRIMARY KEY,
+    customer_id   INT REFERENCES customers(customer_id),
+    order_date    DATE NOT NULL,
+    status        VARCHAR(20) DEFAULT 'pending'
+);
+
+CREATE TABLE order_items (
+    item_id       SERIAL PRIMARY KEY,
+    order_id      INT REFERENCES orders(order_id),
+    product_id    INT REFERENCES products(product_id),
+    quantity      INT NOT NULL,
+    unit_price    DECIMAL(10, 2) NOT NULL
+);
+```
+
+**Sample data:**
+
+| customer_id | name          | email                | city        |
+|-------------|---------------|----------------------|-------------|
+| 1           | Alice Johnson | alice@example.com    | New York    |
+| 2           | Bob Smith     | bob@example.com      | Chicago     |
+| 3           | Carol Lee     | carol@example.com    | New York    |
+| 4           | David Kim     | david@example.com    | San Francisco |
+
+| product_id | name            | category    | price  |
+|------------|-----------------|-------------|--------|
+| 1          | Laptop          | Electronics | 999.99 |
+| 2          | Wireless Mouse  | Electronics | 29.99  |
+| 3          | Python Book     | Books       | 45.00  |
+| 4          | Standing Desk   | Furniture   | 349.99 |
+| 5          | USB-C Cable     | Electronics | 12.99  |
+
+## The SELECT Statement
+
+The `SELECT` statement is the workhorse of SQL. It retrieves data from one or more tables.
+
+### Basic Syntax
+
+```sql
+SELECT column1, column2, ...
+FROM table_name
+WHERE condition
+ORDER BY column1 [ASC|DESC]
+LIMIT count
+OFFSET skip;
+```
+
+### Selecting Columns
+
+```sql
+-- Select specific columns
+SELECT name, email, city
+FROM customers;
+```
+
+| name          | email                | city          |
+|---------------|----------------------|---------------|
+| Alice Johnson | alice@example.com    | New York      |
+| Bob Smith     | bob@example.com      | Chicago       |
+| Carol Lee     | carol@example.com    | New York      |
+| David Kim     | david@example.com    | San Francisco |
+
+```sql
+-- Select all columns (avoid in production — be explicit)
+SELECT * FROM customers;
+
+-- Aliasing columns
+SELECT name AS customer_name, city AS location
+FROM customers;
+
+-- Computed columns
+SELECT name, price, price * 0.9 AS discounted_price
+FROM products;
+```
+
+| name           | price  | discounted_price |
+|----------------|--------|------------------|
+| Laptop         | 999.99 | 899.99           |
+| Wireless Mouse | 29.99  | 26.99            |
+| Python Book    | 45.00  | 40.50            |
+| Standing Desk  | 349.99 | 314.99           |
+| USB-C Cable    | 12.99  | 11.69            |
+
+### WHERE Clause — Filtering Rows
+
+```sql
+-- Simple comparison
+SELECT name, price FROM products
+WHERE price > 100;
+```
+
+| name          | price  |
+|---------------|--------|
+| Laptop        | 999.99 |
+| Standing Desk | 349.99 |
+
+```sql
+-- Multiple conditions
+SELECT name, price, category FROM products
+WHERE category = 'Electronics' AND price < 50;
+```
+
+| name           | price | category    |
+|----------------|-------|-------------|
+| Wireless Mouse | 29.99 | Electronics |
+| USB-C Cable    | 12.99 | Electronics |
+
+```sql
+-- IN operator
+SELECT name, city FROM customers
+WHERE city IN ('New York', 'Chicago');
+
+-- BETWEEN operator
+SELECT name, price FROM products
+WHERE price BETWEEN 20 AND 100;
+
+-- LIKE for pattern matching
+SELECT name, email FROM customers
+WHERE email LIKE '%@example.com';
+
+-- NULL checks
+SELECT name, city FROM customers
+WHERE city IS NOT NULL;
+```
+
+### ORDER BY and LIMIT
+
+```sql
+-- Sort by price descending, take top 3
+SELECT name, price FROM products
+ORDER BY price DESC
+LIMIT 3;
+```
+
+| name          | price  |
+|---------------|--------|
+| Laptop        | 999.99 |
+| Standing Desk | 349.99 |
+| Python Book   | 45.00  |
+
+```sql
+-- Pagination: page 2, 2 items per page
+SELECT name, price FROM products
+ORDER BY price DESC
+LIMIT 2 OFFSET 2;
+```
+
+| name           | price |
+|----------------|-------|
+| Python Book    | 45.00 |
+| Wireless Mouse | 29.99 |
+
+### DISTINCT
+
+```sql
+SELECT DISTINCT city FROM customers;
+```
+
+| city          |
+|---------------|
+| New York      |
+| Chicago       |
+| San Francisco |
+
+## Aggregate Functions
+
+Aggregate functions compute a single result from a set of rows.
+
+| Function   | Description                    | Example                      |
+|------------|--------------------------------|------------------------------|
+| `COUNT()`  | Number of rows                 | `COUNT(*)`, `COUNT(column)`  |
+| `SUM()`    | Sum of values                  | `SUM(price)`                 |
+| `AVG()`    | Average of values              | `AVG(price)`                 |
+| `MIN()`    | Minimum value                  | `MIN(price)`                 |
+| `MAX()`    | Maximum value                  | `MAX(price)`                 |
+
+```sql
+SELECT
+    COUNT(*) AS total_products,
+    SUM(price) AS total_value,
+    AVG(price) AS avg_price,
+    MIN(price) AS cheapest,
+    MAX(price) AS most_expensive
+FROM products;
+```
+
+| total_products | total_value | avg_price | cheapest | most_expensive |
+|----------------|-------------|-----------|----------|----------------|
+| 5              | 1437.96     | 287.59    | 12.99    | 999.99         |
+
+## GROUP BY and HAVING
+
+`GROUP BY` partitions rows into groups and applies aggregate functions to each group. `HAVING` filters groups after aggregation (like `WHERE` but for groups).
+
+```sql
+SELECT
+    category,
+    COUNT(*) AS num_products,
+    AVG(price) AS avg_price
+FROM products
+GROUP BY category;
+```
+
+| category    | num_products | avg_price |
+|-------------|-------------|-----------|
+| Electronics | 3           | 347.66    |
+| Books       | 1           | 45.00     |
+| Furniture   | 1           | 349.99    |
+
+```sql
+-- Only categories with average price above 100
+SELECT
+    category,
+    COUNT(*) AS num_products,
+    AVG(price) AS avg_price
+FROM products
+GROUP BY category
+HAVING AVG(price) > 100;
+```
+
+| category    | num_products | avg_price |
+|-------------|-------------|-----------|
+| Electronics | 3           | 347.66    |
+| Furniture   | 1           | 349.99    |
+
+:::note[WHERE vs HAVING]
+- **WHERE** filters individual rows *before* grouping
+- **HAVING** filters groups *after* aggregation
+
+You cannot use aggregate functions in `WHERE` — use `HAVING` instead.
+:::
+
+## JOINs
+
+JOINs combine rows from two or more tables based on a related column. They are fundamental to working with relational databases.
+
+### Visual Overview
+
+```
+Table A         Table B           JOIN Types
+┌─────┐        ┌─────┐
+│  1  │        │  1  │           INNER JOIN:      Only matching rows
+│  2  │        │  2  │           LEFT JOIN:       All from A + matches from B
+│  3  │        │  3  │           RIGHT JOIN:      All from B + matches from A
+│  4  │        │  5  │           FULL OUTER JOIN: All from both
+└─────┘        └─────┘           CROSS JOIN:      Every combination (A x B)
+
+INNER JOIN (A ∩ B)    LEFT JOIN             RIGHT JOIN            FULL OUTER JOIN
+┌─────────────┐       ┌─────────────┐       ┌─────────────┐       ┌─────────────┐
+│ ┌───┐ ┌───┐ │       │ ┌───────┐   │       │   ┌───────┐ │       │ ┌───────────┐│
+│ │ A │█│ B │ │       │ │ A ████│   │       │   │████ B │ │       │ │ A ██████ B ││
+│ └───┘ └───┘ │       │ └───────┘   │       │   └───────┘ │       │ └───────────┘│
+└─────────────┘       └─────────────┘       └─────────────┘       └─────────────┘
+  Rows: 1, 2, 3        Rows: 1, 2, 3, 4     Rows: 1, 2, 3, 5     Rows: 1, 2, 3, 4, 5
+```
+
+### INNER JOIN
+
+Returns only rows that have matching values in both tables.
+
+```sql
+SELECT
+    c.name AS customer,
+    o.order_id,
+    o.order_date,
+    o.status
+FROM customers c
+INNER JOIN orders o ON c.customer_id = o.customer_id;
+```
+
+| customer      | order_id | order_date | status    |
+|---------------|----------|------------|-----------|
+| Alice Johnson | 1        | 2024-01-15 | completed |
+| Alice Johnson | 2        | 2024-02-20 | completed |
+| Bob Smith     | 3        | 2024-03-10 | pending   |
+
+:::note
+David Kim has no orders, so he does not appear in the INNER JOIN result.
+:::
+
+### LEFT JOIN (LEFT OUTER JOIN)
+
+Returns all rows from the left table, and matching rows from the right table. Non-matching rows get `NULL` for the right table columns.
+
+```sql
+SELECT
+    c.name AS customer,
+    o.order_id,
+    o.status
+FROM customers c
+LEFT JOIN orders o ON c.customer_id = o.customer_id;
+```
+
+| customer      | order_id | status    |
+|---------------|----------|-----------|
+| Alice Johnson | 1        | completed |
+| Alice Johnson | 2        | completed |
+| Bob Smith     | 3        | pending   |
+| Carol Lee     | NULL     | NULL      |
+| David Kim     | NULL     | NULL      |
+
+```sql
+-- Find customers who have never placed an order
+SELECT c.name
+FROM customers c
+LEFT JOIN orders o ON c.customer_id = o.customer_id
+WHERE o.order_id IS NULL;
+```
+
+| name      |
+|-----------|
+| Carol Lee |
+| David Kim |
+
+### RIGHT JOIN (RIGHT OUTER JOIN)
+
+Returns all rows from the right table, and matching rows from the left table. This is the mirror of LEFT JOIN.
+
+```sql
+SELECT
+    c.name AS customer,
+    o.order_id,
+    o.status
+FROM customers c
+RIGHT JOIN orders o ON c.customer_id = o.customer_id;
+```
+
+In practice, most developers prefer LEFT JOIN and rearrange the table order rather than using RIGHT JOIN.
+
+### FULL OUTER JOIN
+
+Returns all rows from both tables. Non-matching rows on either side get `NULL` values.
+
+```sql
+SELECT
+    c.name AS customer,
+    o.order_id
+FROM customers c
+FULL OUTER JOIN orders o ON c.customer_id = o.customer_id;
+```
+
+### CROSS JOIN
+
+Produces the **Cartesian product** — every row from the first table paired with every row from the second table. Use cautiously as output size = rows_A x rows_B.
+
+```sql
+-- Generate a report template: every customer x every product
+SELECT c.name, p.name AS product
+FROM customers c
+CROSS JOIN products p;
+-- Result: 4 customers x 5 products = 20 rows
+```
+
+### SELF JOIN
+
+A table joined with itself. Useful for hierarchical data or comparing rows within the same table.
+
+```sql
+-- Find customers in the same city
+SELECT
+    a.name AS customer_1,
+    b.name AS customer_2,
+    a.city
+FROM customers a
+INNER JOIN customers b
+    ON a.city = b.city
+    AND a.customer_id < b.customer_id;
+```
+
+| customer_1    | customer_2 | city     |
+|---------------|------------|----------|
+| Alice Johnson | Carol Lee  | New York |
+
+### Multi-Table JOINs
+
+Real queries often join three or more tables:
+
+```sql
+-- Full order details: customer, order, items, products
+SELECT
+    c.name AS customer,
+    o.order_id,
+    o.order_date,
+    p.name AS product,
+    oi.quantity,
+    oi.unit_price,
+    (oi.quantity * oi.unit_price) AS line_total
+FROM customers c
+INNER JOIN orders o ON c.customer_id = o.customer_id
+INNER JOIN order_items oi ON o.order_id = oi.order_id
+INNER JOIN products p ON oi.product_id = p.product_id
+ORDER BY o.order_id, p.name;
+```
+
+| customer      | order_id | order_date | product        | quantity | unit_price | line_total |
+|---------------|----------|------------|----------------|----------|------------|------------|
+| Alice Johnson | 1        | 2024-01-15 | Laptop         | 1        | 999.99     | 999.99     |
+| Alice Johnson | 1        | 2024-01-15 | Wireless Mouse | 1        | 29.99      | 29.99      |
+| Alice Johnson | 2        | 2024-02-20 | Python Book    | 2        | 45.00      | 90.00      |
+| Bob Smith     | 3        | 2024-03-10 | Standing Desk  | 1        | 349.99     | 349.99     |
+| Bob Smith     | 3        | 2024-03-10 | USB-C Cable    | 3        | 12.99      | 38.97      |
+
+## ORM Equivalents
+
+Here is how a common multi-table query looks in SQL versus popular ORMs:
+
+<Tabs>
+  <TabItem label="SQL">
+```sql
+SELECT
+    c.name AS customer,
+    COUNT(o.order_id) AS total_orders,
+    COALESCE(SUM(oi.quantity * oi.unit_price), 0) AS total_spent
+FROM customers c
+LEFT JOIN orders o ON c.customer_id = o.customer_id
+LEFT JOIN order_items oi ON o.order_id = oi.order_id
+GROUP BY c.customer_id, c.name
+ORDER BY total_spent DESC;
+```
+  </TabItem>
+  <TabItem label="Python (SQLAlchemy)">
+```python
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
+
+stmt = (
+    select(
+        Customer.name.label("customer"),
+        func.count(Order.order_id).label("total_orders"),
+        func.coalesce(
+            func.sum(OrderItem.quantity * OrderItem.unit_price), 0
+        ).label("total_spent"),
+    )
+    .outerjoin(Order, Customer.customer_id == Order.customer_id)
+    .outerjoin(OrderItem, Order.order_id == OrderItem.order_id)
+    .group_by(Customer.customer_id, Customer.name)
+    .order_by(func.sum(OrderItem.quantity * OrderItem.unit_price).desc())
+)
+
+with Session(engine) as session:
+    results = session.execute(stmt).all()
+    for row in results:
+        print(f"{row.customer}: {row.total_orders} orders, ${row.total_spent:.2f}")
+```
+  </TabItem>
+  <TabItem label="JavaScript (Knex.js)">
+```javascript
+const results = await knex('customers as c')
+  .leftJoin('orders as o', 'c.customer_id', 'o.customer_id')
+  .leftJoin('order_items as oi', 'o.order_id', 'oi.order_id')
+  .select(
+    'c.name as customer',
+    knex.raw('COUNT(o.order_id) as total_orders'),
+    knex.raw('COALESCE(SUM(oi.quantity * oi.unit_price), 0) as total_spent')
+  )
+  .groupBy('c.customer_id', 'c.name')
+  .orderBy('total_spent', 'desc');
+
+results.forEach(row => {
+  console.log(`${row.customer}: ${row.total_orders} orders, $${row.total_spent}`);
+});
+```
+  </TabItem>
+  <TabItem label="JavaScript (Prisma)">
+```javascript
+// Prisma uses a different approach — it returns nested objects
+// rather than flat JOIN results
+const customers = await prisma.customer.findMany({
+  include: {
+    orders: {
+      include: {
+        order_items: {
+          include: { product: true }
+        }
+      }
+    }
+  }
+});
+
+// Compute totals in application code
+const summary = customers.map(c => ({
+  customer: c.name,
+  totalOrders: c.orders.length,
+  totalSpent: c.orders.reduce((sum, o) =>
+    sum + o.order_items.reduce((s, i) =>
+      s + i.quantity * Number(i.unit_price), 0
+    ), 0
+  )
+}));
+
+summary.sort((a, b) => b.totalSpent - a.totalSpent);
+```
+  </TabItem>
+</Tabs>
+
+## Subqueries
+
+A subquery is a `SELECT` statement nested inside another query. They come in three forms based on what they return.
+
+### Scalar Subquery (returns a single value)
+
+```sql
+-- Products priced above the average
+SELECT name, price
+FROM products
+WHERE price > (SELECT AVG(price) FROM products);
+```
+
+| name          | price  |
+|---------------|--------|
+| Laptop        | 999.99 |
+| Standing Desk | 349.99 |
+
+### Row / Table Subquery (returns a set of values)
+
+```sql
+-- Customers who have placed at least one order
+SELECT name, email
+FROM customers
+WHERE customer_id IN (
+    SELECT DISTINCT customer_id
+    FROM orders
+);
+```
+
+| name          | email             |
+|---------------|-------------------|
+| Alice Johnson | alice@example.com |
+| Bob Smith     | bob@example.com   |
+
+### Correlated Subquery
+
+A correlated subquery references the outer query, executing once per outer row:
+
+```sql
+-- For each customer, find their most recent order date
+SELECT
+    c.name,
+    (SELECT MAX(o.order_date)
+     FROM orders o
+     WHERE o.customer_id = c.customer_id
+    ) AS last_order_date
+FROM customers c;
+```
+
+| name          | last_order_date |
+|---------------|-----------------|
+| Alice Johnson | 2024-02-20      |
+| Bob Smith     | 2024-03-10      |
+| Carol Lee     | NULL            |
+| David Kim     | NULL            |
+
+### EXISTS
+
+The `EXISTS` operator tests whether a subquery returns any rows:
+
+```sql
+-- Customers with at least one completed order
+SELECT c.name
+FROM customers c
+WHERE EXISTS (
+    SELECT 1
+    FROM orders o
+    WHERE o.customer_id = c.customer_id
+      AND o.status = 'completed'
+);
+```
+
+| name          |
+|---------------|
+| Alice Johnson |
+
+:::tip[Performance Tip]
+`EXISTS` often performs better than `IN` for large subqueries because the database can stop as soon as it finds the first matching row.
+:::
+
+## Common Table Expressions (CTEs)
+
+CTEs create named temporary result sets that exist only for the duration of the query. They make complex queries more readable and maintainable.
+
+```sql
+WITH customer_totals AS (
+    SELECT
+        c.customer_id,
+        c.name,
+        COUNT(o.order_id) AS num_orders,
+        COALESCE(SUM(oi.quantity * oi.unit_price), 0) AS total_spent
+    FROM customers c
+    LEFT JOIN orders o ON c.customer_id = o.customer_id
+    LEFT JOIN order_items oi ON o.order_id = oi.order_id
+    GROUP BY c.customer_id, c.name
+),
+spending_ranks AS (
+    SELECT
+        name,
+        num_orders,
+        total_spent,
+        CASE
+            WHEN total_spent > 500 THEN 'High Value'
+            WHEN total_spent > 0   THEN 'Regular'
+            ELSE 'Inactive'
+        END AS customer_tier
+    FROM customer_totals
+)
+SELECT * FROM spending_ranks
+ORDER BY total_spent DESC;
+```
+
+| name          | num_orders | total_spent | customer_tier |
+|---------------|-----------|-------------|---------------|
+| Alice Johnson | 2         | 1119.98     | High Value    |
+| Bob Smith     | 1         | 388.96      | Regular       |
+| Carol Lee     | 0         | 0.00        | Inactive      |
+| David Kim     | 0         | 0.00        | Inactive      |
+
+### Recursive CTEs
+
+Recursive CTEs are powerful for hierarchical data like org charts or category trees:
+
+```sql
+-- Example: employee hierarchy
+WITH RECURSIVE org_chart AS (
+    -- Base case: top-level manager
+    SELECT employee_id, name, manager_id, 1 AS level
+    FROM employees
+    WHERE manager_id IS NULL
+
+    UNION ALL
+
+    -- Recursive case: find direct reports
+    SELECT e.employee_id, e.name, e.manager_id, oc.level + 1
+    FROM employees e
+    INNER JOIN org_chart oc ON e.manager_id = oc.employee_id
+)
+SELECT
+    REPEAT('  ', level - 1) || name AS org_tree,
+    level
+FROM org_chart
+ORDER BY level, name;
+```
+
+## Window Functions
+
+Window functions perform calculations across a set of rows that are related to the current row, without collapsing the result into a single row (unlike `GROUP BY`).
+
+### Syntax
+
+```sql
+function_name(args) OVER (
+    [PARTITION BY column1, column2, ...]
+    [ORDER BY column3, column4, ...]
+    [frame_clause]
+)
+```
+
+### ROW_NUMBER, RANK, and DENSE_RANK
+
+```sql
+SELECT
+    name,
+    category,
+    price,
+    ROW_NUMBER() OVER (ORDER BY price DESC) AS row_num,
+    RANK()       OVER (ORDER BY price DESC) AS rank,
+    DENSE_RANK() OVER (ORDER BY price DESC) AS dense_rank
+FROM products;
+```
+
+| name           | category    | price  | row_num | rank | dense_rank |
+|----------------|-------------|--------|---------|------|------------|
+| Laptop         | Electronics | 999.99 | 1       | 1    | 1          |
+| Standing Desk  | Furniture   | 349.99 | 2       | 2    | 2          |
+| Python Book    | Books       | 45.00  | 3       | 3    | 3          |
+| Wireless Mouse | Electronics | 29.99  | 4       | 4    | 4          |
+| USB-C Cable    | Electronics | 12.99  | 5       | 5    | 5          |
+
+:::note[RANK vs DENSE_RANK]
+When there are ties:
+- **RANK** skips numbers (1, 2, 2, 4)
+- **DENSE_RANK** does not skip (1, 2, 2, 3)
+- **ROW_NUMBER** assigns unique numbers regardless of ties
+:::
+
+### PARTITION BY
+
+`PARTITION BY` creates separate windows for each group:
+
+```sql
+-- Rank products within each category by price
+SELECT
+    name,
+    category,
+    price,
+    ROW_NUMBER() OVER (
+        PARTITION BY category
+        ORDER BY price DESC
+    ) AS rank_in_category
+FROM products;
+```
+
+| name           | category    | price  | rank_in_category |
+|----------------|-------------|--------|------------------|
+| Python Book    | Books       | 45.00  | 1                |
+| Laptop         | Electronics | 999.99 | 1                |
+| Wireless Mouse | Electronics | 29.99  | 2                |
+| USB-C Cable    | Electronics | 12.99  | 3                |
+| Standing Desk  | Furniture   | 349.99 | 1                |
+
+### LAG and LEAD
+
+Access values from previous or subsequent rows:
+
+```sql
+-- Compare each product's price to the next cheaper product
+SELECT
+    name,
+    price,
+    LAG(price, 1)  OVER (ORDER BY price DESC) AS prev_higher_price,
+    LEAD(price, 1) OVER (ORDER BY price DESC) AS next_lower_price,
+    price - LEAD(price, 1) OVER (ORDER BY price DESC) AS price_gap
+FROM products;
+```
+
+| name           | price  | prev_higher_price | next_lower_price | price_gap |
+|----------------|--------|-------------------|------------------|-----------|
+| Laptop         | 999.99 | NULL              | 349.99           | 650.00    |
+| Standing Desk  | 349.99 | 999.99            | 45.00            | 304.99    |
+| Python Book    | 45.00  | 349.99            | 29.99            | 15.01     |
+| Wireless Mouse | 29.99  | 45.00             | 12.99            | 17.00     |
+| USB-C Cable    | 12.99  | 29.99             | NULL             | NULL      |
+
+### Running Totals with SUM OVER
+
+```sql
+-- Running total of order item revenue, ordered by date
+SELECT
+    o.order_date,
+    p.name AS product,
+    oi.quantity * oi.unit_price AS line_total,
+    SUM(oi.quantity * oi.unit_price) OVER (
+        ORDER BY o.order_date
+        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+    ) AS running_total
+FROM order_items oi
+INNER JOIN orders o ON oi.order_id = o.order_id
+INNER JOIN products p ON oi.product_id = p.product_id
+ORDER BY o.order_date;
+```
+
+| order_date | product        | line_total | running_total |
+|------------|----------------|------------|---------------|
+| 2024-01-15 | Laptop         | 999.99     | 999.99        |
+| 2024-01-15 | Wireless Mouse | 29.99      | 1029.98       |
+| 2024-02-20 | Python Book    | 90.00      | 1119.98       |
+| 2024-03-10 | Standing Desk  | 349.99     | 1469.97       |
+| 2024-03-10 | USB-C Cable    | 38.97      | 1508.94       |
+
+### Window Function ORM Equivalents
+
+<Tabs>
+  <TabItem label="SQL">
+```sql
+SELECT
+    name,
+    category,
+    price,
+    RANK() OVER (PARTITION BY category ORDER BY price DESC) AS category_rank
+FROM products;
+```
+  </TabItem>
+  <TabItem label="Python (SQLAlchemy)">
+```python
+from sqlalchemy import func, select
+
+rank = func.rank().over(
+    partition_by=Product.category,
+    order_by=Product.price.desc()
+).label("category_rank")
+
+stmt = select(
+    Product.name,
+    Product.category,
+    Product.price,
+    rank
+)
+
+results = session.execute(stmt).all()
+```
+  </TabItem>
+  <TabItem label="JavaScript (Knex.js)">
+```javascript
+const results = await knex('products')
+  .select(
+    'name',
+    'category',
+    'price',
+    knex.raw(
+      'RANK() OVER (PARTITION BY category ORDER BY price DESC) as category_rank'
+    )
+  );
+```
+  </TabItem>
+</Tabs>
+
+## SQL Execution Order
+
+Understanding the logical execution order of a SQL query helps you write correct queries and debug issues:
+
+```
+1. FROM / JOIN     ← Identify source tables and join them
+2. WHERE           ← Filter individual rows
+3. GROUP BY        ← Group rows together
+4. HAVING          ← Filter groups
+5. SELECT          ← Choose columns and compute expressions
+6. DISTINCT        ← Remove duplicate rows
+7. ORDER BY        ← Sort the result set
+8. LIMIT / OFFSET  ← Restrict the number of rows returned
+```
+
+:::caution[Common Pitfall]
+Because `WHERE` executes before `SELECT`, you cannot reference column aliases in the `WHERE` clause:
+```sql
+-- This WILL NOT work:
+SELECT price * 0.9 AS discounted FROM products WHERE discounted > 30;
+
+-- Use the expression directly instead:
+SELECT price * 0.9 AS discounted FROM products WHERE price * 0.9 > 30;
+
+-- Or use a subquery / CTE:
+WITH d AS (SELECT name, price * 0.9 AS discounted FROM products)
+SELECT * FROM d WHERE discounted > 30;
+```
+:::
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="Normalization & Schema Design"
+    description="Learn to structure your tables properly using normal forms and ER modeling"
+    href="/software-engineering/database-engineering/normalization-schema/"
+  />
+  <LinkCard
+    title="Indexing & Query Performance"
+    description="Make your SQL queries fast with indexes and EXPLAIN plan analysis"
+    href="/software-engineering/database-engineering/indexing-performance/"
+  />
+  <LinkCard
+    title="Transactions, ACID & NoSQL"
+    description="Understand how databases protect data integrity and explore NoSQL alternatives"
+    href="/software-engineering/database-engineering/transactions-nosql/"
+  />
+</CardGrid>

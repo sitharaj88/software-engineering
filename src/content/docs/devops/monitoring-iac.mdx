@@ -1,0 +1,739 @@
+---
+title: "Monitoring, Observability & IaC"
+description: "Monitor application health, gain observability insights, and manage infrastructure as code"
+difficulty: "advanced"
+prerequisites: ["Kubernetes Fundamentals", "CI/CD Pipelines"]
+timeToRead: "20 min"
+topics: ["monitoring", "observability", "prometheus", "grafana", "terraform", "iac", "logging"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+## Monitoring vs Observability
+
+**Monitoring** tells you when something is wrong. **Observability** helps you understand why.
+
+| Aspect | Monitoring | Observability |
+|---|---|---|
+| **Focus** | Known failure modes | Unknown unknowns |
+| **Approach** | Dashboards, alerts, thresholds | Exploration, correlation, querying |
+| **Question** | "Is the system healthy?" | "Why is the system behaving this way?" |
+| **Data** | Predefined metrics and checks | Rich, high-cardinality telemetry data |
+| **Analogy** | Car dashboard warning lights | A mechanic's full diagnostic toolkit |
+
+Monitoring is a subset of observability. A truly observable system emits enough data that you can diagnose novel problems without deploying new instrumentation.
+
+## The Three Pillars of Observability
+
+### 1. Metrics
+
+Metrics are numerical measurements collected over time. They are compact, aggregatable, and ideal for dashboards and alerting.
+
+```
+                Time Series: http_requests_total
+
+  Requests
+  per sec
+    120 │                         ╱─╲
+    100 │                    ╱───╱   ╲
+     80 │               ╱───╱        ╲───╲
+     60 │          ╱───╱                  ╲───╲
+     40 │     ╱───╱                            ╲───
+     20 │╱───╱
+      0 └──────────────────────────────────────────▶
+        00:00  04:00  08:00  12:00  16:00  20:00  Time
+```
+
+#### Metric Types
+
+| Type | Description | Example |
+|---|---|---|
+| **Counter** | Monotonically increasing value; can only go up (or reset to zero) | `http_requests_total`, `errors_total` |
+| **Gauge** | Value that can go up and down | `cpu_usage_percent`, `active_connections` |
+| **Histogram** | Samples observations and counts them in configurable buckets | `request_duration_seconds` (p50, p95, p99) |
+| **Summary** | Like histogram but calculates quantiles client-side | `request_duration_summary` |
+
+### 2. Logs
+
+Logs are timestamped, immutable records of discrete events. They provide the richest context for debugging specific issues.
+
+#### Structured Logging
+
+Always use structured (JSON) logging in production. It is machine-parseable, searchable, and far more useful than plain text:
+
+```json
+// Good: Structured log
+{
+  "timestamp": "2025-03-15T10:23:45.123Z",
+  "level": "error",
+  "service": "payment-api",
+  "trace_id": "abc123def456",
+  "span_id": "789ghi",
+  "user_id": "user-42",
+  "message": "Payment processing failed",
+  "error": "CardDeclined",
+  "amount": 49.99,
+  "currency": "USD",
+  "duration_ms": 234
+}
+
+// Bad: Unstructured log
+ERROR 2025-03-15 10:23:45 - Payment failed for user 42, card declined, amount $49.99
+```
+
+#### Logging Best Practices
+
+- **Use log levels consistently**: DEBUG for development detail, INFO for normal operations, WARN for recoverable issues, ERROR for failures requiring attention.
+- **Include correlation IDs**: Trace IDs and request IDs let you follow a single request across services.
+- **Do not log sensitive data**: Never log passwords, tokens, credit card numbers, or personal data.
+- **Centralize logs**: Use tools like the ELK Stack (Elasticsearch, Logstash, Kibana), Loki, or Datadog to aggregate logs from all services.
+
+### 3. Traces
+
+Distributed traces track the journey of a single request as it flows through multiple services, revealing where time is spent and where failures occur:
+
+```
+Request: GET /api/orders/123
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │ API Gateway (12ms)                                          │
+  │  ┌────────────────────────────────────────────────────────┐ │
+  │  │ Order Service (45ms)                                   │ │
+  │  │  ┌───────────────────┐  ┌────────────────────────────┐ │ │
+  │  │  │ Auth Service (8ms)│  │ Database Query (22ms)       │ │ │
+  │  │  └───────────────────┘  └────────────────────────────┘ │ │
+  │  │  ┌──────────────────────────────────────┐              │ │
+  │  │  │ Inventory Service (30ms)             │              │ │
+  │  │  │  ┌─────────────────────────┐         │              │ │
+  │  │  │  │ Cache Lookup (2ms)      │         │              │ │
+  │  │  │  └─────────────────────────┘         │              │ │
+  │  │  └──────────────────────────────────────┘              │ │
+  │  └────────────────────────────────────────────────────────┘ │
+  └─────────────────────────────────────────────────────────────┘
+  0ms       10ms      20ms      30ms      40ms      50ms     60ms
+```
+
+Key concepts:
+- **Trace**: The entire journey of a request through the system.
+- **Span**: A single operation within a trace (one service call, one database query).
+- **Trace Context Propagation**: Passing trace IDs between services via HTTP headers (e.g., `traceparent` header in the W3C Trace Context standard).
+
+**OpenTelemetry** (OTel) is the industry-standard framework for collecting traces, metrics, and logs. It provides vendor-neutral SDKs and a collector that can export to any backend.
+
+## Prometheus
+
+Prometheus is the most widely used open-source monitoring system in the cloud-native ecosystem. It uses a **pull model**, scraping metrics from targets at regular intervals.
+
+### Prometheus Architecture
+
+```
+  ┌────────────┐  ┌────────────┐  ┌────────────┐
+  │ App + /metrics│ │ App + /metrics│ │ Node Exporter│
+  └──────┬─────┘  └──────┬─────┘  └──────┬─────┘
+         │               │               │
+         └───────────────┼───────────────┘
+                         │  scrape (pull)
+                  ┌──────▼──────┐
+                  │  Prometheus │
+                  │   Server    │
+                  │             │
+                  │  ┌────────┐ │     ┌──────────────┐
+                  │  │  TSDB  │ │────▶│   Grafana    │
+                  │  │(storage)│ │     │  (dashboards)│
+                  │  └────────┘ │     └──────────────┘
+                  │             │
+                  │  ┌────────┐ │     ┌──────────────┐
+                  │  │ Alert  │ │────▶│ Alertmanager │──▶ Slack/PagerDuty
+                  │  │ Rules  │ │     └──────────────┘
+                  │  └────────┘ │
+                  └─────────────┘
+```
+
+### PromQL Basics
+
+PromQL (Prometheus Query Language) lets you query and aggregate time-series data:
+
+```promql
+# Total HTTP requests in the last 5 minutes
+rate(http_requests_total[5m])
+
+# 95th percentile request duration
+histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))
+
+# Error rate as a percentage
+sum(rate(http_requests_total{status=~"5.."}[5m]))
+/
+sum(rate(http_requests_total[5m])) * 100
+
+# CPU usage by pod
+sum(rate(container_cpu_usage_seconds_total[5m])) by (pod)
+
+# Memory usage above 80%
+(node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes)
+/ node_memory_MemTotal_bytes * 100 > 80
+```
+
+### Alerting Rules
+
+```yaml
+# prometheus-alerts.yaml
+groups:
+  - name: application-alerts
+    rules:
+      - alert: HighErrorRate
+        expr: |
+          sum(rate(http_requests_total{status=~"5.."}[5m]))
+          / sum(rate(http_requests_total[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value | humanizePercentage }} (threshold: 5%)"
+
+      - alert: HighLatency
+        expr: |
+          histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High p95 latency"
+          description: "95th percentile latency is {{ $value }}s"
+
+      - alert: PodCrashLooping
+        expr: |
+          rate(kube_pod_container_status_restarts_total[15m]) > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Pod {{ $labels.pod }} is crash-looping"
+```
+
+## Grafana Dashboards
+
+Grafana connects to Prometheus (and many other data sources) to create rich, interactive dashboards. A well-designed dashboard answers key operational questions at a glance:
+
+### The RED Method for Services
+
+For request-driven services, monitor these three signals:
+
+- **R**ate -- Requests per second
+- **E**rrors -- Failed requests per second
+- **D**uration -- Latency distribution (p50, p95, p99)
+
+### The USE Method for Resources
+
+For infrastructure resources, monitor:
+
+- **U**tilization -- How full is the resource? (CPU at 80%)
+- **S**aturation -- How much queued work? (Disk I/O queue length)
+- **E**rrors -- How many errors? (Network packet drops)
+
+## SLIs, SLOs, SLAs, and Error Budgets
+
+These concepts from Site Reliability Engineering (SRE) provide a framework for defining and measuring reliability:
+
+| Concept | Definition | Example |
+|---|---|---|
+| **SLI** (Service Level Indicator) | A quantitative measure of service behavior | 99.2% of requests complete in under 300ms |
+| **SLO** (Service Level Objective) | A target value or range for an SLI | 99.9% of requests should succeed |
+| **SLA** (Service Level Agreement) | A contract with consequences for missing objectives | 99.95% uptime or customer gets credits |
+| **Error Budget** | The allowed amount of unreliability (100% - SLO) | If SLO is 99.9%, error budget is 0.1% |
+
+### Error Budget in Practice
+
+```
+  SLO: 99.9% availability over 30 days
+
+  Total minutes in 30 days:  43,200
+  Error budget (0.1%):          43.2 minutes of allowed downtime
+
+  Week 1: 10 min downtime   → 33.2 min remaining   ████████████░░░░ 77%
+  Week 2:  5 min downtime   → 28.2 min remaining   ██████████░░░░░░ 65%
+  Week 3:  0 min downtime   → 28.2 min remaining   ██████████░░░░░░ 65%
+  Week 4:  2 min downtime   → 26.2 min remaining   █████████░░░░░░░ 61%
+
+  Budget consumed: 39.4% → Safe to deploy new features
+```
+
+When the error budget is nearly exhausted, teams should slow down feature work and focus on reliability improvements.
+
+## Alerting Strategies
+
+Effective alerting requires careful design to avoid alert fatigue while catching real issues:
+
+- **Alert on symptoms, not causes** -- Alert on "users are seeing errors" rather than "CPU is at 90%."
+- **Set meaningful thresholds** -- Use error budgets and SLOs to define when alerts fire.
+- **Include runbooks** -- Every alert should link to a document explaining what to check and how to respond.
+- **Tier your alerts** -- Critical alerts page on-call; warnings go to a channel for next-business-day review.
+- **Reduce noise** -- Deduplicate, group related alerts, and suppress flapping alerts.
+
+---
+
+## Infrastructure as Code (IaC)
+
+### Why IaC?
+
+Managing infrastructure manually (clicking through cloud consoles, running ad-hoc commands) leads to:
+
+- **Configuration drift** -- Servers diverge over time and nobody knows the exact state.
+- **Knowledge silos** -- Only one person knows how the infrastructure was set up.
+- **Unreproducible environments** -- "It works in staging" because staging was set up differently.
+- **Slow provisioning** -- Setting up new environments takes days of manual work.
+
+Infrastructure as Code solves these problems by defining infrastructure in version-controlled configuration files that are reviewed, tested, and applied automatically.
+
+### Declarative vs Imperative
+
+| Approach | Description | Example Tools |
+|---|---|---|
+| **Declarative** | You describe the desired end state; the tool figures out how to achieve it | Terraform, Pulumi, CloudFormation, Kubernetes manifests |
+| **Imperative** | You describe the exact steps to execute in order | Shell scripts, Ansible playbooks (partially), AWS CLI |
+
+Declarative is preferred for infrastructure because it is idempotent -- applying the same configuration twice produces the same result.
+
+## Terraform
+
+Terraform by HashiCorp is the most widely adopted IaC tool. It uses HashiCorp Configuration Language (HCL) to define infrastructure across any cloud provider.
+
+### Core Concepts
+
+```
+                         Terraform Workflow
+
+  ┌─────────┐     ┌──────────┐     ┌─────────┐     ┌──────────┐
+  │  Write   │────▶│   Plan   │────▶│  Apply  │────▶│  Manage  │
+  │  (.tf)   │     │          │     │         │     │          │
+  │          │     │ Preview  │     │ Create/ │     │ State    │
+  │ Define   │     │ changes  │     │ update  │     │ tracked  │
+  │ resources│     │ safely   │     │ infra   │     │ in .tfstate│
+  └─────────┘     └──────────┘     └─────────┘     └──────────┘
+```
+
+| Concept | Description |
+|---|---|
+| **Provider** | A plugin that interfaces with a cloud platform or service (AWS, GCP, Azure, Kubernetes, etc.) |
+| **Resource** | A single piece of infrastructure (a server, database, DNS record, etc.) |
+| **State** | A file that tracks what Terraform has created, so it knows what to update or destroy |
+| **Module** | A reusable, encapsulated group of resources (like a function for infrastructure) |
+| **Plan** | A preview of what Terraform will do before making any changes |
+| **Apply** | Execute the planned changes to create, update, or destroy resources |
+
+### Terraform Examples
+
+<Tabs>
+  <TabItem label="Terraform (HCL)">
+```hcl
+# main.tf - AWS infrastructure with Terraform
+
+terraform {
+  required_version = ">= 1.7"
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+
+  # Store state remotely for team collaboration
+  backend "s3" {
+    bucket         = "my-terraform-state"
+    key            = "prod/terraform.tfstate"
+    region         = "us-east-1"
+    dynamodb_table = "terraform-locks"
+    encrypt        = true
+  }
+}
+
+provider "aws" {
+  region = var.aws_region
+}
+
+# Variables
+variable "aws_region" {
+  description = "AWS region to deploy resources"
+  type        = string
+  default     = "us-east-1"
+}
+
+variable "environment" {
+  description = "Environment name"
+  type        = string
+  default     = "production"
+}
+
+# VPC
+resource "aws_vpc" "main" {
+  cidr_block           = "10.0.0.0/16"
+  enable_dns_hostnames = true
+  enable_dns_support   = true
+
+  tags = {
+    Name        = "${var.environment}-vpc"
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
+}
+
+# Public subnets
+resource "aws_subnet" "public" {
+  count             = 2
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = "10.0.${count.index + 1}.0/24"
+  availability_zone = data.aws_availability_zones.available.names[count.index]
+
+  map_public_ip_on_launch = true
+
+  tags = {
+    Name = "${var.environment}-public-${count.index + 1}"
+  }
+}
+
+data "aws_availability_zones" "available" {
+  state = "available"
+}
+
+# Security group for the application
+resource "aws_security_group" "app" {
+  name        = "${var.environment}-app-sg"
+  description = "Security group for application servers"
+  vpc_id      = aws_vpc.main.id
+
+  ingress {
+    description = "HTTP"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    description = "HTTPS"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "${var.environment}-app-sg"
+  }
+}
+
+# RDS PostgreSQL database
+resource "aws_db_instance" "main" {
+  identifier     = "${var.environment}-db"
+  engine         = "postgres"
+  engine_version = "16.1"
+  instance_class = "db.t3.medium"
+
+  allocated_storage     = 20
+  max_allocated_storage = 100
+  storage_encrypted     = true
+
+  db_name  = "myapp"
+  username = "admin"
+  password = var.db_password
+
+  multi_az               = true
+  db_subnet_group_name   = aws_db_subnet_group.main.name
+  vpc_security_group_ids = [aws_security_group.db.id]
+
+  backup_retention_period = 7
+  skip_final_snapshot     = false
+  final_snapshot_identifier = "${var.environment}-db-final"
+
+  tags = {
+    Name        = "${var.environment}-db"
+    Environment = var.environment
+  }
+}
+
+variable "db_password" {
+  description = "Database master password"
+  type        = string
+  sensitive   = true
+}
+
+# Outputs
+output "vpc_id" {
+  value = aws_vpc.main.id
+}
+
+output "db_endpoint" {
+  value = aws_db_instance.main.endpoint
+}
+```
+  </TabItem>
+  <TabItem label="Pulumi (TypeScript)">
+```typescript
+// index.ts - AWS infrastructure with Pulumi
+
+import * as pulumi from "@pulumi/pulumi";
+import * as aws from "@pulumi/aws";
+
+const config = new pulumi.Config();
+const environment = config.get("environment") || "production";
+const dbPassword = config.requireSecret("dbPassword");
+
+// VPC
+const vpc = new aws.ec2.Vpc("main-vpc", {
+  cidrBlock: "10.0.0.0/16",
+  enableDnsHostnames: true,
+  enableDnsSupport: true,
+  tags: {
+    Name: `${environment}-vpc`,
+    Environment: environment,
+    ManagedBy: "pulumi",
+  },
+});
+
+// Get availability zones
+const azs = aws.getAvailabilityZones({ state: "available" });
+
+// Public subnets
+const publicSubnets = azs.then((zones) =>
+  zones.names.slice(0, 2).map(
+    (az, index) =>
+      new aws.ec2.Subnet(`public-subnet-${index}`, {
+        vpcId: vpc.id,
+        cidrBlock: `10.0.${index + 1}.0/24`,
+        availabilityZone: az,
+        mapPublicIpOnLaunch: true,
+        tags: {
+          Name: `${environment}-public-${index + 1}`,
+        },
+      })
+  )
+);
+
+// Security group for the application
+const appSecurityGroup = new aws.ec2.SecurityGroup("app-sg", {
+  name: `${environment}-app-sg`,
+  description: "Security group for application servers",
+  vpcId: vpc.id,
+  ingress: [
+    {
+      description: "HTTP",
+      fromPort: 80,
+      toPort: 80,
+      protocol: "tcp",
+      cidrBlocks: ["0.0.0.0/0"],
+    },
+    {
+      description: "HTTPS",
+      fromPort: 443,
+      toPort: 443,
+      protocol: "tcp",
+      cidrBlocks: ["0.0.0.0/0"],
+    },
+  ],
+  egress: [
+    {
+      fromPort: 0,
+      toPort: 0,
+      protocol: "-1",
+      cidrBlocks: ["0.0.0.0/0"],
+    },
+  ],
+  tags: {
+    Name: `${environment}-app-sg`,
+  },
+});
+
+// RDS PostgreSQL database
+const db = new aws.rds.Instance("main-db", {
+  identifier: `${environment}-db`,
+  engine: "postgres",
+  engineVersion: "16.1",
+  instanceClass: "db.t3.medium",
+  allocatedStorage: 20,
+  maxAllocatedStorage: 100,
+  storageEncrypted: true,
+  dbName: "myapp",
+  username: "admin",
+  password: dbPassword,
+  multiAz: true,
+  backupRetentionPeriod: 7,
+  skipFinalSnapshot: false,
+  finalSnapshotIdentifier: `${environment}-db-final`,
+  tags: {
+    Name: `${environment}-db`,
+    Environment: environment,
+  },
+});
+
+// Outputs
+export const vpcId = vpc.id;
+export const dbEndpoint = db.endpoint;
+```
+  </TabItem>
+</Tabs>
+
+### Terraform Workflow
+
+```bash
+# Initialize the working directory (download providers, set up backend)
+terraform init
+
+# Preview what changes Terraform will make
+terraform plan
+
+# Apply the changes (create/update/destroy resources)
+terraform apply
+
+# Show current state
+terraform show
+
+# Destroy all managed resources
+terraform destroy
+```
+
+### Terraform Best Practices
+
+- **Use remote state** -- Store state in S3, GCS, or Terraform Cloud with locking to prevent concurrent modifications.
+- **Use modules** -- Encapsulate reusable infrastructure patterns (VPC module, database module, etc.).
+- **Pin provider versions** -- Avoid unexpected breaking changes from provider updates.
+- **Use workspaces or separate state files** for different environments (dev, staging, production).
+- **Never store secrets in state unencrypted** -- Enable encryption for your state backend.
+- **Run `terraform plan` in CI** -- Show the plan in pull requests so reviewers can see infrastructure changes.
+
+## Ansible for Configuration Management
+
+While Terraform excels at provisioning infrastructure, **Ansible** excels at configuring the software on that infrastructure. Ansible uses SSH to connect to servers and execute tasks defined in YAML playbooks:
+
+```yaml
+# playbook.yml - Configure a web server
+---
+- name: Configure web application server
+  hosts: webservers
+  become: yes
+
+  vars:
+    app_user: appuser
+    app_dir: /opt/myapp
+    node_version: "20"
+
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install required packages
+      apt:
+        name:
+          - nginx
+          - curl
+          - git
+        state: present
+
+    - name: Create application user
+      user:
+        name: "{{ app_user }}"
+        shell: /bin/bash
+        create_home: yes
+
+    - name: Deploy application configuration
+      template:
+        src: templates/nginx.conf.j2
+        dest: /etc/nginx/sites-available/myapp
+      notify: Restart Nginx
+
+    - name: Enable site
+      file:
+        src: /etc/nginx/sites-available/myapp
+        dest: /etc/nginx/sites-enabled/myapp
+        state: link
+      notify: Restart Nginx
+
+  handlers:
+    - name: Restart Nginx
+      service:
+        name: nginx
+        state: restarted
+```
+
+### Terraform + Ansible Together
+
+A common pattern is to use both tools together:
+
+```
+  Terraform                          Ansible
+  ┌─────────────────────┐            ┌──────────────────────────┐
+  │ Provision infra:    │            │ Configure servers:       │
+  │ - VPCs, subnets     │──creates──▶│ - Install packages       │
+  │ - EC2 instances     │  servers   │ - Deploy app config      │
+  │ - RDS databases     │            │ - Set up monitoring      │
+  │ - Load balancers    │            │ - Configure firewalls    │
+  └─────────────────────┘            └──────────────────────────┘
+```
+
+## Putting It All Together
+
+A mature DevOps observability and IaC stack typically looks like this:
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                        Applications                          │
+│   Instrumented with OpenTelemetry SDKs                       │
+│   Emitting: metrics, logs, traces                            │
+└──────────────┬──────────────┬──────────────┬─────────────────┘
+               │              │              │
+          ┌────▼────┐   ┌────▼────┐   ┌─────▼─────┐
+          │Prometheus│   │  Loki   │   │  Tempo /  │
+          │(metrics) │   │ (logs)  │   │  Jaeger   │
+          │          │   │         │   │ (traces)  │
+          └────┬─────┘   └────┬────┘   └─────┬─────┘
+               │              │              │
+               └──────────────┼──────────────┘
+                              │
+                       ┌──────▼──────┐
+                       │   Grafana   │
+                       │ (dashboards │
+                       │  & alerts)  │
+                       └──────┬──────┘
+                              │
+                       ┌──────▼──────┐
+                       │Alertmanager │──▶ Slack / PagerDuty / Email
+                       └─────────────┘
+
+Infrastructure managed by:
+  Terraform (provisioning) + Ansible (configuration)
+  All version-controlled, reviewed, and applied via CI/CD
+```
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="DevOps Overview"
+    description="Return to the DevOps overview for the big picture."
+    href="/software-engineering/devops/"
+  />
+  <LinkCard
+    title="CI/CD Pipelines"
+    description="Integrate monitoring and IaC into your CI/CD workflows."
+    href="/software-engineering/devops/ci-cd/"
+  />
+  <LinkCard
+    title="Containers & Docker"
+    description="Review containerization fundamentals for your monitored workloads."
+    href="/software-engineering/devops/containers-docker/"
+  />
+  <LinkCard
+    title="Kubernetes Fundamentals"
+    description="Learn how Kubernetes orchestrates the infrastructure you monitor."
+    href="/software-engineering/devops/kubernetes/"
+  />
+</CardGrid>

@@ -1,0 +1,422 @@
+---
+title: "DNS, CDN & Routing"
+description: "Learn how DNS resolves domain names, how CDNs deliver content, and how packets are routed"
+difficulty: "intermediate"
+prerequisites: ["OSI Model & TCP/IP"]
+timeToRead: "15 min"
+topics: ["dns", "cdn", "routing", "ip-addressing", "dns-records"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+Every time you type a URL into your browser, a remarkable chain of events unfolds behind the scenes. The domain name must be translated into an IP address, a route must be found across potentially dozens of networks, and in many cases, a CDN decides which server should handle your request. Understanding DNS, routing, and CDNs is essential for debugging connectivity issues, optimizing application performance, and designing globally distributed systems.
+
+---
+
+## DNS: The Domain Name System
+
+DNS is the internet's **phone book**. It translates human-readable domain names (like `www.example.com`) into machine-readable IP addresses (like `93.184.216.34`). Without DNS, you would need to memorize IP addresses for every website you visit.
+
+### DNS Resolution Process
+
+When you enter `www.example.com` in your browser, the following resolution process occurs. DNS resolution can be either **recursive** (the resolver does all the work on your behalf) or **iterative** (the resolver queries each server and follows referrals).
+
+```
+                          DNS Resolution Flow
+                          ══════════════════
+
+  ┌──────────┐
+  │  Browser  │  1. "What is the IP for www.example.com?"
+  │          │─────────────────────────────────────┐
+  └──────────┘                                      │
+       ▲                                            ▼
+       │                                  ┌─────────────────┐
+       │                                  │ Recursive DNS   │
+       │  8. Returns IP                   │ Resolver        │
+       │     93.184.216.34                │ (ISP or         │
+       │                                  │  8.8.8.8, etc.) │
+       │                                  └────────┬────────┘
+       │                                           │
+       │                              ┌────────────┼────────────┐
+       │                              │            │            │
+       │                              ▼            │            │
+       │                    ┌──────────────┐       │            │
+       │                    │  Root DNS     │       │            │
+       │                    │  Server (.)   │       │            │
+       │                    └──────┬───────┘       │            │
+       │                           │               │            │
+       │              2. "I don't know, but        │            │
+       │                  ask the .com server"     │            │
+       │                           │               │            │
+       │                           ▼               │            │
+       │                    ┌──────────────┐       │            │
+       │                    │  TLD DNS      │       │            │
+       │                    │  Server (.com)│       │            │
+       │                    └──────┬───────┘       │            │
+       │                           │               │            │
+       │              4. "I don't know, but        │            │
+       │                  ask ns1.example.com"     │            │
+       │                           │               │            │
+       │                           ▼               ▼            │
+       │                    ┌──────────────────────────┐        │
+       │                    │  Authoritative DNS        │        │
+       │                    │  Server (ns1.example.com) │        │
+       │                    └──────────┬───────────────┘        │
+       │                               │                        │
+       │              6. "www.example.com = 93.184.216.34"      │
+       │                               │                        │
+       └───────────────────────────────┘                        │
+                                                                │
+        7. Resolver caches the result ◄─────────────────────────┘
+```
+
+**Step-by-step breakdown**:
+
+1. **Browser cache check**: The browser first checks its own DNS cache
+2. **OS cache check**: If not found, the operating system's DNS cache is checked (`/etc/hosts` on Linux/macOS)
+3. **Recursive resolver query**: The OS sends a query to the configured DNS resolver (your ISP's resolver, Google's `8.8.8.8`, Cloudflare's `1.1.1.1`, etc.)
+4. **Root server query**: The resolver queries a root DNS server, which responds with the address of the TLD (Top-Level Domain) server for `.com`
+5. **TLD server query**: The resolver queries the `.com` TLD server, which responds with the address of the authoritative DNS server for `example.com`
+6. **Authoritative server query**: The resolver queries the authoritative server, which returns the actual IP address for `www.example.com`
+7. **Cache and return**: The resolver caches the result and returns it to the client
+
+### Recursive vs Iterative Resolution
+
+| Aspect | Recursive | Iterative |
+|--------|-----------|-----------|
+| **How it works** | Resolver does all the work; client waits for final answer | Resolver returns referrals; client follows each one |
+| **Client effort** | Minimal (one query, one response) | Higher (multiple queries) |
+| **Used between** | Client and recursive resolver | Recursive resolver and authoritative servers |
+| **Caching** | Resolver caches at each step | Each server may cache |
+
+In practice, the query from your browser to the recursive resolver is **recursive**, while the queries between the resolver and authoritative servers are typically **iterative**.
+
+---
+
+## DNS Record Types
+
+DNS records define how domain names map to various resources. Each record type serves a specific purpose.
+
+| Record | Name | Purpose | Example |
+|--------|------|---------|---------|
+| **A** | Address | Maps domain to an IPv4 address | `example.com → 93.184.216.34` |
+| **AAAA** | IPv6 Address | Maps domain to an IPv6 address | `example.com → 2606:2800:220:1:248:1893:25c8:1946` |
+| **CNAME** | Canonical Name | Alias pointing to another domain name | `www.example.com → example.com` |
+| **MX** | Mail Exchange | Specifies mail server for the domain | `example.com → mail.example.com (priority: 10)` |
+| **TXT** | Text | Arbitrary text data (SPF, DKIM, verification) | `example.com → "v=spf1 include:_spf.google.com ~all"` |
+| **NS** | Name Server | Delegates a DNS zone to authoritative servers | `example.com → ns1.example.com` |
+| **SOA** | Start of Authority | Contains zone metadata (serial, refresh, TTL) | `example.com → ns1.example.com admin.example.com 2024010101` |
+| **SRV** | Service | Specifies host and port for a specific service | `_sip._tcp.example.com → 10 5 5060 sip.example.com` |
+| **PTR** | Pointer | Reverse DNS lookup (IP to domain) | `34.216.184.93.in-addr.arpa → example.com` |
+| **CAA** | Certification Authority Authorization | Specifies which CAs can issue certificates | `example.com → 0 issue "letsencrypt.org"` |
+
+### Common Use Cases for TXT Records
+
+TXT records serve many purposes beyond simple text storage:
+
+- **SPF (Sender Policy Framework)**: Specifies which mail servers are authorized to send email for your domain
+- **DKIM (DomainKeys Identified Mail)**: Provides a public key for verifying email signatures
+- **DMARC**: Defines email authentication policy
+- **Domain verification**: Proving domain ownership to third-party services (Google, AWS, etc.)
+
+---
+
+## DNS Caching and TTL
+
+DNS responses include a **TTL (Time to Live)** value that specifies how long the record can be cached before the resolver must query the authoritative server again.
+
+| TTL Value | Duration | Use Case |
+|-----------|----------|----------|
+| 60 seconds | 1 minute | During DNS migrations or failover scenarios |
+| 300 seconds | 5 minutes | Dynamic environments, frequently changing IPs |
+| 3600 seconds | 1 hour | Standard for most web services |
+| 86400 seconds | 24 hours | Stable, rarely changing records |
+
+### DNS Caching Layers
+
+```
+Request Flow:
+
+┌──────────┐    ┌──────────┐    ┌──────────────┐    ┌───────────────┐    ┌──────────────┐
+│ Browser  │───►│ OS DNS   │───►│ Recursive    │───►│ Authoritative │───►│ Zone File    │
+│ Cache    │    │ Cache    │    │ Resolver     │    │ DNS Server    │    │ (source of   │
+│ (~1 min) │    │ (varies) │    │ Cache (TTL)  │    │               │    │  truth)      │
+└──────────┘    └──────────┘    └──────────────┘    └───────────────┘    └──────────────┘
+```
+
+**Trade-offs**:
+- **Lower TTL**: Faster failover and updates, but more DNS queries (higher latency and DNS server load)
+- **Higher TTL**: Better performance and lower DNS load, but slower propagation of changes
+
+**Best practice**: Set TTL to a comfortable value (e.g., 1 hour) during normal operations and lower it to 60 seconds before planned DNS changes. After the change propagates, raise it back.
+
+---
+
+## CDN Architecture and Benefits
+
+A **Content Delivery Network (CDN)** is a globally distributed network of edge servers that cache and serve content from locations geographically close to users.
+
+### How a CDN Works
+
+```
+Without CDN:
+┌──────────┐                                        ┌──────────┐
+│  User in │ ──── 200ms round trip ────────────────► │  Origin  │
+│  Tokyo   │                                         │  Server  │
+└──────────┘                                         │ (US-East)│
+                                                     └──────────┘
+
+With CDN:
+┌──────────┐           ┌──────────────┐              ┌──────────┐
+│  User in │ ── 10ms ─►│  CDN Edge    │ ── Cache ──► │  Origin  │
+│  Tokyo   │           │  (Tokyo POP) │    Miss      │  Server  │
+└──────────┘           │              │ ◄──────────── │ (US-East)│
+                       │  Cached copy │              └──────────┘
+                       │  served on   │
+                       │  subsequent  │
+                       │  requests    │
+                       └──────────────┘
+```
+
+### CDN Benefits
+
+| Benefit | Description |
+|---------|-------------|
+| **Reduced latency** | Content served from nearby edge servers (10-50ms vs 100-300ms) |
+| **Lower origin load** | Edge servers handle the majority of requests, reducing load on your servers |
+| **DDoS protection** | CDN's distributed infrastructure absorbs volumetric attacks |
+| **High availability** | Content remains available even if the origin server goes down (stale cache) |
+| **TLS termination** | CDN handles TLS encryption/decryption at the edge, reducing origin CPU load |
+| **Compression** | Edge servers compress content (gzip, Brotli) before delivery |
+
+### What CDNs Cache
+
+| Content Type | Cacheable | TTL Strategy |
+|-------------|-----------|-------------|
+| Static assets (images, CSS, JS) | Always | Long TTL (days to months) with cache busting via versioned filenames |
+| HTML pages | Sometimes | Short TTL (minutes) or use stale-while-revalidate |
+| API responses | Selectively | Vary by headers (Auth, Accept), short TTL |
+| Video/audio | Yes | Long TTL, chunked delivery |
+| Dynamic/personalized content | No | Pass through to origin |
+
+### Popular CDN Providers
+
+| Provider | Key Strengths |
+|----------|-------------|
+| **Cloudflare** | Largest network (300+ cities), free tier, built-in DDoS protection, Workers (edge compute) |
+| **AWS CloudFront** | Deep AWS integration, Lambda@Edge for edge compute |
+| **Akamai** | Largest legacy CDN, enterprise-focused, extensive network |
+| **Fastly** | Real-time purging, VCL configuration, edge compute (Compute@Edge) |
+| **Google Cloud CDN** | Integrated with GCP, Anycast IP |
+
+---
+
+## IP Addressing
+
+Every device on the internet needs a unique IP address. There are two versions in use today.
+
+### IPv4
+
+IPv4 uses **32-bit addresses**, written as four decimal octets separated by dots.
+
+```
+Example: 192.168.1.100
+
+Binary:  11000000.10101000.00000001.01100100
+Decimal: 192     .168     .1       .100
+
+Total addresses: 2^32 = ~4.3 billion (exhausted in 2011)
+```
+
+**Special IPv4 address ranges**:
+
+| Range | Purpose |
+|-------|---------|
+| `10.0.0.0/8` | Private network (large organizations) |
+| `172.16.0.0/12` | Private network (medium organizations) |
+| `192.168.0.0/16` | Private network (home/small office) |
+| `127.0.0.0/8` | Loopback (localhost) |
+| `0.0.0.0` | All interfaces (listen on all) |
+| `255.255.255.255` | Broadcast |
+| `169.254.0.0/16` | Link-local (auto-assigned when DHCP fails) |
+
+### IPv6
+
+IPv6 uses **128-bit addresses**, written as eight groups of four hexadecimal digits separated by colons.
+
+```
+Example: 2001:0db8:85a3:0000:0000:8a2e:0370:7334
+
+Shortened: 2001:db8:85a3::8a2e:370:7334
+(Leading zeros can be dropped, consecutive zero groups replaced with ::)
+
+Total addresses: 2^128 = ~3.4 x 10^38 (practically unlimited)
+```
+
+### IPv4 vs IPv6
+
+| Feature | IPv4 | IPv6 |
+|---------|------|------|
+| **Address size** | 32 bits | 128 bits |
+| **Notation** | Dotted decimal (`192.168.1.1`) | Hexadecimal (`2001:db8::1`) |
+| **Total addresses** | ~4.3 billion | ~3.4 x 10^38 |
+| **NAT required** | Yes (address scarcity) | No (sufficient addresses) |
+| **Header** | Variable length, complex | Fixed 40 bytes, simplified |
+| **IPsec** | Optional | Built-in |
+| **Broadcast** | Supported | Replaced by multicast |
+
+---
+
+## Subnetting Basics
+
+Subnetting divides a large network into smaller, more manageable sub-networks. It is defined using a **subnet mask** or **CIDR notation**.
+
+### CIDR Notation
+
+CIDR (Classless Inter-Domain Routing) notation specifies the network portion of an address using a prefix length.
+
+```
+192.168.1.0/24
+
+IP Address:   192.168.1.0
+Subnet Mask:  255.255.255.0
+
+Binary breakdown:
+IP:     11000000.10101000.00000001.00000000
+Mask:   11111111.11111111.11111111.00000000
+        |---- Network (24 bits) ---||Host|
+
+Network portion: 192.168.1 (first 24 bits)
+Host portion:    .0 to .255 (last 8 bits)
+Usable hosts:    .1 to .254 (254 hosts)
+```
+
+### Common Subnet Sizes
+
+| CIDR | Subnet Mask | Usable Hosts | Common Use |
+|------|-------------|-------------|------------|
+| `/32` | `255.255.255.255` | 1 | Single host route |
+| `/28` | `255.255.255.240` | 14 | Small department |
+| `/24` | `255.255.255.0` | 254 | Standard LAN subnet |
+| `/16` | `255.255.0.0` | 65,534 | Large campus network |
+| `/8` | `255.0.0.0` | 16,777,214 | Major network block |
+
+---
+
+## Routing Fundamentals
+
+Routing is the process of selecting paths in a network along which to send network packets. Routers use **routing tables** to make forwarding decisions.
+
+### How Routing Works
+
+```
+┌──────────┐     ┌──────────┐     ┌──────────┐     ┌──────────┐
+│ Source    │────►│ Router A │────►│ Router B │────►│ Dest.    │
+│ 10.0.1.5 │     │          │     │          │     │ 10.0.3.8 │
+└──────────┘     └──────────┘     └──────────┘     └──────────┘
+                  Routing table:   Routing table:
+                  10.0.1.0/24 → local  10.0.2.0/24 → local
+                  10.0.2.0/24 → local  10.0.3.0/24 → local
+                  10.0.3.0/24 → Router B
+                  0.0.0.0/0 → ISP
+```
+
+Each router examines the destination IP of incoming packets and consults its routing table to determine the next hop. The packet is forwarded hop-by-hop until it reaches its destination.
+
+### Routing Protocols
+
+Routing protocols allow routers to dynamically learn about network topology and compute optimal paths.
+
+| Protocol | Type | Scope | Algorithm | Use Case |
+|----------|------|-------|-----------|----------|
+| **OSPF** | Interior Gateway (IGP) | Within an organization | Link-state (Dijkstra) | Enterprise networks |
+| **RIP** | Interior Gateway (IGP) | Within an organization | Distance-vector (Bellman-Ford) | Small networks (legacy) |
+| **EIGRP** | Interior Gateway (IGP) | Within an organization | Hybrid (DUAL) | Cisco networks |
+| **BGP** | Exterior Gateway (EGP) | Between organizations | Path-vector | The internet backbone |
+
+### BGP: The Protocol That Runs the Internet
+
+**Border Gateway Protocol (BGP)** is the routing protocol used to exchange routing information between **Autonomous Systems (AS)** — the large networks operated by ISPs, cloud providers, and enterprises.
+
+```
+┌──────────────────┐          ┌──────────────────┐
+│  AS 64500        │   BGP    │  AS 64501        │
+│  (ISP Alpha)     │◄────────►│  (ISP Beta)      │
+│                  │          │                  │
+│  ┌────────────┐  │          │  ┌────────────┐  │
+│  │ Internal   │  │          │  │ Internal   │  │
+│  │ routers    │  │          │  │ routers    │  │
+│  │ (OSPF)     │  │          │  │ (OSPF)     │  │
+│  └────────────┘  │          │  └────────────┘  │
+└──────────────────┘          └──────────────────┘
+         │                             │
+         │          BGP                │
+         └────────────┬────────────────┘
+                      │
+              ┌───────▼───────┐
+              │  AS 64502     │
+              │  (Cloud       │
+              │   Provider)   │
+              └───────────────┘
+```
+
+**Key BGP concepts**:
+- **Autonomous System (AS)**: A collection of IP networks under a single administrative domain, identified by an AS Number (ASN)
+- **BGP peering**: Two ASes establish a TCP connection to exchange routing information
+- **Route advertisement**: Each AS announces which IP prefixes it can reach
+- **Path selection**: BGP selects the best path based on policies (AS path length, local preference, business relationships)
+
+**Why BGP matters for software engineers**:
+- BGP misconfiguration can cause **internet outages** (e.g., the Facebook outage of October 2021 was a BGP issue)
+- Understanding BGP helps with **multi-cloud architectures** and **traffic engineering**
+- CDNs use **Anycast** (advertising the same IP from multiple locations) with BGP to route users to the nearest server
+
+---
+
+## Putting It All Together: What Happens When You Visit a Website
+
+Here is the complete sequence of events when you type `https://www.example.com` in your browser:
+
+1. **DNS Resolution**: Browser resolves `www.example.com` to an IP address (checking browser cache, OS cache, recursive resolver, root, TLD, authoritative servers)
+2. **TCP Connection**: Browser initiates a TCP three-way handshake with the server's IP on port 443
+3. **TLS Handshake**: Browser and server negotiate encryption (TLS 1.3 handshake)
+4. **HTTP Request**: Browser sends `GET / HTTP/2` over the encrypted connection
+5. **Routing**: Packets traverse multiple routers (using OSPF within networks, BGP between networks) to reach the server
+6. **CDN Optimization**: If the site uses a CDN, the DNS may resolve to a nearby edge server that serves cached content
+7. **Server Processing**: The origin server (or CDN edge) processes the request and returns HTML
+8. **Response**: HTML, CSS, JS, images, and fonts are streamed back to the browser
+9. **Rendering**: Browser parses HTML, fetches additional resources (repeating DNS/TCP/TLS as needed), and renders the page
+
+---
+
+## Key Takeaways
+
+- **DNS** translates domain names to IP addresses through a hierarchical system of root, TLD, and authoritative servers
+- **DNS record types** serve different purposes: A/AAAA for IP mapping, CNAME for aliases, MX for email, TXT for verification
+- **TTL** controls how long DNS records are cached — lower TTL enables faster changes but increases DNS traffic
+- **CDNs** dramatically reduce latency by serving content from edge locations close to users
+- **IPv4** addresses are exhausted; **IPv6** provides a virtually unlimited address space
+- **Subnetting** divides networks into smaller segments for better organization and security
+- **BGP** is the inter-domain routing protocol that makes the global internet work
+
+---
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="WebSockets & Real-Time Communication"
+    href="/software-engineering/computer-networks/websockets-realtime/"
+    description="Learn how to implement real-time features using WebSockets, SSE, and other techniques"
+  />
+  <LinkCard
+    title="HTTP & HTTPS"
+    href="/software-engineering/computer-networks/http-https/"
+    description="Deep dive into HTTP methods, status codes, headers, and the TLS handshake"
+  />
+  <LinkCard
+    title="System Design: Scalability"
+    href="/software-engineering/system-design/scalability/"
+    description="Apply networking knowledge to design scalable systems with load balancers, caching, and CDNs"
+  />
+</CardGrid>

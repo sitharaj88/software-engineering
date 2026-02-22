@@ -1,0 +1,718 @@
+---
+title: "Authentication, Authorization & Encryption"
+description: "Implement secure authentication, authorization, and cryptographic patterns"
+difficulty: "intermediate"
+prerequisites: ["Security Fundamentals"]
+timeToRead: "22 min"
+topics: ["authentication", "authorization", "encryption", "hashing", "oauth", "jwt", "rbac"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+Authentication and authorization are the **gatekeepers of every application**. Authentication answers "who are you?" while authorization answers "what are you allowed to do?" Encryption is the underlying technology that makes both possible in a hostile network environment. Getting any of these wrong can turn a single vulnerability into a full system compromise.
+
+---
+
+## Authentication vs Authorization
+
+These two concepts are frequently confused but are fundamentally different:
+
+| Aspect | Authentication (AuthN) | Authorization (AuthZ) |
+|--------|----------------------|---------------------|
+| **Question** | Who are you? | What can you do? |
+| **When** | At login / session start | On every protected action |
+| **Mechanism** | Passwords, tokens, biometrics, MFA | Roles, permissions, policies |
+| **Failure response** | 401 Unauthorized | 403 Forbidden |
+| **Example** | Logging in with email and password | An editor can publish posts but cannot delete users |
+
+```
+┌──────────┐      ┌──────────────────┐      ┌───────────────────┐
+│          │      │                  │      │                   │
+│  User    │─────►│  Authentication  │─────►│  Authorization    │
+│          │      │  "Who are you?"  │      │  "What can you    │
+│          │      │                  │      │   access?"        │
+└──────────┘      └──────────────────┘      └───────────────────┘
+                         │                          │
+                    401 if fail                403 if fail
+```
+
+**Critical rule**: Authentication must always come before authorization. You cannot determine what someone is allowed to do until you know who they are.
+
+---
+
+## Password Storage
+
+**Never store passwords in plain text. Ever.** This is the single most important rule in authentication security. If your database is breached, every user's password is immediately compromised.
+
+### The Evolution of Password Storage
+
+| Method | Security | Why |
+|--------|----------|-----|
+| Plain text | None | Attacker reads passwords directly from the database |
+| MD5 / SHA-1 hash | Very weak | Pre-computed rainbow tables crack most passwords instantly |
+| SHA-256 hash | Weak | Still vulnerable to rainbow tables and GPU-accelerated brute force |
+| SHA-256 + salt | Moderate | Unique salt prevents rainbow tables, but SHA-256 is too fast for passwords |
+| **bcrypt** | **Strong** | **Intentionally slow, includes salt, configurable cost factor** |
+| **Argon2id** | **Strongest** | **Memory-hard, resistant to GPU/ASIC attacks, recommended for new systems** |
+| **scrypt** | **Strong** | **Memory-hard, good alternative to Argon2** |
+
+### Why Speed Is the Enemy
+
+General-purpose hash functions like SHA-256 are designed to be **fast**. A modern GPU can compute billions of SHA-256 hashes per second. Password hashing algorithms like bcrypt and Argon2 are intentionally **slow** -- they make brute force attacks computationally infeasible.
+
+```
+SHA-256:   ~10,000,000,000 hashes/second (GPU)   = crack in seconds
+bcrypt:    ~10,000 hashes/second (GPU)            = crack in years
+Argon2id:  ~1,000 hashes/second (GPU)             = crack in centuries
+```
+
+### Password Hashing in Practice
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# Using bcrypt
+import bcrypt
+
+def hash_password(password: str) -> str:
+    """Hash a password with bcrypt (auto-generates salt)."""
+    salt = bcrypt.gensalt(rounds=12)  # Cost factor of 12 (~250ms per hash)
+    hashed = bcrypt.hashpw(password.encode("utf-8"), salt)
+    return hashed.decode("utf-8")
+
+def verify_password(password: str, hashed: str) -> bool:
+    """Verify a password against a bcrypt hash."""
+    return bcrypt.checkpw(
+        password.encode("utf-8"),
+        hashed.encode("utf-8")
+    )
+
+
+# Using Argon2 (recommended for new projects)
+from argon2 import PasswordHasher
+
+ph = PasswordHasher(
+    time_cost=3,       # Number of iterations
+    memory_cost=65536,  # Memory usage in KiB (64 MB)
+    parallelism=4,      # Number of parallel threads
+)
+
+def hash_password_argon2(password: str) -> str:
+    """Hash a password with Argon2id."""
+    return ph.hash(password)
+
+def verify_password_argon2(password: str, hashed: str) -> bool:
+    """Verify a password against an Argon2id hash."""
+    try:
+        return ph.verify(hashed, password)
+    except Exception:
+        return False
+
+
+# Usage
+hashed = hash_password("my_secure_password_123")
+print(hashed)  # $2b$12$LJ3m4ys3Lg...
+
+assert verify_password("my_secure_password_123", hashed) is True
+assert verify_password("wrong_password", hashed) is False
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// Using bcrypt
+const bcrypt = require("bcrypt");
+
+const SALT_ROUNDS = 12; // Cost factor (~250ms per hash)
+
+async function hashPassword(password) {
+  // bcrypt.hash auto-generates a salt
+  const hashed = await bcrypt.hash(password, SALT_ROUNDS);
+  return hashed;
+}
+
+async function verifyPassword(password, hashed) {
+  const isMatch = await bcrypt.compare(password, hashed);
+  return isMatch;
+}
+
+
+// Using argon2 (recommended for new projects)
+const argon2 = require("argon2");
+
+async function hashPasswordArgon2(password) {
+  const hashed = await argon2.hash(password, {
+    type: argon2.argon2id,   // Argon2id variant (recommended)
+    memoryCost: 65536,        // 64 MB memory
+    timeCost: 3,              // 3 iterations
+    parallelism: 4,           // 4 parallel threads
+  });
+  return hashed;
+}
+
+async function verifyPasswordArgon2(password, hashed) {
+  try {
+    return await argon2.verify(hashed, password);
+  } catch {
+    return false;
+  }
+}
+
+
+// Usage
+(async () => {
+  const hashed = await hashPassword("my_secure_password_123");
+  console.log(hashed); // $2b$12$LJ3m4ys3Lg...
+
+  console.log(await verifyPassword("my_secure_password_123", hashed)); // true
+  console.log(await verifyPassword("wrong_password", hashed));         // false
+})();
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## Session-Based vs Token-Based Authentication
+
+There are two fundamental approaches to maintaining user authentication state after login.
+
+### Session-Based Authentication
+
+The server creates a session and stores it server-side. The client receives a **session ID** stored in a cookie.
+
+```
+1. User logs in with credentials
+   Client ──────────────────────────► Server
+          POST /login
+          { email, password }
+
+2. Server creates session, returns session ID in cookie
+   Client ◄────────────────────────── Server
+          Set-Cookie: sessionId=abc123
+          (Session stored in memory/Redis/DB)
+
+3. Subsequent requests include the cookie automatically
+   Client ──────────────────────────► Server
+          Cookie: sessionId=abc123
+          (Server looks up session to identify user)
+```
+
+**Pros**: Easy to revoke (delete server-side session), simple to implement, cookies sent automatically.
+**Cons**: Requires server-side storage, harder to scale across multiple servers (use Redis for shared sessions), vulnerable to CSRF if not mitigated.
+
+### Token-Based Authentication (JWT)
+
+The server creates a signed token containing user claims. The client stores it and sends it with each request. **No server-side state is needed.**
+
+```
+1. User logs in with credentials
+   Client ──────────────────────────► Server
+          POST /login
+          { email, password }
+
+2. Server creates and signs a JWT, returns it
+   Client ◄────────────────────────── Server
+          { "token": "eyJhbGciOiJI..." }
+
+3. Subsequent requests include the token in the Authorization header
+   Client ──────────────────────────► Server
+          Authorization: Bearer eyJhbGciOiJI...
+          (Server verifies signature, extracts claims)
+```
+
+**Pros**: Stateless (no server-side storage), scales easily, works across domains and services.
+**Cons**: Cannot be revoked easily (use short expiration + refresh tokens), larger than session IDs, must be stored securely on the client.
+
+---
+
+## JSON Web Tokens (JWT) Deep Dive
+
+A JWT consists of three Base64URL-encoded parts separated by dots:
+
+```
+eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U
+│                     │                              │
+│       Header        │          Payload             │        Signature
+│  {"alg":"HS256"}    │  {"sub":"1234567890",        │  HMACSHA256(
+│                     │   "name":"John",             │    base64(header) + "." +
+│                     │   "iat":1516239022}          │    base64(payload),
+│                     │                              │    secret
+│                     │                              │  )
+```
+
+### JWT Implementation
+
+<Tabs>
+  <TabItem label="Python">
+```python
+import jwt
+from datetime import datetime, timedelta, timezone
+
+SECRET_KEY = "your-256-bit-secret"  # In production, load from secrets manager
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 15
+REFRESH_TOKEN_EXPIRE_DAYS = 7
+
+def create_access_token(user_id: str, role: str) -> str:
+    """Create a short-lived access token."""
+    payload = {
+        "sub": user_id,
+        "role": role,
+        "type": "access",
+        "iat": datetime.now(timezone.utc),
+        "exp": datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
+    }
+    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+
+def create_refresh_token(user_id: str) -> str:
+    """Create a longer-lived refresh token."""
+    payload = {
+        "sub": user_id,
+        "type": "refresh",
+        "iat": datetime.now(timezone.utc),
+        "exp": datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS),
+    }
+    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+
+def verify_token(token: str) -> dict:
+    """Verify and decode a JWT token."""
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        return payload
+    except jwt.ExpiredSignatureError:
+        raise ValueError("Token has expired")
+    except jwt.InvalidTokenError:
+        raise ValueError("Invalid token")
+
+
+# Login endpoint
+@app.route("/login", methods=["POST"])
+def login():
+    email = request.json.get("email")
+    password = request.json.get("password")
+
+    user = db.query(User).filter_by(email=email).first()
+    if not user or not verify_password(password, user.password_hash):
+        # Generic message prevents username enumeration
+        abort(401, description="Invalid email or password")
+
+    access_token = create_access_token(str(user.id), user.role)
+    refresh_token = create_refresh_token(str(user.id))
+
+    return jsonify({
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer",
+    })
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+const jwt = require("jsonwebtoken");
+
+const SECRET_KEY = process.env.JWT_SECRET; // Load from environment
+const ACCESS_TOKEN_EXPIRE = "15m";
+const REFRESH_TOKEN_EXPIRE = "7d";
+
+function createAccessToken(userId, role) {
+  return jwt.sign(
+    { sub: userId, role, type: "access" },
+    SECRET_KEY,
+    { expiresIn: ACCESS_TOKEN_EXPIRE }
+  );
+}
+
+function createRefreshToken(userId) {
+  return jwt.sign(
+    { sub: userId, type: "refresh" },
+    SECRET_KEY,
+    { expiresIn: REFRESH_TOKEN_EXPIRE }
+  );
+}
+
+function verifyToken(token) {
+  try {
+    return jwt.verify(token, SECRET_KEY);
+  } catch (error) {
+    if (error.name === "TokenExpiredError") {
+      throw new Error("Token has expired");
+    }
+    throw new Error("Invalid token");
+  }
+}
+
+// Authentication middleware
+function authenticate(req, res, next) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res.status(401).json({ error: "Missing or invalid token" });
+  }
+
+  try {
+    const token = authHeader.split(" ")[1];
+    const payload = verifyToken(token);
+    req.user = payload;
+    next();
+  } catch (error) {
+    return res.status(401).json({ error: error.message });
+  }
+}
+
+// Login endpoint
+app.post("/login", async (req, res) => {
+  const { email, password } = req.body;
+
+  const user = await User.findOne({ where: { email } });
+  if (!user || !(await verifyPassword(password, user.passwordHash))) {
+    // Generic message prevents username enumeration
+    return res.status(401).json({ error: "Invalid email or password" });
+  }
+
+  const accessToken = createAccessToken(user.id, user.role);
+  const refreshToken = createRefreshToken(user.id);
+
+  res.json({
+    access_token: accessToken,
+    refresh_token: refreshToken,
+    token_type: "bearer",
+  });
+});
+```
+  </TabItem>
+</Tabs>
+
+### Common JWT Pitfalls
+
+| Pitfall | Risk | Fix |
+|---------|------|-----|
+| **Setting `alg` to `none`** | Attacker bypasses signature verification entirely | Always validate the algorithm on the server, reject `none` |
+| **Storing JWT in localStorage** | Vulnerable to XSS -- any script can read it | Store in HttpOnly, Secure, SameSite cookies |
+| **No expiration (`exp`)** | Token is valid forever if leaked | Always set short expiration (15 min for access tokens) |
+| **Sensitive data in payload** | JWT payload is Base64-encoded, NOT encrypted -- anyone can read it | Never put passwords, SSNs, or secrets in the payload |
+| **Using a weak secret** | Attacker can brute force the HMAC key | Use at least 256 bits of cryptographic randomness |
+| **Not validating `iss` and `aud`** | Token from one service accepted by another | Validate issuer and audience claims |
+| **Confusing signing with encryption** | JWT is signed (integrity) but NOT encrypted (confidentiality) | Use JWE if payload must be confidential |
+
+---
+
+## OAuth 2.0
+
+OAuth 2.0 is an **authorization framework** (not an authentication protocol) that allows third-party applications to access user resources without exposing credentials.
+
+### Key Roles
+
+| Role | Description | Example |
+|------|-------------|---------|
+| **Resource Owner** | The user who owns the data | A GitHub user |
+| **Client** | The application requesting access | A third-party CI tool |
+| **Authorization Server** | Issues tokens after authenticating the user | GitHub's OAuth server |
+| **Resource Server** | Hosts the protected resources | GitHub's API |
+
+### Authorization Code Flow with PKCE
+
+This is the **recommended flow for all clients**, including single-page applications and mobile apps. PKCE (Proof Key for Code Exchange) prevents authorization code interception attacks.
+
+```
+┌──────────┐                              ┌───────────────┐
+│          │  1. Redirect to auth server  │               │
+│  Client  │─────────────────────────────►│ Authorization │
+│  (App)   │   + code_challenge (PKCE)    │    Server     │
+│          │                              │               │
+│          │  2. User logs in & consents  │               │
+│          │                              │               │
+│          │  3. Redirect back with code  │               │
+│          │◄─────────────────────────────│               │
+│          │   ?code=abc123               │               │
+│          │                              │               │
+│          │  4. Exchange code for tokens │               │
+│          │─────────────────────────────►│               │
+│          │   + code_verifier (PKCE)     │               │
+│          │                              │               │
+│          │  5. Receive access token     │               │
+│          │◄─────────────────────────────│               │
+│          │   + refresh token            │               │
+└──────────┘                              └───────────────┘
+         │
+         │  6. Use access token to call API
+         ▼
+┌───────────────┐
+│   Resource    │
+│    Server     │
+│   (API)       │
+└───────────────┘
+```
+
+### Client Credentials Flow
+
+Used for **service-to-service** communication where no user is involved.
+
+```
+┌──────────┐                              ┌───────────────┐
+│          │  1. Send client_id + secret  │               │
+│  Service │─────────────────────────────►│ Authorization │
+│  (App)   │                              │    Server     │
+│          │  2. Receive access token     │               │
+│          │◄─────────────────────────────│               │
+└──────────┘                              └───────────────┘
+```
+
+This flow is simpler but should only be used for trusted backend services, never for client-side applications.
+
+### OAuth Best Practices
+
+- **Always use PKCE** -- even for confidential clients, it adds defense in depth
+- **Use short-lived access tokens** (5-15 minutes) with refresh tokens
+- **Store client secrets securely** -- never in client-side code or version control
+- **Validate the `state` parameter** to prevent CSRF attacks during the OAuth flow
+- **Restrict scopes** to the minimum required -- do not request `admin` when `read:user` suffices
+- **Use `openid` scope with OIDC** if you need authentication (identity), not just authorization (access)
+
+---
+
+## Multi-Factor Authentication (MFA)
+
+MFA requires users to provide **two or more verification factors** from different categories:
+
+| Factor Type | Description | Examples |
+|-------------|-------------|---------|
+| **Something you know** | Secret information | Password, PIN, security questions |
+| **Something you have** | Physical possession | Phone (TOTP), hardware key (YubiKey), smart card |
+| **Something you are** | Biometric trait | Fingerprint, face recognition, iris scan |
+
+### MFA Methods Ranked by Security
+
+| Method | Security Level | Usability | Notes |
+|--------|---------------|-----------|-------|
+| SMS codes | Low | High | Vulnerable to SIM swapping and SS7 attacks |
+| Email codes | Low | High | If email is compromised, MFA is bypassed |
+| TOTP (Google Authenticator) | Medium | Medium | Time-based codes, device-dependent |
+| Push notifications | Medium | High | Convenient but vulnerable to fatigue attacks |
+| **Hardware keys (FIDO2/WebAuthn)** | **Highest** | Medium | **Phishing-resistant, cryptographic proof** |
+
+**Recommendation**: Implement **TOTP** as the baseline and encourage **hardware keys** for high-privilege accounts. **Avoid SMS-based MFA** for any sensitive system.
+
+---
+
+## Authorization Patterns
+
+Once a user is authenticated, the next question is: **what are they allowed to do?**
+
+### Role-Based Access Control (RBAC)
+
+Permissions are assigned to **roles**, and users are assigned to roles. This is the most common authorization model.
+
+```
+┌───────────┐      ┌───────────┐      ┌──────────────┐
+│   Users   │─────►│   Roles   │─────►│ Permissions  │
+└───────────┘      └───────────┘      └──────────────┘
+
+Alice ─────► Admin    ─────► create, read, update, delete, manage_users
+Bob   ─────► Editor   ─────► create, read, update
+Carol ─────► Viewer   ─────► read
+```
+
+**Pros**: Simple to understand and implement, maps well to organizational hierarchies.
+**Cons**: Can lead to role explosion (too many fine-grained roles), not context-aware.
+
+### Attribute-Based Access Control (ABAC)
+
+Access decisions are based on **attributes** of the user, the resource, the action, and the environment.
+
+```
+Policy: "Allow if user.department == resource.department
+         AND user.clearance >= resource.classification
+         AND environment.time is within business_hours"
+```
+
+**Pros**: Extremely flexible and context-aware, handles complex policies.
+**Cons**: More complex to implement and audit, harder to reason about.
+
+### Access Control Lists (ACL)
+
+Each resource has a list specifying which users or groups have which permissions on that specific resource.
+
+```
+Document: "Q4 Report"
+├── Alice: read, write
+├── Bob: read
+├── Finance Group: read, write
+└── Everyone else: no access
+```
+
+**Pros**: Fine-grained per-resource control, familiar model (file system permissions).
+**Cons**: Does not scale well for large numbers of resources, hard to audit globally.
+
+### Choosing an Authorization Model
+
+| Scenario | Recommended Model |
+|----------|------------------|
+| Simple web app with clear user roles | **RBAC** |
+| Enterprise with complex policies | **ABAC** |
+| File sharing / document management | **ACL** |
+| Microservices with cross-service auth | **RBAC + ABAC hybrid** |
+
+---
+
+## Encryption Fundamentals
+
+Encryption transforms readable data (**plaintext**) into unreadable data (**ciphertext**) using an algorithm and a key. Only those with the correct key can reverse the process.
+
+### Symmetric Encryption
+
+The **same key** is used for both encryption and decryption.
+
+```
+Plaintext ──► [ AES-256 + Key ] ──► Ciphertext
+Ciphertext ──► [ AES-256 + Key ] ──► Plaintext
+```
+
+| Algorithm | Key Size | Use Case |
+|-----------|----------|----------|
+| **AES-256-GCM** | 256 bits | Data at rest, file encryption, database fields (recommended) |
+| AES-128 | 128 bits | Acceptable where AES-256 performance is a concern |
+| ChaCha20-Poly1305 | 256 bits | Mobile and IoT (faster in software than AES without hardware support) |
+
+**Key challenge**: How do you securely share the key between parties?
+
+### Asymmetric Encryption
+
+Uses a **key pair**: a public key (shared freely) for encryption and a private key (kept secret) for decryption.
+
+```
+Plaintext ──► [ RSA/ECC + Public Key ]  ──► Ciphertext
+Ciphertext ──► [ RSA/ECC + Private Key ] ──► Plaintext
+```
+
+| Algorithm | Key Size | Use Case |
+|-----------|----------|----------|
+| **RSA** | 2048-4096 bits | TLS certificates, digital signatures, key exchange |
+| **ECC (Elliptic Curve)** | 256-384 bits | TLS, mobile apps (smaller keys = faster, same security) |
+| Ed25519 | 256 bits | SSH keys, digital signatures (fast, secure) |
+
+**Key insight**: Asymmetric encryption solves the key distribution problem but is ~1000x slower than symmetric encryption. In practice, systems use **asymmetric encryption to exchange a symmetric key**, then use the symmetric key for bulk data encryption (this is how TLS works).
+
+### When to Use Which
+
+| Scenario | Encryption Type | Specific Algorithm |
+|----------|----------------|-------------------|
+| Encrypting data at rest (database fields) | Symmetric | AES-256-GCM |
+| Encrypting files on disk | Symmetric | AES-256-GCM or ChaCha20 |
+| TLS/HTTPS (data in transit) | Both (hybrid) | ECDHE + AES-256-GCM |
+| Digital signatures | Asymmetric | RSA-2048+ or Ed25519 |
+| SSH authentication | Asymmetric | Ed25519 |
+
+---
+
+## Hashing
+
+Hashing is a **one-way function** that converts input into a fixed-size output (hash/digest). Unlike encryption, hashing **cannot be reversed**.
+
+```
+Input ──► [ Hash Function ] ──► Fixed-size digest
+"hello" ──► [ SHA-256 ] ──► 2cf24dba5fb0a30e...   (64 hex chars, always)
+```
+
+### Properties of Cryptographic Hashes
+
+| Property | Description |
+|----------|-------------|
+| **Deterministic** | Same input always produces the same output |
+| **Fixed output size** | Regardless of input size, output is always the same length |
+| **Avalanche effect** | A tiny change in input produces a completely different hash |
+| **Pre-image resistance** | Given a hash, it is computationally infeasible to find the original input |
+| **Collision resistance** | It is infeasible to find two different inputs that produce the same hash |
+
+### Common Hash Functions and Their Uses
+
+| Function | Output Size | Use Case | Notes |
+|----------|-------------|----------|-------|
+| **SHA-256** | 256 bits | Data integrity, digital signatures, checksums | General-purpose, widely used |
+| **SHA-3** | 256/512 bits | Same as SHA-256, newer standard | Alternative design to SHA-2 family |
+| **BLAKE3** | 256 bits | File hashing, checksums | Very fast, modern design |
+| **bcrypt** | 184 bits | Password hashing | Intentionally slow, built-in salt |
+| **Argon2id** | Configurable | Password hashing | Memory-hard, recommended for passwords |
+| MD5 | 128 bits | Legacy checksums only | **Broken -- never use for security** |
+| SHA-1 | 160 bits | Legacy only | **Broken -- never use for security** |
+
+---
+
+## TLS/SSL and Certificate Management
+
+**TLS (Transport Layer Security)** encrypts data in transit between clients and servers. SSL is the deprecated predecessor -- when people say "SSL," they almost always mean TLS.
+
+### The TLS Handshake (Simplified)
+
+```
+Client                                  Server
+  │                                       │
+  │  1. ClientHello                       │
+  │  (supported ciphers, TLS version)     │
+  │──────────────────────────────────────►│
+  │                                       │
+  │  2. ServerHello + Certificate         │
+  │  (chosen cipher, server's public key) │
+  │◄──────────────────────────────────────│
+  │                                       │
+  │  3. Client verifies certificate       │
+  │     against trusted CA                │
+  │                                       │
+  │  4. Key Exchange                      │
+  │  (both derive shared secret)          │
+  │──────────────────────────────────────►│
+  │                                       │
+  │  5. Encrypted communication begins    │
+  │◄─────────────────────────────────────►│
+  │  (using symmetric key derived above)  │
+```
+
+### Certificate Management Best Practices
+
+| Practice | Why |
+|----------|-----|
+| Use certificates from trusted CAs (Let's Encrypt, DigiCert) | Self-signed certs trigger browser warnings and break trust chains |
+| **Automate certificate renewal** | Expired certs cause outages -- use certbot or cloud-managed certificates |
+| Use TLS 1.2 as the minimum version | TLS 1.0 and 1.1 have known vulnerabilities and are deprecated |
+| Prefer TLS 1.3 | Faster handshake (1-RTT), stronger security, no legacy cipher suites |
+| Enable HSTS | Prevent protocol downgrade attacks (HTTPS to HTTP) |
+| Use strong cipher suites | Prefer ECDHE for key exchange, AES-GCM or ChaCha20 for encryption |
+| Implement certificate pinning (mobile) | Prevents MITM attacks using rogue certificates |
+
+---
+
+## Quick Reference: Auth & Crypto Decision Guide
+
+| Decision | Recommendation |
+|----------|---------------|
+| Password hashing | **Argon2id** (new projects) or **bcrypt** (mature ecosystem support) |
+| Session management | Session cookies for traditional web apps, JWT for APIs and SPAs |
+| JWT storage (browser) | **HttpOnly, Secure, SameSite=Strict cookie** -- never localStorage |
+| JWT expiration | Access token: 15 minutes. Refresh token: 7 days. |
+| OAuth flow | **Authorization Code + PKCE** for all clients |
+| MFA method | **TOTP** baseline, **FIDO2/WebAuthn** for high-value accounts |
+| Authorization model | **RBAC** for most apps, **ABAC** for complex enterprise policies |
+| Data at rest encryption | **AES-256-GCM** |
+| Data in transit | **TLS 1.2+** with strong cipher suites |
+| Digital signatures | **Ed25519** or **RSA-2048+** |
+| Key management | **Never hardcode** -- use Vault, AWS KMS, or cloud-native secrets managers |
+
+---
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="Secure Coding Practices"
+    href="/software-engineering/security/secure-coding/"
+    description="Apply secure coding patterns for input validation, secrets management, dependency security, and security headers"
+  />
+  <LinkCard
+    title="OWASP Top 10"
+    href="/software-engineering/security/owasp-top-10/"
+    description="Understand and prevent the most critical web application security vulnerabilities"
+  />
+  <LinkCard
+    title="Security Fundamentals"
+    href="/software-engineering/security/"
+    description="Review the core security principles -- CIA triad, defense in depth, and threat modeling"
+  />
+</CardGrid>

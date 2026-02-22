@@ -1,0 +1,519 @@
+---
+title: "Normalization & Schema Design"
+description: "Design efficient database schemas using normalization forms and ER modeling"
+difficulty: "intermediate"
+prerequisites: ["SQL Fundamentals"]
+timeToRead: "18 min"
+topics: ["normalization", "1nf", "2nf", "3nf", "bcnf", "er-diagram", "schema-design"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+## Why Normalization Matters
+
+Imagine storing all your order data in a single flat table:
+
+| order_id | customer_name | customer_email    | product_name   | product_price | quantity | order_date |
+|----------|---------------|-------------------|----------------|---------------|----------|------------|
+| 1        | Alice Johnson | alice@example.com | Laptop         | 999.99        | 1        | 2024-01-15 |
+| 1        | Alice Johnson | alice@example.com | Wireless Mouse | 29.99         | 1        | 2024-01-15 |
+| 2        | Alice Johnson | alice@example.com | Python Book    | 45.00         | 2        | 2024-02-20 |
+| 3        | Bob Smith     | bob@example.com   | Standing Desk  | 349.99        | 1        | 2024-03-10 |
+
+This design suffers from three serious problems known as **anomalies**:
+
+- **Update Anomaly**: If Alice changes her email, you must update it in every row where she appears. Miss one, and your data is inconsistent.
+- **Insert Anomaly**: You cannot add a new customer until they place an order — there is nowhere to store a customer without order data.
+- **Delete Anomaly**: If you delete Bob's only order, you lose all knowledge that Bob exists as a customer.
+
+**Normalization** is the systematic process of organizing tables to eliminate these anomalies by removing redundancy and ensuring that each fact is stored in exactly one place.
+
+## Functional Dependencies
+
+Before diving into normal forms, you need to understand **functional dependencies** — the concept that normalization is built upon.
+
+A functional dependency `A -> B` means that for any two rows, if they have the same value for column A, they must have the same value for column B. In other words, A **determines** B.
+
+From our flat table:
+
+```
+customer_email -> customer_name        (email determines the customer name)
+product_name   -> product_price        (product name determines the price)
+order_id       -> customer_email       (order ID determines which customer)
+order_id       -> order_date           (order ID determines the date)
+{order_id, product_name} -> quantity   (order + product determines quantity)
+```
+
+The set `{order_id, product_name}` is a **candidate key** — it uniquely identifies every row.
+
+## Normal Forms
+
+Each normal form builds upon the previous one, progressively eliminating different types of redundancy.
+
+### First Normal Form (1NF)
+
+**Rule:** Every column must contain atomic (indivisible) values, and there must be no repeating groups.
+
+**Violation — multi-valued column:**
+
+| order_id | customer_name | products                    |
+|----------|---------------|-----------------------------|
+| 1        | Alice Johnson | Laptop, Wireless Mouse      |
+| 2        | Alice Johnson | Python Book                 |
+
+**Problem:** The `products` column contains a comma-separated list. You cannot easily query "find all orders containing a Laptop" or enforce referential integrity.
+
+**Fix — make values atomic:**
+
+| order_id | customer_name | product        |
+|----------|---------------|----------------|
+| 1        | Alice Johnson | Laptop         |
+| 1        | Alice Johnson | Wireless Mouse |
+| 2        | Alice Johnson | Python Book    |
+
+Now each cell contains exactly one value. The table is in **1NF**.
+
+### Second Normal Form (2NF)
+
+**Rule:** Must be in 1NF, and every non-key column must depend on the **entire** primary key (no partial dependencies).
+
+2NF only applies when the primary key is **composite** (multiple columns). If your primary key is a single column, a 1NF table is automatically in 2NF.
+
+**Starting table (1NF, composite key = `{order_id, product_name}`):**
+
+| order_id | product_name   | product_price | quantity | customer_name | order_date |
+|----------|----------------|---------------|----------|---------------|------------|
+| 1        | Laptop         | 999.99        | 1        | Alice Johnson | 2024-01-15 |
+| 1        | Wireless Mouse | 29.99         | 1        | Alice Johnson | 2024-01-15 |
+| 2        | Python Book    | 45.00         | 2        | Alice Johnson | 2024-02-20 |
+| 3        | Standing Desk  | 349.99        | 1        | Bob Smith     | 2024-03-10 |
+
+**Partial dependencies found:**
+
+```
+product_name -> product_price    (depends only on product_name, not on full key)
+order_id -> customer_name        (depends only on order_id, not on full key)
+order_id -> order_date           (depends only on order_id, not on full key)
+```
+
+**Fix — extract partial dependencies into their own tables:**
+
+**orders table:**
+
+| order_id | customer_name | order_date |
+|----------|---------------|------------|
+| 1        | Alice Johnson | 2024-01-15 |
+| 2        | Alice Johnson | 2024-02-20 |
+| 3        | Bob Smith     | 2024-03-10 |
+
+**products table:**
+
+| product_name   | product_price |
+|----------------|---------------|
+| Laptop         | 999.99        |
+| Wireless Mouse | 29.99         |
+| Python Book    | 45.00         |
+| Standing Desk  | 349.99        |
+
+**order_items table (only full-key dependencies remain):**
+
+| order_id | product_name   | quantity |
+|----------|----------------|----------|
+| 1        | Laptop         | 1        |
+| 1        | Wireless Mouse | 1        |
+| 2        | Python Book    | 2        |
+| 3        | Standing Desk  | 1        |
+
+Now every non-key column depends on the entire key in its table. The schema is in **2NF**.
+
+### Third Normal Form (3NF)
+
+**Rule:** Must be in 2NF, and no non-key column can depend on another non-key column (no transitive dependencies).
+
+**Example with a transitive dependency:**
+
+| order_id | customer_id | customer_name | customer_city | order_date |
+|----------|-------------|---------------|---------------|------------|
+| 1        | 101         | Alice Johnson | New York      | 2024-01-15 |
+| 2        | 101         | Alice Johnson | New York      | 2024-02-20 |
+| 3        | 102         | Bob Smith     | Chicago       | 2024-03-10 |
+
+**Transitive dependency chain:**
+
+```
+order_id -> customer_id -> customer_name
+order_id -> customer_id -> customer_city
+```
+
+`customer_name` and `customer_city` depend on `customer_id`, not directly on `order_id`.
+
+**Fix — extract the transitive dependency:**
+
+**customers table:**
+
+| customer_id | customer_name | customer_city |
+|-------------|---------------|---------------|
+| 101         | Alice Johnson | New York      |
+| 102         | Bob Smith     | Chicago       |
+
+**orders table (references customers via foreign key):**
+
+| order_id | customer_id | order_date |
+|----------|-------------|------------|
+| 1        | 101         | 2024-01-15 |
+| 2        | 101         | 2024-02-20 |
+| 3        | 102         | 2024-03-10 |
+
+Now every non-key column depends **only** on the primary key. The schema is in **3NF**.
+
+### Boyce-Codd Normal Form (BCNF)
+
+**Rule:** Must be in 3NF, and every functional dependency `A -> B` must have A as a **superkey** (a set of columns that uniquely identifies rows).
+
+BCNF is stricter than 3NF and handles an edge case where a non-key attribute is part of a candidate key.
+
+**Example — course scheduling:**
+
+| student | course  | instructor    |
+|---------|---------|---------------|
+| Alice   | Math    | Dr. Smith     |
+| Bob     | Math    | Dr. Smith     |
+| Alice   | Physics | Dr. Lee       |
+| Carol   | Physics | Dr. Williams  |
+
+Constraints:
+- Each student enrolls in each course only once: `{student, course}` is a key
+- Each instructor teaches only one course: `instructor -> course`
+
+The dependency `instructor -> course` violates BCNF because `instructor` is not a superkey.
+
+**Fix:**
+
+**instructor_courses table:**
+
+| instructor   | course  |
+|--------------|---------|
+| Dr. Smith    | Math    |
+| Dr. Lee      | Physics |
+| Dr. Williams | Physics |
+
+**student_instructors table:**
+
+| student | instructor   |
+|---------|--------------|
+| Alice   | Dr. Smith    |
+| Bob     | Dr. Smith    |
+| Alice   | Dr. Lee      |
+| Carol   | Dr. Williams |
+
+### Quick Reference: Normal Forms Summary
+
+| Normal Form | Eliminates                  | Rule                                                 |
+|-------------|-----------------------------|------------------------------------------------------|
+| **1NF**     | Multi-valued attributes     | All values must be atomic; no repeating groups        |
+| **2NF**     | Partial dependencies        | Non-key columns depend on the *full* composite key   |
+| **3NF**     | Transitive dependencies     | Non-key columns depend *only* on the primary key     |
+| **BCNF**    | Non-superkey determinants   | Every determinant must be a superkey                  |
+
+:::tip[Practical Advice]
+Most production databases aim for **3NF**. BCNF is worth pursuing but rarely causes issues in practice. Going beyond BCNF (4NF, 5NF) is mainly academic — focus on 3NF and you will avoid the vast majority of data anomalies.
+:::
+
+## Denormalization Trade-offs
+
+Normalization optimizes for **data integrity** and **write efficiency**, but can hurt **read performance** because queries require more JOINs. **Denormalization** intentionally introduces controlled redundancy to speed up reads.
+
+| Aspect               | Normalized Schema                    | Denormalized Schema                   |
+|----------------------|--------------------------------------|---------------------------------------|
+| Data redundancy      | Minimal                              | Intentional duplication               |
+| Write performance    | Fast (update one place)              | Slower (update multiple places)       |
+| Read performance     | Slower (more JOINs)                  | Faster (fewer JOINs)                  |
+| Data consistency     | Guaranteed by structure              | Must be managed by application        |
+| Storage              | Less                                 | More                                  |
+| Schema complexity    | More tables                          | Fewer tables, wider rows              |
+
+**Common denormalization strategies:**
+
+1. **Materialized views**: Pre-computed query results stored as a table, refreshed periodically
+2. **Computed columns**: Store `total_price` alongside `quantity` and `unit_price`
+3. **Duplicated columns**: Store `customer_name` in the orders table for display purposes
+4. **Summary tables**: Pre-aggregated data for reporting dashboards
+
+:::caution[When to Denormalize]
+Always start with a properly normalized schema. Only denormalize when you have measured a real performance problem and have confirmed that the query bottleneck is caused by JOINs. Premature denormalization is a common source of bugs and data inconsistency.
+:::
+
+## Entity-Relationship (ER) Modeling
+
+ER modeling is a visual technique for designing database schemas before writing any SQL. It captures **entities** (things), their **attributes** (properties), and **relationships** between them.
+
+### Core Concepts
+
+| Concept         | Description                                       | Example                        |
+|-----------------|---------------------------------------------------|--------------------------------|
+| **Entity**      | A thing you want to store data about              | Customer, Product, Order       |
+| **Attribute**   | A property of an entity                           | name, email, price             |
+| **Primary Key** | Attribute(s) that uniquely identify an entity     | customer_id, order_id          |
+| **Relationship**| An association between entities                   | Customer *places* Order        |
+| **Cardinality** | How many instances participate in a relationship  | 1:1, 1:N, M:N                 |
+
+### ASCII ER Diagram: E-Commerce System
+
+```
+┌─────────────────┐          ┌──────────────────┐          ┌──────────────────┐
+│    CUSTOMER      │          │      ORDER        │          │    ORDER_ITEM     │
+├─────────────────┤          ├──────────────────┤          ├──────────────────┤
+│ * customer_id PK│──┐       │ * order_id    PK │──┐       │ * item_id     PK │
+│   name          │  │  1..* │   customer_id FK │  │  1..* │   order_id    FK │
+│   email         │  └───────│   order_date     │  └───────│   product_id  FK │
+│   city          │  places  │   status         │ contains │   quantity       │
+│   created_at    │          │                  │          │   unit_price     │
+└─────────────────┘          └──────────────────┘          └──────────────────┘
+                                                                    │
+                                                                    │ references
+                                                                    │
+                                                           ┌──────────────────┐
+                                                           │     PRODUCT       │
+                                                           ├──────────────────┤
+                                                           │ * product_id  PK │
+                                                           │   name           │
+                                                           │   category       │
+                                                           │   price          │
+                                                           └──────────────────┘
+
+Legend:  PK = Primary Key    FK = Foreign Key    * = Required
+        ──── = Relationship   1..* = One-to-Many
+```
+
+### Cardinality Notation
+
+```
+One-to-One (1:1)                  One-to-Many (1:N)
+┌─────────┐     ┌─────────┐      ┌─────────┐     ┌─────────┐
+│  USER   │──── │ PROFILE  │      │ AUTHOR  │──┐  │  BOOK   │
+└─────────┘  1  └─────────┘      └─────────┘  │  └─────────┘
+    1 user has exactly                1 author │     │
+    1 profile                    has many books└─────┘
+
+Many-to-Many (M:N)
+┌─────────┐     ┌──────────────┐     ┌─────────┐
+│ STUDENT │──┐  │ ENROLLMENT   │  ┌──│ COURSE  │
+└─────────┘  └──│ student_id FK│──┘  └─────────┘
+                │ course_id  FK│
+                │ grade        │
+                └──────────────┘
+                 Junction Table
+```
+
+## Converting ER Diagrams to Tables
+
+### One-to-One Relationship
+
+Two options: embed in the same table or use a foreign key in either table.
+
+<Tabs>
+  <TabItem label="Embedded (preferred for tightly coupled)">
+```sql
+CREATE TABLE users (
+    user_id    SERIAL PRIMARY KEY,
+    username   VARCHAR(50) NOT NULL,
+    email      VARCHAR(150) NOT NULL,
+    -- Profile attributes embedded
+    bio        TEXT,
+    avatar_url VARCHAR(255),
+    website    VARCHAR(255)
+);
+```
+  </TabItem>
+  <TabItem label="Separate Table (preferred for optional/large data)">
+```sql
+CREATE TABLE users (
+    user_id  SERIAL PRIMARY KEY,
+    username VARCHAR(50) NOT NULL,
+    email    VARCHAR(150) NOT NULL
+);
+
+CREATE TABLE user_profiles (
+    profile_id SERIAL PRIMARY KEY,
+    user_id    INT UNIQUE NOT NULL REFERENCES users(user_id),
+    bio        TEXT,
+    avatar_url VARCHAR(255),
+    website    VARCHAR(255)
+);
+```
+  </TabItem>
+</Tabs>
+
+### One-to-Many Relationship
+
+The "many" side holds a foreign key pointing to the "one" side.
+
+```sql
+CREATE TABLE authors (
+    author_id SERIAL PRIMARY KEY,
+    name      VARCHAR(100) NOT NULL
+);
+
+CREATE TABLE books (
+    book_id   SERIAL PRIMARY KEY,
+    title     VARCHAR(200) NOT NULL,
+    author_id INT NOT NULL REFERENCES authors(author_id),
+    published DATE
+);
+-- One author has many books; each book belongs to one author
+```
+
+### Many-to-Many Relationship
+
+Requires a **junction table** (also called an association table or bridge table) with foreign keys to both entities.
+
+```sql
+CREATE TABLE students (
+    student_id SERIAL PRIMARY KEY,
+    name       VARCHAR(100) NOT NULL
+);
+
+CREATE TABLE courses (
+    course_id  SERIAL PRIMARY KEY,
+    title      VARCHAR(100) NOT NULL,
+    credits    INT NOT NULL
+);
+
+-- Junction table
+CREATE TABLE enrollments (
+    enrollment_id SERIAL PRIMARY KEY,
+    student_id    INT NOT NULL REFERENCES students(student_id),
+    course_id     INT NOT NULL REFERENCES courses(course_id),
+    enrolled_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    grade         CHAR(2),
+    UNIQUE (student_id, course_id)  -- prevent duplicate enrollments
+);
+```
+
+## Common Schema Design Patterns
+
+### Polymorphic Associations
+
+When multiple entity types can relate to the same table (for example, comments on both posts and photos):
+
+<Tabs>
+  <TabItem label="Separate Tables (recommended)">
+```sql
+CREATE TABLE post_comments (
+    comment_id SERIAL PRIMARY KEY,
+    post_id    INT NOT NULL REFERENCES posts(post_id),
+    body       TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE photo_comments (
+    comment_id SERIAL PRIMARY KEY,
+    photo_id   INT NOT NULL REFERENCES photos(photo_id),
+    body       TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+-- Pro: Referential integrity enforced by database
+-- Con: Duplicate table structure
+```
+  </TabItem>
+  <TabItem label="Single Table with Type Column">
+```sql
+CREATE TABLE comments (
+    comment_id     SERIAL PRIMARY KEY,
+    commentable_id INT NOT NULL,
+    commentable_type VARCHAR(20) NOT NULL,  -- 'post' or 'photo'
+    body           TEXT NOT NULL,
+    created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+-- Pro: Simple, single table
+-- Con: Cannot use foreign key constraints
+```
+  </TabItem>
+</Tabs>
+
+### Soft Deletes
+
+Instead of physically deleting rows, mark them as deleted:
+
+```sql
+CREATE TABLE products (
+    product_id SERIAL PRIMARY KEY,
+    name       VARCHAR(100) NOT NULL,
+    price      DECIMAL(10, 2) NOT NULL,
+    deleted_at TIMESTAMP DEFAULT NULL  -- NULL means active
+);
+
+-- "Delete" a product
+UPDATE products SET deleted_at = NOW() WHERE product_id = 42;
+
+-- Query only active products
+SELECT * FROM products WHERE deleted_at IS NULL;
+```
+
+### Audit Trail / History Table
+
+```sql
+CREATE TABLE product_history (
+    history_id  SERIAL PRIMARY KEY,
+    product_id  INT NOT NULL,
+    name        VARCHAR(100),
+    price       DECIMAL(10, 2),
+    changed_by  INT REFERENCES users(user_id),
+    changed_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    operation   VARCHAR(10) NOT NULL  -- 'INSERT', 'UPDATE', 'DELETE'
+);
+```
+
+### Self-Referencing Table (Hierarchy)
+
+```sql
+-- Category tree: Electronics > Phones > Smartphones
+CREATE TABLE categories (
+    category_id SERIAL PRIMARY KEY,
+    name        VARCHAR(100) NOT NULL,
+    parent_id   INT REFERENCES categories(category_id)
+);
+
+-- ASCII representation of the hierarchy:
+--
+-- Electronics (parent_id = NULL)
+-- ├── Phones (parent_id = 1)
+-- │   ├── Smartphones (parent_id = 2)
+-- │   └── Feature Phones (parent_id = 2)
+-- └── Laptops (parent_id = 1)
+--     ├── Gaming (parent_id = 5)
+--     └── Business (parent_id = 5)
+```
+
+## Schema Design Checklist
+
+Before finalizing your schema, verify these points:
+
+1. **Every table has a primary key** — prefer surrogate keys (`SERIAL`/`UUID`) for flexibility
+2. **Foreign keys are defined** — enforce referential integrity at the database level
+3. **Columns have appropriate types** — use `DECIMAL` for money, not `FLOAT`
+4. **NOT NULL constraints** are set on required columns
+5. **UNIQUE constraints** protect business rules (for example, unique email)
+6. **Indexes exist** for columns used in WHERE, JOIN, and ORDER BY clauses
+7. **The schema is at least in 3NF** — denormalize only with measured justification
+8. **Naming is consistent** — choose either `snake_case` or `camelCase` and stick with it
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="Indexing & Query Performance"
+    description="Learn how to speed up queries on your well-designed schema with indexes and EXPLAIN plans"
+    href="/software-engineering/database-engineering/indexing-performance/"
+  />
+  <LinkCard
+    title="Transactions, ACID & NoSQL"
+    description="Understand how databases protect the integrity of your normalized data"
+    href="/software-engineering/database-engineering/transactions-nosql/"
+  />
+  <LinkCard
+    title="SQL Fundamentals"
+    description="Review core SQL queries that operate on normalized schemas"
+    href="/software-engineering/database-engineering/sql-fundamentals/"
+  />
+</CardGrid>

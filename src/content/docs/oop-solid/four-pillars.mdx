@@ -1,0 +1,1599 @@
+---
+title: "The Four Pillars of OOP"
+description: "Deep dive into Encapsulation, Abstraction, Inheritance, and Polymorphism with practical examples"
+difficulty: "beginner"
+prerequisites: ["Basic programming knowledge"]
+timeToRead: "20 min"
+topics: ["oop", "encapsulation", "abstraction", "inheritance", "polymorphism"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+Object-Oriented Programming (OOP) is a programming paradigm built on the concept of **objects** -- entities that bundle data and the behavior that operates on that data. Four fundamental principles, often called the "Four Pillars," form the foundation of effective OOP design. Understanding these pillars is essential for writing code that is organized, reusable, and maintainable.
+
+---
+
+## 1. Encapsulation
+
+### What Is Encapsulation?
+
+Encapsulation is the practice of **bundling data (attributes) and the methods that operate on that data into a single unit (a class)**, while restricting direct access to some of the object's internals. Rather than exposing raw data fields for anyone to read and write, an encapsulated class provides controlled access through well-defined methods.
+
+The two key ideas are:
+
+1. **Data hiding** -- internal state is kept private or protected, shielded from outside interference.
+2. **Controlled access** -- public methods (getters, setters, or domain-specific operations) serve as the only gateway to internal state.
+
+### Real-World Analogy
+
+Think of an **ATM machine**. You interact with it through a screen and keypad (the public interface), but you never touch the cash vault, the transaction processor, or the network connection directly. The ATM encapsulates all of that complexity and only exposes the operations you need: check balance, withdraw cash, deposit funds. If the bank changes how transactions are processed internally, your experience at the ATM stays the same.
+
+### Code Examples
+
+<Tabs>
+  <TabItem label="Python">
+```python
+class BankAccount:
+    """Encapsulates account data and provides controlled access."""
+
+    def __init__(self, owner: str, initial_balance: float = 0.0):
+        self._owner = owner            # Protected attribute
+        self.__balance = initial_balance  # Private attribute (name-mangled)
+        self.__transaction_log: list[str] = []
+
+    @property
+    def owner(self) -> str:
+        """Read-only access to the owner name."""
+        return self._owner
+
+    @property
+    def balance(self) -> float:
+        """Read-only access to the current balance."""
+        return self.__balance
+
+    def deposit(self, amount: float) -> None:
+        """Controlled method to add funds."""
+        if amount <= 0:
+            raise ValueError("Deposit amount must be positive")
+        self.__balance += amount
+        self.__log(f"Deposited ${amount:.2f}")
+
+    def withdraw(self, amount: float) -> None:
+        """Controlled method to remove funds with validation."""
+        if amount <= 0:
+            raise ValueError("Withdrawal amount must be positive")
+        if amount > self.__balance:
+            raise ValueError("Insufficient funds")
+        self.__balance -= amount
+        self.__log(f"Withdrew ${amount:.2f}")
+
+    def get_statement(self) -> list[str]:
+        """Returns a copy of the transaction log."""
+        return self.__transaction_log.copy()
+
+    def __log(self, message: str) -> None:
+        """Private helper -- not accessible from outside."""
+        self.__transaction_log.append(message)
+
+
+# Usage
+account = BankAccount("Alice", 1000.0)
+account.deposit(500.0)
+account.withdraw(200.0)
+
+print(account.owner)     # "Alice"
+print(account.balance)   # 1300.0
+print(account.get_statement())
+# ["Deposited $500.00", "Withdrew $200.00"]
+
+# Direct access to __balance is prevented:
+# account.__balance  --> AttributeError
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+class BankAccount {
+  // Private fields (ES2022+)
+  #balance;
+  #transactionLog;
+
+  constructor(owner, initialBalance = 0) {
+    this.owner = owner;  // Public property
+    this.#balance = initialBalance;
+    this.#transactionLog = [];
+  }
+
+  get balance() {
+    // Read-only access through a getter
+    return this.#balance;
+  }
+
+  deposit(amount) {
+    if (amount <= 0) {
+      throw new Error("Deposit amount must be positive");
+    }
+    this.#balance += amount;
+    this.#log(`Deposited $${amount.toFixed(2)}`);
+  }
+
+  withdraw(amount) {
+    if (amount <= 0) {
+      throw new Error("Withdrawal amount must be positive");
+    }
+    if (amount > this.#balance) {
+      throw new Error("Insufficient funds");
+    }
+    this.#balance -= amount;
+    this.#log(`Withdrew $${amount.toFixed(2)}`);
+  }
+
+  getStatement() {
+    // Return a copy to prevent external mutation
+    return [...this.#transactionLog];
+  }
+
+  #log(message) {
+    this.#transactionLog.push(message);
+  }
+}
+
+// Usage
+const account = new BankAccount("Alice", 1000);
+account.deposit(500);
+account.withdraw(200);
+
+console.log(account.owner);    // "Alice"
+console.log(account.balance);  // 1300
+console.log(account.getStatement());
+// ["Deposited $500.00", "Withdrew $200.00"]
+
+// Direct access is prevented:
+// account.#balance  --> SyntaxError
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+public class BankAccount {
+    private String owner;
+    private double balance;
+    private List<String> transactionLog;
+
+    public BankAccount(String owner, double initialBalance) {
+        this.owner = owner;
+        this.balance = initialBalance;
+        this.transactionLog = new ArrayList<>();
+    }
+
+    // Read-only access
+    public String getOwner() {
+        return owner;
+    }
+
+    public double getBalance() {
+        return balance;
+    }
+
+    public void deposit(double amount) {
+        if (amount <= 0) {
+            throw new IllegalArgumentException("Deposit amount must be positive");
+        }
+        balance += amount;
+        log(String.format("Deposited $%.2f", amount));
+    }
+
+    public void withdraw(double amount) {
+        if (amount <= 0) {
+            throw new IllegalArgumentException("Withdrawal amount must be positive");
+        }
+        if (amount > balance) {
+            throw new IllegalArgumentException("Insufficient funds");
+        }
+        balance -= amount;
+        log(String.format("Withdrew $%.2f", amount));
+    }
+
+    public List<String> getStatement() {
+        // Return an unmodifiable copy
+        return Collections.unmodifiableList(new ArrayList<>(transactionLog));
+    }
+
+    private void log(String message) {
+        transactionLog.add(message);
+    }
+
+    public static void main(String[] args) {
+        BankAccount account = new BankAccount("Alice", 1000.0);
+        account.deposit(500.0);
+        account.withdraw(200.0);
+
+        System.out.println(account.getOwner());    // "Alice"
+        System.out.println(account.getBalance());  // 1300.0
+        System.out.println(account.getStatement());
+        // [Deposited $500.00, Withdrew $200.00]
+    }
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+#include <iostream>
+#include <string>
+#include <vector>
+#include <stdexcept>
+#include <sstream>
+#include <iomanip>
+using namespace std;
+
+class BankAccount {
+private:
+    string owner;
+    double balance;
+    vector<string> transactionLog;
+
+    void log(const string& message) {
+        transactionLog.push_back(message);
+    }
+
+public:
+    BankAccount(const string& owner, double initialBalance = 0.0)
+        : owner(owner), balance(initialBalance) {}
+
+    // Read-only accessors
+    string getOwner() const { return owner; }
+    double getBalance() const { return balance; }
+
+    void deposit(double amount) {
+        if (amount <= 0) {
+            throw invalid_argument("Deposit amount must be positive");
+        }
+        balance += amount;
+        ostringstream oss;
+        oss << "Deposited $" << fixed << setprecision(2) << amount;
+        log(oss.str());
+    }
+
+    void withdraw(double amount) {
+        if (amount <= 0) {
+            throw invalid_argument("Withdrawal amount must be positive");
+        }
+        if (amount > balance) {
+            throw invalid_argument("Insufficient funds");
+        }
+        balance -= amount;
+        ostringstream oss;
+        oss << "Withdrew $" << fixed << setprecision(2) << amount;
+        log(oss.str());
+    }
+
+    vector<string> getStatement() const {
+        return transactionLog;  // Returns a copy
+    }
+};
+
+int main() {
+    BankAccount account("Alice", 1000.0);
+    account.deposit(500.0);
+    account.withdraw(200.0);
+
+    cout << account.getOwner() << endl;    // Alice
+    cout << account.getBalance() << endl;  // 1300
+
+    for (const auto& entry : account.getStatement()) {
+        cout << entry << endl;
+    }
+    // Deposited $500.00
+    // Withdrew $200.00
+
+    return 0;
+}
+```
+  </TabItem>
+</Tabs>
+
+### Benefits of Encapsulation
+
+- **Data integrity** -- validation logic in setters prevents objects from entering an invalid state.
+- **Reduced coupling** -- external code depends on the public interface, not the internal representation. You can change how data is stored without affecting callers.
+- **Easier debugging** -- when a value changes unexpectedly, you only need to look at the methods that can modify it, not the entire codebase.
+- **Controlled side effects** -- operations like logging, event notification, and validation happen automatically through methods.
+
+---
+
+## 2. Abstraction
+
+### What Is Abstraction?
+
+Abstraction is the principle of **exposing only the essential features of an object while hiding the unnecessary implementation details**. Where encapsulation is about *how* you protect data, abstraction is about *what* you choose to expose. A well-abstracted class presents a simple, focused interface that lets users accomplish their goals without needing to understand the complexity underneath.
+
+Abstraction is typically achieved through:
+
+1. **Abstract classes** -- classes that cannot be instantiated directly and that define a contract (method signatures) for subclasses.
+2. **Interfaces** -- pure contracts with no implementation (in languages that support them).
+
+### Real-World Analogy
+
+Consider **driving a car**. The steering wheel, pedals, and gear shift form a simple, abstract interface. You do not need to understand fuel injection timing, valve lift profiles, or ABS sensor calibration to drive. The car *abstracts away* thousands of mechanical and electronic details behind a manageable set of controls. Different car models may use entirely different engine technologies, but the driver's interface remains largely the same.
+
+### Code Examples
+
+<Tabs>
+  <TabItem label="Python">
+```python
+from abc import ABC, abstractmethod
+
+
+class PaymentProcessor(ABC):
+    """Abstract class defining the payment interface.
+    Hides implementation details behind a clean contract."""
+
+    @abstractmethod
+    def authorize(self, amount: float) -> bool:
+        """Verify the payment can be processed."""
+        pass
+
+    @abstractmethod
+    def capture(self, amount: float) -> str:
+        """Execute the actual payment."""
+        pass
+
+    @abstractmethod
+    def refund(self, transaction_id: str, amount: float) -> bool:
+        """Reverse a completed payment."""
+        pass
+
+    def process_payment(self, amount: float) -> str:
+        """Template method -- users call this, not the details."""
+        if not self.authorize(amount):
+            raise ValueError("Payment authorization failed")
+        transaction_id = self.capture(amount)
+        return transaction_id
+
+
+class CreditCardProcessor(PaymentProcessor):
+    """Hides the complexity of credit card networks."""
+
+    def __init__(self, card_number: str, expiry: str):
+        self._card = card_number
+        self._expiry = expiry
+
+    def authorize(self, amount: float) -> bool:
+        # In reality: contact card network, verify funds, check fraud
+        print(f"Authorizing ${amount:.2f} on card ***{self._card[-4:]}")
+        return True
+
+    def capture(self, amount: float) -> str:
+        # In reality: submit to payment gateway, handle 3D-Secure
+        print(f"Captured ${amount:.2f}")
+        return f"CC-TXN-{id(self)}"
+
+    def refund(self, transaction_id: str, amount: float) -> bool:
+        print(f"Refunded ${amount:.2f} for {transaction_id}")
+        return True
+
+
+class PayPalProcessor(PaymentProcessor):
+    """Hides the complexity of PayPal's API."""
+
+    def __init__(self, email: str):
+        self._email = email
+
+    def authorize(self, amount: float) -> bool:
+        print(f"Authorizing ${amount:.2f} via PayPal ({self._email})")
+        return True
+
+    def capture(self, amount: float) -> str:
+        print(f"Captured ${amount:.2f} via PayPal")
+        return f"PP-TXN-{id(self)}"
+
+    def refund(self, transaction_id: str, amount: float) -> bool:
+        print(f"Refunded ${amount:.2f} via PayPal for {transaction_id}")
+        return True
+
+
+# Client code works with the abstraction, not the details
+def checkout(processor: PaymentProcessor, amount: float) -> str:
+    return processor.process_payment(amount)
+
+
+# Usage -- the checkout function doesn't know or care
+# whether it's a credit card or PayPal under the hood
+cc = CreditCardProcessor("4111111111111111", "12/26")
+txn = checkout(cc, 49.99)
+
+pp = PayPalProcessor("user@example.com")
+txn = checkout(pp, 29.99)
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// Abstract base class (simulated with error-throwing methods)
+class PaymentProcessor {
+  authorize(amount) {
+    throw new Error("authorize() must be implemented");
+  }
+
+  capture(amount) {
+    throw new Error("capture() must be implemented");
+  }
+
+  refund(transactionId, amount) {
+    throw new Error("refund() must be implemented");
+  }
+
+  // Template method -- users call this
+  processPayment(amount) {
+    if (!this.authorize(amount)) {
+      throw new Error("Payment authorization failed");
+    }
+    return this.capture(amount);
+  }
+}
+
+class CreditCardProcessor extends PaymentProcessor {
+  #card;
+  #expiry;
+
+  constructor(cardNumber, expiry) {
+    super();
+    this.#card = cardNumber;
+    this.#expiry = expiry;
+  }
+
+  authorize(amount) {
+    console.log(
+      `Authorizing $${amount.toFixed(2)} on card ***${this.#card.slice(-4)}`
+    );
+    return true;
+  }
+
+  capture(amount) {
+    console.log(`Captured $${amount.toFixed(2)}`);
+    return `CC-TXN-${Date.now()}`;
+  }
+
+  refund(transactionId, amount) {
+    console.log(`Refunded $${amount.toFixed(2)} for ${transactionId}`);
+    return true;
+  }
+}
+
+class PayPalProcessor extends PaymentProcessor {
+  #email;
+
+  constructor(email) {
+    super();
+    this.#email = email;
+  }
+
+  authorize(amount) {
+    console.log(
+      `Authorizing $${amount.toFixed(2)} via PayPal (${this.#email})`
+    );
+    return true;
+  }
+
+  capture(amount) {
+    console.log(`Captured $${amount.toFixed(2)} via PayPal`);
+    return `PP-TXN-${Date.now()}`;
+  }
+
+  refund(transactionId, amount) {
+    console.log(`Refunded $${amount.toFixed(2)} via PayPal for ${transactionId}`);
+    return true;
+  }
+}
+
+// Client code works with the abstraction
+function checkout(processor, amount) {
+  return processor.processPayment(amount);
+}
+
+const cc = new CreditCardProcessor("4111111111111111", "12/26");
+checkout(cc, 49.99);
+
+const pp = new PayPalProcessor("user@example.com");
+checkout(pp, 29.99);
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+// Abstract class defining the payment contract
+abstract class PaymentProcessor {
+
+    abstract boolean authorize(double amount);
+    abstract String capture(double amount);
+    abstract boolean refund(String transactionId, double amount);
+
+    // Template method -- users call this
+    public String processPayment(double amount) {
+        if (!authorize(amount)) {
+            throw new RuntimeException("Payment authorization failed");
+        }
+        return capture(amount);
+    }
+}
+
+class CreditCardProcessor extends PaymentProcessor {
+    private String card;
+    private String expiry;
+
+    public CreditCardProcessor(String cardNumber, String expiry) {
+        this.card = cardNumber;
+        this.expiry = expiry;
+    }
+
+    @Override
+    boolean authorize(double amount) {
+        String last4 = card.substring(card.length() - 4);
+        System.out.printf("Authorizing $%.2f on card ***%s%n", amount, last4);
+        return true;
+    }
+
+    @Override
+    String capture(double amount) {
+        System.out.printf("Captured $%.2f%n", amount);
+        return "CC-TXN-" + System.currentTimeMillis();
+    }
+
+    @Override
+    boolean refund(String transactionId, double amount) {
+        System.out.printf("Refunded $%.2f for %s%n", amount, transactionId);
+        return true;
+    }
+}
+
+class PayPalProcessor extends PaymentProcessor {
+    private String email;
+
+    public PayPalProcessor(String email) {
+        this.email = email;
+    }
+
+    @Override
+    boolean authorize(double amount) {
+        System.out.printf("Authorizing $%.2f via PayPal (%s)%n", amount, email);
+        return true;
+    }
+
+    @Override
+    String capture(double amount) {
+        System.out.printf("Captured $%.2f via PayPal%n", amount);
+        return "PP-TXN-" + System.currentTimeMillis();
+    }
+
+    @Override
+    boolean refund(String transactionId, double amount) {
+        System.out.printf("Refunded $%.2f via PayPal for %s%n", amount, transactionId);
+        return true;
+    }
+}
+
+// Client code
+public class PaymentDemo {
+    static String checkout(PaymentProcessor processor, double amount) {
+        return processor.processPayment(amount);
+    }
+
+    public static void main(String[] args) {
+        PaymentProcessor cc = new CreditCardProcessor("4111111111111111", "12/26");
+        checkout(cc, 49.99);
+
+        PaymentProcessor pp = new PayPalProcessor("user@example.com");
+        checkout(pp, 29.99);
+    }
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+#include <iostream>
+#include <string>
+#include <stdexcept>
+#include <iomanip>
+using namespace std;
+
+// Abstract base class
+class PaymentProcessor {
+public:
+    virtual ~PaymentProcessor() = default;
+
+    virtual bool authorize(double amount) = 0;
+    virtual string capture(double amount) = 0;
+    virtual bool refund(const string& transactionId, double amount) = 0;
+
+    // Template method -- users call this
+    string processPayment(double amount) {
+        if (!authorize(amount)) {
+            throw runtime_error("Payment authorization failed");
+        }
+        return capture(amount);
+    }
+};
+
+class CreditCardProcessor : public PaymentProcessor {
+private:
+    string card;
+    string expiry;
+
+public:
+    CreditCardProcessor(const string& cardNumber, const string& expiry)
+        : card(cardNumber), expiry(expiry) {}
+
+    bool authorize(double amount) override {
+        string last4 = card.substr(card.length() - 4);
+        cout << "Authorizing $" << fixed << setprecision(2)
+             << amount << " on card ***" << last4 << endl;
+        return true;
+    }
+
+    string capture(double amount) override {
+        cout << "Captured $" << fixed << setprecision(2)
+             << amount << endl;
+        return "CC-TXN-12345";
+    }
+
+    bool refund(const string& transactionId, double amount) override {
+        cout << "Refunded $" << fixed << setprecision(2)
+             << amount << " for " << transactionId << endl;
+        return true;
+    }
+};
+
+class PayPalProcessor : public PaymentProcessor {
+private:
+    string email;
+
+public:
+    PayPalProcessor(const string& email) : email(email) {}
+
+    bool authorize(double amount) override {
+        cout << "Authorizing $" << fixed << setprecision(2)
+             << amount << " via PayPal (" << email << ")" << endl;
+        return true;
+    }
+
+    string capture(double amount) override {
+        cout << "Captured $" << fixed << setprecision(2)
+             << amount << " via PayPal" << endl;
+        return "PP-TXN-67890";
+    }
+
+    bool refund(const string& transactionId, double amount) override {
+        cout << "Refunded $" << fixed << setprecision(2)
+             << amount << " via PayPal for " << transactionId << endl;
+        return true;
+    }
+};
+
+// Client code works with the abstraction
+string checkout(PaymentProcessor& processor, double amount) {
+    return processor.processPayment(amount);
+}
+
+int main() {
+    CreditCardProcessor cc("4111111111111111", "12/26");
+    checkout(cc, 49.99);
+
+    PayPalProcessor pp("user@example.com");
+    checkout(pp, 29.99);
+
+    return 0;
+}
+```
+  </TabItem>
+</Tabs>
+
+### Benefits of Abstraction
+
+- **Reduced complexity** -- users interact with a simple interface without worrying about internal mechanics.
+- **Interchangeability** -- different implementations can be swapped without changing client code.
+- **Focus on "what," not "how"** -- consumers of your class think in terms of domain operations, not implementation details.
+- **Parallel development** -- teams can work against an abstract interface while concrete implementations are developed independently.
+
+---
+
+## 3. Inheritance
+
+### What Is Inheritance?
+
+Inheritance is a mechanism that allows a new class (the **child** or **subclass**) to **acquire the properties and behaviors of an existing class** (the **parent** or **superclass**). The child class inherits the fields and methods of the parent and can add new ones or override existing ones to specialize behavior.
+
+Inheritance models an **"is-a" relationship**. A `Dog` *is an* `Animal`. A `SavingsAccount` *is a* `BankAccount`. If the relationship does not naturally read as "is-a," inheritance is likely the wrong tool.
+
+### Real-World Analogy
+
+Think of **biological taxonomy**. All mammals share certain traits: they are warm-blooded, they have hair, they nurse their young. Dogs, cats, and whales are all mammals, so they inherit these traits. But each species also has specialized characteristics: dogs bark, cats purr, whales have blowholes. The species *inherit* the general mammal traits while *adding* or *overriding* specific behaviors of their own.
+
+### Code Examples
+
+<Tabs>
+  <TabItem label="Python">
+```python
+class Vehicle:
+    """Base class representing a generic vehicle."""
+
+    def __init__(self, make: str, model: str, year: int):
+        self.make = make
+        self.model = model
+        self.year = year
+        self._speed = 0.0
+
+    def accelerate(self, amount: float) -> None:
+        self._speed += amount
+        print(f"{self} accelerated to {self._speed:.1f} mph")
+
+    def brake(self, amount: float) -> None:
+        self._speed = max(0, self._speed - amount)
+        print(f"{self} slowed to {self._speed:.1f} mph")
+
+    def __str__(self) -> str:
+        return f"{self.year} {self.make} {self.model}"
+
+
+class ElectricCar(Vehicle):
+    """Inherits from Vehicle and adds battery-specific features."""
+
+    def __init__(self, make: str, model: str, year: int, battery_kwh: float):
+        super().__init__(make, model, year)  # Call parent constructor
+        self.battery_kwh = battery_kwh
+        self.charge_level = 100.0  # percentage
+
+    def charge(self, amount: float) -> None:
+        """New method specific to electric cars."""
+        self.charge_level = min(100.0, self.charge_level + amount)
+        print(f"{self} charged to {self.charge_level:.1f}%")
+
+    def accelerate(self, amount: float) -> None:
+        """Override parent method to consume battery."""
+        if self.charge_level <= 0:
+            print(f"{self} has no charge!")
+            return
+        self.charge_level -= amount * 0.1
+        super().accelerate(amount)  # Reuse parent logic
+
+
+class Truck(Vehicle):
+    """Inherits from Vehicle and adds cargo-specific features."""
+
+    def __init__(self, make: str, model: str, year: int, payload_tons: float):
+        super().__init__(make, model, year)
+        self.payload_tons = payload_tons
+        self.cargo_weight = 0.0
+
+    def load_cargo(self, weight: float) -> None:
+        if self.cargo_weight + weight > self.payload_tons:
+            raise ValueError("Exceeds payload capacity!")
+        self.cargo_weight += weight
+        print(f"{self} loaded {weight:.1f}t (total: {self.cargo_weight:.1f}t)")
+
+    def accelerate(self, amount: float) -> None:
+        """Override: heavier cargo means slower acceleration."""
+        load_factor = 1 - (self.cargo_weight / self.payload_tons) * 0.5
+        adjusted = amount * load_factor
+        super().accelerate(adjusted)
+
+
+# Usage
+tesla = ElectricCar("Tesla", "Model 3", 2024, 75.0)
+tesla.accelerate(30)   # Inherited + overridden behavior
+tesla.charge(10)       # ElectricCar-specific method
+
+truck = Truck("Ford", "F-150", 2024, 1.5)
+truck.load_cargo(0.8)  # Truck-specific method
+truck.accelerate(20)   # Adjusted for cargo weight
+
+# Inheritance check
+print(isinstance(tesla, Vehicle))  # True -- ElectricCar IS-A Vehicle
+print(isinstance(truck, Vehicle))  # True -- Truck IS-A Vehicle
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+class Vehicle {
+  constructor(make, model, year) {
+    this.make = make;
+    this.model = model;
+    this.year = year;
+    this._speed = 0;
+  }
+
+  accelerate(amount) {
+    this._speed += amount;
+    console.log(`${this} accelerated to ${this._speed.toFixed(1)} mph`);
+  }
+
+  brake(amount) {
+    this._speed = Math.max(0, this._speed - amount);
+    console.log(`${this} slowed to ${this._speed.toFixed(1)} mph`);
+  }
+
+  toString() {
+    return `${this.year} ${this.make} ${this.model}`;
+  }
+}
+
+class ElectricCar extends Vehicle {
+  #batteryKwh;
+  #chargeLevel;
+
+  constructor(make, model, year, batteryKwh) {
+    super(make, model, year); // Call parent constructor
+    this.#batteryKwh = batteryKwh;
+    this.#chargeLevel = 100;
+  }
+
+  get chargeLevel() {
+    return this.#chargeLevel;
+  }
+
+  charge(amount) {
+    this.#chargeLevel = Math.min(100, this.#chargeLevel + amount);
+    console.log(`${this} charged to ${this.#chargeLevel.toFixed(1)}%`);
+  }
+
+  accelerate(amount) {
+    if (this.#chargeLevel <= 0) {
+      console.log(`${this} has no charge!`);
+      return;
+    }
+    this.#chargeLevel -= amount * 0.1;
+    super.accelerate(amount); // Reuse parent logic
+  }
+}
+
+class Truck extends Vehicle {
+  #payloadTons;
+  #cargoWeight;
+
+  constructor(make, model, year, payloadTons) {
+    super(make, model, year);
+    this.#payloadTons = payloadTons;
+    this.#cargoWeight = 0;
+  }
+
+  loadCargo(weight) {
+    if (this.#cargoWeight + weight > this.#payloadTons) {
+      throw new Error("Exceeds payload capacity!");
+    }
+    this.#cargoWeight += weight;
+    console.log(
+      `${this} loaded ${weight.toFixed(1)}t (total: ${this.#cargoWeight.toFixed(1)}t)`
+    );
+  }
+
+  accelerate(amount) {
+    const loadFactor = 1 - (this.#cargoWeight / this.#payloadTons) * 0.5;
+    super.accelerate(amount * loadFactor);
+  }
+}
+
+// Usage
+const tesla = new ElectricCar("Tesla", "Model 3", 2024, 75);
+tesla.accelerate(30);
+tesla.charge(10);
+
+const truck = new Truck("Ford", "F-150", 2024, 1.5);
+truck.loadCargo(0.8);
+truck.accelerate(20);
+
+console.log(tesla instanceof Vehicle); // true
+console.log(truck instanceof Vehicle); // true
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+class Vehicle {
+    protected String make;
+    protected String model;
+    protected int year;
+    protected double speed;
+
+    public Vehicle(String make, String model, int year) {
+        this.make = make;
+        this.model = model;
+        this.year = year;
+        this.speed = 0;
+    }
+
+    public void accelerate(double amount) {
+        speed += amount;
+        System.out.printf("%s accelerated to %.1f mph%n", this, speed);
+    }
+
+    public void brake(double amount) {
+        speed = Math.max(0, speed - amount);
+        System.out.printf("%s slowed to %.1f mph%n", this, speed);
+    }
+
+    @Override
+    public String toString() {
+        return year + " " + make + " " + model;
+    }
+}
+
+class ElectricCar extends Vehicle {
+    private double batteryKwh;
+    private double chargeLevel;
+
+    public ElectricCar(String make, String model, int year, double batteryKwh) {
+        super(make, model, year);
+        this.batteryKwh = batteryKwh;
+        this.chargeLevel = 100.0;
+    }
+
+    public void charge(double amount) {
+        chargeLevel = Math.min(100, chargeLevel + amount);
+        System.out.printf("%s charged to %.1f%%%n", this, chargeLevel);
+    }
+
+    @Override
+    public void accelerate(double amount) {
+        if (chargeLevel <= 0) {
+            System.out.println(this + " has no charge!");
+            return;
+        }
+        chargeLevel -= amount * 0.1;
+        super.accelerate(amount);
+    }
+}
+
+class Truck extends Vehicle {
+    private double payloadTons;
+    private double cargoWeight;
+
+    public Truck(String make, String model, int year, double payloadTons) {
+        super(make, model, year);
+        this.payloadTons = payloadTons;
+        this.cargoWeight = 0;
+    }
+
+    public void loadCargo(double weight) {
+        if (cargoWeight + weight > payloadTons) {
+            throw new IllegalArgumentException("Exceeds payload capacity!");
+        }
+        cargoWeight += weight;
+        System.out.printf("%s loaded %.1ft (total: %.1ft)%n",
+                          this, weight, cargoWeight);
+    }
+
+    @Override
+    public void accelerate(double amount) {
+        double loadFactor = 1 - (cargoWeight / payloadTons) * 0.5;
+        super.accelerate(amount * loadFactor);
+    }
+}
+
+public class InheritanceDemo {
+    public static void main(String[] args) {
+        ElectricCar tesla = new ElectricCar("Tesla", "Model 3", 2024, 75);
+        tesla.accelerate(30);
+        tesla.charge(10);
+
+        Truck truck = new Truck("Ford", "F-150", 2024, 1.5);
+        truck.loadCargo(0.8);
+        truck.accelerate(20);
+
+        System.out.println(tesla instanceof Vehicle); // true
+        System.out.println(truck instanceof Vehicle); // true
+    }
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+#include <iostream>
+#include <string>
+#include <algorithm>
+#include <stdexcept>
+#include <iomanip>
+using namespace std;
+
+class Vehicle {
+protected:
+    string make;
+    string model;
+    int year;
+    double speed;
+
+public:
+    Vehicle(const string& make, const string& model, int year)
+        : make(make), model(model), year(year), speed(0) {}
+
+    virtual ~Vehicle() = default;
+
+    virtual void accelerate(double amount) {
+        speed += amount;
+        cout << toString() << " accelerated to "
+             << fixed << setprecision(1) << speed << " mph" << endl;
+    }
+
+    void brake(double amount) {
+        speed = max(0.0, speed - amount);
+        cout << toString() << " slowed to "
+             << fixed << setprecision(1) << speed << " mph" << endl;
+    }
+
+    string toString() const {
+        return to_string(year) + " " + make + " " + model;
+    }
+};
+
+class ElectricCar : public Vehicle {
+private:
+    double batteryKwh;
+    double chargeLevel;
+
+public:
+    ElectricCar(const string& make, const string& model,
+                int year, double batteryKwh)
+        : Vehicle(make, model, year),
+          batteryKwh(batteryKwh), chargeLevel(100.0) {}
+
+    void charge(double amount) {
+        chargeLevel = min(100.0, chargeLevel + amount);
+        cout << toString() << " charged to "
+             << fixed << setprecision(1) << chargeLevel << "%" << endl;
+    }
+
+    void accelerate(double amount) override {
+        if (chargeLevel <= 0) {
+            cout << toString() << " has no charge!" << endl;
+            return;
+        }
+        chargeLevel -= amount * 0.1;
+        Vehicle::accelerate(amount); // Reuse parent logic
+    }
+};
+
+class Truck : public Vehicle {
+private:
+    double payloadTons;
+    double cargoWeight;
+
+public:
+    Truck(const string& make, const string& model,
+          int year, double payloadTons)
+        : Vehicle(make, model, year),
+          payloadTons(payloadTons), cargoWeight(0) {}
+
+    void loadCargo(double weight) {
+        if (cargoWeight + weight > payloadTons) {
+            throw invalid_argument("Exceeds payload capacity!");
+        }
+        cargoWeight += weight;
+        cout << toString() << " loaded " << fixed << setprecision(1)
+             << weight << "t (total: " << cargoWeight << "t)" << endl;
+    }
+
+    void accelerate(double amount) override {
+        double loadFactor = 1.0 - (cargoWeight / payloadTons) * 0.5;
+        Vehicle::accelerate(amount * loadFactor);
+    }
+};
+
+int main() {
+    ElectricCar tesla("Tesla", "Model 3", 2024, 75);
+    tesla.accelerate(30);
+    tesla.charge(10);
+
+    Truck truck("Ford", "F-150", 2024, 1.5);
+    truck.loadCargo(0.8);
+    truck.accelerate(20);
+
+    return 0;
+}
+```
+  </TabItem>
+</Tabs>
+
+### Benefits of Inheritance
+
+- **Code reuse** -- common functionality lives in the parent class and is automatically available to all children.
+- **Hierarchical organization** -- models natural "is-a" relationships, making code easier to reason about.
+- **Extensibility** -- new subclasses can be added without modifying existing parent code.
+- **Method overriding** -- subclasses can customize inherited behavior while still reusing parent logic through `super()`.
+
+### When to Use (and When Not To)
+
+**Use inheritance when:**
+- There is a clear, natural "is-a" relationship.
+- Subclasses genuinely share behavior and you want to avoid duplicating it.
+- You need polymorphic behavior (treating different types through a common interface).
+
+**Avoid inheritance when:**
+- The relationship is better described as "has-a" (use composition instead).
+- You find yourself inheriting just to reuse a small piece of code.
+- The class hierarchy becomes deeper than 2-3 levels -- deep hierarchies are fragile and hard to change.
+
+---
+
+## 4. Polymorphism
+
+### What Is Polymorphism?
+
+Polymorphism (from Greek: "many forms") is the ability of **different objects to respond to the same method call in their own way**. When you call a method on an object, the actual behavior that executes depends on the object's type, not the variable's declared type. This lets you write code that works with a general type while automatically adapting to the specific type at runtime.
+
+There are two main forms:
+
+1. **Runtime (subtype) polymorphism** -- achieved through method overriding. The most common form in OOP. A parent type reference can point to any child type, and the correct overridden method is called at runtime.
+2. **Compile-time (ad-hoc) polymorphism** -- achieved through method overloading (same method name, different parameter signatures) or operator overloading. Available in languages like Java and C++.
+
+### Real-World Analogy
+
+Consider **a universal remote control**. The "power" button sends the same signal concept to any device -- a TV, a sound system, a streaming box. Each device *responds to the same command differently*: the TV displays a picture, the sound system starts playing audio, the streaming box boots its interface. The remote does not need to know the internal workings of each device. It simply sends a unified command, and each device interprets it in its own way. That is polymorphism.
+
+### Code Examples
+
+<Tabs>
+  <TabItem label="Python">
+```python
+from abc import ABC, abstractmethod
+import math
+
+
+class Shape(ABC):
+    """Base class for all shapes."""
+
+    @abstractmethod
+    def area(self) -> float:
+        pass
+
+    @abstractmethod
+    def perimeter(self) -> float:
+        pass
+
+    def describe(self) -> str:
+        """Same method works for any shape -- polymorphism in action."""
+        return (
+            f"{self.__class__.__name__}: "
+            f"area={self.area():.2f}, perimeter={self.perimeter():.2f}"
+        )
+
+
+class Circle(Shape):
+    def __init__(self, radius: float):
+        self.radius = radius
+
+    def area(self) -> float:
+        return math.pi * self.radius ** 2
+
+    def perimeter(self) -> float:
+        return 2 * math.pi * self.radius
+
+
+class Rectangle(Shape):
+    def __init__(self, width: float, height: float):
+        self.width = width
+        self.height = height
+
+    def area(self) -> float:
+        return self.width * self.height
+
+    def perimeter(self) -> float:
+        return 2 * (self.width + self.height)
+
+
+class Triangle(Shape):
+    def __init__(self, a: float, b: float, c: float):
+        self.a = a
+        self.b = b
+        self.c = c
+
+    def area(self) -> float:
+        # Heron's formula
+        s = self.perimeter() / 2
+        return math.sqrt(s * (s - self.a) * (s - self.b) * (s - self.c))
+
+    def perimeter(self) -> float:
+        return self.a + self.b + self.c
+
+
+# Polymorphism in action: one function handles ALL shapes
+def print_shape_report(shapes: list[Shape]) -> None:
+    total_area = 0.0
+    for shape in shapes:
+        print(shape.describe())  # Each shape responds differently
+        total_area += shape.area()
+    print(f"Total area: {total_area:.2f}")
+
+
+# Usage
+shapes: list[Shape] = [
+    Circle(5),
+    Rectangle(4, 6),
+    Triangle(3, 4, 5),
+]
+
+print_shape_report(shapes)
+# Circle: area=78.54, perimeter=31.42
+# Rectangle: area=24.00, perimeter=20.00
+# Triangle: area=6.00, perimeter=12.00
+# Total area: 108.54
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+class Shape {
+  area() {
+    throw new Error("area() must be implemented");
+  }
+
+  perimeter() {
+    throw new Error("perimeter() must be implemented");
+  }
+
+  describe() {
+    return (
+      `${this.constructor.name}: ` +
+      `area=${this.area().toFixed(2)}, ` +
+      `perimeter=${this.perimeter().toFixed(2)}`
+    );
+  }
+}
+
+class Circle extends Shape {
+  constructor(radius) {
+    super();
+    this.radius = radius;
+  }
+
+  area() {
+    return Math.PI * this.radius ** 2;
+  }
+
+  perimeter() {
+    return 2 * Math.PI * this.radius;
+  }
+}
+
+class Rectangle extends Shape {
+  constructor(width, height) {
+    super();
+    this.width = width;
+    this.height = height;
+  }
+
+  area() {
+    return this.width * this.height;
+  }
+
+  perimeter() {
+    return 2 * (this.width + this.height);
+  }
+}
+
+class Triangle extends Shape {
+  constructor(a, b, c) {
+    super();
+    this.a = a;
+    this.b = b;
+    this.c = c;
+  }
+
+  area() {
+    const s = this.perimeter() / 2;
+    return Math.sqrt(s * (s - this.a) * (s - this.b) * (s - this.c));
+  }
+
+  perimeter() {
+    return this.a + this.b + this.c;
+  }
+}
+
+// Polymorphism in action
+function printShapeReport(shapes) {
+  let totalArea = 0;
+  for (const shape of shapes) {
+    console.log(shape.describe()); // Each shape responds differently
+    totalArea += shape.area();
+  }
+  console.log(`Total area: ${totalArea.toFixed(2)}`);
+}
+
+const shapes = [
+  new Circle(5),
+  new Rectangle(4, 6),
+  new Triangle(3, 4, 5),
+];
+
+printShapeReport(shapes);
+// Circle: area=78.54, perimeter=31.42
+// Rectangle: area=24.00, perimeter=20.00
+// Triangle: area=6.00, perimeter=12.00
+// Total area: 108.54
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+import java.util.List;
+
+abstract class Shape {
+    abstract double area();
+    abstract double perimeter();
+
+    String describe() {
+        return String.format("%s: area=%.2f, perimeter=%.2f",
+            getClass().getSimpleName(), area(), perimeter());
+    }
+}
+
+class Circle extends Shape {
+    private double radius;
+
+    public Circle(double radius) {
+        this.radius = radius;
+    }
+
+    @Override
+    double area() {
+        return Math.PI * radius * radius;
+    }
+
+    @Override
+    double perimeter() {
+        return 2 * Math.PI * radius;
+    }
+}
+
+class Rectangle extends Shape {
+    private double width;
+    private double height;
+
+    public Rectangle(double width, double height) {
+        this.width = width;
+        this.height = height;
+    }
+
+    @Override
+    double area() {
+        return width * height;
+    }
+
+    @Override
+    double perimeter() {
+        return 2 * (width + height);
+    }
+}
+
+class Triangle extends Shape {
+    private double a, b, c;
+
+    public Triangle(double a, double b, double c) {
+        this.a = a;
+        this.b = b;
+        this.c = c;
+    }
+
+    @Override
+    double area() {
+        double s = perimeter() / 2;
+        return Math.sqrt(s * (s - a) * (s - b) * (s - c));
+    }
+
+    @Override
+    double perimeter() {
+        return a + b + c;
+    }
+}
+
+public class PolymorphismDemo {
+    // Polymorphism in action: one method handles ALL shapes
+    static void printShapeReport(List<Shape> shapes) {
+        double totalArea = 0;
+        for (Shape shape : shapes) {
+            System.out.println(shape.describe());
+            totalArea += shape.area();
+        }
+        System.out.printf("Total area: %.2f%n", totalArea);
+    }
+
+    public static void main(String[] args) {
+        List<Shape> shapes = List.of(
+            new Circle(5),
+            new Rectangle(4, 6),
+            new Triangle(3, 4, 5)
+        );
+
+        printShapeReport(shapes);
+    }
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+#include <iostream>
+#include <vector>
+#include <memory>
+#include <cmath>
+#include <iomanip>
+#include <string>
+using namespace std;
+
+class Shape {
+public:
+    virtual ~Shape() = default;
+    virtual double area() const = 0;
+    virtual double perimeter() const = 0;
+    virtual string name() const = 0;
+
+    string describe() const {
+        return name() + ": area=" + to_string(area()).substr(0, to_string(area()).find('.') + 3)
+               + ", perimeter=" + to_string(perimeter()).substr(0, to_string(perimeter()).find('.') + 3);
+    }
+};
+
+class Circle : public Shape {
+private:
+    double radius;
+
+public:
+    Circle(double radius) : radius(radius) {}
+
+    double area() const override {
+        return M_PI * radius * radius;
+    }
+
+    double perimeter() const override {
+        return 2 * M_PI * radius;
+    }
+
+    string name() const override { return "Circle"; }
+};
+
+class Rectangle : public Shape {
+private:
+    double width, height;
+
+public:
+    Rectangle(double width, double height)
+        : width(width), height(height) {}
+
+    double area() const override {
+        return width * height;
+    }
+
+    double perimeter() const override {
+        return 2 * (width + height);
+    }
+
+    string name() const override { return "Rectangle"; }
+};
+
+class Triangle : public Shape {
+private:
+    double a, b, c;
+
+public:
+    Triangle(double a, double b, double c)
+        : a(a), b(b), c(c) {}
+
+    double area() const override {
+        double s = perimeter() / 2;
+        return sqrt(s * (s - a) * (s - b) * (s - c));
+    }
+
+    double perimeter() const override {
+        return a + b + c;
+    }
+
+    string name() const override { return "Triangle"; }
+};
+
+// Polymorphism in action
+void printShapeReport(const vector<unique_ptr<Shape>>& shapes) {
+    double totalArea = 0;
+    for (const auto& shape : shapes) {
+        cout << shape->describe() << endl;
+        totalArea += shape->area();
+    }
+    cout << fixed << setprecision(2)
+         << "Total area: " << totalArea << endl;
+}
+
+int main() {
+    vector<unique_ptr<Shape>> shapes;
+    shapes.push_back(make_unique<Circle>(5));
+    shapes.push_back(make_unique<Rectangle>(4, 6));
+    shapes.push_back(make_unique<Triangle>(3, 4, 5));
+
+    printShapeReport(shapes);
+
+    return 0;
+}
+```
+  </TabItem>
+</Tabs>
+
+### Benefits of Polymorphism
+
+- **Extensibility** -- new types can be added without changing existing code that uses the base type.
+- **Cleaner code** -- eliminates long `if/else` or `switch` chains that check object types.
+- **Flexibility** -- algorithms can work with abstract types and automatically handle any concrete implementation.
+- **Testability** -- mock objects can implement the same interface for unit testing.
+
+---
+
+## Comparison of the Four Pillars
+
+| Pillar | Core Idea | Key Mechanism | Primary Benefit |
+|--------|-----------|---------------|-----------------|
+| **Encapsulation** | Bundle data + methods; hide internals | Access modifiers (`private`, `protected`, `public`) | Data integrity and reduced coupling |
+| **Abstraction** | Expose what, hide how | Abstract classes and interfaces | Simplicity and interchangeability |
+| **Inheritance** | Child classes acquire parent behavior | `extends` / `:` (subclassing) | Code reuse and hierarchical modeling |
+| **Polymorphism** | Same interface, different behavior | Method overriding and virtual dispatch | Extensibility and flexibility |
+
+### How They Work Together
+
+The four pillars are not independent -- they reinforce each other:
+
+1. **Encapsulation** protects the internal state that **Abstraction** hides from the user.
+2. **Inheritance** provides the class hierarchy through which **Polymorphism** operates.
+3. **Abstraction** defines the contract that **Polymorphism** leverages -- subclasses provide different implementations of the same abstract methods.
+4. **Encapsulation** in a parent class means child classes that **Inherit** its fields interact with them through controlled methods rather than directly.
+
+---
+
+## Key Takeaways
+
+1. **Encapsulation** is your first line of defense against bugs. By controlling how data is accessed and modified, you prevent objects from reaching invalid states and make your code easier to debug and maintain.
+
+2. **Abstraction** is about managing complexity. Well-designed abstractions let you think at a higher level and swap implementations without rewriting client code. Focus on *what* an object does, not *how* it does it.
+
+3. **Inheritance** is powerful but should be used judiciously. Prefer shallow hierarchies (2-3 levels deep). If you are inheriting only to reuse code, composition is usually a better choice. Always verify the "is-a" relationship makes logical sense.
+
+4. **Polymorphism** is the payoff. Once you have good abstractions and a clean class hierarchy, polymorphism lets you write general-purpose code that handles any number of specific types -- present and future -- without modification.
+
+5. **The pillars work together.** Encapsulation without abstraction leads to cluttered interfaces. Inheritance without polymorphism is just code sharing. The real power emerges when all four principles are applied in concert.
+
+---
+
+## Practice Exercises
+
+### Exercise 1: Media Player System
+
+Design a media player system using all four pillars:
+
+- Create a base `MediaPlayer` class with encapsulated state (current track, volume, playing status).
+- Define an abstract method `decode(file_path)` that different player subclasses implement (MP3Player, WAVPlayer, FLACPlayer).
+- Write a `Playlist` class that holds a list of `MediaPlayer` references and can call `play()` on each one polymorphically.
+
+**Stretch goal:** Add a `StreamingPlayer` subclass that overrides the `decode` method to stream from a URL instead of reading a file.
+
+### Exercise 2: Zoo Management
+
+Model a zoo with inheritance and polymorphism:
+
+- Create a base `Animal` class with encapsulated attributes (name, species, age, hunger_level).
+- Add subclasses: `Mammal`, `Bird`, `Reptile`, each with a `make_sound()` method that returns a different string.
+- Write a `Zookeeper` class with a `feed_all(animals)` method that iterates through a list of `Animal` objects and calls `feed()` on each one, demonstrating polymorphism.
+- Use abstraction to define a `Feedable` interface that both animals and hypothetical `Plant` objects could implement.
+
+### Exercise 3: Plugin Architecture
+
+Build a plugin system that demonstrates abstraction and polymorphism:
+
+- Define an abstract `Plugin` class with methods: `initialize()`, `execute(data)`, `shutdown()`.
+- Implement at least three concrete plugins: `LoggingPlugin`, `ValidationPlugin`, `TransformPlugin`.
+- Create a `PluginManager` class that loads plugins, calls `initialize()` on all of them, and routes data through each plugin's `execute()` method in sequence.
+- Encapsulate the plugin list inside `PluginManager` so that external code cannot modify it directly.
+
+---
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="SOLID Principles"
+    href="/software-engineering/oop-solid/solid-principles/"
+    description="Learn the five principles that guide clean, maintainable object-oriented design"
+  />
+  <LinkCard
+    title="Composition vs Inheritance"
+    href="/software-engineering/oop-solid/composition-vs-inheritance/"
+    description="Understand when to use 'has-a' relationships instead of 'is-a' hierarchies"
+  />
+</CardGrid>

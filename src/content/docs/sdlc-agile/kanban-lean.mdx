@@ -1,0 +1,435 @@
+---
+title: "Kanban & Lean"
+description: "Optimize workflow and reduce waste using Kanban boards and Lean principles"
+difficulty: "intermediate"
+prerequisites: ["Agile & Scrum"]
+timeToRead: "15 min"
+topics: ["kanban", "lean", "wip-limits", "flow", "continuous-improvement"]
+---
+
+import { LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+While Scrum organizes work into fixed-length sprints, **Kanban** takes a fundamentally different approach: it focuses on **continuous flow**. There are no sprints, no prescribed roles, and no fixed ceremonies. Instead, Kanban uses visual management, work-in-progress (WIP) limits, and flow metrics to help teams deliver value smoothly and predictably.
+
+**Lean** is the philosophical foundation that underpins Kanban. Originating from the Toyota Production System, Lean provides a set of principles for eliminating waste, building quality in, and optimizing the entire value stream. Together, Kanban and Lean give software teams powerful tools for improving how they work without imposing a rigid framework.
+
+---
+
+## The Origins of Kanban
+
+The word **kanban** is Japanese for "visual signal" or "card." The system was developed at Toyota in the late 1940s by Taiichi Ohno as part of the **Toyota Production System (TPS)**. Toyota used physical cards (kanban cards) to signal when a workstation needed more parts, creating a **pull-based** production system where work was produced only when there was demand for it.
+
+In 2007, David J. Anderson adapted these principles for knowledge work and software development, creating what we now know as the Kanban Method. Unlike Toyota's manufacturing kanban, Anderson's approach is specifically designed for **creative, non-repetitive work** where tasks vary in size, complexity, and priority.
+
+The key insight from Toyota that translates directly to software: **stop starting and start finishing**. Limiting the amount of work in progress reduces context-switching, shortens delivery times, and improves quality.
+
+---
+
+## The Five Kanban Principles
+
+The Kanban Method is built on five core principles that guide how teams manage and improve their workflow.
+
+### 1. Visualize the Workflow
+
+Make all work visible so the entire team can see what is being worked on, what is waiting, and where bottlenecks exist. This is typically accomplished with a **Kanban board** -- a physical or digital board with columns representing stages in the workflow.
+
+**Why it matters:** You cannot improve what you cannot see. When work is invisible (buried in email, chat threads, or someone's head), it is impossible to manage effectively. Visualization creates shared understanding and accountability.
+
+### 2. Limit Work in Progress (WIP)
+
+Set explicit limits on how many items can be in each stage of the workflow at the same time. When a column reaches its WIP limit, no new work can enter that stage until existing work moves forward.
+
+**Why it matters:** WIP limits are the single most impactful practice in Kanban. They prevent overloading, reduce context-switching, expose bottlenecks, and force the team to finish work before starting new work. Without WIP limits, a Kanban board is just a to-do list on a wall.
+
+### 3. Manage Flow
+
+Actively monitor and optimize how work moves through the system. Track metrics like lead time, cycle time, and throughput to identify problems and measure improvements.
+
+**Why it matters:** The goal is smooth, predictable flow. When flow stalls (items stuck in a column for days), something is wrong -- a dependency, a skill gap, an unclear requirement. Managing flow means proactively addressing these stalls.
+
+### 4. Make Policies Explicit
+
+Document and communicate the rules that govern your workflow. This includes:
+- What does each column on the board mean?
+- What criteria must an item meet to move to the next column?
+- What are the WIP limits and why?
+- How is work prioritized?
+
+**Why it matters:** Implicit rules lead to inconsistent behavior and arguments. When policies are explicit, everyone operates from the same understanding, and disagreements can be resolved by referencing the agreed-upon rules.
+
+### 5. Improve Collaboratively (Using Models and the Scientific Method)
+
+Continuously look for ways to improve the workflow. Use data (metrics), theory (models like queuing theory and the theory of constraints), and experimentation (try something, measure, adjust) to drive improvement.
+
+**Why it matters:** Kanban is evolutionary, not revolutionary. You start with your existing process and improve it incrementally. There is no "ideal end state" -- improvement is a continuous journey.
+
+---
+
+## Designing a Kanban Board
+
+A Kanban board is a visual representation of your workflow. Each column represents a stage, and each card represents a work item.
+
+### Basic Kanban Board
+
+```
+┌─────────────┬────────────────┬──────────────┬─────────────┐
+│   BACKLOG   │  IN PROGRESS   │   REVIEW     │    DONE     │
+│             │    (WIP: 3)    │   (WIP: 2)   │             │
+│             │                │              │             │
+│  ┌───────┐  │  ┌───────┐     │  ┌───────┐   │  ┌───────┐  │
+│  │ Story │  │  │ Story │     │  │ Story │   │  │ Story │  │
+│  │  #7   │  │  │  #4   │     │  │  #2   │   │  │  #1   │  │
+│  └───────┘  │  └───────┘     │  └───────┘   │  └───────┘  │
+│  ┌───────┐  │  ┌───────┐     │              │  ┌───────┐  │
+│  │ Story │  │  │ Story │     │              │  │ Story │  │
+│  │  #8   │  │  │  #5   │     │              │  │  #3   │  │
+│  └───────┘  │  └───────┘     │              │  └───────┘  │
+│  ┌───────┐  │                │              │             │
+│  │ Story │  │                │              │             │
+│  │  #9   │  │                │              │             │
+│  └───────┘  │                │              │             │
+│             │                │              │             │
+└─────────────┴────────────────┴──────────────┴─────────────┘
+              ◄──── Pull ─────►◄──── Pull ───►
+```
+
+**How it works:**
+- Work items (cards) start in the **Backlog** column
+- When capacity opens up in **In Progress** (i.e., the column is below its WIP limit), a team member **pulls** the highest-priority item from the Backlog
+- When work is complete, it moves to **Review**, and then to **Done**
+- Movement is always **pull-based**: work is pulled into a stage only when there is capacity, never pushed
+
+### Advanced Kanban Board
+
+Real-world Kanban boards are often more detailed, with additional columns, swim lanes, and visual indicators:
+
+```
+┌──────────┬──────────┬──────────┬──────────┬──────────┬──────────┐
+│ BACKLOG  │ ANALYSIS │  DEV     │  CODE    │   QA     │  DONE    │
+│          │ (WIP: 2) │ (WIP: 3) │  REVIEW  │ (WIP: 2) │          │
+│          │          │          │ (WIP: 2) │          │          │
+├──────────┤──────────┤──────────┤──────────┤──────────┤──────────┤
+│ Expedite │          │          │          │          │          │
+│ (WIP: 1) │          │          │          │          │          │
+├──────────┤──────────┤──────────┤──────────┤──────────┤──────────┤
+│ Standard │          │          │          │          │          │
+│          │          │          │          │          │          │
+├──────────┤──────────┤──────────┤──────────┤──────────┤──────────┤
+│ Low      │          │          │          │          │          │
+│ Priority │          │          │          │          │          │
+└──────────┴──────────┴──────────┴──────────┴──────────┴──────────┘
+```
+
+**Additional elements:**
+- **Swim lanes** (horizontal rows) separate work by priority class or type
+- **Expedite lane** has a WIP limit of 1 for urgent items that bypass normal flow
+- **Analysis** column separates requirements refinement from development
+- **Code Review** is split out to make the review bottleneck visible
+- **Blocked indicators** (red flags or markers) highlight items waiting on external dependencies
+
+---
+
+## WIP Limits: Why They Matter
+
+WIP limits are the defining practice of Kanban. Without them, you have a task board, not a Kanban system. Here is why they are so powerful.
+
+### The Problem with No WIP Limits
+
+When there are no limits on work in progress, several problems emerge:
+
+- **Context-switching** -- Developers juggle 5-6 tasks simultaneously, losing focus and making more mistakes
+- **Long lead times** -- Items sit in queues waiting for attention while the team starts new work
+- **Hidden bottlenecks** -- Problems in one stage are invisible because work keeps flowing into the system
+- **Unpredictable delivery** -- With so many items in flight, it is impossible to predict when any single item will be done
+
+### How WIP Limits Help
+
+Setting a WIP limit of 3 on the "In Progress" column means that when three items are already being worked on, the fourth item **cannot be started**. This forces the team to either:
+
+1. **Help finish an existing item** -- Pair programming, helping with testing, removing a blocker
+2. **Address the bottleneck** -- If "Review" is full, developers should do code reviews instead of starting new code
+3. **Improve the process** -- If items consistently pile up in one column, the team must address the root cause
+
+### Setting WIP Limits
+
+There is no universal formula for WIP limits. Start with these guidelines and adjust based on experience:
+
+- **Per-person guideline:** Start with 1-2 items per person in the team for the "In Progress" column
+- **Start higher, reduce over time:** Begin with generous limits and tighten them as the team adapts
+- **Observe and adjust:** If a column is always at its limit, the limit might be too low. If items fly through without queuing, it might be too high
+- **Err on the side of too low:** Lower WIP limits expose problems faster, which is the point
+
+:::tip[The Stop Starting, Start Finishing Rule]
+When your WIP limit is reached and you cannot start new work, resist the temptation to raise the limit. Instead, ask: "What can I do to help finish something that is already in progress?" This mindset shift is the heart of Kanban.
+:::
+
+---
+
+## Flow Metrics
+
+Kanban teams measure flow to understand and improve their process. Three metrics form the foundation.
+
+### Lead Time
+
+**Lead time** is the total time from when a work item is **requested** (enters the backlog or is committed to) until it is **delivered** (reaches Done).
+
+```
+Lead Time
+◄─────────────────────────────────────────►
+│  Waiting  │  Active Work  │  Waiting  │
+│ (in queue)│ (in progress) │ (in queue)│
+Request ──► Start ──────────► Finish ──► Delivery
+```
+
+Lead time is what the **customer** cares about. It answers: "How long after I request something until I get it?"
+
+### Cycle Time
+
+**Cycle time** is the time from when work **actively begins** on an item until it is **completed**. It is a subset of lead time.
+
+```
+Lead Time
+◄─────────────────────────────────────────►
+            Cycle Time
+            ◄─────────────────►
+Request ──► Start ────────────► Finish ──► Delivery
+```
+
+Cycle time is what the **team** focuses on. It answers: "How long does it take us to complete a piece of work once we start?"
+
+### Throughput
+
+**Throughput** is the number of work items completed in a given time period (e.g., 8 stories per week).
+
+**Relationship between the metrics (Little's Law):**
+
+```
+Average WIP = Average Throughput x Average Cycle Time
+```
+
+This means:
+- If you want to reduce cycle time, reduce WIP
+- If you want to increase throughput without increasing WIP, reduce cycle time
+- Adding more WIP does **not** increase throughput -- it increases cycle time
+
+### Cumulative Flow Diagram (CFD)
+
+A Cumulative Flow Diagram is a stacked area chart that shows the **total number of items in each state over time**. It provides a single view of the entire system's health.
+
+```
+Items │
+  30  │                                          ╱──── Done
+      │                                    ╱────╱
+  25  │                              ╱────╱
+      │                        ╱────╱
+  20  │                  ╱────╱
+      │            ╱────╱         ╱──── Review
+  15  │      ╱────╱         ╱────╱
+      │╱────╱         ╱────╱
+  10  │         ╱────╱         ╱──── In Progress
+      │   ╱────╱         ╱────╱
+   5  │──╱         ╱────╱
+      │      ╱────╱──────────────── Backlog
+   0  │─────╱
+      └──────────────────────────────────────
+       Week 1  Week 2  Week 3  Week 4  Week 5
+```
+
+**How to read a CFD:**
+- The **vertical distance** between two lines represents the number of items in that state
+- The **horizontal distance** between two lines represents the approximate lead time
+- If bands are **roughly parallel**, the system is stable
+- If a band is **widening**, work is accumulating in that state (a bottleneck is forming)
+- If a band is **narrowing**, that state is draining (potentially idle capacity)
+
+---
+
+## Lean Principles for Software Development
+
+Lean Software Development adapts seven principles from lean manufacturing (originally codified by Mary and Tom Poppendieck) to the context of software.
+
+### 1. Eliminate Waste
+
+Anything that does not directly contribute to delivering value to the customer is **waste** (Japanese: *muda*). In software, waste takes seven forms:
+
+| Waste | Manufacturing Equivalent | Software Example |
+|---|---|---|
+| **Partially done work** | Work-in-process inventory | Unmerged branches, undeployed features, half-written specs |
+| **Extra features** | Over-production | Building features nobody asked for ("gold plating") |
+| **Relearning** | Reprocessing | Rediscovering decisions not documented, losing tribal knowledge |
+| **Handoffs** | Transportation | Passing work between teams (dev to QA to ops) |
+| **Task switching** | Motion | Developers juggling 5 projects simultaneously |
+| **Delays** | Waiting | Waiting for approvals, environment provisioning, code reviews |
+| **Defects** | Defects | Bugs, rework, production incidents |
+
+:::caution[The Most Insidious Waste]
+**Extra features** are the most common and least recognized waste. Studies consistently show that 45-65% of software features are rarely or never used. Every unnecessary feature adds complexity, maintenance burden, and cognitive load. The most productive thing a team can do is **not build** something that is not needed.
+:::
+
+### 2. Build Quality In
+
+Do not rely on inspection (testing after the fact) to achieve quality. Instead, **prevent defects from occurring** in the first place.
+
+**Practices:**
+- Test-driven development (TDD) -- Write tests before code
+- Pair programming -- Two sets of eyes catch problems in real-time
+- Continuous integration -- Automated builds and tests on every commit
+- Refactoring -- Continuously improve code structure to prevent rot
+- Automated testing -- Fast feedback on every change
+
+### 3. Create Knowledge
+
+Software development is fundamentally a **learning process**. Teams learn about the problem domain, the technology, and the users as they build. Support this learning by:
+
+- Writing documentation for decisions (Architecture Decision Records)
+- Conducting retrospectives and sharing lessons learned
+- Encouraging experimentation and prototyping
+- Maintaining a culture where asking questions is encouraged
+
+### 4. Defer Commitment
+
+Make decisions at the **last responsible moment** -- the point where not making a decision eliminates an option. Early decisions based on incomplete information often prove wrong and are expensive to reverse.
+
+**Examples:**
+- Do not choose a database on day one -- build behind an abstraction and decide when you understand your data patterns
+- Do not over-architect for scale you do not yet have
+- Use feature flags to defer the decision of when to launch
+
+### 5. Deliver Fast
+
+Speed matters, but not at the expense of quality. Short delivery cycles provide **fast feedback**, reduce risk, and let the team learn and adapt quickly.
+
+**Enablers:**
+- Small batch sizes (small stories, small pull requests)
+- Continuous delivery pipelines
+- Automated testing and deployment
+- Minimal approval gates
+
+### 6. Respect People
+
+Trust teams to make decisions about how to do their work. Empower individuals, foster psychological safety, and invest in growth.
+
+**Practices:**
+- Self-organizing teams choose their own approach
+- Managers set objectives, teams decide how to achieve them
+- Blame-free post-mortems when things go wrong
+- Time and budget for learning and improvement
+
+### 7. Optimize the Whole
+
+Optimize the **entire value stream** from concept to cash, not individual stages. Local optimizations (making one team faster) often create bottlenecks elsewhere.
+
+**Example:** A development team that ships code twice as fast but overwhelms the QA team has not improved the system -- it has just moved the bottleneck. The goal is to optimize the flow from customer request to customer delivery.
+
+---
+
+## Kanban vs. Scrum
+
+Both Kanban and Scrum are Agile approaches, but they differ significantly in structure and philosophy.
+
+| Aspect | Scrum | Kanban |
+|---|---|---|
+| **Cadence** | Fixed-length sprints (1-4 weeks) | Continuous flow (no iterations) |
+| **Roles** | Product Owner, Scrum Master, Dev Team | No prescribed roles |
+| **Ceremonies** | Sprint Planning, Daily Standup, Review, Retro | No prescribed ceremonies (but meetings are encouraged) |
+| **Planning** | Sprint-based (commit to sprint scope) | Continuous (pull when capacity exists) |
+| **Board** | Reset at end of each sprint | Persistent, continuously flowing |
+| **WIP limits** | Implicit (sprint capacity) | Explicit per-column limits |
+| **Changes** | Not allowed mid-sprint | Can be added at any time (subject to WIP limits) |
+| **Estimation** | Story points / velocity | Optional (lead time and throughput are primary metrics) |
+| **Best for** | Teams needing structure and predictable cadence | Teams wanting flexibility and continuous delivery |
+| **Commitment** | Sprint Goal (committed scope) | Service Level Expectations (probabilistic forecasting) |
+| **Metrics** | Velocity, burndown chart | Lead time, cycle time, throughput, CFD |
+
+### When to Choose Scrum
+- The team is new to Agile and benefits from prescribed structure
+- Stakeholders need a predictable delivery cadence
+- Work can be meaningfully grouped into sprint-sized batches
+- The team needs regular retrospectives built into the process
+
+### When to Choose Kanban
+- Work arrives unpredictably (support, maintenance, operations)
+- The team already has a mature process and wants to improve it incrementally
+- Sprints feel artificial or create unnecessary waste
+- The team handles a mix of planned features and urgent requests
+
+---
+
+## Scrumban: The Hybrid Approach
+
+Many teams find that neither pure Scrum nor pure Kanban fits perfectly. **Scrumban** blends elements of both:
+
+- **From Scrum:** Regular planning cadence, retrospectives, and the concept of a prioritized backlog
+- **From Kanban:** Continuous flow within iterations, explicit WIP limits, pull-based work assignment, and flow metrics
+
+**How Scrumban typically works:**
+1. Work is planned in iterations (like Scrum), but the iteration is a planning horizon, not a commitment boundary
+2. The board has explicit WIP limits per column (like Kanban)
+3. Work is pulled, not assigned -- team members pull the next highest-priority item when they have capacity
+4. Daily standups focus on the board and flow, not status reporting
+5. Retrospectives are held regularly to improve the process
+6. Metrics include both velocity (for planning) and cycle time (for flow analysis)
+
+Scrumban is particularly useful for teams transitioning from Scrum to Kanban, or for teams doing both product development (sprint-like planning) and operational work (continuous flow).
+
+---
+
+## Practical Tips for Getting Started
+
+### Starting with Kanban
+
+1. **Map your current process.** Do not invent an ideal workflow. Start by visualizing how work *actually* flows today, even if it is messy.
+2. **Set initial WIP limits.** Start with a limit of approximately 1.5 times the number of team members for the "In Progress" column. Adjust from there.
+3. **Track cycle time from day one.** You need baseline data to know if your changes are improving things.
+4. **Hold regular flow reviews.** Even though Kanban does not prescribe meetings, a weekly review of the board and metrics is invaluable.
+5. **Do not try to change everything at once.** Kanban is evolutionary. Make one change, observe the impact, then decide on the next change.
+
+### Starting with Lean
+
+1. **Identify your value stream.** Map every step from "customer request" to "customer receives value." Include wait times and handoffs.
+2. **Find the biggest waste.** Look at the seven wastes and identify which one is costing your team the most time and effort.
+3. **Eliminate one waste at a time.** Focus on removing the biggest bottleneck first.
+4. **Measure before and after.** Without data, you cannot tell if your changes are improvements.
+
+---
+
+## Key Takeaways
+
+1. **Kanban is about flow, not sprints.** Work moves continuously through the system. There are no fixed iterations, no sprint commitments, and no sprint resets. Pull work when you have capacity.
+
+2. **WIP limits are non-negotiable.** Without WIP limits, you have a task board, not a Kanban system. WIP limits are the mechanism that creates pull-based flow, exposes bottlenecks, and forces collaboration.
+
+3. **Lead time and cycle time are your primary metrics.** They tell you how long customers wait and how long work takes. Track them, reduce them, and use them for probabilistic forecasting.
+
+4. **Lean is about eliminating waste.** The seven wastes of software development are real and pervasive. The most productive improvement a team can make is often to *stop doing something* rather than to do something faster.
+
+5. **Optimize the whole, not the parts.** Making one stage faster can make the overall system slower if it creates a bottleneck downstream. Always think about the end-to-end value stream.
+
+6. **Start with what you do now.** Both Kanban and Lean are evolutionary approaches. You do not need to throw away your existing process -- start where you are and improve incrementally.
+
+---
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="Estimation & Planning"
+    href="/software-engineering/sdlc-agile/estimation-planning/"
+    description="Learn estimation techniques and release planning strategies that work with both Scrum and Kanban"
+  />
+  <LinkCard
+    title="Agile & Scrum"
+    href="/software-engineering/sdlc-agile/agile-scrum/"
+    description="Review the Scrum framework to understand how it compares with Kanban"
+  />
+  <LinkCard
+    title="Software Development Lifecycle"
+    href="/software-engineering/sdlc-agile/"
+    description="Revisit the SDLC overview to see how Kanban and Lean fit into the broader landscape"
+  />
+  <LinkCard
+    title="DevOps"
+    href="/software-engineering/devops/"
+    description="Explore how DevOps practices enable the continuous delivery that Kanban and Lean demand"
+  />
+</CardGrid>

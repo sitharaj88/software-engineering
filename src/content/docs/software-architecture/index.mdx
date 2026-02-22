@@ -1,0 +1,291 @@
+---
+title: "Software Architecture"
+description: "Learn architectural patterns and principles for designing robust, scalable software systems"
+difficulty: "intermediate"
+prerequisites: ["OOP & SOLID Principles", "Design Patterns"]
+timeToRead: "10 min"
+topics: ["architecture", "quality-attributes", "trade-offs", "patterns"]
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+Software architecture is the set of **fundamental structural decisions** about a software system -- decisions that are costly to change once implemented. It defines how components are organized, how they communicate, and how the system meets its quality requirements. Architecture is not just about technology; it is about making the right trade-offs to serve the business goals and technical constraints of a project.
+
+---
+
+## What Is Software Architecture?
+
+Software architecture encompasses the **high-level structures** of a system, the **discipline of creating** those structures, and the **documentation** that describes them. It answers critical questions before code is written:
+
+- **How is the system decomposed** into components or services?
+- **How do those components communicate** with each other?
+- **What technologies and platforms** will be used?
+- **How does the system meet non-functional requirements** like scalability, security, and reliability?
+- **What constraints and trade-offs** guide the design decisions?
+
+Unlike detailed design, which focuses on algorithms and data structures within a single module, architecture focuses on the **boundaries, interfaces, and interactions** between major components.
+
+---
+
+## The Role of a Software Architect
+
+A software architect bridges the gap between business requirements and technical implementation. The role involves:
+
+- **Defining the overall system structure** -- selecting architectural patterns and establishing component boundaries
+- **Making key technology decisions** -- choosing frameworks, databases, messaging systems, and deployment platforms
+- **Ensuring quality attributes are met** -- designing for scalability, performance, security, and maintainability
+- **Communicating the architecture** -- creating diagrams, documentation, and ADRs (Architecture Decision Records) that the team can follow
+- **Mentoring developers** -- guiding the team on how to implement within the architectural constraints
+- **Managing technical debt** -- identifying when shortcuts are acceptable and when they must be repaid
+
+:::note[Architect vs. Developer]
+In many organizations, "architect" is not a separate job title but a **role** that senior developers take on. Regardless of title, someone must own the architectural decisions. In agile teams, architecture is often a shared responsibility with one person providing guidance.
+:::
+
+---
+
+## Architecture vs. Design
+
+Architecture and design exist on a **continuum**, but they differ in scope and impact:
+
+| Aspect | Architecture | Design |
+|--------|-------------|--------|
+| **Scope** | System-wide, cross-cutting | Within a single module or component |
+| **Abstraction** | High-level structure and interactions | Low-level algorithms and data structures |
+| **Cost of change** | Expensive to reverse | Relatively inexpensive to refactor |
+| **Stakeholders** | Business leaders, tech leads, DevOps | Developers within a specific team |
+| **Examples** | "We use microservices with event-driven messaging" | "This class uses the Strategy pattern for sorting" |
+| **Decisions** | Communication protocols, data storage strategy, deployment topology | Class hierarchies, function signatures, local data structures |
+
+A useful rule of thumb: if a decision affects **multiple teams or services** and is **difficult to reverse**, it is an architectural decision. If it is **local to a single module** and can be refactored without impacting others, it is a design decision.
+
+---
+
+## Quality Attributes
+
+Quality attributes (also called non-functional requirements) are the **measurable properties** of a system that determine how well it performs, not what it does. Architecture exists primarily to satisfy these attributes -- functional requirements can usually be met with any architecture, but quality attributes demand specific structural choices.
+
+### Scalability
+
+The ability of a system to handle **growing amounts of work** by adding resources.
+
+- **Vertical scaling (scale up)**: Adding more CPU, memory, or storage to a single machine
+- **Horizontal scaling (scale out)**: Adding more machines to distribute the load
+- **Key techniques**: Load balancing, sharding, caching, stateless services, asynchronous processing
+
+### Maintainability
+
+How easily a system can be **modified, extended, and debugged** over time.
+
+- **Modularity**: Well-defined boundaries between components reduce ripple effects
+- **Readability**: Clean code and consistent conventions lower the learning curve
+- **Testability**: Systems designed for testing are easier to maintain
+- **Key techniques**: Separation of concerns, dependency injection, clear interfaces
+
+### Reliability
+
+The ability of a system to **function correctly** even in the presence of faults.
+
+- **Fault tolerance**: The system continues operating when components fail
+- **Redundancy**: Critical components are duplicated to prevent single points of failure
+- **Recovery**: The system can restore itself to a consistent state after failure
+- **Key techniques**: Retries with exponential backoff, circuit breakers, health checks, replication
+
+### Performance
+
+How **responsive** and **efficient** the system is under load.
+
+- **Latency**: Time to respond to a single request
+- **Throughput**: Number of requests the system handles per unit of time
+- **Resource efficiency**: How well the system utilizes CPU, memory, network, and disk
+- **Key techniques**: Caching, connection pooling, indexing, CDNs, lazy loading
+
+### Security
+
+The ability of a system to **protect data and operations** from unauthorized access and attacks.
+
+- **Authentication**: Verifying the identity of users and services
+- **Authorization**: Enforcing what authenticated entities are allowed to do
+- **Data protection**: Encrypting data in transit and at rest
+- **Key techniques**: OAuth 2.0/OIDC, role-based access control, TLS, input validation, audit logging
+
+:::tip[Quality Attribute Scenarios]
+Document quality attributes as **testable scenarios**, not vague statements. Instead of "the system must be fast," write: "Under a load of 10,000 concurrent users, 95% of API requests must complete within 200ms." This makes requirements verifiable and drives concrete architectural decisions.
+:::
+
+---
+
+## Architectural Decisions and Trade-offs
+
+Every architectural choice involves **trade-offs**. There is no universally "best" architecture -- only the best architecture for a given set of constraints.
+
+### Common Trade-offs
+
+```
+Performance ◄──────────────────────► Maintainability
+    │  Optimized code is often more        │
+    │  complex and harder to maintain       │
+    │                                       │
+Consistency ◄──────────────────────► Availability
+    │  Strong consistency may require       │
+    │  sacrificing availability (CAP)       │
+    │                                       │
+  Simplicity ◄────────────────────► Flexibility
+    │  Simple systems are rigid;            │
+    │  flexible systems are complex         │
+    │                                       │
+    Cost ◄─────────────────────────► Quality
+         Faster delivery may accumulate
+         technical debt
+```
+
+### Architecture Decision Records (ADRs)
+
+ADRs are short documents that capture **why** a decision was made, not just what was decided. A typical ADR includes:
+
+1. **Title**: A short descriptive name (e.g., "Use PostgreSQL for the user service")
+2. **Status**: Proposed, Accepted, Deprecated, or Superseded
+3. **Context**: The situation and forces at play
+4. **Decision**: What was decided and why
+5. **Consequences**: The positive and negative outcomes of the decision
+
+```markdown
+# ADR-001: Use Event-Driven Architecture for Order Processing
+
+## Status
+Accepted
+
+## Context
+The order processing pipeline involves multiple services (inventory,
+payment, shipping, notifications). Synchronous REST calls create
+tight coupling and cascading failures.
+
+## Decision
+We will use an event-driven architecture with Apache Kafka as the
+message broker. Each service publishes domain events and subscribes
+to events from other services.
+
+## Consequences
+- (+) Services are loosely coupled and can evolve independently
+- (+) Better fault tolerance -- failed services catch up from the event log
+- (+) Natural audit trail of all events
+- (-) Eventual consistency -- the UI must handle in-progress states
+- (-) Debugging distributed flows is more complex
+- (-) Team must learn Kafka operations and monitoring
+```
+
+---
+
+## Documenting Architecture: The C4 Model
+
+The **C4 model**, created by Simon Brown, provides a hierarchical approach to documenting software architecture at four levels of abstraction:
+
+```
+Level 1: System Context Diagram
+┌─────────────────────────────────────────────────────┐
+│  Shows the system as a box surrounded by its users   │
+│  and other systems it interacts with.                │
+│                                                      │
+│   [User] ───► [Your System] ───► [External System]  │
+└─────────────────────────────────────────────────────┘
+
+Level 2: Container Diagram
+┌─────────────────────────────────────────────────────┐
+│  Zooms into the system to show the high-level        │
+│  technology choices: web app, API, database, etc.    │
+│                                                      │
+│   [Web App] ───► [API Server] ───► [Database]       │
+│                       │                              │
+│                       ▼                              │
+│                [Message Queue]                        │
+└─────────────────────────────────────────────────────┘
+
+Level 3: Component Diagram
+┌─────────────────────────────────────────────────────┐
+│  Zooms into a single container to show its internal  │
+│  components and their interactions.                  │
+│                                                      │
+│   [Controller] ──► [Service] ──► [Repository]       │
+│                        │                             │
+│                        ▼                             │
+│                 [Domain Model]                        │
+└─────────────────────────────────────────────────────┘
+
+Level 4: Code Diagram (Optional)
+┌─────────────────────────────────────────────────────┐
+│  Zooms into a component to show classes and          │
+│  interfaces. Often auto-generated from code.         │
+│                                                      │
+│   UML class diagrams, entity-relationship diagrams   │
+└─────────────────────────────────────────────────────┘
+```
+
+The key insight of C4 is that **different audiences need different levels of detail**. Executives need Level 1, tech leads need Level 2, and developers implementing features need Levels 3 and 4.
+
+---
+
+## Common Architectural Styles at a Glance
+
+| Style | Best For | Key Trade-off |
+|-------|----------|---------------|
+| **Monolith** | Small teams, early-stage products, simple domains | Simple to build, hard to scale independently |
+| **Layered** | CRUD applications, enterprise systems | Clear separation, risk of "big ball of mud" |
+| **Microservices** | Large teams, complex domains, independent scaling | Flexible scaling, operational complexity |
+| **Event-Driven** | Real-time processing, loosely-coupled workflows | High throughput, eventual consistency |
+| **Serverless** | Sporadic workloads, rapid prototyping | Zero ops at low scale, vendor lock-in |
+| **Hexagonal / Clean** | Testable, domain-centric applications | Excellent testability, more upfront structure |
+
+---
+
+## Recommended Learning Path
+
+<CardGrid stagger>
+  <Card title="Phase 1: Foundations" icon="open-book">
+    **Duration**: 1-2 weeks
+
+    Understand clean and layered architecture patterns. Learn how the dependency rule keeps your business logic independent of frameworks and databases.
+
+    **Focus on**: Layered architecture, hexagonal architecture, clean architecture, dependency inversion
+  </Card>
+  <Card title="Phase 2: Distributed Systems" icon="star">
+    **Duration**: 2-3 weeks
+
+    Explore how to decompose systems into services and manage communication between them.
+
+    **Focus on**: Microservices, API gateways, service discovery, saga pattern, CQRS
+  </Card>
+  <Card title="Phase 3: Events & Domain Modeling" icon="rocket">
+    **Duration**: 2-3 weeks
+
+    Master event-driven architectures and domain-driven design to model complex business problems effectively.
+
+    **Focus on**: Event sourcing, message brokers, bounded contexts, aggregates, ubiquitous language
+  </Card>
+</CardGrid>
+
+---
+
+## Explore the Topics
+
+<CardGrid>
+  <LinkCard
+    title="Clean & Layered Architecture"
+    href="/software-engineering/software-architecture/clean-architecture/"
+    description="Layered, hexagonal, and clean architecture patterns with the dependency rule"
+  />
+  <LinkCard
+    title="Microservices Architecture"
+    href="/software-engineering/software-architecture/microservices/"
+    description="Decomposition strategies, inter-service communication, sagas, and CQRS"
+  />
+  <LinkCard
+    title="Event-Driven Architecture"
+    href="/software-engineering/software-architecture/event-driven/"
+    description="Message brokers, event sourcing, pub/sub, and eventual consistency"
+  />
+  <LinkCard
+    title="Domain-Driven Design"
+    href="/software-engineering/software-architecture/ddd/"
+    description="Bounded contexts, aggregates, entities, value objects, and ubiquitous language"
+  />
+</CardGrid>

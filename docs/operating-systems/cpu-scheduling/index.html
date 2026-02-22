@@ -1,0 +1,1132 @@
+<!DOCTYPE html><html lang="en" dir="ltr" data-theme="dark" data-has-toc data-has-sidebar class="astro-bguv2lll"> <head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>CPU Scheduling | Software Engineering Hub</title><link rel="canonical" href="https://sitharaj88.github.io/software-engineering/operating-systems/cpu-scheduling/"/><link rel="sitemap" href="/software-engineering/sitemap-index.xml"/><link rel="shortcut icon" href="/software-engineering/favicon.svg" type="image/svg+xml"/><meta name="generator" content="Astro v5.16.15"/><meta name="generator" content="Starlight v0.30.6"/><meta property="og:title" content="CPU Scheduling"/><meta property="og:type" content="article"/><meta property="og:url" content="https://sitharaj88.github.io/software-engineering/operating-systems/cpu-scheduling/"/><meta property="og:locale" content="en"/><meta property="og:description" content="Explore CPU scheduling algorithms including FCFS, SJF, Round Robin, and Priority scheduling"/><meta property="og:site_name" content="Software Engineering Hub"/><meta name="twitter:card" content="summary_large_image"/><meta name="description" content="Explore CPU scheduling algorithms including FCFS, SJF, Round Robin, and Priority scheduling"/><script>
+	window.StarlightThemeProvider = (() => {
+		const storedTheme =
+			typeof localStorage !== 'undefined' && localStorage.getItem('starlight-theme');
+		const theme =
+			storedTheme ||
+			(window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+		document.documentElement.dataset.theme = theme === 'light' ? 'light' : 'dark';
+		return {
+			updatePickers(theme = storedTheme || 'auto') {
+				document.querySelectorAll('starlight-theme-select').forEach((picker) => {
+					const select = picker.querySelector('select');
+					if (select) select.value = theme;
+					/** @type {HTMLTemplateElement | null} */
+					const tmpl = document.querySelector(`#theme-icons`);
+					const newIcon = tmpl && tmpl.content.querySelector('.' + theme);
+					if (newIcon) {
+						const oldIcon = picker.querySelector('svg.label-icon');
+						if (oldIcon) {
+							oldIcon.replaceChildren(...newIcon.cloneNode(true).childNodes);
+						}
+					}
+				});
+			},
+		};
+	})();
+</script><template id="theme-icons"><svg aria-hidden="true" class="light astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M5 12a1 1 0 0 0-1-1H3a1 1 0 0 0 0 2h1a1 1 0 0 0 1-1Zm.64 5-.71.71a1 1 0 0 0 0 1.41 1 1 0 0 0 1.41 0l.71-.71A1 1 0 0 0 5.64 17ZM12 5a1 1 0 0 0 1-1V3a1 1 0 0 0-2 0v1a1 1 0 0 0 1 1Zm5.66 2.34a1 1 0 0 0 .7-.29l.71-.71a1 1 0 1 0-1.41-1.41l-.66.71a1 1 0 0 0 0 1.41 1 1 0 0 0 .66.29Zm-12-.29a1 1 0 0 0 1.41 0 1 1 0 0 0 0-1.41l-.71-.71a1.004 1.004 0 1 0-1.43 1.41l.73.71ZM21 11h-1a1 1 0 0 0 0 2h1a1 1 0 0 0 0-2Zm-2.64 6A1 1 0 0 0 17 18.36l.71.71a1 1 0 0 0 1.41 0 1 1 0 0 0 0-1.41l-.76-.66ZM12 6.5a5.5 5.5 0 1 0 5.5 5.5A5.51 5.51 0 0 0 12 6.5Zm0 9a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Zm0 3.5a1 1 0 0 0-1 1v1a1 1 0 0 0 2 0v-1a1 1 0 0 0-1-1Z"/></svg> <svg aria-hidden="true" class="dark astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M21.64 13a1 1 0 0 0-1.05-.14 8.049 8.049 0 0 1-3.37.73 8.15 8.15 0 0 1-8.14-8.1 8.59 8.59 0 0 1 .25-2A1 1 0 0 0 8 2.36a10.14 10.14 0 1 0 14 11.69 1 1 0 0 0-.36-1.05Zm-9.5 6.69A8.14 8.14 0 0 1 7.08 5.22v.27a10.15 10.15 0 0 0 10.14 10.14 9.784 9.784 0 0 0 2.1-.22 8.11 8.11 0 0 1-7.18 4.32v-.04Z"/></svg> <svg aria-hidden="true" class="auto astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M21 14h-1V7a3 3 0 0 0-3-3H7a3 3 0 0 0-3 3v7H3a1 1 0 0 0-1 1v2a3 3 0 0 0 3 3h14a3 3 0 0 0 3-3v-2a1 1 0 0 0-1-1ZM6 7a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v7H6V7Zm14 10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-1h16v1Z"/></svg> </template><link rel="stylesheet" href="/software-engineering/_astro/index.B4gZAYy_.css">
+<style>svg:where(.astro-c6vsoqas){color:var(--sl-icon-color);font-size:var(--sl-icon-size, 1em);width:1em;height:1em}
+.sl-link-button:where(.astro-xwgiixxa){align-items:center;border:1px solid transparent;border-radius:999rem;display:inline-flex;font-size:var(--sl-text-sm);gap:.5em;line-height:1.1875;outline-offset:.25rem;padding:.4375rem 1.125rem;text-decoration:none}.sl-link-button:where(.astro-xwgiixxa).primary{background:var(--sl-color-text-accent);border-color:var(--sl-color-text-accent);color:var(--sl-color-black)}.sl-link-button:where(.astro-xwgiixxa).primary:hover{color:var(--sl-color-black)}.sl-link-button:where(.astro-xwgiixxa).secondary{border-color:inherit;color:var(--sl-color-white)}.sl-link-button:where(.astro-xwgiixxa).minimal{color:var(--sl-color-white);padding-inline:0}.sl-link-button:where(.astro-xwgiixxa) svg{flex-shrink:0}@media(min-width:50rem){.sl-link-button:where(.astro-xwgiixxa){font-size:var(--sl-text-base);padding:.9375rem 1.25rem}}.sl-markdown-content .sl-link-button:where(.astro-xwgiixxa){margin-inline-end:1rem}.sl-markdown-content .sl-link-button:where(.astro-xwgiixxa):not(:where(p *)){margin-block:1rem}
+:root{--sl-badge-default-border: var(--sl-color-accent);--sl-badge-default-bg: var(--sl-color-accent-low);--sl-badge-default-text: #fff;--sl-badge-note-border: var(--sl-color-blue);--sl-badge-note-bg: var(--sl-color-blue-low);--sl-badge-note-text: #fff;--sl-badge-danger-border: var(--sl-color-red);--sl-badge-danger-bg: var(--sl-color-red-low);--sl-badge-danger-text: #fff;--sl-badge-success-border: var(--sl-color-green);--sl-badge-success-bg: var(--sl-color-green-low);--sl-badge-success-text: #fff;--sl-badge-caution-border: var(--sl-color-orange);--sl-badge-caution-bg: var(--sl-color-orange-low);--sl-badge-caution-text: #fff;--sl-badge-tip-border: var(--sl-color-purple);--sl-badge-tip-bg: var(--sl-color-purple-low);--sl-badge-tip-text: #fff}[data-theme=light]:root{--sl-badge-default-bg: var(--sl-color-accent-high);--sl-badge-note-bg: var(--sl-color-blue-high);--sl-badge-danger-bg: var(--sl-color-red-high);--sl-badge-success-bg: var(--sl-color-green-high);--sl-badge-caution-bg: var(--sl-color-orange-high);--sl-badge-tip-bg: var(--sl-color-purple-high)}.sl-badge:where(.astro-avdet4wd){display:inline-block;border:1px solid var(--sl-color-border-badge);border-radius:.25rem;font-family:var(--sl-font-system-mono);line-height:normal;color:var(--sl-color-text-badge);background-color:var(--sl-color-bg-badge);overflow-wrap:anywhere}.sidebar-content .sl-badge:where(.astro-avdet4wd){line-height:1;font-size:var(--sl-text-xs);padding:.125rem .375rem}.sidebar-content a[aria-current=page]>.sl-badge:where(.astro-avdet4wd){--sl-color-bg-badge: transparent;--sl-color-border-badge: currentColor;color:inherit}.default:where(.astro-avdet4wd){--sl-color-bg-badge: var(--sl-badge-default-bg);--sl-color-border-badge: var(--sl-badge-default-border);--sl-color-text-badge: var(--sl-badge-default-text)}.note:where(.astro-avdet4wd){--sl-color-bg-badge: var(--sl-badge-note-bg);--sl-color-border-badge: var(--sl-badge-note-border);--sl-color-text-badge: var(--sl-badge-note-text)}.danger:where(.astro-avdet4wd){--sl-color-bg-badge: var(--sl-badge-danger-bg);--sl-color-border-badge: var(--sl-badge-danger-border);--sl-color-text-badge: var(--sl-badge-danger-text)}.success:where(.astro-avdet4wd){--sl-color-bg-badge: var(--sl-badge-success-bg);--sl-color-border-badge: var(--sl-badge-success-border);--sl-color-text-badge: var(--sl-badge-success-text)}.tip:where(.astro-avdet4wd){--sl-color-bg-badge: var(--sl-badge-tip-bg);--sl-color-border-badge: var(--sl-badge-tip-border);--sl-color-text-badge: var(--sl-badge-tip-text)}.caution:where(.astro-avdet4wd){--sl-color-bg-badge: var(--sl-badge-caution-bg);--sl-color-border-badge: var(--sl-badge-caution-border);--sl-color-text-badge: var(--sl-badge-caution-text)}.small:where(.astro-avdet4wd){font-size:var(--sl-text-xs);padding:.125rem .25rem}.medium:where(.astro-avdet4wd){font-size:var(--sl-text-sm);padding:.175rem .35rem}.large:where(.astro-avdet4wd){font-size:var(--sl-text-base);padding:.225rem .45rem}.sl-markdown-content :is(h1,h2,h3,h4,h5,h6) .sl-badge:where(.astro-avdet4wd){vertical-align:middle}
+</style><script type="module" src="/software-engineering/_astro/page.B1D-nYk3.js"></script><style>.card:where(.astro-v5tidmuc){--sl-card-border: var(--sl-color-purple);--sl-card-bg: var(--sl-color-purple-low);border:1px solid var(--sl-color-gray-5);background-color:var(--sl-color-black);padding:clamp(1rem,calc(.125rem + 3vw),2.5rem);flex-direction:column;gap:clamp(.5rem,calc(.125rem + 1vw),1rem)}.card:where(.astro-v5tidmuc):nth-child(4n+1){--sl-card-border: var(--sl-color-orange);--sl-card-bg: var(--sl-color-orange-low)}.card:where(.astro-v5tidmuc):nth-child(4n+3){--sl-card-border: var(--sl-color-green);--sl-card-bg: var(--sl-color-green-low)}.card:where(.astro-v5tidmuc):nth-child(4n+4){--sl-card-border: var(--sl-color-red);--sl-card-bg: var(--sl-color-red-low)}.card:where(.astro-v5tidmuc):nth-child(4n+5){--sl-card-border: var(--sl-color-blue);--sl-card-bg: var(--sl-color-blue-low)}.title:where(.astro-v5tidmuc){font-weight:600;font-size:var(--sl-text-h4);color:var(--sl-color-white);line-height:var(--sl-line-height-headings);gap:1rem;align-items:center}.card:where(.astro-v5tidmuc) .icon:where(.astro-v5tidmuc){border:1px solid var(--sl-card-border);background-color:var(--sl-card-bg);padding:.2em;border-radius:.25rem}.card:where(.astro-v5tidmuc) .body:where(.astro-v5tidmuc){margin:0;font-size:clamp(var(--sl-text-sm),calc(.5rem + 1vw),var(--sl-text-body))}
+</style><style>.card-grid:where(.astro-zntqmydn){display:grid;grid-template-columns:100%;gap:1rem}.card-grid:where(.astro-zntqmydn)>*{margin-top:0!important}@media(min-width:50rem){.card-grid:where(.astro-zntqmydn){grid-template-columns:1fr 1fr;gap:1.5rem}.stagger:where(.astro-zntqmydn){--stagger-height: 5rem;padding-bottom:var(--stagger-height)}.stagger:where(.astro-zntqmydn)>*:nth-child(2n){transform:translateY(var(--stagger-height))}}
+</style><style>starlight-tabs:where(.astro-esqgolmp){display:block}.tablist-wrapper:where(.astro-esqgolmp){overflow-x:auto}:where(.astro-esqgolmp)[role=tablist]{display:flex;list-style:none;border-bottom:2px solid var(--sl-color-gray-5);padding:0}.tab:where(.astro-esqgolmp){margin-bottom:-2px}.tab:where(.astro-esqgolmp)>:where(.astro-esqgolmp)[role=tab]{display:flex;align-items:center;gap:.5rem;padding:0 1.25rem;text-decoration:none;border-bottom:2px solid var(--sl-color-gray-5);color:var(--sl-color-gray-3);outline-offset:var(--sl-outline-offset-inside);overflow-wrap:initial}.tab:where(.astro-esqgolmp) :where(.astro-esqgolmp)[role=tab][aria-selected=true]{color:var(--sl-color-white);border-color:var(--sl-color-text-accent);font-weight:600}.tablist-wrapper:where(.astro-esqgolmp)~[role=tabpanel]{margin-top:1rem}
+</style><style>.sl-link-card:where(.astro-mf7fz2mj){display:grid;grid-template-columns:1fr auto;gap:.5rem;border:1px solid var(--sl-color-gray-5);border-radius:.5rem;padding:1rem;box-shadow:var(--sl-shadow-sm);position:relative}a:where(.astro-mf7fz2mj){text-decoration:none;line-height:var(--sl-line-height-headings)}a:where(.astro-mf7fz2mj):before{content:"";position:absolute;inset:0}.stack:where(.astro-mf7fz2mj){flex-direction:column;gap:.5rem}.title:where(.astro-mf7fz2mj){color:var(--sl-color-white);font-weight:600;font-size:var(--sl-text-lg)}.description:where(.astro-mf7fz2mj){color:var(--sl-color-gray-3);line-height:1.5}.icon:where(.astro-mf7fz2mj){color:var(--sl-color-gray-3)}.sl-link-card:where(.astro-mf7fz2mj):hover{background:var(--sl-color-gray-7, var(--sl-color-gray-6));border-color:var(--sl-color-gray-2)}.sl-link-card:where(.astro-mf7fz2mj):hover .icon:where(.astro-mf7fz2mj){color:var(--sl-color-white)}
+</style><style>.sl-steps{--bullet-size: calc(var(--sl-line-height) * 1rem);--bullet-margin: .375rem;list-style:none;counter-reset:steps-counter var(--sl-steps-start, 0);padding-inline-start:0}.sl-steps>li{counter-increment:steps-counter;position:relative;padding-inline-start:calc(var(--bullet-size) + 1rem);padding-bottom:1px;min-height:calc(var(--bullet-size) + var(--bullet-margin))}.sl-steps>li+li{margin-top:0}.sl-steps>li:before{content:counter(steps-counter);position:absolute;top:0;inset-inline-start:0;width:var(--bullet-size);height:var(--bullet-size);line-height:var(--bullet-size);font-size:var(--sl-text-xs);font-weight:600;text-align:center;color:var(--sl-color-white);background-color:var(--sl-color-gray-6);border-radius:99rem;box-shadow:inset 0 0 0 1px var(--sl-color-gray-5)}.sl-steps>li:after{--guide-width: 1px;content:"";position:absolute;top:calc(var(--bullet-size) + var(--bullet-margin));bottom:var(--bullet-margin);inset-inline-start:calc((var(--bullet-size) - var(--guide-width)) / 2);width:var(--guide-width);background-color:var(--sl-color-hairline-light)}.sl-steps>li>:first-child{--lh: calc(1em * var(--sl-line-height));--shift-y: calc(.5 * (var(--bullet-size) - var(--lh)));transform:translateY(var(--shift-y));margin-bottom:var(--shift-y)}.sl-steps>li>:first-child:where(h1,h2,h3,h4,h5,h6){--lh: calc(1em * var(--sl-line-height-headings))}@supports (--prop: 1lh){.sl-steps>li>:first-child{--lh: 1lh}}
+</style></head> <body class="astro-bguv2lll"> <a href="#_top" class="astro-7q3lir66">Skip to content</a>  <div class="page sl-flex astro-vrdttmbt"> <header class="header astro-vrdttmbt"><div class="header sl-flex astro-kmkmnagf"> <div class="title-wrapper sl-flex astro-kmkmnagf"> <a href="/software-engineering/" class="site-title sl-flex astro-m46x6ez3">  <span class="astro-m46x6ez3" translate="no"> Software Engineering Hub </span> </a>  </div> <div class="sl-flex astro-kmkmnagf"> <site-search class="astro-kmkmnagf astro-v37mnknz" data-translations="{&#34;placeholder&#34;:&#34;Search&#34;}"> <button data-open-modal disabled aria-label="Search" aria-keyshortcuts="Control+K" class="astro-v37mnknz"> <svg aria-hidden="true" class="astro-v37mnknz astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M21.71 20.29 18 16.61A9 9 0 1 0 16.61 18l3.68 3.68a.999.999 0 0 0 1.42 0 1 1 0 0 0 0-1.39ZM11 18a7 7 0 1 1 0-14 7 7 0 0 1 0 14Z"/></svg>  <span class="sl-hidden md:sl-block astro-v37mnknz" aria-hidden="true">Search</span> <kbd class="sl-hidden md:sl-flex astro-v37mnknz" style="display: none;"> <kbd class="astro-v37mnknz">Ctrl</kbd><kbd class="astro-v37mnknz">K</kbd> </kbd> </button> <dialog style="padding:0" aria-label="Search" class="astro-v37mnknz"> <div class="dialog-frame sl-flex astro-v37mnknz">  <button data-close-modal class="sl-flex md:sl-hidden astro-v37mnknz"> Cancel </button> <div class="search-container astro-v37mnknz"> <div id="starlight__search" class="astro-v37mnknz"></div> </div> </div> </dialog> </site-search>  <script>
+	(() => {
+		const openBtn = document.querySelector('button[data-open-modal]');
+		const shortcut = openBtn?.querySelector('kbd');
+		if (!openBtn || !(shortcut instanceof HTMLElement)) return;
+		const platformKey = shortcut.querySelector('kbd');
+		if (platformKey && /(Mac|iPhone|iPod|iPad)/i.test(navigator.platform)) {
+			platformKey.textContent = '⌘';
+			openBtn.setAttribute('aria-keyshortcuts', 'Meta+K');
+		}
+		shortcut.style.display = '';
+	})();
+</script> <script type="module" src="/software-engineering/_astro/Search.astro_astro_type_script_index_0_lang.CSD5BS71.js"></script>   </div> <div class="sl-hidden md:sl-flex right-group astro-kmkmnagf"> <div class="sl-flex social-icons astro-kmkmnagf"> <a href="https://github.com/sitharaj88/software-engineering" rel="me" class="sl-flex astro-wy4te6ga"><span class="sr-only astro-wy4te6ga">GitHub</span><svg aria-hidden="true" class="astro-wy4te6ga astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.83-.26.83-.57L9 21.07c-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.08-.74.09-.73.09-.73 1.2.09 1.83 1.24 1.83 1.24 1.08 1.83 2.81 1.3 3.5 1 .1-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.14-.3-.54-1.52.1-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.64 1.66.24 2.88.12 3.18a4.65 4.65 0 0 1 1.23 3.22c0 4.61-2.8 5.63-5.48 5.92.42.36.81 1.1.81 2.22l-.01 3.29c0 .31.2.69.82.57A12 12 0 0 0 12 .3Z"/></svg> </a> </div> <starlight-theme-toggle class="astro-e3sgix4a"> <button type="button" class="theme-toggle astro-e3sgix4a" aria-label="Toggle dark mode"> <svg class="icon sun astro-e3sgix4a" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"> <circle cx="12" cy="12" r="5" class="astro-e3sgix4a"></circle> <line x1="12" y1="1" x2="12" y2="3" class="astro-e3sgix4a"></line> <line x1="12" y1="21" x2="12" y2="23" class="astro-e3sgix4a"></line> <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" class="astro-e3sgix4a"></line> <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" class="astro-e3sgix4a"></line> <line x1="1" y1="12" x2="3" y2="12" class="astro-e3sgix4a"></line> <line x1="21" y1="12" x2="23" y2="12" class="astro-e3sgix4a"></line> <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" class="astro-e3sgix4a"></line> <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" class="astro-e3sgix4a"></line> </svg> <span class="track astro-e3sgix4a"> <span class="thumb astro-e3sgix4a"></span> </span> <svg class="icon moon astro-e3sgix4a" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"> <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" class="astro-e3sgix4a"></path> </svg> </button> </starlight-theme-toggle>  <script type="module">class r extends HTMLElement{constructor(){super();const t=this.querySelector(".theme-toggle");t&&t.addEventListener("click",()=>{const e=document.documentElement.dataset.theme==="dark"?"light":"dark";document.documentElement.dataset.theme=e,localStorage.setItem("starlight-theme",e),window.StarlightThemeProvider&&window.StarlightThemeProvider.updatePickers(e)})}}customElements.define("starlight-theme-toggle",r);</script> <script type="module">class s extends HTMLElement{constructor(){super();const e=this.querySelector("select");e&&(e.addEventListener("change",t=>{t.currentTarget instanceof HTMLSelectElement&&(window.location.pathname=t.currentTarget.value)}),window.addEventListener("pageshow",t=>{if(!t.persisted)return;const n=e.querySelector("option[selected]")?.index;n!==e.selectedIndex&&(e.selectedIndex=n??0)}))}}customElements.define("starlight-lang-select",s);</script> </div> </div> </header> <nav class="sidebar astro-vrdttmbt" aria-label="Main"> <starlight-menu-button class="astro-jif73yzw"> <button aria-expanded="false" aria-label="Menu" aria-controls="starlight__sidebar" class="sl-flex md:sl-hidden astro-jif73yzw"> <svg aria-hidden="true" class="astro-jif73yzw astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M3 8h18a1 1 0 1 0 0-2H3a1 1 0 0 0 0 2Zm18 8H3a1 1 0 0 0 0 2h18a1 1 0 0 0 0-2Zm0-5H3a1 1 0 0 0 0 2h18a1 1 0 0 0 0-2Z"/></svg>  </button> </starlight-menu-button> <script type="module">class s extends HTMLElement{constructor(){super(),this.btn=this.querySelector("button"),this.btn.addEventListener("click",()=>this.toggleExpanded());const t=this.closest("nav");t&&t.addEventListener("keyup",e=>this.closeOnEscape(e))}setExpanded(t){this.setAttribute("aria-expanded",String(t)),document.body.toggleAttribute("data-mobile-menu-expanded",t)}toggleExpanded(){this.setExpanded(this.getAttribute("aria-expanded")!=="true")}closeOnEscape(t){t.code==="Escape"&&(this.setExpanded(!1),this.btn.focus())}}customElements.define("starlight-menu-button",s);</script>   <div id="starlight__sidebar" class="sidebar-pane astro-vrdttmbt"> <div class="sidebar-content sl-flex astro-vrdttmbt"> <sl-sidebar-state-persist data-hash="0ivzf9l" class="astro-kku4brbg"> <script aria-hidden="true">
+		(() => {
+			try {
+				if (!matchMedia('(min-width: 50em)').matches) return;
+				/** @type {HTMLElement | null} */
+				const target = document.querySelector('sl-sidebar-state-persist');
+				const state = JSON.parse(sessionStorage.getItem('sl-sidebar-state') || '0');
+				if (!target || !state || target.dataset.hash !== state.hash) return;
+				window._starlightScrollRestore = state.scroll;
+				customElements.define(
+					'sl-sidebar-restore',
+					class SidebarRestore extends HTMLElement {
+						connectedCallback() {
+							try {
+								const idx = parseInt(this.dataset.index || '');
+								const details = this.closest('details');
+								if (details && typeof state.open[idx] === 'boolean') details.open = state.open[idx];
+							} catch {}
+						}
+					}
+				);
+			} catch {}
+		})();
+	</script>  <ul class="top-level astro-3ii7xxms"> <li class="astro-3ii7xxms"> <details open class="astro-3ii7xxms"> <sl-sidebar-restore data-index="0"></sl-sidebar-restore> <summary class="astro-3ii7xxms"> <div class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">Getting Started</span>  </div> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>  </summary> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/software-engineering/getting-started" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Introduction</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/getting-started/how-to-use" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">How to Use This Site</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/getting-started/learning-paths" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Learning Paths</span>  </a> </li> </ul>  </details> </li><li class="astro-3ii7xxms"> <details open class="astro-3ii7xxms"> <sl-sidebar-restore data-index="1"></sl-sidebar-restore> <summary class="astro-3ii7xxms"> <div class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">CS Fundamentals</span>  </div> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>  </summary> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <details open class="astro-3ii7xxms"> <sl-sidebar-restore data-index="2"></sl-sidebar-restore> <summary class="astro-3ii7xxms"> <div class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">OOP &amp; SOLID Principles</span>  </div> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>  </summary> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/software-engineering/oop-solid" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Overview</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/oop-solid/four-pillars" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Four Pillars of OOP</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/oop-solid/solid-principles" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">SOLID Principles</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/oop-solid/composition-vs-inheritance" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Composition vs Inheritance</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/oop-solid/design-smells" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Code Smells &amp; Refactoring</span>  </a> </li> </ul>  </details> </li><li class="astro-3ii7xxms"> <details open class="astro-3ii7xxms"> <sl-sidebar-restore data-index="3"></sl-sidebar-restore> <summary class="astro-3ii7xxms"> <div class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">Data Structures &amp; Algorithms</span>  </div> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>  </summary> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/software-engineering/dsa" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Overview</span>  </a> </li><li class="astro-3ii7xxms"> <details open class="astro-3ii7xxms"> <sl-sidebar-restore data-index="4"></sl-sidebar-restore> <summary class="astro-3ii7xxms"> <div class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">Fundamentals</span>  </div> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>  </summary> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/software-engineering/dsa/fundamentals/big-o-notation" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Big O Notation</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/dsa/fundamentals/time-complexity" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Time Complexity</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/dsa/fundamentals/space-complexity" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Space Complexity</span>  </a> </li> </ul>  </details> </li><li class="astro-3ii7xxms"> <details open class="astro-3ii7xxms"> <sl-sidebar-restore data-index="5"></sl-sidebar-restore> <summary class="astro-3ii7xxms"> <div class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">Linear Data Structures</span>  </div> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>  </summary> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/software-engineering/dsa/arrays" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Arrays</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/dsa/arrays/two-pointers" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Two Pointers</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/dsa/arrays/sliding-window" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Sliding Window</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/dsa/strings" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Strings</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/dsa/linked-lists" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Linked Lists</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/dsa/stacks" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Stacks</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/dsa/queues" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Queues</span>  </a> </li> </ul>  </details> </li><li class="astro-3ii7xxms"> <details open class="astro-3ii7xxms"> <sl-sidebar-restore data-index="6"></sl-sidebar-restore> <summary class="astro-3ii7xxms"> <div class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">Non-Linear Data Structures</span>  </div> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>  </summary> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/software-engineering/dsa/hash-tables" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Hash Tables</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/dsa/trees" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Trees</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/dsa/heaps" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Heaps</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/dsa/graphs" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Graphs</span>  </a> </li> </ul>  </details> </li><li class="astro-3ii7xxms"> <details open class="astro-3ii7xxms"> <sl-sidebar-restore data-index="7"></sl-sidebar-restore> <summary class="astro-3ii7xxms"> <div class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">Algorithms</span>  </div> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>  </summary> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/software-engineering/dsa/sorting" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Sorting</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/dsa/searching/binary-search" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Binary Search</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/dsa/recursion" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Recursion</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/dsa/backtracking" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Backtracking</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/dsa/dynamic-programming" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Dynamic Programming</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/dsa/greedy" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Greedy</span>  </a> </li> </ul>  </details> </li> </ul>  </details> </li><li class="astro-3ii7xxms"> <details open class="astro-3ii7xxms"> <sl-sidebar-restore data-index="8"></sl-sidebar-restore> <summary class="astro-3ii7xxms"> <div class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">Operating Systems</span>  </div> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>  </summary> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/software-engineering/operating-systems" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Overview</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/operating-systems/processes-threads" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Processes &amp; Threads</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/operating-systems/cpu-scheduling" aria-current="page" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">CPU Scheduling</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/operating-systems/memory-management" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Memory Management</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/operating-systems/deadlocks" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Deadlocks &amp; Synchronization</span>  </a> </li> </ul>  </details> </li><li class="astro-3ii7xxms"> <details open class="astro-3ii7xxms"> <sl-sidebar-restore data-index="9"></sl-sidebar-restore> <summary class="astro-3ii7xxms"> <div class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">Computer Networks</span>  </div> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>  </summary> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/software-engineering/computer-networks" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Overview</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/computer-networks/osi-tcp-ip" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">OSI Model &amp; TCP/IP</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/computer-networks/http-https" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">HTTP &amp; HTTPS</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/computer-networks/dns-and-routing" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">DNS, CDN &amp; Routing</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/computer-networks/websockets-realtime" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">WebSockets &amp; Real-Time</span>  </a> </li> </ul>  </details> </li><li class="astro-3ii7xxms"> <details open class="astro-3ii7xxms"> <sl-sidebar-restore data-index="10"></sl-sidebar-restore> <summary class="astro-3ii7xxms"> <div class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">Concurrency &amp; Parallelism</span>  </div> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>  </summary> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/software-engineering/concurrency" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Overview</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/concurrency/threads-synchronization" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Threads &amp; Synchronization</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/concurrency/async-programming" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Async Programming</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/concurrency/race-conditions" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Race Conditions &amp; Pitfalls</span>  </a> </li> </ul>  </details> </li> </ul>  </details> </li><li class="astro-3ii7xxms"> <details open class="astro-3ii7xxms"> <sl-sidebar-restore data-index="11"></sl-sidebar-restore> <summary class="astro-3ii7xxms"> <div class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">Software Design &amp; Architecture</span>  </div> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>  </summary> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <details open class="astro-3ii7xxms"> <sl-sidebar-restore data-index="12"></sl-sidebar-restore> <summary class="astro-3ii7xxms"> <div class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">Design Patterns</span>  </div> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>  </summary> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/software-engineering/design-patterns" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Overview</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/design-patterns/creational" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Creational Patterns</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/design-patterns/structural" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Structural Patterns</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/design-patterns/behavioral" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Behavioral Patterns</span>  </a> </li> </ul>  </details> </li><li class="astro-3ii7xxms"> <details open class="astro-3ii7xxms"> <sl-sidebar-restore data-index="13"></sl-sidebar-restore> <summary class="astro-3ii7xxms"> <div class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">Software Architecture</span>  </div> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>  </summary> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/software-engineering/software-architecture" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Overview</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/software-architecture/clean-architecture" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Clean &amp; Layered Architecture</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/software-architecture/microservices" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Microservices</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/software-architecture/event-driven" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Event-Driven Architecture</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/software-architecture/ddd" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Domain-Driven Design</span>  </a> </li> </ul>  </details> </li><li class="astro-3ii7xxms"> <details open class="astro-3ii7xxms"> <sl-sidebar-restore data-index="14"></sl-sidebar-restore> <summary class="astro-3ii7xxms"> <div class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">System Design</span>  </div> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>  </summary> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/software-engineering/system-design" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Overview</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/system-design/fundamentals" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Fundamentals</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/system-design/databases" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Databases</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/system-design/scalability" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Scalability</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/system-design/case-studies" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Case Studies</span>  </a> </li> </ul>  </details> </li><li class="astro-3ii7xxms"> <details open class="astro-3ii7xxms"> <sl-sidebar-restore data-index="15"></sl-sidebar-restore> <summary class="astro-3ii7xxms"> <div class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">API Design</span>  </div> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>  </summary> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/software-engineering/api-design" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Overview</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/api-design/rest-apis" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">RESTful API Design</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/api-design/graphql" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">GraphQL</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/api-design/grpc-protobuf" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">gRPC &amp; Protocol Buffers</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/api-design/api-auth-versioning" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Auth, Versioning &amp; Rate Limiting</span>  </a> </li> </ul>  </details> </li><li class="astro-3ii7xxms"> <details open class="astro-3ii7xxms"> <sl-sidebar-restore data-index="16"></sl-sidebar-restore> <summary class="astro-3ii7xxms"> <div class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">Database Engineering</span>  </div> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>  </summary> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/software-engineering/database-engineering" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Overview</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/database-engineering/sql-fundamentals" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">SQL Fundamentals</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/database-engineering/normalization-schema" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Normalization &amp; Schema Design</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/database-engineering/indexing-performance" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Indexing &amp; Query Performance</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/database-engineering/transactions-nosql" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Transactions, ACID &amp; NoSQL</span>  </a> </li> </ul>  </details> </li> </ul>  </details> </li><li class="astro-3ii7xxms"> <details open class="astro-3ii7xxms"> <sl-sidebar-restore data-index="17"></sl-sidebar-restore> <summary class="astro-3ii7xxms"> <div class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">Engineering Practices</span>  </div> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>  </summary> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <details open class="astro-3ii7xxms"> <sl-sidebar-restore data-index="18"></sl-sidebar-restore> <summary class="astro-3ii7xxms"> <div class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">Version Control</span>  </div> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>  </summary> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/software-engineering/version-control" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Overview</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/version-control/git-fundamentals" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Git Fundamentals</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/version-control/branching-strategies" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Branching Strategies</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/version-control/code-review" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Code Review</span>  </a> </li> </ul>  </details> </li><li class="astro-3ii7xxms"> <details open class="astro-3ii7xxms"> <sl-sidebar-restore data-index="19"></sl-sidebar-restore> <summary class="astro-3ii7xxms"> <div class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">Testing</span>  </div> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>  </summary> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/software-engineering/testing" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Overview</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/testing/unit-testing" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Unit Testing</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/testing/tdd-mocking" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">TDD &amp; Mocking</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/testing/integration-e2e" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Integration &amp; E2E Testing</span>  </a> </li> </ul>  </details> </li><li class="astro-3ii7xxms"> <details open class="astro-3ii7xxms"> <sl-sidebar-restore data-index="20"></sl-sidebar-restore> <summary class="astro-3ii7xxms"> <div class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">Security</span>  </div> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>  </summary> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/software-engineering/security" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Overview</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/security/owasp-top-10" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">OWASP Top 10</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/security/auth-encryption" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Auth &amp; Encryption</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/security/secure-coding" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Secure Coding Practices</span>  </a> </li> </ul>  </details> </li><li class="astro-3ii7xxms"> <details open class="astro-3ii7xxms"> <sl-sidebar-restore data-index="21"></sl-sidebar-restore> <summary class="astro-3ii7xxms"> <div class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">DevOps</span>  </div> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>  </summary> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/software-engineering/devops" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Overview</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/devops/ci-cd" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">CI/CD Pipelines</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/devops/containers-docker" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Containers &amp; Docker</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/devops/kubernetes" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Kubernetes Fundamentals</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/devops/monitoring-iac" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Monitoring, Observability &amp; IaC</span>  </a> </li> </ul>  </details> </li><li class="astro-3ii7xxms"> <details open class="astro-3ii7xxms"> <sl-sidebar-restore data-index="22"></sl-sidebar-restore> <summary class="astro-3ii7xxms"> <div class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">SDLC &amp; Agile</span>  </div> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>  </summary> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/software-engineering/sdlc-agile" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Overview</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/sdlc-agile/agile-scrum" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Agile &amp; Scrum</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/sdlc-agile/kanban-lean" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Kanban &amp; Lean</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/sdlc-agile/estimation-planning" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Estimation &amp; Planning</span>  </a> </li> </ul>  </details> </li> </ul>  </details> </li><li class="astro-3ii7xxms"> <details open class="astro-3ii7xxms"> <sl-sidebar-restore data-index="23"></sl-sidebar-restore> <summary class="astro-3ii7xxms"> <div class="group-label astro-3ii7xxms"> <span class="large astro-3ii7xxms">Interview Preparation</span>  </div> <svg aria-hidden="true" class="caret astro-3ii7xxms astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.25rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg>  </summary> <ul class="astro-3ii7xxms"> <li class="astro-3ii7xxms"> <a href="/software-engineering/interview-prep" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Overview</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/interview-prep/coding-interviews" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Coding Interviews</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/interview-prep/behavioral" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Behavioral Interviews</span>  </a> </li><li class="astro-3ii7xxms"> <a href="/software-engineering/interview-prep/problem-bank" aria-current="false" class="astro-3ii7xxms"> <span class="astro-3ii7xxms">Problem Bank (76 Problems)</span>  </a> </li> </ul>  </details> </li> </ul>   <script aria-hidden="true">
+		(() => {
+			const scroller = document.getElementById('starlight__sidebar');
+			if (!window._starlightScrollRestore || !scroller) return;
+			scroller.scrollTop = window._starlightScrollRestore;
+			delete window._starlightScrollRestore;
+		})();
+	</script> </sl-sidebar-state-persist>  <div class="md:sl-hidden"> <div class="mobile-preferences sl-flex astro-wu23bvmt"> <div class="sl-flex social-icons astro-wu23bvmt"> <a href="https://github.com/sitharaj88/software-engineering" rel="me" class="sl-flex astro-wy4te6ga"><span class="sr-only astro-wy4te6ga">GitHub</span><svg aria-hidden="true" class="astro-wy4te6ga astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1em;"><path d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.83-.26.83-.57L9 21.07c-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.08-.74.09-.73.09-.73 1.2.09 1.83 1.24 1.83 1.24 1.08 1.83 2.81 1.3 3.5 1 .1-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.14-.3-.54-1.52.1-3.18 0 0 1-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.28-1.55 3.29-1.23 3.29-1.23.64 1.66.24 2.88.12 3.18a4.65 4.65 0 0 1 1.23 3.22c0 4.61-2.8 5.63-5.48 5.92.42.36.81 1.1.81 2.22l-.01 3.29c0 .31.2.69.82.57A12 12 0 0 0 12 .3Z"/></svg> </a> </div> <starlight-theme-toggle class="astro-e3sgix4a"> <button type="button" class="theme-toggle astro-e3sgix4a" aria-label="Toggle dark mode"> <svg class="icon sun astro-e3sgix4a" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"> <circle cx="12" cy="12" r="5" class="astro-e3sgix4a"></circle> <line x1="12" y1="1" x2="12" y2="3" class="astro-e3sgix4a"></line> <line x1="12" y1="21" x2="12" y2="23" class="astro-e3sgix4a"></line> <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" class="astro-e3sgix4a"></line> <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" class="astro-e3sgix4a"></line> <line x1="1" y1="12" x2="3" y2="12" class="astro-e3sgix4a"></line> <line x1="21" y1="12" x2="23" y2="12" class="astro-e3sgix4a"></line> <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" class="astro-e3sgix4a"></line> <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" class="astro-e3sgix4a"></line> </svg> <span class="track astro-e3sgix4a"> <span class="thumb astro-e3sgix4a"></span> </span> <svg class="icon moon astro-e3sgix4a" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"> <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" class="astro-e3sgix4a"></path> </svg> </button> </starlight-theme-toggle>    </div>  </div> </div> </div> </nav> <div class="main-frame astro-vrdttmbt">  <script type="module">const a=document.getElementById("starlight__sidebar"),n=a?.querySelector("sl-sidebar-state-persist"),o="sl-sidebar-state",i=()=>{let t=[];const e=n?.dataset.hash||"";try{const s=sessionStorage.getItem(o),r=JSON.parse(s||"{}");Array.isArray(r.open)&&r.hash===e&&(t=r.open)}catch{}return{hash:e,open:t,scroll:a?.scrollTop||0}},c=t=>{try{sessionStorage.setItem(o,JSON.stringify(t))}catch{}},d=()=>c(i()),l=(t,e)=>{const s=i();s.open[e]=t,c(s)};n?.addEventListener("click",t=>{if(!(t.target instanceof Element))return;const e=t.target.closest("summary")?.closest("details");if(!e)return;const s=e.querySelector("sl-sidebar-restore"),r=parseInt(s?.dataset.index||"");isNaN(r)||l(!e.open,r)});addEventListener("visibilitychange",()=>{document.visibilityState==="hidden"&&d()});addEventListener("pageHide",d);</script> <div class="lg:sl-flex astro-67yu43on"> <aside class="right-sidebar-container astro-67yu43on"> <div class="right-sidebar astro-67yu43on"> <script type="module" src="/software-engineering/_astro/MobileTableOfContents.astro_astro_type_script_index_0_lang.C181hMzK.js"></script><script type="module" src="/software-engineering/_astro/TableOfContents.astro_astro_type_script_index_0_lang.CKWWgpjV.js"></script><div class="lg:sl-hidden astro-pb3aqygn"><mobile-starlight-toc data-min-h="2" data-max-h="3" class="astro-doynk5tl"><nav aria-labelledby="starlight__on-this-page--mobile" class="astro-doynk5tl"><details id="starlight__mobile-toc" class="astro-doynk5tl"><summary id="starlight__on-this-page--mobile" class="sl-flex astro-doynk5tl"><div class="toggle sl-flex astro-doynk5tl">On this page<svg aria-hidden="true" class="caret astro-doynk5tl astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1rem;"><path d="m14.83 11.29-4.24-4.24a1 1 0 1 0-1.42 1.41L12.71 12l-3.54 3.54a1 1 0 0 0 0 1.41 1 1 0 0 0 .71.29 1 1 0 0 0 .71-.29l4.24-4.24a1.002 1.002 0 0 0 0-1.42Z"/></svg> </div><span class="display-current astro-doynk5tl"></span></summary><div class="dropdown astro-doynk5tl"><ul class="isMobile astro-g2bywc46" style="--depth: 0;"> <li class="astro-g2bywc46" style="--depth: 0;"> <a href="#_top" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Overview</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#scheduling-criteria" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Scheduling Criteria</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#interactive-scheduler" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Interactive Scheduler</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#preemptive-vs-non-preemptive-scheduling" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Preemptive vs Non-Preemptive Scheduling</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#first-come-first-served-fcfs" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">First Come, First Served (FCFS)</span> </a> <ul class="isMobile astro-g2bywc46" style="--depth: 1;"> <li class="astro-g2bywc46" style="--depth: 1;"> <a href="#example" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">Example</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 1;"> <a href="#pros-and-cons" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">Pros and Cons</span> </a>  </li> </ul>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#shortest-job-first-sjf--non-preemptive" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Shortest Job First (SJF) — Non-Preemptive</span> </a> <ul class="isMobile astro-g2bywc46" style="--depth: 1;"> <li class="astro-g2bywc46" style="--depth: 1;"> <a href="#example-1" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">Example</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 1;"> <a href="#pros-and-cons-1" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">Pros and Cons</span> </a>  </li> </ul>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#shortest-remaining-time-first-srtf--preemptive-sjf" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Shortest Remaining Time First (SRTF) — Preemptive SJF</span> </a> <ul class="isMobile astro-g2bywc46" style="--depth: 1;"> <li class="astro-g2bywc46" style="--depth: 1;"> <a href="#example-2" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">Example</span> </a>  </li> </ul>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#round-robin-rr" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Round Robin (RR)</span> </a> <ul class="isMobile astro-g2bywc46" style="--depth: 1;"> <li class="astro-g2bywc46" style="--depth: 1;"> <a href="#example-time-quantum--4" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">Example (Time Quantum = 4)</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 1;"> <a href="#choosing-the-time-quantum" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">Choosing the Time Quantum</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 1;"> <a href="#pros-and-cons-2" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">Pros and Cons</span> </a>  </li> </ul>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#priority-scheduling" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Priority Scheduling</span> </a> <ul class="isMobile astro-g2bywc46" style="--depth: 1;"> <li class="astro-g2bywc46" style="--depth: 1;"> <a href="#example-non-preemptive-lower-number--higher-priority" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">Example (Non-Preemptive, lower number = higher priority)</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 1;"> <a href="#the-starvation-problem-and-aging" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">The Starvation Problem and Aging</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 1;"> <a href="#pros-and-cons-3" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">Pros and Cons</span> </a>  </li> </ul>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#multilevel-queue-scheduling" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Multilevel Queue Scheduling</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#multilevel-feedback-queue-mlfq" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Multilevel Feedback Queue (MLFQ)</span> </a> <ul class="isMobile astro-g2bywc46" style="--depth: 1;"> <li class="astro-g2bywc46" style="--depth: 1;"> <a href="#mlfq-rules" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">MLFQ Rules</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 1;"> <a href="#why-mlfq-works-well" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">Why MLFQ Works Well</span> </a>  </li> </ul>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#algorithm-comparison" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Algorithm Comparison</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#practice-problems" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Practice Problems</span> </a> <ul class="isMobile astro-g2bywc46" style="--depth: 1;"> <li class="astro-g2bywc46" style="--depth: 1;"> <a href="#problem-1-fcfs-with-different-arrival-times" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">Problem 1: FCFS with Different Arrival Times</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 1;"> <a href="#problem-2-sjf-non-preemptive-with-different-arrival-times" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">Problem 2: SJF (Non-Preemptive) with Different Arrival Times</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 1;"> <a href="#problem-3-round-robin-q3" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">Problem 3: Round Robin (q=3)</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 1;"> <a href="#problem-4-srtf-with-arrivals" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">Problem 4: SRTF with Arrivals</span> </a>  </li> </ul>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#real-world-scheduling" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Real-World Scheduling</span> </a> <ul class="isMobile astro-g2bywc46" style="--depth: 1;"> <li class="astro-g2bywc46" style="--depth: 1;"> <a href="#linux-completely-fair-scheduler-cfs" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">Linux: Completely Fair Scheduler (CFS)</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 1;"> <a href="#windows-priority-based-preemptive-scheduling" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">Windows: Priority-Based Preemptive Scheduling</span> </a>  </li> </ul>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#key-takeaways" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Key Takeaways</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#next-steps" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Next Steps</span> </a>  </li> </ul> </div></details></nav></mobile-starlight-toc></div><div class="right-sidebar-panel sl-hidden lg:sl-block astro-pb3aqygn"><div class="sl-container astro-pb3aqygn"><starlight-toc data-min-h="2" data-max-h="3"><nav aria-labelledby="starlight__on-this-page"><h2 id="starlight__on-this-page">On this page</h2><ul class="astro-g2bywc46" style="--depth: 0;"> <li class="astro-g2bywc46" style="--depth: 0;"> <a href="#_top" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Overview</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#scheduling-criteria" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Scheduling Criteria</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#interactive-scheduler" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Interactive Scheduler</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#preemptive-vs-non-preemptive-scheduling" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Preemptive vs Non-Preemptive Scheduling</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#first-come-first-served-fcfs" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">First Come, First Served (FCFS)</span> </a> <ul class="astro-g2bywc46" style="--depth: 1;"> <li class="astro-g2bywc46" style="--depth: 1;"> <a href="#example" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">Example</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 1;"> <a href="#pros-and-cons" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">Pros and Cons</span> </a>  </li> </ul>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#shortest-job-first-sjf--non-preemptive" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Shortest Job First (SJF) — Non-Preemptive</span> </a> <ul class="astro-g2bywc46" style="--depth: 1;"> <li class="astro-g2bywc46" style="--depth: 1;"> <a href="#example-1" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">Example</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 1;"> <a href="#pros-and-cons-1" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">Pros and Cons</span> </a>  </li> </ul>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#shortest-remaining-time-first-srtf--preemptive-sjf" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Shortest Remaining Time First (SRTF) — Preemptive SJF</span> </a> <ul class="astro-g2bywc46" style="--depth: 1;"> <li class="astro-g2bywc46" style="--depth: 1;"> <a href="#example-2" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">Example</span> </a>  </li> </ul>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#round-robin-rr" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Round Robin (RR)</span> </a> <ul class="astro-g2bywc46" style="--depth: 1;"> <li class="astro-g2bywc46" style="--depth: 1;"> <a href="#example-time-quantum--4" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">Example (Time Quantum = 4)</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 1;"> <a href="#choosing-the-time-quantum" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">Choosing the Time Quantum</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 1;"> <a href="#pros-and-cons-2" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">Pros and Cons</span> </a>  </li> </ul>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#priority-scheduling" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Priority Scheduling</span> </a> <ul class="astro-g2bywc46" style="--depth: 1;"> <li class="astro-g2bywc46" style="--depth: 1;"> <a href="#example-non-preemptive-lower-number--higher-priority" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">Example (Non-Preemptive, lower number = higher priority)</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 1;"> <a href="#the-starvation-problem-and-aging" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">The Starvation Problem and Aging</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 1;"> <a href="#pros-and-cons-3" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">Pros and Cons</span> </a>  </li> </ul>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#multilevel-queue-scheduling" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Multilevel Queue Scheduling</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#multilevel-feedback-queue-mlfq" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Multilevel Feedback Queue (MLFQ)</span> </a> <ul class="astro-g2bywc46" style="--depth: 1;"> <li class="astro-g2bywc46" style="--depth: 1;"> <a href="#mlfq-rules" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">MLFQ Rules</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 1;"> <a href="#why-mlfq-works-well" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">Why MLFQ Works Well</span> </a>  </li> </ul>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#algorithm-comparison" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Algorithm Comparison</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#practice-problems" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Practice Problems</span> </a> <ul class="astro-g2bywc46" style="--depth: 1;"> <li class="astro-g2bywc46" style="--depth: 1;"> <a href="#problem-1-fcfs-with-different-arrival-times" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">Problem 1: FCFS with Different Arrival Times</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 1;"> <a href="#problem-2-sjf-non-preemptive-with-different-arrival-times" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">Problem 2: SJF (Non-Preemptive) with Different Arrival Times</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 1;"> <a href="#problem-3-round-robin-q3" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">Problem 3: Round Robin (q=3)</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 1;"> <a href="#problem-4-srtf-with-arrivals" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">Problem 4: SRTF with Arrivals</span> </a>  </li> </ul>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#real-world-scheduling" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Real-World Scheduling</span> </a> <ul class="astro-g2bywc46" style="--depth: 1;"> <li class="astro-g2bywc46" style="--depth: 1;"> <a href="#linux-completely-fair-scheduler-cfs" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">Linux: Completely Fair Scheduler (CFS)</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 1;"> <a href="#windows-priority-based-preemptive-scheduling" class="astro-g2bywc46" style="--depth: 1;"> <span class="astro-g2bywc46" style="--depth: 1;">Windows: Priority-Based Preemptive Scheduling</span> </a>  </li> </ul>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#key-takeaways" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Key Takeaways</span> </a>  </li><li class="astro-g2bywc46" style="--depth: 0;"> <a href="#next-steps" class="astro-g2bywc46" style="--depth: 0;"> <span class="astro-g2bywc46" style="--depth: 0;">Next Steps</span> </a>  </li> </ul> </nav></starlight-toc></div></div> </div> </aside> <div class="main-pane astro-67yu43on">  <main data-pagefind-body class="astro-bguv2lll" lang="en" dir="ltr">    <div class="content-panel astro-7nkwcw3z"> <div class="sl-container astro-7nkwcw3z"> <h1 id="_top" class="astro-j6tvhyss">CPU Scheduling</h1>  </div> </div>  <div class="content-panel astro-7nkwcw3z"> <div class="sl-container astro-7nkwcw3z"> <div class="sl-markdown-content"> <p><strong>CPU scheduling</strong> is the mechanism by which the operating system decides which process in the ready queue gets to use the CPU next. Since only one process can run on a single CPU core at a time, the scheduler must make intelligent decisions to maximize performance and fairness. Scheduling is one of the most heavily studied and tested topics in operating systems courses and interviews.</p>
+<h2 id="scheduling-criteria">Scheduling Criteria</h2>
+<p>Before comparing algorithms, we need to understand what “good scheduling” means. The OS tries to optimize several (often conflicting) criteria:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Criterion</th><th>Definition</th><th>Goal</th></tr></thead><tbody><tr><td><strong>CPU Utilization</strong></td><td>Percentage of time the CPU is busy</td><td>Maximize (ideally 40-90%)</td></tr><tr><td><strong>Throughput</strong></td><td>Number of processes completed per unit time</td><td>Maximize</td></tr><tr><td><strong>Turnaround Time</strong></td><td>Total time from process submission to completion (finish - arrival)</td><td>Minimize</td></tr><tr><td><strong>Waiting Time</strong></td><td>Total time a process spends in the ready queue</td><td>Minimize</td></tr><tr><td><strong>Response Time</strong></td><td>Time from submission to first response (first scheduled - arrival)</td><td>Minimize</td></tr></tbody></table>
+<p><strong>Turnaround Time</strong> = Completion Time - Arrival Time</p>
+<p><strong>Waiting Time</strong> = Turnaround Time - Burst Time</p>
+<hr>
+<h2 id="interactive-scheduler">Interactive Scheduler</h2>
+<p>Experiment with different CPU scheduling algorithms below. Add processes with custom arrival times, burst times, and priorities, then watch the Gantt chart build in real time.</p>
+<style>astro-island,astro-slot,astro-static-slot{display:contents}</style><script>(()=>{var e=async t=>{await(await t())()};(self.Astro||(self.Astro={})).load=e;window.dispatchEvent(new Event("astro:load"));})();</script><script>(()=>{var A=Object.defineProperty;var g=(i,o,a)=>o in i?A(i,o,{enumerable:!0,configurable:!0,writable:!0,value:a}):i[o]=a;var d=(i,o,a)=>g(i,typeof o!="symbol"?o+"":o,a);{let i={0:t=>m(t),1:t=>a(t),2:t=>new RegExp(t),3:t=>new Date(t),4:t=>new Map(a(t)),5:t=>new Set(a(t)),6:t=>BigInt(t),7:t=>new URL(t),8:t=>new Uint8Array(t),9:t=>new Uint16Array(t),10:t=>new Uint32Array(t),11:t=>1/0*t},o=t=>{let[l,e]=t;return l in i?i[l](e):void 0},a=t=>t.map(o),m=t=>typeof t!="object"||t===null?t:Object.fromEntries(Object.entries(t).map(([l,e])=>[l,o(e)]));class y extends HTMLElement{constructor(){super(...arguments);d(this,"Component");d(this,"hydrator");d(this,"hydrate",async()=>{var b;if(!this.hydrator||!this.isConnected)return;let e=(b=this.parentElement)==null?void 0:b.closest("astro-island[ssr]");if(e){e.addEventListener("astro:hydrate",this.hydrate,{once:!0});return}let c=this.querySelectorAll("astro-slot"),n={},h=this.querySelectorAll("template[data-astro-template]");for(let r of h){let s=r.closest(this.tagName);s!=null&&s.isSameNode(this)&&(n[r.getAttribute("data-astro-template")||"default"]=r.innerHTML,r.remove())}for(let r of c){let s=r.closest(this.tagName);s!=null&&s.isSameNode(this)&&(n[r.getAttribute("name")||"default"]=r.innerHTML)}let p;try{p=this.hasAttribute("props")?m(JSON.parse(this.getAttribute("props"))):{}}catch(r){let s=this.getAttribute("component-url")||"<unknown>",v=this.getAttribute("component-export");throw v&&(s+=` (export ${v})`),console.error(`[hydrate] Error parsing props for component ${s}`,this.getAttribute("props"),r),r}let u;await this.hydrator(this)(this.Component,p,n,{client:this.getAttribute("client")}),this.removeAttribute("ssr"),this.dispatchEvent(new CustomEvent("astro:hydrate"))});d(this,"unmount",()=>{this.isConnected||this.dispatchEvent(new CustomEvent("astro:unmount"))})}disconnectedCallback(){document.removeEventListener("astro:after-swap",this.unmount),document.addEventListener("astro:after-swap",this.unmount,{once:!0})}connectedCallback(){if(!this.hasAttribute("await-children")||document.readyState==="interactive"||document.readyState==="complete")this.childrenConnectedCallback();else{let e=()=>{document.removeEventListener("DOMContentLoaded",e),c.disconnect(),this.childrenConnectedCallback()},c=new MutationObserver(()=>{var n;((n=this.lastChild)==null?void 0:n.nodeType)===Node.COMMENT_NODE&&this.lastChild.nodeValue==="astro:end"&&(this.lastChild.remove(),e())});c.observe(this,{childList:!0}),document.addEventListener("DOMContentLoaded",e)}}async childrenConnectedCallback(){let e=this.getAttribute("before-hydration-url");e&&await import(e),this.start()}async start(){let e=JSON.parse(this.getAttribute("opts")),c=this.getAttribute("client");if(Astro[c]===void 0){window.addEventListener(`astro:${c}`,()=>this.start(),{once:!0});return}try{await Astro[c](async()=>{let n=this.getAttribute("renderer-url"),[h,{default:p}]=await Promise.all([import(this.getAttribute("component-url")),n?import(n):()=>()=>{}]),u=this.getAttribute("component-export")||"default";if(!u.includes("."))this.Component=h[u];else{this.Component=h;for(let f of u.split("."))this.Component=this.Component[f]}return this.hydrator=p,this.hydrate},e,this)}catch(n){console.error(`[astro-island] Error hydrating ${this.getAttribute("component-url")}`,n)}}attributeChangedCallback(){this.hydrate()}}d(y,"observedAttributes",["props"]),customElements.get("astro-island")||customElements.define("astro-island",y)}})();</script><astro-island uid="Z1dtUfF" prefix="r1" component-url="/software-engineering/_astro/ProcessSchedulingVisualizer.aY1jJ5Lo.js" component-export="default" renderer-url="/software-engineering/_astro/client.nc8uITnr.js" props="{}" ssr client="load" opts="{&quot;name&quot;:&quot;ProcessSchedulingVisualizer&quot;,&quot;value&quot;:true}" await-children><div style="border:1px solid var(--sl-color-gray-5);border-radius:12px;overflow:hidden;margin:1.5rem 0;background:var(--sl-color-bg)"><div style="padding:1rem 1.25rem;border-bottom:1px solid var(--sl-color-gray-5);background:var(--sl-color-gray-6)"><div style="display:flex;justify-content:space-between;align-items:center;gap:0.75rem"><h3 style="margin:0;font-size:1.1rem;font-weight:700">CPU Scheduling Visualizer</h3><div style="display:flex;gap:0.5rem"><button style="padding:0.5rem 0.9rem;border-radius:6px;min-height:44px;border:2px solid #0066cc;background:#0066cc;color:#fff;cursor:pointer;font-size:0.75rem;font-weight:600;transition:all 0.2s">FCFS</button><button style="padding:0.5rem 0.9rem;border-radius:6px;min-height:44px;border:1px solid var(--sl-color-gray-4);background:transparent;color:var(--sl-color-text);cursor:pointer;font-size:0.75rem;font-weight:600;transition:all 0.2s">SJF</button><button style="padding:0.5rem 0.9rem;border-radius:6px;min-height:44px;border:1px solid var(--sl-color-gray-4);background:transparent;color:var(--sl-color-text);cursor:pointer;font-size:0.75rem;font-weight:600;transition:all 0.2s">SRTF</button><button style="padding:0.5rem 0.9rem;border-radius:6px;min-height:44px;border:1px solid var(--sl-color-gray-4);background:transparent;color:var(--sl-color-text);cursor:pointer;font-size:0.75rem;font-weight:600;transition:all 0.2s">Round Robin</button><button style="padding:0.5rem 0.9rem;border-radius:6px;min-height:44px;border:1px solid var(--sl-color-gray-4);background:transparent;color:var(--sl-color-text);cursor:pointer;font-size:0.75rem;font-weight:600;transition:all 0.2s">Priority</button></div></div><p style="margin:0.5rem 0 0;font-size:0.8rem;color:var(--sl-color-gray-3)">First Come First Served<!-- --> (Non-preemptive)</p></div><div style="padding:1.25rem;border-bottom:1px solid var(--sl-color-gray-5)"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem"><div style="font-size:0.7rem;font-weight:700;color:var(--sl-color-gray-3);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.5rem">PROCESS TABLE</div><div style="display:flex;gap:0.4rem"><button style="padding:0.35rem 0.7rem;border-radius:6px;font-size:0.75rem;font-weight:600;border:1px solid var(--sl-color-gray-4);background:transparent;color:var(--sl-color-text);cursor:pointer">Load Example</button><button style="padding:0.35rem 0.7rem;border-radius:6px;font-size:0.75rem;font-weight:600;border:none;background:#0066cc;color:#fff;cursor:pointer;opacity:1">+ Add Process</button></div></div><div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse"><thead><tr><th style="padding:0.4rem 0.6rem;font-size:0.72rem;font-weight:700;color:var(--sl-color-gray-3);text-transform:uppercase;letter-spacing:0.03em;border-bottom:2px solid var(--sl-color-gray-5);text-align:center;white-space:nowrap">Process</th><th style="padding:0.4rem 0.6rem;font-size:0.72rem;font-weight:700;color:var(--sl-color-gray-3);text-transform:uppercase;letter-spacing:0.03em;border-bottom:2px solid var(--sl-color-gray-5);text-align:center;white-space:nowrap">Arrival</th><th style="padding:0.4rem 0.6rem;font-size:0.72rem;font-weight:700;color:var(--sl-color-gray-3);text-transform:uppercase;letter-spacing:0.03em;border-bottom:2px solid var(--sl-color-gray-5);text-align:center;white-space:nowrap">Burst</th><th style="padding:0.4rem 0.6rem;font-size:0.72rem;font-weight:700;color:var(--sl-color-gray-3);text-transform:uppercase;letter-spacing:0.03em;border-bottom:2px solid var(--sl-color-gray-5);text-align:center;white-space:nowrap;width:40px"></th></tr></thead><tbody><tr><td style="padding:0.4rem 0.6rem;font-size:0.85rem;text-align:center;border-bottom:1px solid var(--sl-color-gray-5);font-family:monospace"><div style="display:flex;align-items:center;justify-content:center;gap:0.4rem"><span style="width:10px;height:10px;border-radius:50%;background:#0066cc;display:inline-block;flex-shrink:0"></span>P1</div></td><td style="padding:0.4rem 0.6rem;font-size:0.85rem;text-align:center;border-bottom:1px solid var(--sl-color-gray-5);font-family:monospace"><input type="number" min="0" style="width:60px;padding:0.4rem 0.5rem;border-radius:6px;font-size:0.85rem;border:1px solid var(--sl-color-gray-5);background:var(--sl-color-bg);color:var(--sl-color-text);text-align:center;font-family:monospace" value="0"/></td><td style="padding:0.4rem 0.6rem;font-size:0.85rem;text-align:center;border-bottom:1px solid var(--sl-color-gray-5);font-family:monospace"><input type="number" min="1" style="width:60px;padding:0.4rem 0.5rem;border-radius:6px;font-size:0.85rem;border:1px solid var(--sl-color-gray-5);background:var(--sl-color-bg);color:var(--sl-color-text);text-align:center;font-family:monospace" value="6"/></td><td style="padding:0.4rem 0.6rem;font-size:0.85rem;text-align:center;border-bottom:1px solid var(--sl-color-gray-5);font-family:monospace"><button style="background:transparent;border:none;cursor:pointer;color:#ef4444;font-size:1rem;line-height:1;padding:0.2rem;opacity:1">x</button></td></tr><tr><td style="padding:0.4rem 0.6rem;font-size:0.85rem;text-align:center;border-bottom:1px solid var(--sl-color-gray-5);font-family:monospace"><div style="display:flex;align-items:center;justify-content:center;gap:0.4rem"><span style="width:10px;height:10px;border-radius:50%;background:#10b981;display:inline-block;flex-shrink:0"></span>P2</div></td><td style="padding:0.4rem 0.6rem;font-size:0.85rem;text-align:center;border-bottom:1px solid var(--sl-color-gray-5);font-family:monospace"><input type="number" min="0" style="width:60px;padding:0.4rem 0.5rem;border-radius:6px;font-size:0.85rem;border:1px solid var(--sl-color-gray-5);background:var(--sl-color-bg);color:var(--sl-color-text);text-align:center;font-family:monospace" value="1"/></td><td style="padding:0.4rem 0.6rem;font-size:0.85rem;text-align:center;border-bottom:1px solid var(--sl-color-gray-5);font-family:monospace"><input type="number" min="1" style="width:60px;padding:0.4rem 0.5rem;border-radius:6px;font-size:0.85rem;border:1px solid var(--sl-color-gray-5);background:var(--sl-color-bg);color:var(--sl-color-text);text-align:center;font-family:monospace" value="4"/></td><td style="padding:0.4rem 0.6rem;font-size:0.85rem;text-align:center;border-bottom:1px solid var(--sl-color-gray-5);font-family:monospace"><button style="background:transparent;border:none;cursor:pointer;color:#ef4444;font-size:1rem;line-height:1;padding:0.2rem;opacity:1">x</button></td></tr><tr><td style="padding:0.4rem 0.6rem;font-size:0.85rem;text-align:center;border-bottom:1px solid var(--sl-color-gray-5);font-family:monospace"><div style="display:flex;align-items:center;justify-content:center;gap:0.4rem"><span style="width:10px;height:10px;border-radius:50%;background:#f59e0b;display:inline-block;flex-shrink:0"></span>P3</div></td><td style="padding:0.4rem 0.6rem;font-size:0.85rem;text-align:center;border-bottom:1px solid var(--sl-color-gray-5);font-family:monospace"><input type="number" min="0" style="width:60px;padding:0.4rem 0.5rem;border-radius:6px;font-size:0.85rem;border:1px solid var(--sl-color-gray-5);background:var(--sl-color-bg);color:var(--sl-color-text);text-align:center;font-family:monospace" value="2"/></td><td style="padding:0.4rem 0.6rem;font-size:0.85rem;text-align:center;border-bottom:1px solid var(--sl-color-gray-5);font-family:monospace"><input type="number" min="1" style="width:60px;padding:0.4rem 0.5rem;border-radius:6px;font-size:0.85rem;border:1px solid var(--sl-color-gray-5);background:var(--sl-color-bg);color:var(--sl-color-text);text-align:center;font-family:monospace" value="8"/></td><td style="padding:0.4rem 0.6rem;font-size:0.85rem;text-align:center;border-bottom:1px solid var(--sl-color-gray-5);font-family:monospace"><button style="background:transparent;border:none;cursor:pointer;color:#ef4444;font-size:1rem;line-height:1;padding:0.2rem;opacity:1">x</button></td></tr><tr><td style="padding:0.4rem 0.6rem;font-size:0.85rem;text-align:center;border-bottom:1px solid var(--sl-color-gray-5);font-family:monospace"><div style="display:flex;align-items:center;justify-content:center;gap:0.4rem"><span style="width:10px;height:10px;border-radius:50%;background:#ef4444;display:inline-block;flex-shrink:0"></span>P4</div></td><td style="padding:0.4rem 0.6rem;font-size:0.85rem;text-align:center;border-bottom:1px solid var(--sl-color-gray-5);font-family:monospace"><input type="number" min="0" style="width:60px;padding:0.4rem 0.5rem;border-radius:6px;font-size:0.85rem;border:1px solid var(--sl-color-gray-5);background:var(--sl-color-bg);color:var(--sl-color-text);text-align:center;font-family:monospace" value="3"/></td><td style="padding:0.4rem 0.6rem;font-size:0.85rem;text-align:center;border-bottom:1px solid var(--sl-color-gray-5);font-family:monospace"><input type="number" min="1" style="width:60px;padding:0.4rem 0.5rem;border-radius:6px;font-size:0.85rem;border:1px solid var(--sl-color-gray-5);background:var(--sl-color-bg);color:var(--sl-color-text);text-align:center;font-family:monospace" value="3"/></td><td style="padding:0.4rem 0.6rem;font-size:0.85rem;text-align:center;border-bottom:1px solid var(--sl-color-gray-5);font-family:monospace"><button style="background:transparent;border:none;cursor:pointer;color:#ef4444;font-size:1rem;line-height:1;padding:0.2rem;opacity:1">x</button></td></tr><tr><td style="padding:0.4rem 0.6rem;font-size:0.85rem;text-align:center;border-bottom:1px solid var(--sl-color-gray-5);font-family:monospace"><div style="display:flex;align-items:center;justify-content:center;gap:0.4rem"><span style="width:10px;height:10px;border-radius:50%;background:#8b5cf6;display:inline-block;flex-shrink:0"></span>P5</div></td><td style="padding:0.4rem 0.6rem;font-size:0.85rem;text-align:center;border-bottom:1px solid var(--sl-color-gray-5);font-family:monospace"><input type="number" min="0" style="width:60px;padding:0.4rem 0.5rem;border-radius:6px;font-size:0.85rem;border:1px solid var(--sl-color-gray-5);background:var(--sl-color-bg);color:var(--sl-color-text);text-align:center;font-family:monospace" value="5"/></td><td style="padding:0.4rem 0.6rem;font-size:0.85rem;text-align:center;border-bottom:1px solid var(--sl-color-gray-5);font-family:monospace"><input type="number" min="1" style="width:60px;padding:0.4rem 0.5rem;border-radius:6px;font-size:0.85rem;border:1px solid var(--sl-color-gray-5);background:var(--sl-color-bg);color:var(--sl-color-text);text-align:center;font-family:monospace" value="2"/></td><td style="padding:0.4rem 0.6rem;font-size:0.85rem;text-align:center;border-bottom:1px solid var(--sl-color-gray-5);font-family:monospace"><button style="background:transparent;border:none;cursor:pointer;color:#ef4444;font-size:1rem;line-height:1;padding:0.2rem;opacity:1">x</button></td></tr></tbody></table></div></div><div style="padding:1rem 1.25rem;border-bottom:1px solid var(--sl-color-gray-5);background:var(--sl-color-gray-6)"><div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem"><div><div style="font-size:0.7rem;font-weight:700;color:var(--sl-color-gray-3);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.5rem">ACTIONS</div><div style="display:flex;gap:0.5rem"><button style="flex:1;padding:0.65rem 1.2rem;border-radius:6px;border:none;min-height:44px;background:#10b981;color:#fff;cursor:pointer;font-weight:700;font-size:0.85rem">Run</button><button style="flex:1;padding:0.65rem 1rem;border-radius:6px;min-height:44px;border:1px solid var(--sl-color-gray-4);background:transparent;color:var(--sl-color-text);cursor:pointer;font-size:0.85rem">Reset</button></div></div><div><div style="font-size:0.7rem;font-weight:700;color:var(--sl-color-gray-3);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.5rem">SPEED</div><div style="display:flex;align-items:center;gap:0.5rem"><span style="font-size:0.75rem;color:var(--sl-color-gray-3)">Slow</span><input type="range" min="1" max="100" style="flex:1;height:4px" value="50"/><span style="font-size:0.75rem;color:var(--sl-color-gray-3)">Fast</span></div></div></div></div><div style="padding:2.5rem 1.25rem;text-align:center;color:var(--sl-color-gray-3)"><p style="font-size:0.9rem;margin:0">Configure processes above and click <strong>Run</strong> to visualize the scheduling algorithm.</p></div></div><!--astro:end--></astro-island>
+<hr>
+<h2 id="preemptive-vs-non-preemptive-scheduling">Preemptive vs Non-Preemptive Scheduling</h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Type</th><th>Description</th><th>Pros</th><th>Cons</th></tr></thead><tbody><tr><td><strong>Non-Preemptive</strong></td><td>Once a process gets the CPU, it runs until it voluntarily releases (finishes or blocks on I/O)</td><td>Simple, no context-switch overhead during execution</td><td>A long process can starve others</td></tr><tr><td><strong>Preemptive</strong></td><td>The OS can forcibly take the CPU away from a running process (e.g., when a higher-priority process arrives or a time quantum expires)</td><td>Better responsiveness, prevents monopolization</td><td>More context switches, needs careful synchronization</td></tr></tbody></table>
+<hr>
+<h2 id="first-come-first-served-fcfs">First Come, First Served (FCFS)</h2>
+<p>The simplest scheduling algorithm. Processes are executed in the order they arrive in the ready queue. Non-preemptive.</p>
+<p><strong>How it works</strong>: Maintain a FIFO queue. When the CPU is free, pick the process at the front of the queue.</p>
+<h3 id="example">Example</h3>
+<p>Processes: P1 (burst 24), P2 (burst 3), P3 (burst 3). All arrive at time 0 in order P1, P2, P3.</p>
+<div class="expressive-code"><link rel="stylesheet" href="/software-engineering/_astro/ec.j8ofn.css"><script type="module" src="/software-engineering/_astro/ec.8zarh.js"></script><figure class="frame not-content"><figcaption class="header"></figcaption><pre data-language="plaintext"><code><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">Gantt Chart:</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">┌────────────────────────────┬─────┬─────┐</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│            P1              │ P2  │ P3  │</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">└────────────────────────────┴─────┴─────┘</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">0                           24    27    30</span></div></div></code></pre><div class="copy"><button title="Copy to clipboard" data-copied="Copied!" data-code="Gantt Chart:┌────────────────────────────┬─────┬─────┐│            P1              │ P2  │ P3  │└────────────────────────────┴─────┴─────┘0                           24    27    30"><div></div></button></div></figure></div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Process</th><th>Arrival</th><th>Burst</th><th>Completion</th><th>Turnaround</th><th>Waiting</th></tr></thead><tbody><tr><td>P1</td><td>0</td><td>24</td><td>24</td><td>24</td><td>0</td></tr><tr><td>P2</td><td>0</td><td>3</td><td>27</td><td>27</td><td>24</td></tr><tr><td>P3</td><td>0</td><td>3</td><td>30</td><td>30</td><td>27</td></tr></tbody></table>
+<p><strong>Average Waiting Time</strong> = (0 + 24 + 27) / 3 = <strong>17.0</strong></p>
+<p><strong>Average Turnaround Time</strong> = (24 + 27 + 30) / 3 = <strong>27.0</strong></p>
+<h3 id="pros-and-cons">Pros and Cons</h3>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Pros</th><th>Cons</th></tr></thead><tbody><tr><td>Very simple to implement</td><td>Suffers from the <strong>convoy effect</strong>: short processes stuck behind long ones</td></tr><tr><td>No starvation</td><td>Poor average waiting time</td></tr><tr><td>Fair in arrival order</td><td>Not suitable for interactive systems</td></tr></tbody></table>
+<hr>
+<h2 id="shortest-job-first-sjf--non-preemptive">Shortest Job First (SJF) — Non-Preemptive</h2>
+<p>Selects the process with the <strong>smallest burst time</strong>. Provably optimal for minimizing average waiting time among non-preemptive algorithms.</p>
+<p><strong>How it works</strong>: When the CPU is free, look at all processes in the ready queue and choose the one with the shortest burst time. If two processes have the same burst time, use FCFS to break ties.</p>
+<h3 id="example-1">Example</h3>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Process</th><th>Arrival</th><th>Burst</th></tr></thead><tbody><tr><td>P1</td><td>0</td><td>6</td></tr><tr><td>P2</td><td>0</td><td>8</td></tr><tr><td>P3</td><td>0</td><td>7</td></tr><tr><td>P4</td><td>0</td><td>3</td></tr></tbody></table>
+<div class="expressive-code"><figure class="frame not-content"><figcaption class="header"></figcaption><pre data-language="plaintext"><code><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">Gantt Chart:</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">┌─────┬──────────┬───────────┬────────────┐</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│ P4  │    P1    │    P3     │     P2     │</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">└─────┴──────────┴───────────┴────────────┘</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">0     3          9          16           24</span></div></div></code></pre><div class="copy"><button title="Copy to clipboard" data-copied="Copied!" data-code="Gantt Chart:┌─────┬──────────┬───────────┬────────────┐│ P4  │    P1    │    P3     │     P2     │└─────┴──────────┴───────────┴────────────┘0     3          9          16           24"><div></div></button></div></figure></div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Process</th><th>Arrival</th><th>Burst</th><th>Completion</th><th>Turnaround</th><th>Waiting</th></tr></thead><tbody><tr><td>P4</td><td>0</td><td>3</td><td>3</td><td>3</td><td>0</td></tr><tr><td>P1</td><td>0</td><td>6</td><td>9</td><td>9</td><td>3</td></tr><tr><td>P3</td><td>0</td><td>7</td><td>16</td><td>16</td><td>9</td></tr><tr><td>P2</td><td>0</td><td>8</td><td>24</td><td>24</td><td>16</td></tr></tbody></table>
+<p><strong>Average Waiting Time</strong> = (0 + 3 + 9 + 16) / 4 = <strong>7.0</strong></p>
+<p><strong>Average Turnaround Time</strong> = (3 + 9 + 16 + 24) / 4 = <strong>13.0</strong></p>
+<h3 id="pros-and-cons-1">Pros and Cons</h3>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Pros</th><th>Cons</th></tr></thead><tbody><tr><td>Optimal average waiting time (non-preemptive)</td><td>Requires knowing burst time in advance (often estimated)</td></tr><tr><td>Good throughput</td><td><strong>Starvation</strong>: long processes may never execute if short ones keep arriving</td></tr></tbody></table>
+<hr>
+<h2 id="shortest-remaining-time-first-srtf--preemptive-sjf">Shortest Remaining Time First (SRTF) — Preemptive SJF</h2>
+<p>The preemptive version of SJF. Whenever a new process arrives, the scheduler compares its burst time with the <strong>remaining time</strong> of the currently running process. If the new process has a shorter remaining time, it preempts the running process.</p>
+<h3 id="example-2">Example</h3>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Process</th><th>Arrival</th><th>Burst</th></tr></thead><tbody><tr><td>P1</td><td>0</td><td>8</td></tr><tr><td>P2</td><td>1</td><td>4</td></tr><tr><td>P3</td><td>2</td><td>9</td></tr><tr><td>P4</td><td>3</td><td>5</td></tr></tbody></table>
+<div class="expressive-code"><figure class="frame not-content"><figcaption class="header"></figcaption><pre data-language="plaintext"><code><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">Gantt Chart:</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">┌────┬──────────┬───────────┬────────────────┬───────────────────┐</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│ P1 │    P2    │    P4     │      P1        │       P3          │</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">└────┴──────────┴───────────┴────────────────┴───────────────────┘</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">0    1          5          10               17                  26</span></div></div></code></pre><div class="copy"><button title="Copy to clipboard" data-copied="Copied!" data-code="Gantt Chart:┌────┬──────────┬───────────┬────────────────┬───────────────────┐│ P1 │    P2    │    P4     │      P1        │       P3          │└────┴──────────┴───────────┴────────────────┴───────────────────┘0    1          5          10               17                  26"><div></div></button></div></figure></div>
+<p>Step-by-step:</p>
+<ul>
+<li><strong>t=0</strong>: Only P1 available. P1 runs. Remaining: P1=8.</li>
+<li><strong>t=1</strong>: P2 arrives (burst=4). P1 remaining=7. Since 4 &#x3C; 7, P2 preempts P1. Remaining: P1=7, P2=4.</li>
+<li><strong>t=2</strong>: P3 arrives (burst=9). P2 remaining=3. Since 3 &#x3C; 7 &#x3C; 9, P2 continues.</li>
+<li><strong>t=3</strong>: P4 arrives (burst=5). P2 remaining=2. Since 2 &#x3C; 5, P2 continues.</li>
+<li><strong>t=5</strong>: P2 finishes. Ready: P1(7), P3(9), P4(5). P4 is shortest. P4 runs.</li>
+<li><strong>t=10</strong>: P4 finishes. Ready: P1(7), P3(9). P1 runs.</li>
+<li><strong>t=17</strong>: P1 finishes. P3 runs.</li>
+<li><strong>t=26</strong>: P3 finishes.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Process</th><th>Arrival</th><th>Burst</th><th>Completion</th><th>Turnaround</th><th>Waiting</th></tr></thead><tbody><tr><td>P1</td><td>0</td><td>8</td><td>17</td><td>17</td><td>9</td></tr><tr><td>P2</td><td>1</td><td>4</td><td>5</td><td>4</td><td>0</td></tr><tr><td>P3</td><td>2</td><td>9</td><td>26</td><td>24</td><td>15</td></tr><tr><td>P4</td><td>3</td><td>5</td><td>10</td><td>7</td><td>2</td></tr></tbody></table>
+<p><strong>Average Waiting Time</strong> = (9 + 0 + 15 + 2) / 4 = <strong>6.5</strong></p>
+<p><strong>Average Turnaround Time</strong> = (17 + 4 + 24 + 7) / 4 = <strong>13.0</strong></p>
+<hr>
+<h2 id="round-robin-rr">Round Robin (RR)</h2>
+<p>Each process gets a fixed <strong>time quantum</strong> (time slice). If a process does not finish within its quantum, it is preempted and placed at the back of the ready queue. Round Robin is the foundation of modern time-sharing systems.</p>
+<p><strong>How it works</strong>: Maintain a circular FIFO queue. Give each process at the front up to <code dir="auto">q</code> time units. If it finishes, remove it. If not, move it to the back.</p>
+<h3 id="example-time-quantum--4">Example (Time Quantum = 4)</h3>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Process</th><th>Arrival</th><th>Burst</th></tr></thead><tbody><tr><td>P1</td><td>0</td><td>5</td></tr><tr><td>P2</td><td>0</td><td>3</td></tr><tr><td>P3</td><td>0</td><td>8</td></tr></tbody></table>
+<div class="expressive-code"><figure class="frame not-content"><figcaption class="header"></figcaption><pre data-language="plaintext"><code><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">Gantt Chart (q=4):</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">┌──────┬─────┬──────┬────┬──────┐</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│  P1  │ P2  │  P3  │ P1 │  P3  │</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">└──────┴─────┴──────┴────┴──────┘</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">0      4     7     11   12     16</span></div></div></code></pre><div class="copy"><button title="Copy to clipboard" data-copied="Copied!" data-code="Gantt Chart (q=4):┌──────┬─────┬──────┬────┬──────┐│  P1  │ P2  │  P3  │ P1 │  P3  │└──────┴─────┴──────┴────┴──────┘0      4     7     11   12     16"><div></div></button></div></figure></div>
+<p>Step-by-step:</p>
+<ul>
+<li><strong>t=0-4</strong>: P1 runs for 4 (remaining 1). P1 goes to back.</li>
+<li><strong>t=4-7</strong>: P2 runs for 3 (finishes).</li>
+<li><strong>t=7-11</strong>: P3 runs for 4 (remaining 4). P3 goes to back.</li>
+<li><strong>t=11-12</strong>: P1 runs for 1 (finishes).</li>
+<li><strong>t=12-16</strong>: P3 runs for 4 (finishes).</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Process</th><th>Arrival</th><th>Burst</th><th>Completion</th><th>Turnaround</th><th>Waiting</th></tr></thead><tbody><tr><td>P1</td><td>0</td><td>5</td><td>12</td><td>12</td><td>7</td></tr><tr><td>P2</td><td>0</td><td>3</td><td>7</td><td>7</td><td>4</td></tr><tr><td>P3</td><td>0</td><td>8</td><td>16</td><td>16</td><td>8</td></tr></tbody></table>
+<p><strong>Average Waiting Time</strong> = (7 + 4 + 8) / 3 = <strong>6.33</strong></p>
+<p><strong>Average Turnaround Time</strong> = (12 + 7 + 16) / 3 = <strong>11.67</strong></p>
+<h3 id="choosing-the-time-quantum">Choosing the Time Quantum</h3>
+<p>The time quantum <code dir="auto">q</code> has a major impact on performance:</p>
+<ul>
+<li><strong>q too large</strong> (e.g., 100ms): Degenerates into FCFS. Poor response time.</li>
+<li><strong>q too small</strong> (e.g., 1ms): Excessive context switches. High overhead.</li>
+<li><strong>Rule of thumb</strong>: 80% of CPU bursts should be shorter than the time quantum. Typical values: 10-100ms.</li>
+</ul>
+<div class="expressive-code"><figure class="frame not-content"><figcaption class="header"></figcaption><pre data-language="plaintext"><code><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">Effect of Time Quantum:</span></div></div><div class="ec-line"><div class="code">
+</div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">q = infinity  ───>  Becomes FCFS</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">q = 100ms     ───>  Good balance for most systems</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">q = 10ms      ───>  Very responsive, moderate overhead</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">q = 1ms       ───>  Too many context switches (overhead > useful work)</span></div></div></code></pre><div class="copy"><button title="Copy to clipboard" data-copied="Copied!" data-code="Effect of Time Quantum:q = infinity  ───>  Becomes FCFSq = 100ms     ───>  Good balance for most systemsq = 10ms      ───>  Very responsive, moderate overheadq = 1ms       ───>  Too many context switches (overhead > useful work)"><div></div></button></div></figure></div>
+<h3 id="pros-and-cons-2">Pros and Cons</h3>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Pros</th><th>Cons</th></tr></thead><tbody><tr><td>Fair: every process gets equal CPU time</td><td>Higher average turnaround than SJF</td></tr><tr><td>Good response time</td><td>Performance depends heavily on time quantum</td></tr><tr><td>No starvation</td><td>More context switches than FCFS/SJF</td></tr><tr><td>Simple to implement</td><td></td></tr></tbody></table>
+<hr>
+<h2 id="priority-scheduling">Priority Scheduling</h2>
+<p>Each process is assigned a <strong>priority number</strong>. The CPU is allocated to the process with the highest priority (lowest number = highest priority is the common convention, though this varies).</p>
+<p><strong>How it works</strong>: Always run the highest-priority ready process. Can be preemptive (a new higher-priority process preempts) or non-preemptive.</p>
+<h3 id="example-non-preemptive-lower-number--higher-priority">Example (Non-Preemptive, lower number = higher priority)</h3>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Process</th><th>Arrival</th><th>Burst</th><th>Priority</th></tr></thead><tbody><tr><td>P1</td><td>0</td><td>10</td><td>3</td></tr><tr><td>P2</td><td>0</td><td>1</td><td>1</td></tr><tr><td>P3</td><td>0</td><td>2</td><td>4</td></tr><tr><td>P4</td><td>0</td><td>1</td><td>5</td></tr><tr><td>P5</td><td>0</td><td>5</td><td>2</td></tr></tbody></table>
+<div class="expressive-code"><figure class="frame not-content"><figcaption class="header"></figcaption><pre data-language="plaintext"><code><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">Gantt Chart:</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">┌────┬───────────┬────────────────┬─────┬────┐</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│ P2 │    P5     │       P1       │ P3  │ P4 │</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">└────┴───────────┴────────────────┴─────┴────┘</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">0    1           6               16    18   19</span></div></div></code></pre><div class="copy"><button title="Copy to clipboard" data-copied="Copied!" data-code="Gantt Chart:┌────┬───────────┬────────────────┬─────┬────┐│ P2 │    P5     │       P1       │ P3  │ P4 │└────┴───────────┴────────────────┴─────┴────┘0    1           6               16    18   19"><div></div></button></div></figure></div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Process</th><th>Arrival</th><th>Burst</th><th>Priority</th><th>Completion</th><th>Turnaround</th><th>Waiting</th></tr></thead><tbody><tr><td>P2</td><td>0</td><td>1</td><td>1</td><td>1</td><td>1</td><td>0</td></tr><tr><td>P5</td><td>0</td><td>5</td><td>2</td><td>6</td><td>6</td><td>1</td></tr><tr><td>P1</td><td>0</td><td>10</td><td>3</td><td>16</td><td>16</td><td>6</td></tr><tr><td>P3</td><td>0</td><td>2</td><td>4</td><td>18</td><td>18</td><td>16</td></tr><tr><td>P4</td><td>0</td><td>1</td><td>5</td><td>19</td><td>19</td><td>18</td></tr></tbody></table>
+<p><strong>Average Waiting Time</strong> = (0 + 1 + 6 + 16 + 18) / 5 = <strong>8.2</strong></p>
+<h3 id="the-starvation-problem-and-aging">The Starvation Problem and Aging</h3>
+<p>Low-priority processes may <strong>starve</strong> (never execute) if higher-priority processes keep arriving. The solution is <strong>aging</strong>: gradually increase the priority of waiting processes over time.</p>
+<div class="expressive-code"><figure class="frame not-content"><figcaption class="header"></figcaption><pre data-language="plaintext"><code><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">Aging Example:</span></div></div><div class="ec-line"><div class="code"><span class="indent"><span style="--0:#d6deeb;--1:#403f53">  </span></span><span style="--0:#d6deeb;--1:#403f53">Process P_low starts with priority 50</span></div></div><div class="ec-line"><div class="code"><span class="indent"><span style="--0:#d6deeb;--1:#403f53">  </span></span><span style="--0:#d6deeb;--1:#403f53">Every 1 second in ready queue: priority += 1</span></div></div><div class="ec-line"><div class="code">
+</div></div><div class="ec-line"><div class="code"><span class="indent"><span style="--0:#d6deeb;--1:#403f53">  </span></span><span style="--0:#d6deeb;--1:#403f53">After 30 seconds waiting: priority = 80 (high enough to run)</span></div></div></code></pre><div class="copy"><button title="Copy to clipboard" data-copied="Copied!" data-code="Aging Example:  Process P_low starts with priority 50  Every 1 second in ready queue: priority += 1  After 30 seconds waiting: priority = 80 (high enough to run)"><div></div></button></div></figure></div>
+<h3 id="pros-and-cons-3">Pros and Cons</h3>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Pros</th><th>Cons</th></tr></thead><tbody><tr><td>Important processes run first</td><td><strong>Starvation</strong> of low-priority processes</td></tr><tr><td>Flexible priority assignment</td><td>Priority inversion (low-priority holds resource needed by high-priority)</td></tr><tr><td>Can model real-world importance</td><td>Requires aging to prevent starvation</td></tr></tbody></table>
+<hr>
+<h2 id="multilevel-queue-scheduling">Multilevel Queue Scheduling</h2>
+<p>Processes are permanently assigned to one of several queues, each with its own scheduling algorithm.</p>
+<div class="expressive-code"><figure class="frame not-content"><figcaption class="header"></figcaption><pre data-language="plaintext"><code><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">┌─────────────────────────────────────────────┐</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│  System processes         (highest priority) │  ──> Priority scheduling</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">├─────────────────────────────────────────────┤</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│  Interactive processes                       │  ──> Round Robin (q=8)</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">├─────────────────────────────────────────────┤</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│  Batch processes                             │  ──> FCFS</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">├─────────────────────────────────────────────┤</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│  Student processes        (lowest priority)  │  ──> FCFS</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">└─────────────────────────────────────────────┘</span></div></div><div class="ec-line"><div class="code">
+</div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">Scheduling between queues: Fixed priority or time-slice</span></div></div><div class="ec-line"><div class="code"><span class="indent"><span style="--0:#d6deeb;--1:#403f53">  </span></span><span style="--0:#d6deeb;--1:#403f53">Example: System gets 40%, Interactive gets 40%, Batch gets 20%</span></div></div></code></pre><div class="copy"><button title="Copy to clipboard" data-copied="Copied!" data-code="┌─────────────────────────────────────────────┐│  System processes         (highest priority) │  ──> Priority scheduling├─────────────────────────────────────────────┤│  Interactive processes                       │  ──> Round Robin (q=8)├─────────────────────────────────────────────┤│  Batch processes                             │  ──> FCFS├─────────────────────────────────────────────┤│  Student processes        (lowest priority)  │  ──> FCFS└─────────────────────────────────────────────┘Scheduling between queues: Fixed priority or time-slice  Example: System gets 40%, Interactive gets 40%, Batch gets 20%"><div></div></button></div></figure></div>
+<p><strong>Problem</strong>: Processes cannot move between queues. A process classified as “batch” stays batch forever, even if its behavior changes.</p>
+<hr>
+<h2 id="multilevel-feedback-queue-mlfq">Multilevel Feedback Queue (MLFQ)</h2>
+<p>The most sophisticated and widely used scheduling algorithm in real-world operating systems (used by Linux, Windows, macOS in various forms). Processes can <strong>move between queues</strong> based on their observed behavior.</p>
+<h3 id="mlfq-rules">MLFQ Rules</h3>
+<ol>
+<li>If Priority(A) > Priority(B), A runs.</li>
+<li>If Priority(A) = Priority(B), A and B run in Round Robin.</li>
+<li>A new process enters at the highest-priority queue.</li>
+<li>If a process uses up its entire time quantum, it is demoted (moved to a lower-priority queue).</li>
+<li>If a process gives up the CPU before its quantum expires (e.g., for I/O), it stays at the same level.</li>
+<li>Periodically, all processes are boosted to the highest-priority queue (prevents starvation).</li>
+</ol>
+<div class="expressive-code"><figure class="frame not-content"><figcaption class="header"></figcaption><pre data-language="plaintext"><code><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">Queue 0 (highest priority): RR with q=8ms</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">┌──────────────────────────────────────┐</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│  New processes start here            │</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│  If process uses full quantum → Q1   │</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│  If process blocks on I/O → stay Q0  │</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">└──────────────────────────────────────┘</span></div></div><div class="ec-line"><div class="code"><span class="indent"><span style="--0:#d6deeb;--1:#403f53">                </span></span><span style="--0:#d6deeb;--1:#403f53">│ (demotion)</span></div></div><div class="ec-line"><div class="code"><span class="indent"><span style="--0:#d6deeb;--1:#403f53">                </span></span><span style="--0:#d6deeb;--1:#403f53">v</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">Queue 1 (medium priority): RR with q=16ms</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">┌──────────────────────────────────────┐</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│  Processes that used full quantum    │</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│  at Q0 run here with larger slice    │</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│  If process uses full quantum → Q2   │</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">└──────────────────────────────────────┘</span></div></div><div class="ec-line"><div class="code"><span class="indent"><span style="--0:#d6deeb;--1:#403f53">                </span></span><span style="--0:#d6deeb;--1:#403f53">│ (demotion)</span></div></div><div class="ec-line"><div class="code"><span class="indent"><span style="--0:#d6deeb;--1:#403f53">                </span></span><span style="--0:#d6deeb;--1:#403f53">v</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">Queue 2 (lowest priority): FCFS</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">┌──────────────────────────────────────┐</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│  Long-running CPU-bound processes    │</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│  Get lowest priority but largest     │</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│  time slices                         │</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">└──────────────────────────────────────┘</span></div></div><div class="ec-line"><div class="code">
+</div></div><div class="ec-line"><div class="code"><span class="indent"><span style="--0:#d6deeb;--1:#403f53">       </span></span><span style="--0:#d6deeb;--1:#403f53">↑ Priority Boost (periodically move all to Q0)</span></div></div></code></pre><div class="copy"><button title="Copy to clipboard" data-copied="Copied!" data-code="Queue 0 (highest priority): RR with q=8ms┌──────────────────────────────────────┐│  New processes start here            ││  If process uses full quantum → Q1   ││  If process blocks on I/O → stay Q0  │└──────────────────────────────────────┘                │ (demotion)                vQueue 1 (medium priority): RR with q=16ms┌──────────────────────────────────────┐│  Processes that used full quantum    ││  at Q0 run here with larger slice    ││  If process uses full quantum → Q2   │└──────────────────────────────────────┘                │ (demotion)                vQueue 2 (lowest priority): FCFS┌──────────────────────────────────────┐│  Long-running CPU-bound processes    ││  Get lowest priority but largest     ││  time slices                         │└──────────────────────────────────────┘       ↑ Priority Boost (periodically move all to Q0)"><div></div></button></div></figure></div>
+<h3 id="why-mlfq-works-well">Why MLFQ Works Well</h3>
+<ul>
+<li><strong>Interactive (I/O-bound) processes</strong> stay in the high-priority queue because they frequently give up the CPU before the quantum expires</li>
+<li><strong>CPU-bound processes</strong> naturally sink to lower queues where they get larger time slices (fewer context switches)</li>
+<li><strong>Priority boosting</strong> prevents starvation and adapts to changing process behavior</li>
+</ul>
+<hr>
+<h2 id="algorithm-comparison">Algorithm Comparison</h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Algorithm</th><th>Type</th><th>Preemptive</th><th>Starvation</th><th>Convoy Effect</th><th>Optimal Waiting Time</th></tr></thead><tbody><tr><td><strong>FCFS</strong></td><td>Non-preemptive</td><td>No</td><td>No</td><td>Yes</td><td>No</td></tr><tr><td><strong>SJF</strong></td><td>Non-preemptive</td><td>No</td><td>Yes</td><td>No</td><td>Yes (non-preemptive)</td></tr><tr><td><strong>SRTF</strong></td><td>Preemptive</td><td>Yes</td><td>Yes</td><td>No</td><td>Yes (overall)</td></tr><tr><td><strong>Round Robin</strong></td><td>Preemptive</td><td>Yes</td><td>No</td><td>No</td><td>No</td></tr><tr><td><strong>Priority</strong></td><td>Both</td><td>Configurable</td><td>Yes (without aging)</td><td>No</td><td>No</td></tr><tr><td><strong>Multilevel Queue</strong></td><td>Both</td><td>Configurable</td><td>Yes</td><td>No</td><td>No</td></tr><tr><td><strong>MLFQ</strong></td><td>Preemptive</td><td>Yes</td><td>No (with boosting)</td><td>No</td><td>Approximates SJF</td></tr></tbody></table>
+<hr>
+<h2 id="practice-problems">Practice Problems</h2>
+<h3 id="problem-1-fcfs-with-different-arrival-times">Problem 1: FCFS with Different Arrival Times</h3>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Process</th><th>Arrival</th><th>Burst</th></tr></thead><tbody><tr><td>P1</td><td>0</td><td>5</td></tr><tr><td>P2</td><td>1</td><td>3</td></tr><tr><td>P3</td><td>2</td><td>8</td></tr><tr><td>P4</td><td>3</td><td>6</td></tr></tbody></table>
+<p><strong>Solution:</strong></p>
+<div class="expressive-code"><figure class="frame not-content"><figcaption class="header"></figcaption><pre data-language="plaintext"><code><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">Gantt Chart:</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">┌───────────┬─────────┬──────────────────┬────────────────┐</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│    P1     │   P2    │       P3         │      P4        │</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">└───────────┴─────────┴──────────────────┴────────────────┘</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">0           5         8                 16               22</span></div></div></code></pre><div class="copy"><button title="Copy to clipboard" data-copied="Copied!" data-code="Gantt Chart:┌───────────┬─────────┬──────────────────┬────────────────┐│    P1     │   P2    │       P3         │      P4        │└───────────┴─────────┴──────────────────┴────────────────┘0           5         8                 16               22"><div></div></button></div></figure></div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Process</th><th>Arrival</th><th>Burst</th><th>Completion</th><th>Turnaround</th><th>Waiting</th></tr></thead><tbody><tr><td>P1</td><td>0</td><td>5</td><td>5</td><td>5</td><td>0</td></tr><tr><td>P2</td><td>1</td><td>3</td><td>8</td><td>7</td><td>4</td></tr><tr><td>P3</td><td>2</td><td>8</td><td>16</td><td>14</td><td>6</td></tr><tr><td>P4</td><td>3</td><td>6</td><td>22</td><td>19</td><td>13</td></tr></tbody></table>
+<p><strong>Average Waiting Time</strong> = (0 + 4 + 6 + 13) / 4 = <strong>5.75</strong></p>
+<p><strong>Average Turnaround Time</strong> = (5 + 7 + 14 + 19) / 4 = <strong>11.25</strong></p>
+<hr>
+<h3 id="problem-2-sjf-non-preemptive-with-different-arrival-times">Problem 2: SJF (Non-Preemptive) with Different Arrival Times</h3>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Process</th><th>Arrival</th><th>Burst</th></tr></thead><tbody><tr><td>P1</td><td>0</td><td>7</td></tr><tr><td>P2</td><td>2</td><td>4</td></tr><tr><td>P3</td><td>4</td><td>1</td></tr><tr><td>P4</td><td>5</td><td>4</td></tr></tbody></table>
+<p><strong>Solution:</strong></p>
+<div class="expressive-code"><figure class="frame not-content"><figcaption class="header"></figcaption><pre data-language="plaintext"><code><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">Gantt Chart:</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">┌─────────────────┬────┬──────────┬──────────┐</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│       P1        │ P3 │    P2    │    P4    │</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">└─────────────────┴────┴──────────┴──────────┘</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">0                 7    8         12         16</span></div></div></code></pre><div class="copy"><button title="Copy to clipboard" data-copied="Copied!" data-code="Gantt Chart:┌─────────────────┬────┬──────────┬──────────┐│       P1        │ P3 │    P2    │    P4    │└─────────────────┴────┴──────────┴──────────┘0                 7    8         12         16"><div></div></button></div></figure></div>
+<p>Step-by-step:</p>
+<ul>
+<li><strong>t=0</strong>: Only P1 is available. P1 runs (burst=7).</li>
+<li><strong>t=7</strong>: P1 finishes. Ready: P2(burst=4), P3(burst=1), P4(burst=4). Shortest is P3.</li>
+<li><strong>t=8</strong>: P3 finishes. Ready: P2(4), P4(4). FCFS tie-break: P2 arrived first.</li>
+<li><strong>t=12</strong>: P2 finishes. P4 runs.</li>
+<li><strong>t=16</strong>: Done.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Process</th><th>Arrival</th><th>Burst</th><th>Completion</th><th>Turnaround</th><th>Waiting</th></tr></thead><tbody><tr><td>P1</td><td>0</td><td>7</td><td>7</td><td>7</td><td>0</td></tr><tr><td>P2</td><td>2</td><td>4</td><td>12</td><td>10</td><td>6</td></tr><tr><td>P3</td><td>4</td><td>1</td><td>8</td><td>4</td><td>3</td></tr><tr><td>P4</td><td>5</td><td>4</td><td>16</td><td>11</td><td>7</td></tr></tbody></table>
+<p><strong>Average Waiting Time</strong> = (0 + 6 + 3 + 7) / 4 = <strong>4.0</strong></p>
+<p><strong>Average Turnaround Time</strong> = (7 + 10 + 4 + 11) / 4 = <strong>8.0</strong></p>
+<hr>
+<h3 id="problem-3-round-robin-q3">Problem 3: Round Robin (q=3)</h3>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Process</th><th>Arrival</th><th>Burst</th></tr></thead><tbody><tr><td>P1</td><td>0</td><td>4</td></tr><tr><td>P2</td><td>0</td><td>6</td></tr><tr><td>P3</td><td>0</td><td>2</td></tr></tbody></table>
+<p><strong>Solution:</strong></p>
+<div class="expressive-code"><figure class="frame not-content"><figcaption class="header"></figcaption><pre data-language="plaintext"><code><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">Gantt Chart (q=3):</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">┌─────────┬─────────┬─────┬────┬─────────┐</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│   P1    │   P2    │ P3  │ P1 │   P2    │</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">└─────────┴─────────┴─────┴────┴─────────┘</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">0         3         6     8    9        12</span></div></div></code></pre><div class="copy"><button title="Copy to clipboard" data-copied="Copied!" data-code="Gantt Chart (q=3):┌─────────┬─────────┬─────┬────┬─────────┐│   P1    │   P2    │ P3  │ P1 │   P2    │└─────────┴─────────┴─────┴────┴─────────┘0         3         6     8    9        12"><div></div></button></div></figure></div>
+<p>Step-by-step:</p>
+<ul>
+<li><strong>t=0-3</strong>: P1 runs for 3 (remaining 1). Queue: [P2, P3, P1].</li>
+<li><strong>t=3-6</strong>: P2 runs for 3 (remaining 3). Queue: [P3, P1, P2].</li>
+<li><strong>t=6-8</strong>: P3 runs for 2 (finishes). Queue: [P1, P2].</li>
+<li><strong>t=8-9</strong>: P1 runs for 1 (finishes). Queue: [P2].</li>
+<li><strong>t=9-12</strong>: P2 runs for 3 (finishes).</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Process</th><th>Arrival</th><th>Burst</th><th>Completion</th><th>Turnaround</th><th>Waiting</th></tr></thead><tbody><tr><td>P1</td><td>0</td><td>4</td><td>9</td><td>9</td><td>5</td></tr><tr><td>P2</td><td>0</td><td>6</td><td>12</td><td>12</td><td>6</td></tr><tr><td>P3</td><td>0</td><td>2</td><td>8</td><td>8</td><td>6</td></tr></tbody></table>
+<p><strong>Average Waiting Time</strong> = (5 + 6 + 6) / 3 = <strong>5.67</strong></p>
+<p><strong>Average Turnaround Time</strong> = (9 + 12 + 8) / 3 = <strong>9.67</strong></p>
+<hr>
+<h3 id="problem-4-srtf-with-arrivals">Problem 4: SRTF with Arrivals</h3>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Process</th><th>Arrival</th><th>Burst</th></tr></thead><tbody><tr><td>P1</td><td>0</td><td>6</td></tr><tr><td>P2</td><td>2</td><td>2</td></tr><tr><td>P3</td><td>4</td><td>4</td></tr></tbody></table>
+<p><strong>Solution:</strong></p>
+<div class="expressive-code"><figure class="frame not-content"><figcaption class="header"></figcaption><pre data-language="plaintext"><code><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">Gantt Chart:</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">┌─────┬─────┬──────────┬──────────┐</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">│ P1  │ P2  │    P1    │    P3    │</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">└─────┴─────┴──────────┴──────────┘</span></div></div><div class="ec-line"><div class="code"><span style="--0:#d6deeb;--1:#403f53">0     2     4          8         12</span></div></div></code></pre><div class="copy"><button title="Copy to clipboard" data-copied="Copied!" data-code="Gantt Chart:┌─────┬─────┬──────────┬──────────┐│ P1  │ P2  │    P1    │    P3    │└─────┴─────┴──────────┴──────────┘0     2     4          8         12"><div></div></button></div></figure></div>
+<p>Step-by-step:</p>
+<ul>
+<li><strong>t=0</strong>: P1 starts (remaining=6).</li>
+<li><strong>t=2</strong>: P2 arrives (burst=2). P1 remaining=4. Since 2 &#x3C; 4, P2 preempts P1.</li>
+<li><strong>t=4</strong>: P2 finishes. P3 arrives (burst=4). P1 remaining=4. Tie: FCFS favors P1. P1 runs.</li>
+<li><strong>t=8</strong>: P1 finishes. P3 runs.</li>
+<li><strong>t=12</strong>: P3 finishes.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>Process</th><th>Arrival</th><th>Burst</th><th>Completion</th><th>Turnaround</th><th>Waiting</th></tr></thead><tbody><tr><td>P1</td><td>0</td><td>6</td><td>8</td><td>8</td><td>2</td></tr><tr><td>P2</td><td>2</td><td>2</td><td>4</td><td>2</td><td>0</td></tr><tr><td>P3</td><td>4</td><td>4</td><td>12</td><td>8</td><td>4</td></tr></tbody></table>
+<p><strong>Average Waiting Time</strong> = (2 + 0 + 4) / 3 = <strong>2.0</strong></p>
+<p><strong>Average Turnaround Time</strong> = (8 + 2 + 8) / 3 = <strong>6.0</strong></p>
+<hr>
+<h2 id="real-world-scheduling">Real-World Scheduling</h2>
+<h3 id="linux-completely-fair-scheduler-cfs">Linux: Completely Fair Scheduler (CFS)</h3>
+<p>Linux uses the <strong>CFS</strong>, which models an ideal multitasking CPU where each process gets an equal fraction of CPU time. Key ideas:</p>
+<ul>
+<li>Uses a <strong>red-black tree</strong> sorted by “virtual runtime” (vruntime)</li>
+<li>The process with the smallest vruntime is scheduled next</li>
+<li>Higher-priority processes accumulate vruntime more slowly, so they get more CPU time</li>
+<li>No fixed time quantum — the time slice adapts based on the number of runnable processes</li>
+</ul>
+<h3 id="windows-priority-based-preemptive-scheduling">Windows: Priority-Based Preemptive Scheduling</h3>
+<p>Windows uses a <strong>multilevel feedback queue</strong> with 32 priority levels (0-31):</p>
+<ul>
+<li>Levels 16-31: Real-time priorities</li>
+<li>Levels 1-15: Variable priorities (dynamically adjusted based on behavior)</li>
+<li>Level 0: System idle thread</li>
+</ul>
+<hr>
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ol>
+<li><strong>FCFS</strong> is simple but suffers from the convoy effect — short processes wait behind long ones</li>
+<li><strong>SJF/SRTF</strong> gives optimal average waiting time but requires knowing burst times and can cause starvation</li>
+<li><strong>Round Robin</strong> is fair and has good response time; its performance depends heavily on the time quantum</li>
+<li><strong>Priority Scheduling</strong> serves important processes first but needs aging to prevent starvation</li>
+<li><strong>MLFQ</strong> is the practical choice — it approximates SJF behavior without requiring burst time estimates</li>
+<li>No single algorithm is best for all scenarios; real-world schedulers combine multiple approaches</li>
+<li>When solving scheduling problems: draw the Gantt chart first, then calculate completion, turnaround, and waiting times</li>
+</ol>
+<hr>
+<h2 id="next-steps">Next Steps</h2>
+<div class="card-grid astro-zntqmydn"><div class="sl-link-card astro-mf7fz2mj"> <span class="sl-flex stack astro-mf7fz2mj"> <a href="/software-engineering/operating-systems/memory-management/" class="astro-mf7fz2mj"> <span class="title astro-mf7fz2mj">Memory Management</span> </a> <span class="description astro-mf7fz2mj">Understand virtual memory, paging, and page replacement algorithms</span> </span> <svg aria-hidden="true" class="icon rtl:flip astro-mf7fz2mj astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.333em;"><path d="M17.92 11.62a1.001 1.001 0 0 0-.21-.33l-5-5a1.003 1.003 0 1 0-1.42 1.42l3.3 3.29H7a1 1 0 0 0 0 2h7.59l-3.3 3.29a1.002 1.002 0 0 0 .325 1.639 1 1 0 0 0 1.095-.219l5-5a1 1 0 0 0 .21-.33 1 1 0 0 0 0-.76Z"/></svg>  </div> <div class="sl-link-card astro-mf7fz2mj"> <span class="sl-flex stack astro-mf7fz2mj"> <a href="/software-engineering/operating-systems/deadlocks/" class="astro-mf7fz2mj"> <span class="title astro-mf7fz2mj">Deadlocks & Synchronization</span> </a> <span class="description astro-mf7fz2mj">Learn about synchronization primitives and how deadlocks occur and are resolved</span> </span> <svg aria-hidden="true" class="icon rtl:flip astro-mf7fz2mj astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.333em;"><path d="M17.92 11.62a1.001 1.001 0 0 0-.21-.33l-5-5a1.003 1.003 0 1 0-1.42 1.42l3.3 3.29H7a1 1 0 0 0 0 2h7.59l-3.3 3.29a1.002 1.002 0 0 0 .325 1.639 1 1 0 0 0 1.095-.219l5-5a1 1 0 0 0 .21-.33 1 1 0 0 0 0-.76Z"/></svg>  </div> <div class="sl-link-card astro-mf7fz2mj"> <span class="sl-flex stack astro-mf7fz2mj"> <a href="/software-engineering/operating-systems/processes-threads/" class="astro-mf7fz2mj"> <span class="title astro-mf7fz2mj">Processes & Threads</span> </a> <span class="description astro-mf7fz2mj">Review process lifecycle, threading models, and IPC mechanisms</span> </span> <svg aria-hidden="true" class="icon rtl:flip astro-mf7fz2mj astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.333em;"><path d="M17.92 11.62a1.001 1.001 0 0 0-.21-.33l-5-5a1.003 1.003 0 1 0-1.42 1.42l3.3 3.29H7a1 1 0 0 0 0 2h7.59l-3.3 3.29a1.002 1.002 0 0 0 .325 1.639 1 1 0 0 0 1.095-.219l5-5a1 1 0 0 0 .21-.33 1 1 0 0 0 0-.76Z"/></svg>  </div> <div class="sl-link-card astro-mf7fz2mj"> <span class="sl-flex stack astro-mf7fz2mj"> <a href="/software-engineering/operating-systems/" class="astro-mf7fz2mj"> <span class="title astro-mf7fz2mj">Operating Systems Overview</span> </a> <span class="description astro-mf7fz2mj">Return to the OS overview for the complete topic map</span> </span> <svg aria-hidden="true" class="icon rtl:flip astro-mf7fz2mj astro-c6vsoqas" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="--sl-icon-size: 1.333em;"><path d="M17.92 11.62a1.001 1.001 0 0 0-.21-.33l-5-5a1.003 1.003 0 1 0-1.42 1.42l3.3 3.29H7a1 1 0 0 0 0 2h7.59l-3.3 3.29a1.002 1.002 0 0 0 .325 1.639 1 1 0 0 0 1.095-.219l5-5a1 1 0 0 0 .21-.33 1 1 0 0 0 0-.76Z"/></svg>  </div> </div>  </div> <div class="pagination-links astro-sz7xmlte"><a href="/software-engineering/operating-systems/processes-threads" rel="prev" class="pagination-link prev astro-sz7xmlte"><span class="link-label astro-sz7xmlte">&laquo; Previous</span><span class="link-title astro-sz7xmlte">Processes &amp; Threads</span></a><a href="/software-engineering/operating-systems/memory-management" rel="next" class="pagination-link next astro-sz7xmlte"><span class="link-label astro-sz7xmlte">Next &raquo;</span><span class="link-title astro-sz7xmlte">Memory Management</span></a></div><footer class="site-footer astro-sz7xmlte"> <div class="footer-content astro-sz7xmlte"> <div class="footer-main astro-sz7xmlte"> <p class="footer-author astro-sz7xmlte">
+Built with <span class="heart astro-sz7xmlte">&hearts;</span> by <a href="https://sitharaj.in" target="_blank" rel="noopener noreferrer" class="astro-sz7xmlte">Sitharaj Seenivasan</a> </p> </div> <div class="footer-links astro-sz7xmlte"> <a href="https://sitharaj.in" target="_blank" rel="noopener noreferrer" class="footer-link astro-sz7xmlte" aria-label="Website"> <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="astro-sz7xmlte"><circle cx="12" cy="12" r="10" class="astro-sz7xmlte"></circle><line x1="2" y1="12" x2="22" y2="12" class="astro-sz7xmlte"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" class="astro-sz7xmlte"></path></svg> <span class="astro-sz7xmlte">Website</span> </a> <a href="https://github.com/sitharaj88" target="_blank" rel="noopener noreferrer" class="footer-link astro-sz7xmlte" aria-label="GitHub"> <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="astro-sz7xmlte"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22" class="astro-sz7xmlte"></path></svg> <span class="astro-sz7xmlte">GitHub</span> </a> <a href="https://linkedin.com/in/sitharaj08" target="_blank" rel="noopener noreferrer" class="footer-link astro-sz7xmlte" aria-label="LinkedIn"> <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="astro-sz7xmlte"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z" class="astro-sz7xmlte"></path><rect x="2" y="9" width="4" height="12" class="astro-sz7xmlte"></rect><circle cx="4" cy="4" r="2" class="astro-sz7xmlte"></circle></svg> <span class="astro-sz7xmlte">LinkedIn</span> </a> <a href="https://buymeacoffee.com/sitharaj88" target="_blank" rel="noopener noreferrer" class="footer-link coffee-link astro-sz7xmlte" aria-label="Buy Me a Coffee"> <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="astro-sz7xmlte"><path d="M18 8h1a4 4 0 0 1 0 8h-1" class="astro-sz7xmlte"></path><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z" class="astro-sz7xmlte"></path><line x1="6" y1="1" x2="6" y2="4" class="astro-sz7xmlte"></line><line x1="10" y1="1" x2="10" y2="4" class="astro-sz7xmlte"></line><line x1="14" y1="1" x2="14" y2="4" class="astro-sz7xmlte"></line></svg> <span class="astro-sz7xmlte">Buy Me a Coffee</span> </a> </div> <p class="footer-copyright astro-sz7xmlte">
+&copy; 2026 Sitharaj Seenivasan. All rights reserved.
+</p> </div> </footer>  </div> </div>   </main> </div> </div>  </div> </div>  </body></html>

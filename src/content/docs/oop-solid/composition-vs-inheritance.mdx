@@ -1,0 +1,2031 @@
+---
+title: "Composition vs Inheritance"
+description: "Understand when to use composition over inheritance and how to design flexible, maintainable class hierarchies"
+difficulty: "intermediate"
+prerequisites: ["Four Pillars of OOP", "SOLID Principles"]
+timeToRead: "18 min"
+topics: ["composition", "inheritance", "has-a", "is-a", "delegation", "mixins"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+One of the most important design decisions in object-oriented programming is choosing between **composition** and **inheritance** to model relationships between classes. The classic Gang of Four advice -- "favor composition over inheritance" -- remains one of the most cited principles in software engineering. But what does it actually mean, and when should you still use inheritance?
+
+## "Is-A" vs "Has-A" Relationships
+
+The fundamental distinction between inheritance and composition comes down to two types of relationships:
+
+- **Inheritance ("Is-A")**: A `Dog` **is a** `Animal`. The subclass is a specialized version of the parent class.
+- **Composition ("Has-A")**: A `Car` **has a** `Engine`. The containing class holds a reference to another object and delegates work to it.
+
+```
+Inheritance (Is-A):              Composition (Has-A):
+
+    Animal                          Car
+      ^                            /   \
+      |                        Engine  Transmission
+    Dog                        /    \
+                          Cylinder  FuelInjector
+```
+
+:::tip[The Litmus Test]
+Ask yourself: "Can I truthfully say X **is a** Y in every possible context?" If the answer is no -- or only sometimes -- then composition is the better choice. A `Stack` is not truly a `List` even though it might use one internally. A `Stack` **has a** `List`.
+:::
+
+### Quick Example: "Is-A" vs "Has-A"
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# Inheritance: "Is-A" relationship
+class Animal:
+    def __init__(self, name: str):
+        self.name = name
+
+    def eat(self):
+        return f"{self.name} is eating"
+
+class Dog(Animal):  # Dog IS AN Animal
+    def bark(self):
+        return f"{self.name} says Woof!"
+
+# Composition: "Has-A" relationship
+class Engine:
+    def __init__(self, horsepower: int):
+        self.horsepower = horsepower
+
+    def start(self):
+        return f"Engine with {self.horsepower}hp started"
+
+class Car:
+    def __init__(self, model: str, engine: Engine):  # Car HAS AN Engine
+        self.model = model
+        self.engine = engine
+
+    def start(self):
+        return f"{self.model}: {self.engine.start()}"
+
+# Usage
+dog = Dog("Buddy")
+print(dog.eat())    # Buddy is eating
+print(dog.bark())   # Buddy says Woof!
+
+car = Car("Sedan", Engine(200))
+print(car.start())  # Sedan: Engine with 200hp started
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// Inheritance: "Is-A" relationship
+class Animal {
+    constructor(name) {
+        this.name = name;
+    }
+    eat() {
+        return `${this.name} is eating`;
+    }
+}
+
+class Dog extends Animal {  // Dog IS AN Animal
+    bark() {
+        return `${this.name} says Woof!`;
+    }
+}
+
+// Composition: "Has-A" relationship
+class Engine {
+    constructor(horsepower) {
+        this.horsepower = horsepower;
+    }
+    start() {
+        return `Engine with ${this.horsepower}hp started`;
+    }
+}
+
+class Car {
+    constructor(model, engine) {  // Car HAS AN Engine
+        this.model = model;
+        this.engine = engine;
+    }
+    start() {
+        return `${this.model}: ${this.engine.start()}`;
+    }
+}
+
+// Usage
+const dog = new Dog("Buddy");
+console.log(dog.eat());    // Buddy is eating
+console.log(dog.bark());   // Buddy says Woof!
+
+const car = new Car("Sedan", new Engine(200));
+console.log(car.start());  // Sedan: Engine with 200hp started
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+// Inheritance: "Is-A" relationship
+class Animal {
+    protected String name;
+    public Animal(String name) { this.name = name; }
+    public String eat() { return name + " is eating"; }
+}
+
+class Dog extends Animal {  // Dog IS AN Animal
+    public Dog(String name) { super(name); }
+    public String bark() { return name + " says Woof!"; }
+}
+
+// Composition: "Has-A" relationship
+class Engine {
+    private int horsepower;
+    public Engine(int horsepower) { this.horsepower = horsepower; }
+    public String start() { return "Engine with " + horsepower + "hp started"; }
+}
+
+class Car {
+    private String model;
+    private Engine engine;  // Car HAS AN Engine
+
+    public Car(String model, Engine engine) {
+        this.model = model;
+        this.engine = engine;
+    }
+    public String start() {
+        return model + ": " + engine.start();
+    }
+}
+
+// Usage
+public class Main {
+    public static void main(String[] args) {
+        Dog dog = new Dog("Buddy");
+        System.out.println(dog.eat());    // Buddy is eating
+        System.out.println(dog.bark());   // Buddy says Woof!
+
+        Car car = new Car("Sedan", new Engine(200));
+        System.out.println(car.start());  // Sedan: Engine with 200hp started
+    }
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+#include <iostream>
+#include <string>
+using namespace std;
+
+// Inheritance: "Is-A" relationship
+class Animal {
+protected:
+    string name;
+public:
+    Animal(const string& name) : name(name) {}
+    string eat() const { return name + " is eating"; }
+    virtual ~Animal() = default;
+};
+
+class Dog : public Animal {  // Dog IS AN Animal
+public:
+    Dog(const string& name) : Animal(name) {}
+    string bark() const { return name + " says Woof!"; }
+};
+
+// Composition: "Has-A" relationship
+class Engine {
+    int horsepower;
+public:
+    Engine(int hp) : horsepower(hp) {}
+    string start() const {
+        return "Engine with " + to_string(horsepower) + "hp started";
+    }
+};
+
+class Car {
+    string model;
+    Engine engine;  // Car HAS AN Engine
+public:
+    Car(const string& model, Engine engine)
+        : model(model), engine(engine) {}
+
+    string start() const {
+        return model + ": " + engine.start();
+    }
+};
+
+int main() {
+    Dog dog("Buddy");
+    cout << dog.eat() << endl;    // Buddy is eating
+    cout << dog.bark() << endl;   // Buddy says Woof!
+
+    Car car("Sedan", Engine(200));
+    cout << car.start() << endl;  // Sedan: Engine with 200hp started
+    return 0;
+}
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## Problems with Deep Inheritance Hierarchies
+
+Inheritance is a powerful mechanism, but when overused it creates several well-known problems.
+
+### The Fragile Base Class Problem
+
+When a subclass depends on the implementation details of a base class, any change to the base class can break subclasses in unexpected ways.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# Fragile Base Class Problem
+class HashSet:
+    def __init__(self):
+        self._count = 0
+        self._data = set()
+
+    def add(self, item):
+        self._count += 1
+        self._data.add(item)
+
+    def add_all(self, items):
+        # Internal detail: calls self.add() for each item
+        for item in items:
+            self.add(item)
+
+    def get_count(self):
+        return self._count
+
+
+class InstrumentedHashSet(HashSet):
+    """Tracks how many items have been added (including duplicates)."""
+
+    def add(self, item):
+        self._count += 1  # Count here...
+        super().add(item)  # ...but super().add() ALSO counts!
+
+    def add_all(self, items):
+        self._count += len(items)  # Count here...
+        super().add_all(items)     # ...but super().add_all() calls self.add()!
+
+
+# Bug: double-counting!
+s = InstrumentedHashSet()
+s.add_all(["a", "b", "c"])
+print(s.get_count())  # Expected 3, but get 9!
+# add_all adds 3, then calls super().add_all()
+# which calls self.add() 3 times, each adding 2 (once in add, once in super)
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// Fragile Base Class Problem
+class HashSet {
+    constructor() {
+        this._count = 0;
+        this._data = new Set();
+    }
+
+    add(item) {
+        this._count++;
+        this._data.add(item);
+    }
+
+    addAll(items) {
+        // Internal detail: calls this.add() for each item
+        for (const item of items) {
+            this.add(item);
+        }
+    }
+
+    getCount() {
+        return this._count;
+    }
+}
+
+class InstrumentedHashSet extends HashSet {
+    add(item) {
+        this._count++;       // Count here...
+        super.add(item);     // ...but super.add() ALSO counts!
+    }
+
+    addAll(items) {
+        this._count += items.length;  // Count here...
+        super.addAll(items);          // ...but super.addAll() calls this.add()!
+    }
+}
+
+// Bug: double-counting!
+const s = new InstrumentedHashSet();
+s.addAll(["a", "b", "c"]);
+console.log(s.getCount());  // Expected 3, but get 9!
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+import java.util.*;
+
+// This is the classic example from Effective Java (Joshua Bloch)
+public class InstrumentedHashSet<E> extends HashSet<E> {
+    private int addCount = 0;
+
+    @Override
+    public boolean add(E e) {
+        addCount++;
+        return super.add(e);
+    }
+
+    @Override
+    public boolean addAll(Collection<? extends E> c) {
+        addCount += c.size();
+        return super.addAll(c);  // Calls this.add() internally!
+    }
+
+    public int getAddCount() {
+        return addCount;
+    }
+
+    public static void main(String[] args) {
+        InstrumentedHashSet<String> s = new InstrumentedHashSet<>();
+        s.addAll(List.of("a", "b", "c"));
+        System.out.println(s.getAddCount());  // Expected 3, but get 6!
+        // addAll adds 3, then super.addAll() calls this.add() 3 more times
+    }
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+#include <iostream>
+#include <vector>
+#include <set>
+using namespace std;
+
+// Fragile Base Class Problem
+class HashSet {
+protected:
+    int count_ = 0;
+    set<string> data_;
+public:
+    virtual void add(const string& item) {
+        count_++;
+        data_.insert(item);
+    }
+
+    virtual void addAll(const vector<string>& items) {
+        // Internal detail: calls this->add() for each item
+        for (const auto& item : items) {
+            add(item);  // Virtual dispatch -- calls derived add()!
+        }
+    }
+
+    int getCount() const { return count_; }
+    virtual ~HashSet() = default;
+};
+
+class InstrumentedHashSet : public HashSet {
+public:
+    void add(const string& item) override {
+        count_++;                // Count here...
+        HashSet::add(item);     // ...but base add() ALSO counts!
+    }
+
+    void addAll(const vector<string>& items) override {
+        count_ += items.size();     // Count here...
+        HashSet::addAll(items);     // ...but base addAll() calls this->add()!
+    }
+};
+
+int main() {
+    InstrumentedHashSet s;
+    s.addAll({"a", "b", "c"});
+    cout << s.getCount() << endl;  // Expected 3, but get 9!
+    return 0;
+}
+```
+  </TabItem>
+</Tabs>
+
+:::caution[Why This Is Dangerous]
+The subclass depends on the **internal implementation** of the base class (the fact that `addAll` calls `add`). If the base class author changes this implementation -- which they have every right to do since it is an internal detail -- every subclass can silently break.
+:::
+
+### The Diamond Problem
+
+When a class inherits from two classes that share a common ancestor, ambiguity arises about which version of inherited methods to use.
+
+```
+        Animal
+       /      \
+    Flyer    Swimmer
+       \      /
+       FlyingFish    <-- Which Animal constructor? Which eat()?
+```
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# Python handles the diamond problem with MRO (Method Resolution Order)
+class Animal:
+    def __init__(self):
+        print("Animal init")
+
+    def eat(self):
+        return "Animal eats"
+
+class Flyer(Animal):
+    def __init__(self):
+        super().__init__()
+        print("Flyer init")
+
+    def move(self):
+        return "Flying"
+
+class Swimmer(Animal):
+    def __init__(self):
+        super().__init__()
+        print("Swimmer init")
+
+    def move(self):
+        return "Swimming"
+
+class FlyingFish(Flyer, Swimmer):
+    def __init__(self):
+        super().__init__()
+        print("FlyingFish init")
+
+# Python's MRO resolves the ambiguity, but the result can be surprising
+ff = FlyingFish()
+# Output: Animal init, Swimmer init, Flyer init, FlyingFish init
+
+print(ff.move())  # "Flying" -- uses Flyer's version (first in MRO)
+print(FlyingFish.__mro__)
+# (<class 'FlyingFish'>, <class 'Flyer'>, <class 'Swimmer'>,
+#  <class 'Animal'>, <class 'object'>)
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// JavaScript does NOT support multiple inheritance
+// This is by design -- to avoid the diamond problem entirely
+// Instead, you use mixins (shown later in this guide)
+
+class Animal {
+    eat() { return "Animal eats"; }
+}
+
+class Flyer extends Animal {
+    move() { return "Flying"; }
+}
+
+class Swimmer extends Animal {
+    move() { return "Swimming"; }
+}
+
+// ERROR: Cannot extend multiple classes
+// class FlyingFish extends Flyer, Swimmer {}  // SyntaxError!
+
+// Solution: Use composition instead
+class FlyingFish {
+    constructor() {
+        this.flyer = new Flyer();
+        this.swimmer = new Swimmer();
+    }
+    fly() { return this.flyer.move(); }
+    swim() { return this.swimmer.move(); }
+    eat() { return this.flyer.eat(); }
+}
+
+const ff = new FlyingFish();
+console.log(ff.fly());   // "Flying"
+console.log(ff.swim());  // "Swimming"
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+// Java does NOT support multiple class inheritance (by design)
+// It uses interfaces to avoid the diamond problem
+
+interface Flyer {
+    default String move() { return "Flying"; }
+}
+
+interface Swimmer {
+    default String move() { return "Swimming"; }
+}
+
+// If two interfaces have the same default method, you MUST override it
+class FlyingFish implements Flyer, Swimmer {
+    @Override
+    public String move() {
+        // Must explicitly choose or provide own implementation
+        return "Flying and Swimming";
+    }
+
+    // You can still delegate to a specific interface
+    public String fly() {
+        return Flyer.super.move();
+    }
+
+    public String swim() {
+        return Swimmer.super.move();
+    }
+
+    public static void main(String[] args) {
+        FlyingFish ff = new FlyingFish();
+        System.out.println(ff.move());  // Flying and Swimming
+        System.out.println(ff.fly());   // Flying
+        System.out.println(ff.swim());  // Swimming
+    }
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+#include <iostream>
+using namespace std;
+
+// C++ allows multiple inheritance, creating the diamond problem
+class Animal {
+public:
+    virtual string eat() { return "Animal eats"; }
+    virtual ~Animal() = default;
+};
+
+class Flyer : virtual public Animal {  // "virtual" prevents duplicate Animal
+public:
+    string move() { return "Flying"; }
+};
+
+class Swimmer : virtual public Animal {  // "virtual" prevents duplicate Animal
+public:
+    string move() { return "Swimming"; }
+};
+
+class FlyingFish : public Flyer, public Swimmer {
+public:
+    // Must disambiguate move() since both parents define it
+    string move() {
+        return "Flying and Swimming";
+    }
+
+    string fly() { return Flyer::move(); }
+    string swim() { return Swimmer::move(); }
+};
+
+int main() {
+    FlyingFish ff;
+    cout << ff.eat() << endl;   // "Animal eats" -- only one copy thanks to virtual
+    cout << ff.move() << endl;  // "Flying and Swimming"
+    cout << ff.fly() << endl;   // "Flying"
+    cout << ff.swim() << endl;  // "Swimming"
+    return 0;
+}
+```
+  </TabItem>
+</Tabs>
+
+### Other Inheritance Pitfalls
+
+| Problem | Description |
+|---------|-------------|
+| **Tight Coupling** | Subclasses are bound to the parent's implementation details and contract |
+| **Explosion of Classes** | Combining features leads to a combinatorial explosion (e.g., `RedCircle`, `BlueCircle`, `RedSquare`, `BlueSquare`...) |
+| **Broken Encapsulation** | Subclasses often need access to parent's internal state via `protected` members |
+| **Rigid Hierarchies** | Changing a class's parent requires restructuring the entire hierarchy |
+| **Liskov Substitution Violations** | Subclasses that do not fully honor the parent's contract cause subtle bugs |
+| **God Base Classes** | Shared base classes accumulate unrelated functionality over time |
+
+---
+
+## Composition Pattern Explained
+
+Composition builds complex objects by combining simpler ones. Instead of saying "a Duck **is a** Bird that can fly and swim," you say "a Duck **has** flying behavior and swimming behavior."
+
+### The Classic Example: Game Characters
+
+<Tabs>
+  <TabItem label="Python">
+```python
+from abc import ABC, abstractmethod
+
+# Define behaviors as separate classes
+class MovementBehavior(ABC):
+    @abstractmethod
+    def move(self) -> str: ...
+
+class AttackBehavior(ABC):
+    @abstractmethod
+    def attack(self) -> str: ...
+
+# Concrete behaviors
+class Walking(MovementBehavior):
+    def move(self) -> str:
+        return "Walking on foot"
+
+class Flying(MovementBehavior):
+    def move(self) -> str:
+        return "Soaring through the sky"
+
+class Swimming(MovementBehavior):
+    def move(self) -> str:
+        return "Swimming through water"
+
+class SwordAttack(AttackBehavior):
+    def attack(self) -> str:
+        return "Slashing with sword"
+
+class BowAttack(AttackBehavior):
+    def attack(self) -> str:
+        return "Shooting arrows"
+
+class MagicAttack(AttackBehavior):
+    def attack(self) -> str:
+        return "Casting fireball"
+
+# Character uses composition -- behaviors can be swapped at runtime
+class Character:
+    def __init__(self, name: str,
+                 movement: MovementBehavior,
+                 attack: AttackBehavior):
+        self.name = name
+        self.movement = movement
+        self.attack = attack
+
+    def perform_move(self) -> str:
+        return f"{self.name}: {self.movement.move()}"
+
+    def perform_attack(self) -> str:
+        return f"{self.name}: {self.attack.attack()}"
+
+    def set_movement(self, movement: MovementBehavior):
+        """Swap behavior at runtime!"""
+        self.movement = movement
+
+    def set_attack(self, attack: AttackBehavior):
+        """Swap behavior at runtime!"""
+        self.attack = attack
+
+# Usage
+knight = Character("Knight", Walking(), SwordAttack())
+print(knight.perform_move())    # Knight: Walking on foot
+print(knight.perform_attack())  # Knight: Slashing with sword
+
+# Knight picks up a magic staff -- swap attack behavior at runtime
+knight.set_attack(MagicAttack())
+print(knight.perform_attack())  # Knight: Casting fireball
+
+# Knight drinks a flying potion
+knight.set_movement(Flying())
+print(knight.perform_move())    # Knight: Soaring through the sky
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// Define behaviors as objects (leveraging duck typing)
+const walking = {
+    move() { return "Walking on foot"; }
+};
+
+const flying = {
+    move() { return "Soaring through the sky"; }
+};
+
+const swimming = {
+    move() { return "Swimming through water"; }
+};
+
+const swordAttack = {
+    attack() { return "Slashing with sword"; }
+};
+
+const bowAttack = {
+    attack() { return "Shooting arrows"; }
+};
+
+const magicAttack = {
+    attack() { return "Casting fireball"; }
+};
+
+// Character uses composition
+class Character {
+    constructor(name, movementBehavior, attackBehavior) {
+        this.name = name;
+        this.movementBehavior = movementBehavior;
+        this.attackBehavior = attackBehavior;
+    }
+
+    performMove() {
+        return `${this.name}: ${this.movementBehavior.move()}`;
+    }
+
+    performAttack() {
+        return `${this.name}: ${this.attackBehavior.attack()}`;
+    }
+
+    setMovement(behavior) { this.movementBehavior = behavior; }
+    setAttack(behavior) { this.attackBehavior = behavior; }
+}
+
+// Usage
+const knight = new Character("Knight", walking, swordAttack);
+console.log(knight.performMove());    // Knight: Walking on foot
+console.log(knight.performAttack());  // Knight: Slashing with sword
+
+// Swap attack behavior at runtime
+knight.setAttack(magicAttack);
+console.log(knight.performAttack());  // Knight: Casting fireball
+
+// Swap movement behavior at runtime
+knight.setMovement(flying);
+console.log(knight.performMove());    // Knight: Soaring through the sky
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+// Define behavior interfaces
+interface MovementBehavior {
+    String move();
+}
+
+interface AttackBehavior {
+    String attack();
+}
+
+// Concrete behaviors
+class Walking implements MovementBehavior {
+    public String move() { return "Walking on foot"; }
+}
+class Flying implements MovementBehavior {
+    public String move() { return "Soaring through the sky"; }
+}
+class Swimming implements MovementBehavior {
+    public String move() { return "Swimming through water"; }
+}
+class SwordAttack implements AttackBehavior {
+    public String attack() { return "Slashing with sword"; }
+}
+class BowAttack implements AttackBehavior {
+    public String attack() { return "Shooting arrows"; }
+}
+class MagicAttack implements AttackBehavior {
+    public String attack() { return "Casting fireball"; }
+}
+
+// Character uses composition
+class Character {
+    private String name;
+    private MovementBehavior movement;
+    private AttackBehavior attack;
+
+    public Character(String name, MovementBehavior movement,
+                     AttackBehavior attack) {
+        this.name = name;
+        this.movement = movement;
+        this.attack = attack;
+    }
+
+    public String performMove() { return name + ": " + movement.move(); }
+    public String performAttack() { return name + ": " + attack.attack(); }
+
+    public void setMovement(MovementBehavior m) { this.movement = m; }
+    public void setAttack(AttackBehavior a) { this.attack = a; }
+}
+
+// Usage
+public class Main {
+    public static void main(String[] args) {
+        Character knight = new Character("Knight", new Walking(), new SwordAttack());
+        System.out.println(knight.performMove());    // Knight: Walking on foot
+        System.out.println(knight.performAttack());  // Knight: Slashing with sword
+
+        knight.setAttack(new MagicAttack());
+        System.out.println(knight.performAttack());  // Knight: Casting fireball
+
+        knight.setMovement(new Flying());
+        System.out.println(knight.performMove());    // Knight: Soaring through the sky
+    }
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+#include <iostream>
+#include <memory>
+#include <string>
+using namespace std;
+
+// Define behavior interfaces
+class MovementBehavior {
+public:
+    virtual string move() const = 0;
+    virtual ~MovementBehavior() = default;
+};
+
+class AttackBehavior {
+public:
+    virtual string attack() const = 0;
+    virtual ~AttackBehavior() = default;
+};
+
+// Concrete behaviors
+class Walking : public MovementBehavior {
+public:
+    string move() const override { return "Walking on foot"; }
+};
+class Flying : public MovementBehavior {
+public:
+    string move() const override { return "Soaring through the sky"; }
+};
+class SwordAttack : public AttackBehavior {
+public:
+    string attack() const override { return "Slashing with sword"; }
+};
+class MagicAttack : public AttackBehavior {
+public:
+    string attack() const override { return "Casting fireball"; }
+};
+
+// Character uses composition
+class Character {
+    string name_;
+    unique_ptr<MovementBehavior> movement_;
+    unique_ptr<AttackBehavior> attack_;
+public:
+    Character(string name,
+              unique_ptr<MovementBehavior> movement,
+              unique_ptr<AttackBehavior> attack)
+        : name_(move(name)),
+          movement_(std::move(movement)),
+          attack_(std::move(attack)) {}
+
+    string performMove() const { return name_ + ": " + movement_->move(); }
+    string performAttack() const { return name_ + ": " + attack_->attack(); }
+
+    void setMovement(unique_ptr<MovementBehavior> m) { movement_ = std::move(m); }
+    void setAttack(unique_ptr<AttackBehavior> a) { attack_ = std::move(a); }
+};
+
+int main() {
+    Character knight("Knight",
+        make_unique<Walking>(),
+        make_unique<SwordAttack>());
+
+    cout << knight.performMove() << endl;    // Knight: Walking on foot
+    cout << knight.performAttack() << endl;  // Knight: Slashing with sword
+
+    knight.setAttack(make_unique<MagicAttack>());
+    cout << knight.performAttack() << endl;  // Knight: Casting fireball
+
+    knight.setMovement(make_unique<Flying>());
+    cout << knight.performMove() << endl;    // Knight: Soaring through the sky
+    return 0;
+}
+```
+  </TabItem>
+</Tabs>
+
+:::note[Key Advantage]
+With composition, you can mix and match behaviors freely. You do not need a `FlyingMagicKnight` subclass -- you simply compose a `Character` with `Flying` movement and `MagicAttack`. Adding a new behavior (like `Teleporting`) requires only one new class, not a whole new branch of the hierarchy.
+:::
+
+---
+
+## The Delegation Pattern
+
+Delegation is a core technique in composition where an object hands off work to a contained helper object rather than implementing the logic itself. It achieves code reuse without inheritance.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+class Printer:
+    def print_document(self, doc: str) -> str:
+        return f"Printing: {doc}"
+
+class Scanner:
+    def scan_document(self) -> str:
+        return "Scanning document..."
+
+class Fax:
+    def send_fax(self, doc: str, number: str) -> str:
+        return f"Faxing '{doc}' to {number}"
+
+# MultiFunctionDevice delegates to specialized objects
+class MultiFunctionDevice:
+    def __init__(self):
+        self._printer = Printer()
+        self._scanner = Scanner()
+        self._fax = Fax()
+
+    def print_document(self, doc: str) -> str:
+        return self._printer.print_document(doc)  # Delegation
+
+    def scan_document(self) -> str:
+        return self._scanner.scan_document()  # Delegation
+
+    def send_fax(self, doc: str, number: str) -> str:
+        return self._fax.send_fax(doc, number)  # Delegation
+
+    def print_and_fax(self, doc: str, number: str) -> str:
+        """Combine delegated operations into higher-level behavior."""
+        result_print = self._printer.print_document(doc)
+        result_fax = self._fax.send_fax(doc, number)
+        return f"{result_print}\n{result_fax}"
+
+# Usage
+mfd = MultiFunctionDevice()
+print(mfd.print_document("Report.pdf"))
+print(mfd.scan_document())
+print(mfd.print_and_fax("Invoice.pdf", "555-1234"))
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+class Printer {
+    printDocument(doc) {
+        return `Printing: ${doc}`;
+    }
+}
+
+class Scanner {
+    scanDocument() {
+        return "Scanning document...";
+    }
+}
+
+class Fax {
+    sendFax(doc, number) {
+        return `Faxing '${doc}' to ${number}`;
+    }
+}
+
+// MultiFunctionDevice delegates to specialized objects
+class MultiFunctionDevice {
+    constructor() {
+        this._printer = new Printer();
+        this._scanner = new Scanner();
+        this._fax = new Fax();
+    }
+
+    printDocument(doc) {
+        return this._printer.printDocument(doc);  // Delegation
+    }
+
+    scanDocument() {
+        return this._scanner.scanDocument();  // Delegation
+    }
+
+    sendFax(doc, number) {
+        return this._fax.sendFax(doc, number);  // Delegation
+    }
+
+    printAndFax(doc, number) {
+        const resultPrint = this._printer.printDocument(doc);
+        const resultFax = this._fax.sendFax(doc, number);
+        return `${resultPrint}\n${resultFax}`;
+    }
+}
+
+// Usage
+const mfd = new MultiFunctionDevice();
+console.log(mfd.printDocument("Report.pdf"));
+console.log(mfd.scanDocument());
+console.log(mfd.printAndFax("Invoice.pdf", "555-1234"));
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+class Printer {
+    public String printDocument(String doc) {
+        return "Printing: " + doc;
+    }
+}
+
+class Scanner {
+    public String scanDocument() {
+        return "Scanning document...";
+    }
+}
+
+class Fax {
+    public String sendFax(String doc, String number) {
+        return "Faxing '" + doc + "' to " + number;
+    }
+}
+
+// MultiFunctionDevice delegates to specialized objects
+class MultiFunctionDevice {
+    private final Printer printer = new Printer();
+    private final Scanner scanner = new Scanner();
+    private final Fax fax = new Fax();
+
+    public String printDocument(String doc) {
+        return printer.printDocument(doc);  // Delegation
+    }
+
+    public String scanDocument() {
+        return scanner.scanDocument();  // Delegation
+    }
+
+    public String sendFax(String doc, String number) {
+        return fax.sendFax(doc, number);  // Delegation
+    }
+
+    public String printAndFax(String doc, String number) {
+        return printer.printDocument(doc) + "\n" + fax.sendFax(doc, number);
+    }
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+#include <iostream>
+#include <string>
+using namespace std;
+
+class Printer {
+public:
+    string printDocument(const string& doc) const {
+        return "Printing: " + doc;
+    }
+};
+
+class Scanner {
+public:
+    string scanDocument() const {
+        return "Scanning document...";
+    }
+};
+
+class Fax {
+public:
+    string sendFax(const string& doc, const string& number) const {
+        return "Faxing '" + doc + "' to " + number;
+    }
+};
+
+// MultiFunctionDevice delegates to specialized objects
+class MultiFunctionDevice {
+    Printer printer_;
+    Scanner scanner_;
+    Fax fax_;
+public:
+    string printDocument(const string& doc) const {
+        return printer_.printDocument(doc);  // Delegation
+    }
+
+    string scanDocument() const {
+        return scanner_.scanDocument();  // Delegation
+    }
+
+    string sendFax(const string& doc, const string& number) const {
+        return fax_.sendFax(doc, number);  // Delegation
+    }
+
+    string printAndFax(const string& doc, const string& number) const {
+        return printer_.printDocument(doc) + "\n" + fax_.sendFax(doc, number);
+    }
+};
+
+int main() {
+    MultiFunctionDevice mfd;
+    cout << mfd.printDocument("Report.pdf") << endl;
+    cout << mfd.scanDocument() << endl;
+    cout << mfd.printAndFax("Invoice.pdf", "555-1234") << endl;
+    return 0;
+}
+```
+  </TabItem>
+</Tabs>
+
+**Why delegation over inheritance?** If `MultiFunctionDevice` inherited from `Printer`, `Scanner`, and `Fax`, you would face the diamond problem (in C++), tight coupling to all three implementations, and difficulty testing each piece in isolation. With delegation, you can mock any component, swap implementations, and add new capabilities without modifying existing classes.
+
+---
+
+## Mixins and Traits
+
+Mixins and traits provide a way to reuse behavior across unrelated classes without traditional inheritance. They are a middle ground between full inheritance and manual composition.
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# Mixins in Python use multiple inheritance with a convention:
+# Mixin classes should not have __init__ and should be "mix-in-able"
+
+class JsonSerializableMixin:
+    """Mixin that adds JSON serialization capability."""
+    def to_json(self) -> str:
+        import json
+        return json.dumps(self.__dict__, default=str)
+
+class LoggableMixin:
+    """Mixin that adds logging capability."""
+    def log(self, message: str):
+        print(f"[{self.__class__.__name__}] {message}")
+
+class TimestampMixin:
+    """Mixin that adds timestamp tracking."""
+    def touch(self):
+        from datetime import datetime
+        self.updated_at = datetime.now()
+
+# Combine mixins with a primary base class
+class User(JsonSerializableMixin, LoggableMixin, TimestampMixin):
+    def __init__(self, name: str, email: str):
+        self.name = name
+        self.email = email
+        self.updated_at = None
+
+    def update_email(self, new_email: str):
+        self.log(f"Updating email from {self.email} to {new_email}")
+        self.email = new_email
+        self.touch()
+
+class Product(JsonSerializableMixin, LoggableMixin):
+    def __init__(self, title: str, price: float):
+        self.title = title
+        self.price = price
+
+# Usage
+user = User("Alice", "alice@example.com")
+user.update_email("alice.new@example.com")
+# [User] Updating email from alice@example.com to alice.new@example.com
+print(user.to_json())
+# {"name": "Alice", "email": "alice.new@example.com", "updated_at": "2025-..."}
+
+product = Product("Widget", 9.99)
+product.log("Created new product")
+# [Product] Created new product
+print(product.to_json())
+# {"title": "Widget", "price": 9.99}
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// JavaScript mixins using object spread and function composition
+
+const JsonSerializable = (Base) => class extends Base {
+    toJSON() {
+        const obj = {};
+        for (const key of Object.keys(this)) {
+            obj[key] = this[key];
+        }
+        return JSON.stringify(obj);
+    }
+};
+
+const Loggable = (Base) => class extends Base {
+    log(message) {
+        console.log(`[${this.constructor.name}] ${message}`);
+    }
+};
+
+const Timestamped = (Base) => class extends Base {
+    touch() {
+        this.updatedAt = new Date().toISOString();
+    }
+};
+
+// Combine mixins by nesting function calls
+class UserBase {
+    constructor(name, email) {
+        this.name = name;
+        this.email = email;
+        this.updatedAt = null;
+    }
+}
+
+// Apply mixins: read right-to-left (Timestamped -> Loggable -> JsonSerializable)
+class User extends JsonSerializable(Loggable(Timestamped(UserBase))) {
+    updateEmail(newEmail) {
+        this.log(`Updating email from ${this.email} to ${newEmail}`);
+        this.email = newEmail;
+        this.touch();
+    }
+}
+
+class ProductBase {
+    constructor(title, price) {
+        this.title = title;
+        this.price = price;
+    }
+}
+
+class Product extends JsonSerializable(Loggable(ProductBase)) {}
+
+// Usage
+const user = new User("Alice", "alice@example.com");
+user.updateEmail("alice.new@example.com");
+// [User] Updating email from alice@example.com to alice.new@example.com
+console.log(user.toJSON());
+
+const product = new Product("Widget", 9.99);
+product.log("Created new product");
+// [Product] Created new product
+console.log(product.toJSON());
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+// Java uses interfaces with default methods as a form of mixins
+
+interface JsonSerializable {
+    // Default method provides reusable behavior
+    default String toJson() {
+        StringBuilder sb = new StringBuilder("{");
+        var fields = this.getClass().getDeclaredFields();
+        for (int i = 0; i < fields.length; i++) {
+            fields[i].setAccessible(true);
+            try {
+                sb.append("\"").append(fields[i].getName()).append("\": ");
+                Object val = fields[i].get(this);
+                if (val instanceof String) sb.append("\"").append(val).append("\"");
+                else sb.append(val);
+                if (i < fields.length - 1) sb.append(", ");
+            } catch (IllegalAccessException e) { /* skip */ }
+        }
+        return sb.append("}").toString();
+    }
+}
+
+interface Loggable {
+    default void log(String message) {
+        System.out.println("[" + getClass().getSimpleName() + "] " + message);
+    }
+}
+
+// A class can implement multiple "mixin" interfaces
+class User implements JsonSerializable, Loggable {
+    private String name;
+    private String email;
+
+    public User(String name, String email) {
+        this.name = name;
+        this.email = email;
+    }
+
+    public void updateEmail(String newEmail) {
+        log("Updating email from " + email + " to " + newEmail);
+        this.email = newEmail;
+    }
+}
+
+class Product implements JsonSerializable, Loggable {
+    private String title;
+    private double price;
+
+    public Product(String title, double price) {
+        this.title = title;
+        this.price = price;
+    }
+}
+
+// Usage
+public class Main {
+    public static void main(String[] args) {
+        User user = new User("Alice", "alice@example.com");
+        user.updateEmail("alice.new@example.com");
+        System.out.println(user.toJson());
+
+        Product product = new Product("Widget", 9.99);
+        product.log("Created new product");
+        System.out.println(product.toJson());
+    }
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+#include <iostream>
+#include <string>
+#include <sstream>
+#include <chrono>
+#include <ctime>
+using namespace std;
+
+// C++ mixins using CRTP (Curiously Recurring Template Pattern)
+
+template <typename Derived>
+class Loggable {
+public:
+    void log(const string& message) const {
+        // In real code, use typeid or a name() method
+        cout << "[Log] " << message << endl;
+    }
+};
+
+template <typename Derived>
+class Timestamped {
+protected:
+    string updatedAt_;
+public:
+    void touch() {
+        auto now = chrono::system_clock::now();
+        auto time = chrono::system_clock::to_time_t(now);
+        updatedAt_ = ctime(&time);
+        updatedAt_.pop_back();  // Remove trailing newline
+    }
+    string getUpdatedAt() const { return updatedAt_; }
+};
+
+// Combine mixins through multiple inheritance of templates
+class User : public Loggable<User>, public Timestamped<User> {
+    string name_;
+    string email_;
+public:
+    User(string name, string email)
+        : name_(move(name)), email_(move(email)) {}
+
+    void updateEmail(const string& newEmail) {
+        log("Updating email from " + email_ + " to " + newEmail);
+        email_ = newEmail;
+        touch();
+    }
+
+    string toString() const {
+        return "User{name=" + name_ + ", email=" + email_
+            + ", updatedAt=" + updatedAt_ + "}";
+    }
+};
+
+int main() {
+    User user("Alice", "alice@example.com");
+    user.updateEmail("alice.new@example.com");
+    cout << user.toString() << endl;
+    return 0;
+}
+```
+  </TabItem>
+</Tabs>
+
+:::tip[Mixins vs Inheritance]
+Mixins differ from traditional inheritance in intent: they provide **reusable capabilities** (like serialization, logging, or timestamps) rather than establishing an **identity hierarchy** (Dog is an Animal). A `User` is not "a Loggable"; it "has logging capability."
+:::
+
+---
+
+## When to Use Inheritance vs Composition
+
+### Decision Guide Table
+
+| Criteria | Inheritance | Composition |
+|----------|:-----------:|:-----------:|
+| Relationship is truly "is-a" | Yes | -- |
+| Need to share interface (polymorphism) | Yes | Use interfaces |
+| Behaviors need to change at runtime | -- | Yes |
+| Reusing implementation across unrelated classes | -- | Yes |
+| Building from multiple capability sources | -- | Yes |
+| Hierarchy is shallow (1-2 levels) | Yes | Either |
+| Hierarchy would be 3+ levels deep | -- | Yes |
+| Framework requires inheritance (e.g., UI widgets) | Yes | -- |
+| Need to substitute subtype for parent (LSP) | Yes | -- |
+| Want loose coupling and easy testing | -- | Yes |
+
+### Use Inheritance When
+
+1. **There is a genuine "is-a" relationship** that satisfies the Liskov Substitution Principle -- a `Square` is a `Shape`, a `HttpException` is an `Exception`.
+2. **You need polymorphic behavior** -- code that works with any `Shape` without knowing the specific type.
+3. **The hierarchy is shallow and stable** -- you are confident the class tree will not grow beyond 2-3 levels.
+4. **A framework mandates it** -- many UI frameworks (Android Views, Java Swing, Qt Widgets) require extending base classes.
+
+### Use Composition When
+
+1. **You want to combine behaviors from multiple sources** -- a class needs capabilities from several unrelated classes.
+2. **Behaviors need to change at runtime** -- swapping a movement strategy, changing a logging backend, etc.
+3. **You want loose coupling** -- changing one component should not ripple through an inheritance chain.
+4. **The "is-a" test fails or feels forced** -- a `Stack` uses a list, it is not a list.
+5. **You want easier testing** -- composed dependencies can be mocked or stubbed independently.
+6. **You are building across a team** -- composition makes it clearer which class owns which responsibility.
+
+:::caution[The Golden Rule]
+If you are unsure, default to composition. You can always introduce inheritance later if a clear "is-a" relationship emerges, but refactoring away from deep inheritance is much harder than refactoring toward it.
+:::
+
+---
+
+## Refactoring from Inheritance to Composition
+
+One of the most common refactoring tasks is replacing a fragile inheritance hierarchy with composition. Here is a before-and-after example.
+
+### Before: Inheritance-Based Notification System
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# BEFORE: Rigid inheritance hierarchy
+class Notification:
+    def __init__(self, message: str):
+        self.message = message
+
+    def send(self):
+        raise NotImplementedError
+
+class EmailNotification(Notification):
+    def __init__(self, message: str, email: str):
+        super().__init__(message)
+        self.email = email
+
+    def send(self):
+        return f"Email to {self.email}: {self.message}"
+
+class SMSNotification(Notification):
+    def __init__(self, message: str, phone: str):
+        super().__init__(message)
+        self.phone = phone
+
+    def send(self):
+        return f"SMS to {self.phone}: {self.message}"
+
+# Problem: Now we need urgent notifications for BOTH email and SMS
+# Do we create UrgentEmailNotification and UrgentSMSNotification?
+# What about encrypted? Logged? The class count explodes!
+
+class UrgentEmailNotification(EmailNotification):
+    def send(self):
+        return f"[URGENT] {super().send()}"
+
+class UrgentSMSNotification(SMSNotification):
+    def send(self):
+        return f"[URGENT] {super().send()}"
+
+# EncryptedUrgentEmailNotification? EncryptedUrgentSMSNotification?
+# This does not scale.
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// BEFORE: Rigid inheritance hierarchy
+class Notification {
+    constructor(message) {
+        this.message = message;
+    }
+    send() {
+        throw new Error("Not implemented");
+    }
+}
+
+class EmailNotification extends Notification {
+    constructor(message, email) {
+        super(message);
+        this.email = email;
+    }
+    send() {
+        return `Email to ${this.email}: ${this.message}`;
+    }
+}
+
+class SMSNotification extends Notification {
+    constructor(message, phone) {
+        super(message);
+        this.phone = phone;
+    }
+    send() {
+        return `SMS to ${this.phone}: ${this.message}`;
+    }
+}
+
+// Problem: class explosion for combinations
+class UrgentEmailNotification extends EmailNotification {
+    send() {
+        return `[URGENT] ${super.send()}`;
+    }
+}
+
+class UrgentSMSNotification extends SMSNotification {
+    send() {
+        return `[URGENT] ${super.send()}`;
+    }
+}
+// EncryptedUrgent...? This does not scale.
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+// BEFORE: Rigid inheritance hierarchy
+abstract class Notification {
+    protected String message;
+    public Notification(String message) { this.message = message; }
+    public abstract String send();
+}
+
+class EmailNotification extends Notification {
+    private String email;
+    public EmailNotification(String message, String email) {
+        super(message);
+        this.email = email;
+    }
+    public String send() { return "Email to " + email + ": " + message; }
+}
+
+class SMSNotification extends Notification {
+    private String phone;
+    public SMSNotification(String message, String phone) {
+        super(message);
+        this.phone = phone;
+    }
+    public String send() { return "SMS to " + phone + ": " + message; }
+}
+
+// Problem: combinatorial explosion
+class UrgentEmailNotification extends EmailNotification {
+    public UrgentEmailNotification(String msg, String email) { super(msg, email); }
+    public String send() { return "[URGENT] " + super.send(); }
+}
+
+class UrgentSMSNotification extends SMSNotification {
+    public UrgentSMSNotification(String msg, String phone) { super(msg, phone); }
+    public String send() { return "[URGENT] " + super.send(); }
+}
+// EncryptedUrgentEmail...? This does not scale.
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+// BEFORE: Rigid inheritance hierarchy
+class Notification {
+protected:
+    string message_;
+public:
+    Notification(string msg) : message_(move(msg)) {}
+    virtual string send() = 0;
+    virtual ~Notification() = default;
+};
+
+class EmailNotification : public Notification {
+    string email_;
+public:
+    EmailNotification(string msg, string email)
+        : Notification(move(msg)), email_(move(email)) {}
+    string send() override {
+        return "Email to " + email_ + ": " + message_;
+    }
+};
+
+class SMSNotification : public Notification {
+    string phone_;
+public:
+    SMSNotification(string msg, string phone)
+        : Notification(move(msg)), phone_(move(phone)) {}
+    string send() override {
+        return "SMS to " + phone_ + ": " + message_;
+    }
+};
+
+// Problem: combinatorial explosion
+class UrgentEmailNotification : public EmailNotification {
+public:
+    using EmailNotification::EmailNotification;
+    string send() override {
+        return "[URGENT] " + EmailNotification::send();
+    }
+};
+// UrgentSMS, EncryptedEmail, EncryptedUrgentEmail...
+```
+  </TabItem>
+</Tabs>
+
+### After: Composition-Based Notification System
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# AFTER: Flexible composition-based design
+from abc import ABC, abstractmethod
+from typing import List
+
+# Sender strategy -- handles HOW to send
+class NotificationSender(ABC):
+    @abstractmethod
+    def send(self, message: str) -> str: ...
+
+class EmailSender(NotificationSender):
+    def __init__(self, email: str):
+        self.email = email
+
+    def send(self, message: str) -> str:
+        return f"Email to {self.email}: {message}"
+
+class SMSSender(NotificationSender):
+    def __init__(self, phone: str):
+        self.phone = phone
+
+    def send(self, message: str) -> str:
+        return f"SMS to {self.phone}: {message}"
+
+class SlackSender(NotificationSender):
+    def __init__(self, channel: str):
+        self.channel = channel
+
+    def send(self, message: str) -> str:
+        return f"Slack #{self.channel}: {message}"
+
+# Message modifier -- transforms the message
+class MessageModifier(ABC):
+    @abstractmethod
+    def modify(self, message: str) -> str: ...
+
+class UrgentModifier(MessageModifier):
+    def modify(self, message: str) -> str:
+        return f"[URGENT] {message}"
+
+class EncryptedModifier(MessageModifier):
+    def modify(self, message: str) -> str:
+        return f"[ENCRYPTED] {message}"
+
+# Notification composes sender + modifiers
+class Notification:
+    def __init__(self, message: str,
+                 sender: NotificationSender,
+                 modifiers: List[MessageModifier] = None):
+        self.message = message
+        self.sender = sender
+        self.modifiers = modifiers or []
+
+    def send(self) -> str:
+        msg = self.message
+        for modifier in self.modifiers:
+            msg = modifier.modify(msg)
+        return self.sender.send(msg)
+
+# Usage: mix and match freely!
+n1 = Notification("Server down",
+                   EmailSender("ops@company.com"),
+                   [UrgentModifier()])
+print(n1.send())
+# Email to ops@company.com: [URGENT] Server down
+
+n2 = Notification("Secret report",
+                   SlackSender("security"),
+                   [EncryptedModifier(), UrgentModifier()])
+print(n2.send())
+# Slack #security: [URGENT] [ENCRYPTED] Secret report
+
+n3 = Notification("Weekly update",
+                   SMSSender("+1234567890"))
+print(n3.send())
+# SMS to +1234567890: Weekly update
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// AFTER: Flexible composition-based design
+
+// Sender strategy
+class EmailSender {
+    constructor(email) { this.email = email; }
+    send(message) { return `Email to ${this.email}: ${message}`; }
+}
+
+class SMSSender {
+    constructor(phone) { this.phone = phone; }
+    send(message) { return `SMS to ${this.phone}: ${message}`; }
+}
+
+class SlackSender {
+    constructor(channel) { this.channel = channel; }
+    send(message) { return `Slack #${this.channel}: ${message}`; }
+}
+
+// Message modifiers
+class UrgentModifier {
+    modify(message) { return `[URGENT] ${message}`; }
+}
+
+class EncryptedModifier {
+    modify(message) { return `[ENCRYPTED] ${message}`; }
+}
+
+// Notification composes sender + modifiers
+class Notification {
+    constructor(message, sender, modifiers = []) {
+        this.message = message;
+        this.sender = sender;
+        this.modifiers = modifiers;
+    }
+
+    send() {
+        let msg = this.message;
+        for (const modifier of this.modifiers) {
+            msg = modifier.modify(msg);
+        }
+        return this.sender.send(msg);
+    }
+}
+
+// Usage: mix and match freely!
+const n1 = new Notification("Server down",
+    new EmailSender("ops@company.com"),
+    [new UrgentModifier()]);
+console.log(n1.send());
+// Email to ops@company.com: [URGENT] Server down
+
+const n2 = new Notification("Secret report",
+    new SlackSender("security"),
+    [new EncryptedModifier(), new UrgentModifier()]);
+console.log(n2.send());
+// Slack #security: [URGENT] [ENCRYPTED] Secret report
+
+const n3 = new Notification("Weekly update",
+    new SMSSender("+1234567890"));
+console.log(n3.send());
+// SMS to +1234567890: Weekly update
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+import java.util.*;
+
+// Sender strategy
+interface NotificationSender {
+    String send(String message);
+}
+
+class EmailSender implements NotificationSender {
+    private final String email;
+    public EmailSender(String email) { this.email = email; }
+    public String send(String message) { return "Email to " + email + ": " + message; }
+}
+
+class SMSSender implements NotificationSender {
+    private final String phone;
+    public SMSSender(String phone) { this.phone = phone; }
+    public String send(String message) { return "SMS to " + phone + ": " + message; }
+}
+
+class SlackSender implements NotificationSender {
+    private final String channel;
+    public SlackSender(String channel) { this.channel = channel; }
+    public String send(String message) { return "Slack #" + channel + ": " + message; }
+}
+
+// Message modifiers
+interface MessageModifier {
+    String modify(String message);
+}
+
+class UrgentModifier implements MessageModifier {
+    public String modify(String message) { return "[URGENT] " + message; }
+}
+
+class EncryptedModifier implements MessageModifier {
+    public String modify(String message) { return "[ENCRYPTED] " + message; }
+}
+
+// Notification composes sender + modifiers
+class Notification {
+    private final String message;
+    private final NotificationSender sender;
+    private final List<MessageModifier> modifiers;
+
+    public Notification(String message, NotificationSender sender,
+                        List<MessageModifier> modifiers) {
+        this.message = message;
+        this.sender = sender;
+        this.modifiers = modifiers != null ? modifiers : List.of();
+    }
+
+    public Notification(String message, NotificationSender sender) {
+        this(message, sender, List.of());
+    }
+
+    public String send() {
+        String msg = message;
+        for (MessageModifier mod : modifiers) {
+            msg = mod.modify(msg);
+        }
+        return sender.send(msg);
+    }
+}
+
+// Usage
+public class Main {
+    public static void main(String[] args) {
+        Notification n1 = new Notification("Server down",
+            new EmailSender("ops@company.com"),
+            List.of(new UrgentModifier()));
+        System.out.println(n1.send());
+        // Email to ops@company.com: [URGENT] Server down
+
+        Notification n2 = new Notification("Secret report",
+            new SlackSender("security"),
+            List.of(new EncryptedModifier(), new UrgentModifier()));
+        System.out.println(n2.send());
+        // Slack #security: [URGENT] [ENCRYPTED] Secret report
+    }
+}
+```
+  </TabItem>
+  <TabItem label="C++">
+```cpp
+#include <iostream>
+#include <string>
+#include <vector>
+#include <memory>
+using namespace std;
+
+// Sender strategy
+class NotificationSender {
+public:
+    virtual string send(const string& message) const = 0;
+    virtual ~NotificationSender() = default;
+};
+
+class EmailSender : public NotificationSender {
+    string email_;
+public:
+    EmailSender(string email) : email_(move(email)) {}
+    string send(const string& msg) const override {
+        return "Email to " + email_ + ": " + msg;
+    }
+};
+
+class SMSSender : public NotificationSender {
+    string phone_;
+public:
+    SMSSender(string phone) : phone_(move(phone)) {}
+    string send(const string& msg) const override {
+        return "SMS to " + phone_ + ": " + msg;
+    }
+};
+
+class SlackSender : public NotificationSender {
+    string channel_;
+public:
+    SlackSender(string channel) : channel_(move(channel)) {}
+    string send(const string& msg) const override {
+        return "Slack #" + channel_ + ": " + msg;
+    }
+};
+
+// Message modifiers
+class MessageModifier {
+public:
+    virtual string modify(const string& message) const = 0;
+    virtual ~MessageModifier() = default;
+};
+
+class UrgentModifier : public MessageModifier {
+public:
+    string modify(const string& msg) const override {
+        return "[URGENT] " + msg;
+    }
+};
+
+class EncryptedModifier : public MessageModifier {
+public:
+    string modify(const string& msg) const override {
+        return "[ENCRYPTED] " + msg;
+    }
+};
+
+// Notification composes sender + modifiers
+class Notification {
+    string message_;
+    unique_ptr<NotificationSender> sender_;
+    vector<unique_ptr<MessageModifier>> modifiers_;
+public:
+    Notification(string msg, unique_ptr<NotificationSender> sender)
+        : message_(move(msg)), sender_(move(sender)) {}
+
+    void addModifier(unique_ptr<MessageModifier> mod) {
+        modifiers_.push_back(move(mod));
+    }
+
+    string send() const {
+        string msg = message_;
+        for (const auto& mod : modifiers_) {
+            msg = mod->modify(msg);
+        }
+        return sender_->send(msg);
+    }
+};
+
+int main() {
+    Notification n1("Server down", make_unique<EmailSender>("ops@company.com"));
+    n1.addModifier(make_unique<UrgentModifier>());
+    cout << n1.send() << endl;
+    // Email to ops@company.com: [URGENT] Server down
+
+    Notification n2("Secret report", make_unique<SlackSender>("security"));
+    n2.addModifier(make_unique<EncryptedModifier>());
+    n2.addModifier(make_unique<UrgentModifier>());
+    cout << n2.send() << endl;
+    // Slack #security: [URGENT] [ENCRYPTED] Secret report
+    return 0;
+}
+```
+  </TabItem>
+</Tabs>
+
+### What Changed?
+
+| Aspect | Before (Inheritance) | After (Composition) |
+|--------|---------------------|---------------------|
+| **Adding a new channel** | New subclass per channel per feature | One new `Sender` class |
+| **Adding a new modifier** | Exponential class explosion | One new `Modifier` class |
+| **Combining features** | Need a class for each combination | Compose at runtime |
+| **Testing** | Must test entire hierarchy | Test each component independently |
+| **Number of classes for 3 channels x 3 modifiers** | Up to 12+ classes | 6 classes + 1 compositor |
+
+---
+
+## Key Takeaways
+
+1. **"Favor composition over inheritance"** does not mean "never use inheritance." It means composition should be your **default** choice, and inheritance should require justification.
+
+2. **Inheritance is for "is-a" relationships** that satisfy the Liskov Substitution Principle. If a subclass cannot fully stand in for its parent in all contexts, the relationship is not truly "is-a."
+
+3. **Composition is for "has-a" relationships** and is more flexible because components can be swapped, combined, and tested independently.
+
+4. **Deep inheritance hierarchies are a code smell.** If your class tree goes more than 2-3 levels deep, it is a strong signal to refactor toward composition.
+
+5. **The diamond problem, fragile base class problem, and class explosion** are all symptoms of overusing inheritance. Composition avoids all three.
+
+6. **Delegation** is the mechanism that makes composition work -- the containing object forwards calls to its components rather than inheriting their behavior.
+
+7. **Mixins and traits** offer a pragmatic middle ground when you need to share small, focused capabilities across unrelated classes.
+
+8. **Refactoring from inheritance to composition** is a common and valuable exercise that typically results in fewer classes, more flexibility, and better testability.
+
+---
+
+## Practice Exercises
+
+### Exercise 1: Shape Drawing System
+
+You are building a drawing application. Shapes can have different **rendering strategies** (SVG, Canvas, ASCII) and different **fill patterns** (solid, gradient, striped). Design a system using composition that avoids a class explosion.
+
+<details>
+<summary>Hints</summary>
+
+- Create a `Renderer` interface with implementations for SVG, Canvas, and ASCII.
+- Create a `FillPattern` interface with implementations for Solid, Gradient, and Striped.
+- A `Shape` class composes a `Renderer` and a `FillPattern`, along with shape-specific data (radius, width, height).
+- You should be able to create any combination (e.g., an SVG circle with gradient fill) without creating a dedicated class for that combination.
+
+</details>
+
+### Exercise 2: Refactor the Animal Kingdom
+
+The following inheritance hierarchy has become unmanageable. Refactor it to use composition.
+
+```
+Animal
+├── Bird
+│   ├── Eagle (can fly, carnivore)
+│   ├── Penguin (cannot fly, swims, carnivore)
+│   └── Parrot (can fly, herbivore, can mimic speech)
+├── Mammal
+│   ├── Dog (walks, carnivore, can be domesticated)
+│   ├── Whale (swims, carnivore)
+│   └── Bat (can fly, carnivore)
+└── Fish
+    ├── Salmon (swims, carnivore)
+    └── FlyingFish (swims, can glide/fly)
+```
+
+<details>
+<summary>Hints</summary>
+
+- Identify the **behaviors** that cut across the hierarchy: locomotion (walk, fly, swim), diet (carnivore, herbivore), special abilities (mimic speech, domesticable).
+- Model each behavior axis as a separate interface/class.
+- Create an `Animal` class that composes `LocomotionBehavior`, `DietBehavior`, and optionally `SpecialAbility`.
+- A `Bat` is an `Animal` with `Flying` locomotion and `Carnivore` diet -- no need for it to be a `Mammal` subclass just because of taxonomy.
+
+</details>
+
+### Exercise 3: Logger Pipeline
+
+Design a composable logging system where:
+- Logs can be sent to multiple **destinations** (console, file, remote server).
+- Logs can pass through multiple **filters** (minimum severity, keyword blocklist).
+- Logs can be **formatted** in different ways (plain text, JSON, structured).
+
+Use composition so that any combination of destination, filter, and format can be assembled without creating dedicated subclasses for each combination.
+
+<details>
+<summary>Hints</summary>
+
+- Define `LogDestination`, `LogFilter`, and `LogFormatter` interfaces.
+- A `Logger` composes one `LogFormatter`, zero or more `LogFilter` instances, and one or more `LogDestination` instances.
+- Processing pipeline: check filters -> format message -> send to all destinations.
+- Adding a new destination (e.g., Slack webhook) should require only one new class implementing `LogDestination`.
+
+</details>
+
+---
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="Code Smells & Design Smells"
+    href="/software-engineering/oop-solid/design-smells/"
+    description="Learn to recognize signs of poor design including deep hierarchies, god classes, and feature envy"
+  />
+  <LinkCard
+    title="Design Patterns"
+    href="/software-engineering/design-patterns/"
+    description="Explore the Gang of Four patterns -- many of which are built on composition over inheritance"
+  />
+</CardGrid>

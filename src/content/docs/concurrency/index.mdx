@@ -1,0 +1,194 @@
+---
+title: "Concurrency & Parallelism"
+description: "Understand the fundamentals of concurrent and parallel programming for building responsive, efficient applications"
+difficulty: "intermediate"
+prerequisites: ["Basic programming knowledge", "Operating Systems basics"]
+timeToRead: "10 min"
+topics: ["concurrency", "parallelism", "threads", "async", "performance"]
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import ConcurrencyVisualizer from '../../../components/interactive/ConcurrencyVisualizer';
+
+Concurrency and parallelism are two of the most important concepts in modern software engineering. As hardware has shifted from ever-faster single cores to multi-core architectures, the ability to write concurrent and parallel programs has become essential for building responsive, high-throughput applications.
+
+## Concurrency vs Parallelism
+
+These terms are often used interchangeably, but they describe fundamentally different ideas.
+
+**Concurrency** is about *dealing with* multiple things at once. It is a property of the program's *structure* -- the ability to manage and make progress on more than one task during overlapping time periods. Concurrent tasks may or may not run simultaneously; they simply appear to make progress together.
+
+**Parallelism** is about *doing* multiple things at once. It is a property of the program's *execution* -- multiple computations literally running at the same instant on separate processors or cores.
+
+### The Coffee Shop Analogy
+
+Imagine a coffee shop:
+
+- **Sequential**: One barista takes an order, makes the drink, delivers it, then takes the next order. Customers wait in a long line.
+- **Concurrent**: One barista takes an order, starts the espresso machine, takes the next order while the espresso brews, then finishes the first drink. The barista *interleaves* tasks so everyone makes progress -- but there is only one barista.
+- **Parallel**: Two baristas work side by side, each independently taking orders and making drinks. Work literally happens simultaneously.
+- **Concurrent + Parallel**: Two baristas, each interleaving their own tasks. Multiple tasks, multiple workers, maximum throughput.
+
+```
+Sequential:       Task A ████████████  Task B ████████████
+
+Concurrent:       Task A ████░░████░░██
+(single core)     Task B ░░████░░████░░██
+
+Parallel:         Task A ████████████
+(multi-core)      Task B ████████████
+
+Concurrent +      Task A ████░░████
+Parallel:         Task B ░░████░░██
+(multi-core)      Task C ████░░████
+                  Task D ░░████░░██
+```
+
+:::tip[Remember]
+Concurrency is about **structure** -- how you design your program to handle multiple tasks. Parallelism is about **execution** -- how the hardware runs them. You can have concurrency without parallelism (a single-core CPU switching between tasks), and parallelism without concurrency (SIMD instructions applying the same operation to multiple data elements).
+:::
+
+### Interactive Concurrency Simulator
+
+Visualize race conditions, deadlocks, the producer-consumer problem, and the dining philosophers problem in real time.
+
+<ConcurrencyVisualizer client:load />
+
+## Why Concurrency and Parallelism Matter
+
+### 1. Responsive User Interfaces
+
+Without concurrency, a desktop or mobile application freezes whenever it performs a long-running operation like a network request or file read. Concurrency allows the UI thread to remain responsive while background work completes.
+
+### 2. Server Throughput
+
+A web server must handle thousands of simultaneous connections. If each request blocks a thread while waiting for a database query, the server runs out of threads quickly. Concurrent I/O and thread pools allow a single server to handle orders of magnitude more traffic.
+
+### 3. Utilizing Multi-Core CPUs
+
+Modern CPUs have 4, 8, 16, or more cores. A single-threaded program uses only one of those cores while the rest sit idle. Parallel programming distributes work across all available cores, dramatically reducing computation time for CPU-bound tasks like data processing, rendering, and scientific simulation.
+
+### 4. Latency Hiding
+
+Many operations involve waiting -- for disk, network, or user input. Concurrent programs use that waiting time productively by making progress on other tasks instead of blocking.
+
+## Amdahl's Law
+
+Amdahl's Law gives a theoretical upper bound on the speedup achievable by parallelizing a program. It states that the overall speedup is limited by the portion of the program that cannot be parallelized.
+
+```
+                    1
+Speedup = ────────────────────
+           (1 - P) + (P / N)
+
+Where:
+  P = proportion of the program that can be parallelized (0 to 1)
+  N = number of processors
+```
+
+### Example
+
+Suppose 80% of a program's execution time can be parallelized (P = 0.8), and you run it on 4 cores (N = 4):
+
+```
+Speedup = 1 / ((1 - 0.8) + (0.8 / 4))
+        = 1 / (0.2 + 0.2)
+        = 1 / 0.4
+        = 2.5x
+```
+
+Even with 4 cores, you only get a 2.5x speedup because the serial 20% limits the gains. As N approaches infinity:
+
+```
+Max Speedup = 1 / (1 - P) = 1 / 0.2 = 5x
+```
+
+No matter how many cores you add, you can never exceed a 5x speedup if 20% of the work is inherently serial.
+
+:::caution[The Takeaway from Amdahl's Law]
+Before parallelizing, profile your application to identify the serial bottlenecks. Reducing the serial fraction often has a larger impact than adding more processors. Amdahl's Law is why optimization of the sequential portions of your code is so critical.
+:::
+
+## Concurrency Models
+
+Different languages and frameworks adopt different models for organizing concurrent work. Understanding these models helps you choose the right approach for your problem.
+
+### Shared Memory
+
+Threads share the same address space and communicate by reading and writing shared variables. This is the most common model in languages like Java, C++, and Python.
+
+- **Pros**: Familiar programming model, efficient data sharing, low overhead for communication
+- **Cons**: Requires explicit synchronization (locks, semaphores), prone to race conditions, deadlocks, and other subtle bugs
+
+### Message Passing
+
+Processes or threads communicate by sending and receiving messages through channels. Each actor has its own private state. This model is used by Go (goroutines and channels), Erlang/Elixir, and Rust (with `std::sync::mpsc`).
+
+- **Pros**: No shared mutable state, easier to reason about correctness, natural fit for distributed systems
+- **Cons**: Overhead from copying data in messages, can lead to deadlocks if channels block, requires a different mental model
+
+### Actor Model
+
+A specialization of message passing where *actors* are the fundamental unit of computation. Each actor has its own mailbox and processes messages one at a time. Actors can create other actors, send messages, and decide how to handle the next message. Erlang/OTP and Akka (Scala/Java) are the best-known implementations.
+
+- **Pros**: Highly scalable, fault-tolerant (supervisors can restart failed actors), excellent for distributed systems
+- **Cons**: Learning curve, debugging can be difficult, message ordering is not always guaranteed across actors
+
+### Comparison Table
+
+| Feature | Shared Memory | Message Passing | Actor Model |
+|---------|--------------|-----------------|-------------|
+| Communication | Shared variables | Explicit messages | Mailbox messages |
+| Synchronization | Locks, semaphores | Channel operations | One-at-a-time processing |
+| Failure isolation | Low | Medium | High |
+| Scalability | Limited by contention | Good | Excellent |
+| Complexity | High (synchronization) | Medium | Medium (different paradigm) |
+| Languages | Java, C++, Python | Go, Rust, CSP | Erlang, Akka, Pony |
+
+## Common Challenges
+
+Concurrent and parallel programming introduces an entire class of bugs that do not exist in sequential programs:
+
+| Challenge | Description |
+|-----------|-------------|
+| **Race Conditions** | Two threads access shared data simultaneously, and the result depends on the order of execution |
+| **Deadlocks** | Two or more threads block forever, each waiting for the other to release a resource |
+| **Livelocks** | Threads keep responding to each other without making progress -- like two people in a hallway each stepping aside in the same direction |
+| **Starvation** | A thread never gets access to a resource because other threads continually acquire it first |
+| **Priority Inversion** | A high-priority thread waits for a lock held by a low-priority thread, which itself is preempted by a medium-priority thread |
+| **Memory Visibility** | Changes made by one thread may not be visible to another due to CPU caching and compiler optimizations |
+
+These challenges are covered in depth in the [Race Conditions & Common Pitfalls](/software-engineering/concurrency/race-conditions/) page.
+
+## Key Terminology
+
+| Term | Definition |
+|------|-----------|
+| **Thread** | The smallest unit of execution within a process; shares memory with other threads in the same process |
+| **Process** | An independent execution unit with its own memory space |
+| **Mutex** | A mutual exclusion lock that ensures only one thread enters a critical section at a time |
+| **Semaphore** | A signaling mechanism that controls access to a resource with a counter |
+| **Critical Section** | A block of code that accesses shared resources and must not be executed by more than one thread at a time |
+| **Atomic Operation** | An operation that completes in a single step with respect to other threads -- no intermediate state is observable |
+| **Context Switch** | The process of saving and restoring the state of a thread so another thread can run |
+| **Thread Safety** | A property of code that guarantees correct behavior when accessed from multiple threads |
+
+## Explore the Section
+
+<CardGrid>
+  <LinkCard
+    title="Threads & Synchronization"
+    href="/software-engineering/concurrency/threads-synchronization/"
+    description="Master thread creation, synchronization primitives, and safe concurrent programming across languages"
+  />
+  <LinkCard
+    title="Async Programming"
+    href="/software-engineering/concurrency/async-programming/"
+    description="Learn event loops, async/await patterns, and non-blocking I/O for efficient concurrent applications"
+  />
+  <LinkCard
+    title="Race Conditions & Common Pitfalls"
+    href="/software-engineering/concurrency/race-conditions/"
+    description="Identify, debug, and prevent race conditions, deadlocks, and other concurrency bugs"
+  />
+</CardGrid>

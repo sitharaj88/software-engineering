@@ -1,0 +1,180 @@
+---
+title: "Computer Networks"
+description: "Understand networking fundamentals that every software engineer needs to know"
+difficulty: "beginner"
+prerequisites: ["Basic programming knowledge"]
+timeToRead: "8 min"
+topics: ["networking", "internet", "protocols", "tcp-ip"]
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+Every application you build runs on a network. Whether you are making an API call, loading a web page, streaming video, or sending a chat message, your data travels through an intricate web of protocols, routers, and cables that span the globe. Understanding how this infrastructure works is not optional for software engineers — it is essential for debugging production issues, designing scalable systems, and making informed architectural decisions.
+
+## Why Networking Matters for Software Engineers
+
+### Debugging and Troubleshooting
+- **Network failures are the most common cause of production incidents** in distributed systems
+- Understanding TCP, DNS, and HTTP lets you pinpoint whether a problem is in your code, your infrastructure, or the network itself
+- Tools like `curl`, `dig`, `traceroute`, and Wireshark become powerful allies once you understand the underlying protocols
+
+### System Design and Architecture
+- Every system design interview and real-world architecture decision involves networking concepts
+- Choosing between REST, GraphQL, gRPC, or WebSockets requires understanding their underlying transport mechanisms
+- Latency, bandwidth, and packet loss directly influence how you design for performance and reliability
+
+### Security
+- HTTPS, TLS certificates, CORS headers, and DNS security are daily concerns for modern engineers
+- Understanding how data flows across the network helps you identify and prevent security vulnerabilities
+
+---
+
+## How the Internet Works at a High Level
+
+The internet is a global network of interconnected networks. At its core, it relies on a few fundamental concepts.
+
+### Packet Switching
+
+Unlike traditional telephone networks that establish a dedicated circuit for each call, the internet uses **packet switching**. Data is broken into small units called **packets**, each of which is routed independently through the network.
+
+```
+Sending a message from A to B:
+
+┌───────────────────────────────────────────┐
+│           Original Message                │
+│  "Hello, this is a network packet demo"   │
+└───────────────────────────────────────────┘
+                    │
+                    ▼  Split into packets
+       ┌─────────┐ ┌─────────┐ ┌─────────┐
+       │Packet 1 │ │Packet 2 │ │Packet 3 │
+       │"Hello,  │ │"a net-  │ │"packet  │
+       │this is "│ │"work "  │ │"demo"   │
+       └────┬────┘ └────┬────┘ └────┬────┘
+            │            │           │
+            ▼            ▼           ▼
+     ┌──────────┐  ┌──────────┐ ┌──────────┐
+     │ Route 1  │  │ Route 2  │ │ Route 1  │
+     │ (via X)  │  │ (via Y)  │ │ (via X)  │
+     └──────────┘  └──────────┘ └──────────┘
+            │            │           │
+            └────────────┼───────────┘
+                         ▼
+              Reassembled at destination
+```
+
+**Key benefits of packet switching**:
+- **Efficient use of bandwidth** — multiple conversations share the same links
+- **Resilience** — if one path fails, packets can take alternate routes
+- **Scalability** — no need to reserve dedicated circuits
+
+### The Client-Server Model
+
+Most internet communication follows the **client-server model**. A client (your browser, mobile app, or CLI tool) sends a **request** to a server, which processes it and returns a **response**.
+
+```
+┌──────────┐                              ┌──────────┐
+│          │  1. Request (HTTP GET)        │          │
+│  Client  │ ────────────────────────────► │  Server  │
+│ (Browser)│                               │ (Web App)│
+│          │  2. Response (HTML/JSON)      │          │
+│          │ ◄──────────────────────────── │          │
+└──────────┘                               └──────────┘
+```
+
+This simple model scales to complex architectures where servers communicate with other servers, databases, caches, and message queues to fulfill a single client request.
+
+### Protocol Layers
+
+Network communication is organized into **layers**, where each layer handles a specific responsibility and builds on the layer below it. The two most important models are:
+
+- **OSI Model** — a 7-layer reference model used for teaching and troubleshooting
+- **TCP/IP Model** — the 4-layer practical model that the internet actually uses
+
+```
+OSI Model              TCP/IP Model
+─────────────          ──────────────
+Application  ─┐
+Presentation  ├──────► Application
+Session      ─┘
+Transport    ────────► Transport
+Network      ────────► Internet
+Data Link    ─┐
+Physical     ─┴─────► Network Access
+```
+
+Understanding these layers helps you reason about where problems occur, which tools to use for debugging, and how different protocols interact.
+
+---
+
+## What You Will Learn
+
+This section covers the networking concepts most relevant to software engineers, organized from foundational protocols to advanced real-time techniques.
+
+<CardGrid>
+  <Card title="OSI Model & TCP/IP" icon="open-book">
+    The 7-layer OSI model, the 4-layer TCP/IP stack, encapsulation, TCP vs UDP, and the three-way handshake. The foundation for understanding all network communication.
+
+    [Explore OSI & TCP/IP](/software-engineering/computer-networks/osi-tcp-ip/)
+  </Card>
+  <Card title="HTTP & HTTPS" icon="document">
+    HTTP methods, status codes, headers, cookies, request/response structure, HTTP/1.1 vs HTTP/2 vs HTTP/3, TLS handshake, and certificates. The protocol you use every day.
+
+    [Explore HTTP & HTTPS](/software-engineering/computer-networks/http-https/)
+  </Card>
+  <Card title="DNS, CDN & Routing" icon="rocket">
+    DNS resolution process, record types, caching and TTL, CDN architecture, IP addressing, subnetting basics, and routing fundamentals. How packets find their way.
+
+    [Explore DNS & Routing](/software-engineering/computer-networks/dns-and-routing/)
+  </Card>
+  <Card title="WebSockets & Real-Time" icon="puzzle">
+    Polling, long polling, Server-Sent Events, WebSockets, and gRPC streaming. When and how to implement real-time communication in your applications.
+
+    [Explore WebSockets & Real-Time](/software-engineering/computer-networks/websockets-realtime/)
+  </Card>
+</CardGrid>
+
+---
+
+## Recommended Learning Path
+
+| Week | Topic | Focus |
+|------|-------|-------|
+| 1 | **OSI Model & TCP/IP** | Understand the layer models, TCP vs UDP, and how data flows through the stack |
+| 2 | **HTTP & HTTPS** | Master the protocol that powers the web — methods, status codes, headers, and TLS |
+| 3 | **DNS, CDN & Routing** | Learn how domain names resolve, how content is delivered globally, and how packets are routed |
+| 4 | **WebSockets & Real-Time** | Build real-time features using WebSockets, SSE, and other techniques |
+
+---
+
+## Quick Reference: Essential Networking Concepts
+
+| Concept | Description |
+|---------|-------------|
+| **IP Address** | A unique numerical identifier for a device on a network (e.g., `192.168.1.1`) |
+| **Port** | A number (0-65535) identifying a specific service on a machine (e.g., HTTP uses port 80) |
+| **Packet** | A small unit of data transmitted over a network, containing headers and payload |
+| **Protocol** | A set of rules governing how data is transmitted and received (e.g., TCP, HTTP, DNS) |
+| **Bandwidth** | The maximum rate of data transfer across a network path |
+| **Latency** | The time delay for data to travel from source to destination |
+| **Throughput** | The actual rate of successful data transfer, which is always less than or equal to bandwidth |
+| **Firewall** | A network security system that monitors and controls incoming and outgoing traffic |
+| **Load Balancer** | A device or service that distributes incoming requests across multiple servers |
+| **Proxy** | An intermediary server that forwards requests between clients and servers |
+
+---
+
+## Ready to Begin?
+
+<CardGrid>
+  <LinkCard
+    title="Start with OSI Model & TCP/IP"
+    href="/software-engineering/computer-networks/osi-tcp-ip/"
+    description="Build a solid foundation with the network layer models, TCP vs UDP, and the three-way handshake"
+  />
+  <LinkCard
+    title="Jump to HTTP & HTTPS"
+    href="/software-engineering/computer-networks/http-https/"
+    description="Dive into the protocol you use daily — methods, status codes, headers, and secure communication"
+  />
+</CardGrid>

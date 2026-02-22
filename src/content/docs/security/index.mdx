@@ -1,0 +1,309 @@
+---
+title: "Security Fundamentals"
+description: "Build a security mindset and understand core principles for developing secure software"
+difficulty: "beginner"
+prerequisites: ["Basic programming knowledge"]
+timeToRead: "10 min"
+topics: ["security", "threat-modeling", "defense-in-depth", "least-privilege"]
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+Security is not a feature you bolt on at the end of a project -- it is a **mindset** that must be woven into every stage of software development. From the way you handle user input to the way you store passwords, every design decision either strengthens or weakens your application's security posture.
+
+The consequences of ignoring security are severe: data breaches cost companies an average of **$4.45 million** (IBM 2023 report), erode customer trust overnight, trigger regulatory penalties, and can end careers. Yet many engineers treat security as an afterthought because "it won't happen to us." It will. The question is not *if* your application will be attacked, but *when*.
+
+---
+
+## Why Security Matters
+
+### The Cost of Getting It Wrong
+
+- **Equifax (2017)**: A single unpatched vulnerability exposed 147 million records -- Social Security numbers, birth dates, addresses. Cost: over $1.4 billion.
+- **Log4Shell (2021)**: A flaw in a ubiquitous Java logging library gave attackers remote code execution on millions of servers worldwide.
+- **SolarWinds (2020)**: A supply chain attack compromised the build system of a widely used IT management tool, affecting 18,000+ organizations including government agencies.
+
+These were not small startups with no budget. They were organizations with dedicated security teams. **Security is hard, and complacency is the real vulnerability.**
+
+### What Attackers Look For
+
+Attackers follow the path of least resistance. They look for:
+
+- **Unvalidated input** -- SQL injection, cross-site scripting (XSS), command injection
+- **Weak authentication** -- default passwords, missing multi-factor authentication, broken session management
+- **Exposed secrets** -- API keys in source code, credentials in environment variables without encryption
+- **Outdated dependencies** -- known vulnerabilities in third-party libraries
+- **Misconfigured infrastructure** -- open ports, overly permissive cloud storage buckets, debug mode in production
+
+---
+
+## The Security Mindset
+
+Thinking like a security engineer means asking a different set of questions about your code:
+
+| Normal Mindset | Security Mindset |
+|---------------|-----------------|
+| "Does this feature work?" | "How could this feature be abused?" |
+| "What should the user input?" | "What *will* the user input?" |
+| "Is the data accessible?" | "Is the data accessible *only* to authorized users?" |
+| "Does the system handle load?" | "Can the system be intentionally overloaded?" |
+| "Is the error message helpful?" | "Does the error message reveal internal details?" |
+
+**Assume every input is malicious. Assume every network is hostile. Assume every user is an attacker until proven otherwise.**
+
+---
+
+## The CIA Triad
+
+The **CIA Triad** is the foundational model for information security. Every security decision you make should protect one or more of these three properties.
+
+```
+                    ┌───────────────────┐
+                    │  Confidentiality  │
+                    │  (Only authorized │
+                    │   users can READ) │
+                    └────────┬──────────┘
+                             │
+                ┌────────────┼────────────┐
+                │            │            │
+                ▼            ▼            ▼
+        ┌──────────┐  ┌──────────┐  ┌──────────┐
+        │          │  │          │  │          │
+        │  CIA     │  │  CIA     │  │  CIA     │
+        │  Triad   │  │  Triad   │  │  Triad   │
+        │          │  │          │  │          │
+        └──────────┘  └──────────┘  └──────────┘
+                │                         │
+    ┌───────────┘                         └───────────┐
+    ▼                                                 ▼
+┌───────────────────┐                    ┌───────────────────┐
+│    Integrity      │                    │  Availability     │
+│  (Only authorized │                    │  (Authorized      │
+│  users can MODIFY)│                    │  users can ACCESS │
+└───────────────────┘                    │  when needed)     │
+                                         └───────────────────┘
+```
+
+### Confidentiality
+
+Data should only be accessible to those who are authorized to view it.
+
+- **Encryption** protects data in transit (TLS) and at rest (AES)
+- **Access controls** restrict who can view what data
+- **Data classification** identifies what information is sensitive
+
+**Example violation**: An API endpoint returns all user records without checking the requester's permissions.
+
+### Integrity
+
+Data should only be modifiable by those who are authorized to change it, and any changes should be detectable.
+
+- **Hashing** (SHA-256, HMAC) verifies data has not been tampered with
+- **Digital signatures** prove the authenticity of data and its sender
+- **Database constraints** and validation rules prevent invalid state changes
+
+**Example violation**: An attacker modifies the price field in a shopping cart request before it reaches the server.
+
+### Availability
+
+Systems and data should be accessible to authorized users when they need them.
+
+- **Redundancy** and failover eliminate single points of failure
+- **DDoS protection** prevents attackers from overwhelming your infrastructure
+- **Backups and disaster recovery** ensure data survives catastrophic failures
+
+**Example violation**: A DDoS attack takes down an e-commerce site during peak shopping season.
+
+---
+
+## Defense in Depth
+
+Defense in depth is the principle of layering multiple security controls so that if one layer is bypassed, others still protect the system. No single control is expected to be perfect.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     Perimeter Security                       │
+│  Firewalls, WAF, DDoS protection                            │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │                 Network Security                     │    │
+│  │  Network segmentation, VPNs, intrusion detection     │    │
+│  │  ┌─────────────────────────────────────────────┐    │    │
+│  │  │              Application Security            │    │    │
+│  │  │  Input validation, authentication, authz     │    │    │
+│  │  │  ┌─────────────────────────────────────┐    │    │    │
+│  │  │  │           Data Security              │    │    │    │
+│  │  │  │  Encryption at rest, hashing,        │    │    │    │
+│  │  │  │  access controls, backup             │    │    │    │
+│  │  │  └─────────────────────────────────────┘    │    │    │
+│  │  └─────────────────────────────────────────────┘    │    │
+│  └─────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Practical Examples
+
+| Layer | Control | What It Protects Against |
+|-------|---------|------------------------|
+| **Perimeter** | Web Application Firewall (WAF) | Common attack patterns (SQLi, XSS) |
+| **Network** | Network segmentation | Lateral movement after initial breach |
+| **Application** | Input validation + parameterized queries | Injection attacks |
+| **Data** | Encryption at rest (AES-256) | Data theft from stolen disks or backups |
+| **Monitoring** | Security logging and alerting | Delayed detection of ongoing attacks |
+
+The key insight: **even if an attacker gets past your firewall, input validation stops injection. Even if injection succeeds, encryption protects the data. Even if data is exposed, monitoring detects the breach quickly.**
+
+---
+
+## Principle of Least Privilege
+
+Every user, process, and system component should have **only the minimum permissions necessary** to perform its function -- nothing more.
+
+### Why It Matters
+
+- **Limits blast radius**: If an account is compromised, the attacker can only do what that account was allowed to do
+- **Reduces attack surface**: Fewer permissions mean fewer ways to exploit the system
+- **Simplifies auditing**: It is easier to review and verify a small, well-defined set of permissions
+
+### Examples
+
+| Scenario | Overprivileged (Bad) | Least Privilege (Good) |
+|----------|---------------------|----------------------|
+| **Database user** | Application connects as `root` | Application uses a user with `SELECT`, `INSERT`, `UPDATE` on specific tables only |
+| **Cloud IAM** | Service account has `Admin` role | Service account has only `Storage Object Viewer` for the single bucket it needs |
+| **API key** | Key has read/write access to all resources | Key is scoped to specific endpoints with read-only access |
+| **File system** | Application runs as root | Application runs as a dedicated non-root user with access only to its data directory |
+
+### Applying Least Privilege in Practice
+
+1. **Start with zero permissions** and add only what is needed
+2. **Use role-based access control (RBAC)** to group permissions logically
+3. **Audit permissions regularly** -- remove access that is no longer needed
+4. **Use temporary credentials** where possible (e.g., AWS STS assume-role)
+5. **Separate environments** -- development credentials should never work in production
+
+---
+
+## Threat Modeling Basics
+
+Threat modeling is the process of **systematically identifying potential threats** to your system and deciding how to address them. It answers four fundamental questions:
+
+1. **What are we building?** -- Understand the system, its components, and data flows
+2. **What can go wrong?** -- Identify threats using a structured approach
+3. **What are we going to do about it?** -- Prioritize and mitigate the most critical risks
+4. **Did we do a good enough job?** -- Validate and iterate
+
+### The STRIDE Model
+
+STRIDE is a widely used threat classification framework developed by Microsoft. Each letter represents a category of threat:
+
+| Threat | Violates | Description | Example |
+|--------|----------|-------------|---------|
+| **S**poofing | Authentication | Pretending to be someone or something else | Forging a JWT token to impersonate an admin |
+| **T**ampering | Integrity | Modifying data or code without authorization | Changing the price in a hidden form field |
+| **R**epudiation | Non-repudiation | Denying having performed an action | A user claims they never placed an order (no audit log) |
+| **I**nformation Disclosure | Confidentiality | Exposing data to unauthorized parties | Stack trace in error response reveals database schema |
+| **D**enial of Service | Availability | Making a system unavailable | Flooding an API with millions of requests |
+| **E**levation of Privilege | Authorization | Gaining permissions beyond what is authorized | Exploiting an IDOR to access another user's data |
+
+### A Simple Threat Modeling Workflow
+
+```
+1. Draw a data flow diagram
+   ┌────────┐      ┌────────┐      ┌──────────┐
+   │  User  │─────►│  API   │─────►│ Database │
+   │Browser │◄─────│ Server │◄─────│          │
+   └────────┘      └────────┘      └──────────┘
+
+2. Identify trust boundaries
+   (Where does trusted meet untrusted?)
+
+3. Apply STRIDE to each component and data flow
+   - Can the user spoof their identity? (S)
+   - Can data be tampered in transit? (T)
+   - Can actions be repudiated? (R)
+   - Can data be disclosed? (I)
+   - Can the system be denied? (D)
+   - Can privileges be elevated? (E)
+
+4. Prioritize by risk (likelihood x impact)
+
+5. Define mitigations for highest-risk threats
+```
+
+---
+
+## Security as a Continuous Process
+
+Security is not a one-time activity. It is a **continuous cycle** of assessment, implementation, monitoring, and improvement.
+
+```
+    ┌──────────────┐
+    │    Design     │
+    │ Threat model, │◄──────────────────────────────┐
+    │ architecture  │                                │
+    └──────┬───────┘                                │
+           │                                        │
+           ▼                                        │
+    ┌──────────────┐                         ┌──────────────┐
+    │   Develop     │                         │   Improve     │
+    │ Secure coding,│                         │ Patch, update,│
+    │ code review   │                         │ lessons       │
+    └──────┬───────┘                         │ learned       │
+           │                                  └──────┬───────┘
+           ▼                                         │
+    ┌──────────────┐                                │
+    │    Test       │                                │
+    │ SAST, DAST,  │                                │
+    │ pen testing   │                                │
+    └──────┬───────┘                                │
+           │                                        │
+           ▼                                        │
+    ┌──────────────┐                                │
+    │   Deploy &    │                                │
+    │   Monitor     │────────────────────────────────┘
+    │ Logging, SIEM │
+    └──────────────┘
+```
+
+### Key Practices
+
+- **Shift left**: Integrate security testing early in the development lifecycle, not just before release
+- **Automate**: Use SAST (Static Application Security Testing) and DAST (Dynamic Application Security Testing) in your CI/CD pipeline
+- **Stay current**: Subscribe to security advisories, update dependencies regularly, and follow vulnerability disclosures
+- **Train continuously**: Security awareness is a perishable skill -- regular training keeps teams sharp
+- **Assume breach**: Design your monitoring and incident response plans assuming an attacker is already inside
+
+---
+
+## Quick Reference: Core Security Principles
+
+| Principle | Description | Key Question |
+|-----------|-------------|-------------|
+| **CIA Triad** | Protect confidentiality, integrity, and availability | Which of the three is most critical for this data? |
+| **Defense in Depth** | Layer multiple security controls | If this control fails, what catches the attacker next? |
+| **Least Privilege** | Grant minimum necessary permissions | Does this component really need this access? |
+| **Fail Secure** | Default to a secure state when errors occur | What happens when this check throws an exception? |
+| **Separation of Duties** | No single person controls an entire critical process | Can one person both deploy code and approve it? |
+| **Zero Trust** | Never trust, always verify -- even inside the network | Am I verifying identity at every layer? |
+
+---
+
+## What You Will Learn Next
+
+<CardGrid>
+  <LinkCard
+    title="OWASP Top 10"
+    href="/software-engineering/security/owasp-top-10/"
+    description="Understand and prevent the most critical web application security vulnerabilities with hands-on code examples"
+  />
+  <LinkCard
+    title="Authentication, Authorization & Encryption"
+    href="/software-engineering/security/auth-encryption/"
+    description="Implement secure authentication, authorization, and cryptographic patterns in your applications"
+  />
+  <LinkCard
+    title="Secure Coding Practices"
+    href="/software-engineering/security/secure-coding/"
+    description="Write secure code with input validation, secrets management, dependency scanning, and security headers"
+  />
+</CardGrid>
