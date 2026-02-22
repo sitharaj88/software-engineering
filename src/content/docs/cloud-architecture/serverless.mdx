@@ -1,0 +1,652 @@
+---
+title: Serverless Architecture
+description: Master serverless computing with AWS Lambda, Azure Functions, and Google Cloud Functions. Understand cold starts, event-driven patterns, serverless databases, and when to choose serverless.
+difficulty: intermediate
+prerequisites:
+  - Cloud Architecture overview
+  - Cloud service models (especially FaaS)
+  - Basic understanding of event-driven programming
+timeToRead: "26 min"
+topics:
+  - serverless
+  - AWS Lambda
+  - Azure Functions
+  - Cloud Functions
+  - cold starts
+  - event-driven
+  - serverless databases
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+Serverless computing lets you run code without provisioning or managing servers. The cloud provider dynamically allocates compute resources, executes your code, and charges you only for the actual execution time. Despite the name, servers still exist -- you simply do not manage them.
+
+---
+
+## How Serverless Works
+
+```
+Traditional Server:
+┌─────────────────────────────────────────────────┐
+│  Server (always running, always costing money)   │
+│                                                  │
+│  Request ──▶ [App] ──▶ Response                  │
+│                                                  │
+│  Idle...  Idle...  Request ──▶ [App] ──▶ Resp    │
+│                                                  │
+│  Idle...  Idle...  Idle...  Idle...               │
+│  (still paying for idle time)                     │
+└─────────────────────────────────────────────────┘
+
+Serverless:
+  Request ──▶ [Spin up] ──▶ [Execute] ──▶ Response ──▶ [Shut down]
+                                                         (pay: 0)
+  ...nothing running...
+                                                         (pay: 0)
+  Request ──▶ [Spin up] ──▶ [Execute] ──▶ Response ──▶ [Shut down]
+                                                         (pay: 0)
+
+  You only pay for the milliseconds of execution time.
+```
+
+### The Execution Model
+
+```
+Event Source            Serverless Platform           Your Function
+  (trigger)
+     │                  ┌─────────────────┐
+     │  1. Event        │                 │
+     ├─────────────────▶│  2. Find/Create │
+     │                  │     container   │
+     │                  │                 │
+     │                  │  3. Load code   │
+     │                  │                 │
+     │                  │  4. Initialize  │──── Cold Start
+     │                  │     runtime     │     (if new container)
+     │                  │                 │
+     │                  │  5. Execute     │──── Warm Start
+     │                  │     function    │     (if container reused)
+     │                  │                 │
+     │                  │  6. Return      │
+     │  ◀───────────────│     response    │
+     │                  │                 │
+     │                  │  7. Keep warm   │
+     │                  │     or destroy  │
+     │                  └─────────────────┘
+```
+
+---
+
+## Serverless Platforms Compared
+
+| Feature | AWS Lambda | Azure Functions | GCP Cloud Functions |
+|---|---|---|---|
+| **Max execution time** | 15 minutes | 230s (Consumption), 60m (Premium) | 9 min (1st gen), 60 min (2nd gen) |
+| **Memory range** | 128 MB - 10 GB | Up to 1.5 GB (Consumption) | 128 MB - 32 GB |
+| **Languages** | Python, Node.js, Java, Go, .NET, Ruby, custom | C#, JS, Python, Java, PowerShell | Node.js, Python, Go, Java, .NET, Ruby, PHP |
+| **Triggers** | 200+ event sources | HTTP, Timer, Queue, Blob, Cosmos DB | HTTP, Pub/Sub, Cloud Storage, Firestore |
+| **Concurrency** | 1000 default (can increase) | 200 per instance | 1000 per function |
+| **Cold start (typical)** | 100ms-1s (interpreted), 3-10s (Java) | Similar to Lambda | Similar to Lambda |
+| **Pricing** | $0.20 per 1M requests + compute | $0.20 per 1M requests + compute | $0.40 per 1M requests + compute |
+| **Free tier** | 1M requests/month | 1M requests/month | 2M requests/month |
+
+---
+
+## Cold Starts
+
+A cold start occurs when the serverless platform needs to create a new execution environment for your function. This includes downloading your code, starting the runtime, and initializing your application.
+
+```
+Cold Start Breakdown:
+
+│◄─── Cold Start Time (100ms - 10s) ──────────────────▶│
+│                                                       │
+│  Download  │ Start    │ Initialize │ Execute Function  │
+│  Code      │ Runtime  │ App Code   │                   │
+│  (10-100ms)│(50-500ms)│ (varies)   │ (your code runs)  │
+│            │          │            │                   │
+
+Warm Invocation (container reused):
+
+                                     │ Execute Function  │
+                                     │ (your code runs)  │
+                                     │ (much faster!)    │
+```
+
+### Factors Affecting Cold Start Duration
+
+| Factor | Impact | Mitigation |
+|---|---|---|
+| **Language/runtime** | Java/C# are slower; Python/Node.js are faster | Choose interpreted languages for latency-sensitive functions |
+| **Package size** | Larger deployment packages take longer to download | Minimize dependencies, use layers |
+| **VPC attachment** | ENI creation adds 5-10 seconds (older Lambda) | Use VPC-less designs when possible |
+| **Memory allocation** | More memory allocates proportionally more CPU | Increase memory to reduce cold start time |
+| **Initialization code** | Database connections, SDK setup in init phase | Lazy initialization, connection pooling |
+
+### Cold Start Mitigation Strategies
+
+<Tabs>
+<TabItem label="Provisioned Concurrency (AWS)">
+```bash
+# Keep 5 warm instances ready at all times
+aws lambda put-provisioned-concurrency-config \
+  --function-name my-function \
+  --qualifier prod \
+  --provisioned-concurrent-executions 5
+
+# Schedule provisioned concurrency for peak hours
+# using Application Auto Scaling
+aws application-autoscaling register-scalable-target \
+  --service-namespace lambda \
+  --resource-id function:my-function:prod \
+  --scalable-dimension \
+    lambda:function:ProvisionedConcurrency \
+  --min-capacity 2 \
+  --max-capacity 20
+```
+</TabItem>
+<TabItem label="Warm-up Pattern (Python)">
+```python
+import json
+import os
+import boto3
+
+# Module-level initialization (runs once per cold start)
+# This code executes during the INIT phase, not per request
+dynamodb = boto3.resource('dynamodb')
+table = dynamodb.Table(os.environ['TABLE_NAME'])
+
+# Lazy initialization pattern
+_db_connection = None
+
+def get_db_connection():
+    """Initialize database connection lazily."""
+    global _db_connection
+    if _db_connection is None:
+        _db_connection = create_connection()
+    return _db_connection
+
+
+def handler(event, context):
+    """Function handler - executes per invocation."""
+
+    # Check if this is a warm-up ping
+    if event.get('source') == 'warmup':
+        return {'statusCode': 200, 'body': 'Warm'}
+
+    # Actual business logic
+    user_id = event['pathParameters']['id']
+    result = table.get_item(Key={'userId': user_id})
+
+    return {
+        'statusCode': 200,
+        'body': json.dumps(result.get('Item', {}))
+    }
+```
+</TabItem>
+<TabItem label="SnapStart (Java on AWS Lambda)">
+```java
+// AWS Lambda SnapStart reduces Java cold starts
+// from ~5-10 seconds to ~200ms by creating a snapshot
+// of the initialized execution environment
+
+import com.amazonaws.services.lambda.runtime.Context;
+import com.amazonaws.services.lambda.runtime.RequestHandler;
+import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
+
+public class UserHandler implements
+    RequestHandler<APIGatewayRequest, APIGatewayResponse> {
+
+    // Initialized during snapshot (INIT phase)
+    private final DynamoDbClient dynamoDb;
+
+    public UserHandler() {
+        // This runs once during snapshot creation,
+        // NOT on every cold start
+        this.dynamoDb = DynamoDbClient.create();
+    }
+
+    @Override
+    public APIGatewayResponse handleRequest(
+        APIGatewayRequest event, Context context
+    ) {
+        // Business logic
+        String userId = event.getPathParameters().get("id");
+        // ... use dynamoDb to fetch user
+        return new APIGatewayResponse(200, userJson);
+    }
+}
+```
+</TabItem>
+</Tabs>
+
+---
+
+## Event-Driven Patterns
+
+Serverless functions excel at event-driven architectures. Functions respond to events from various sources rather than running continuously.
+
+### Common Event Sources
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                   Event Sources for Serverless               │
+├──────────────────┬──────────────────────────────────────────┤
+│ Synchronous      │ HTTP/API requests (API Gateway)          │
+│                  │ SDK invocations                          │
+├──────────────────┼──────────────────────────────────────────┤
+│ Asynchronous     │ Message queues (SQS, Service Bus)        │
+│                  │ Event streams (Kinesis, Event Hubs)       │
+│                  │ Pub/Sub topics (SNS, Pub/Sub)            │
+│                  │ File uploads (S3, Blob Storage)           │
+│                  │ Database changes (DynamoDB Streams)       │
+│                  │ Scheduled triggers (CloudWatch Events)    │
+│                  │ IoT device messages                      │
+│                  │ Email (SES)                              │
+└──────────────────┴──────────────────────────────────────────┘
+```
+
+### Pattern 1: API Backend
+
+```
+Client ──▶ API Gateway ──▶ Lambda ──▶ DynamoDB
+                                  ──▶ S3
+                                  ──▶ SES (email)
+```
+
+### Pattern 2: Event Processing Pipeline
+
+```
+S3 Upload ──▶ Lambda (resize) ──▶ S3 (thumbnails)
+                               ──▶ DynamoDB (metadata)
+                               ──▶ SNS (notification)
+```
+
+### Pattern 3: Scheduled Jobs
+
+```
+CloudWatch Events ──▶ Lambda (cleanup)
+  (every hour)    ──▶ Lambda (report generation)
+  (daily at 2am)  ──▶ Lambda (data export)
+```
+
+### Pattern 4: Stream Processing
+
+```
+Kinesis Stream ──▶ Lambda ──▶ Elasticsearch
+  (real-time         │    ──▶ S3 (archive)
+   clickstream)      │    ──▶ CloudWatch (metrics)
+                     │
+              Batch of records
+              processed per invocation
+```
+
+<Tabs>
+<TabItem label="S3 Trigger (Python)">
+```python
+import json
+import boto3
+from PIL import Image
+import io
+
+s3 = boto3.client('s3')
+
+def handler(event, context):
+    """
+    Triggered when an image is uploaded to S3.
+    Creates a thumbnail and stores it in another bucket.
+    """
+    for record in event['Records']:
+        bucket = record['s3']['bucket']['name']
+        key = record['s3']['object']['key']
+
+        # Skip if already a thumbnail
+        if key.startswith('thumbnails/'):
+            continue
+
+        # Download the image
+        response = s3.get_object(Bucket=bucket, Key=key)
+        image_data = response['Body'].read()
+
+        # Create thumbnail
+        image = Image.open(io.BytesIO(image_data))
+        image.thumbnail((200, 200))
+
+        # Save thumbnail
+        buffer = io.BytesIO()
+        image.save(buffer, format='JPEG', quality=85)
+        buffer.seek(0)
+
+        thumbnail_key = f"thumbnails/{key}"
+        s3.put_object(
+            Bucket=bucket,
+            Key=thumbnail_key,
+            Body=buffer,
+            ContentType='image/jpeg'
+        )
+
+        print(
+            f"Created thumbnail: {thumbnail_key}"
+        )
+
+    return {'statusCode': 200}
+```
+</TabItem>
+<TabItem label="Queue Processor (JavaScript)">
+```javascript
+const { DynamoDBClient, PutItemCommand }
+  = require('@aws-sdk/client-dynamodb');
+const { SESClient, SendEmailCommand }
+  = require('@aws-sdk/client-ses');
+
+const dynamodb = new DynamoDBClient({});
+const ses = new SESClient({});
+
+exports.handler = async (event) => {
+  // Process batch of SQS messages
+  const results = [];
+
+  for (const record of event.Records) {
+    try {
+      const order = JSON.parse(record.body);
+
+      // Store in DynamoDB
+      await dynamodb.send(new PutItemCommand({
+        TableName: 'Orders',
+        Item: {
+          orderId: { S: order.orderId },
+          customerId: { S: order.customerId },
+          total: { N: String(order.total) },
+          status: { S: 'CONFIRMED' },
+          createdAt: { S: new Date().toISOString() }
+        }
+      }));
+
+      // Send confirmation email
+      await ses.send(new SendEmailCommand({
+        Destination: {
+          ToAddresses: [order.customerEmail]
+        },
+        Message: {
+          Subject: {
+            Data: `Order ${order.orderId} Confirmed`
+          },
+          Body: {
+            Text: {
+              Data: `Your order of $${order.total} ` +
+                    `has been confirmed.`
+            }
+          }
+        },
+        Source: 'orders@example.com'
+      }));
+
+      results.push({
+        itemIdentifier: record.messageId
+      });
+    } catch (error) {
+      console.error(
+        `Error processing ${record.messageId}:`,
+        error
+      );
+      // Do NOT add to results - message will be retried
+    }
+  }
+
+  // Partial batch response: only acknowledge
+  // successfully processed messages
+  return {
+    batchItemFailures: event.Records
+      .filter(r => !results.find(
+        res => res.itemIdentifier === r.messageId
+      ))
+      .map(r => ({
+        itemIdentifier: r.messageId
+      }))
+  };
+};
+```
+</TabItem>
+</Tabs>
+
+---
+
+## Serverless Databases
+
+Serverless databases automatically scale compute and storage, eliminating the need to manage database instances.
+
+| Database | Type | Provider | Key Feature |
+|---|---|---|---|
+| **DynamoDB** | Key-value / Document | AWS | Single-digit ms latency at any scale |
+| **Aurora Serverless** | Relational (MySQL/PostgreSQL) | AWS | Auto-scales capacity units |
+| **Cosmos DB (Serverless)** | Multi-model | Azure | Global distribution, multiple consistency levels |
+| **PlanetScale** | MySQL-compatible | Independent | Git-like branching for schemas |
+| **Neon** | PostgreSQL | Independent | Autoscaling, branching |
+| **Firestore** | Document | GCP | Real-time sync, offline support |
+| **Upstash** | Redis-compatible | Independent | Pay-per-request Redis |
+
+---
+
+## Benefits and Limitations
+
+### Benefits
+
+| Benefit | Details |
+|---|---|
+| **No server management** | No patching, no capacity planning, no OS management |
+| **Automatic scaling** | Scales from zero to thousands of concurrent executions |
+| **Pay-per-use** | Pay only for actual compute time (often per millisecond) |
+| **High availability** | Built-in redundancy across availability zones |
+| **Faster time to market** | Focus on business logic, not infrastructure |
+| **Built-in integrations** | Native connections to other cloud services |
+
+### Limitations
+
+| Limitation | Details |
+|---|---|
+| **Cold starts** | First invocation has higher latency (100ms to 10s) |
+| **Execution time limits** | Functions timeout after 15 minutes (Lambda) |
+| **Statelessness** | No persistent local state between invocations |
+| **Vendor lock-in** | Event source integrations are provider-specific |
+| **Debugging difficulty** | Harder to debug distributed, event-driven systems |
+| **Concurrency limits** | Default limits may throttle during traffic spikes |
+| **Cost at scale** | Can be more expensive than reserved instances at very high, constant load |
+
+### Cost Crossover Point
+
+```
+Monthly Cost
+     ▲
+     │
+     │       ╱ Serverless
+     │      ╱  (pay per invocation)
+     │     ╱
+     │    ╱─────────── Reserved Instance
+     │   ╱             (fixed monthly cost)
+     │  ╱
+     │ ╱
+     │╱
+     ├─────────────────────────────────────▶
+     0          Requests/Month        High
+
+At low traffic: Serverless wins (near-zero cost)
+At high, constant traffic: Reserved instances win
+The crossover depends on function duration and memory
+```
+
+---
+
+## When to Use Serverless
+
+:::tip[Serverless Is Ideal For]
+- **Variable or unpredictable traffic**: APIs with spiky traffic patterns
+- **Event processing**: File uploads, queue consumers, stream processing
+- **Scheduled tasks**: Cron jobs, report generation, cleanup scripts
+- **Webhooks**: Receiving and processing webhook events
+- **Prototyping**: Rapidly building and testing ideas
+- **Low-traffic APIs**: Services that do not need dedicated servers
+- **Glue code**: Connecting cloud services together
+:::
+
+:::caution[Serverless May Not Be Right For]
+- **Long-running processes**: Anything exceeding 15 minutes
+- **High-throughput, steady-state workloads**: Constant high load is cheaper on reserved instances
+- **Latency-critical paths**: Cold starts may be unacceptable
+- **Stateful applications**: WebSocket connections, game servers
+- **Complex orchestration**: Many interdependent functions become hard to manage
+- **Large compute jobs**: ML training, video encoding (better suited for containers)
+:::
+
+---
+
+## Serverless Framework Example
+
+<Tabs>
+<TabItem label="Serverless Framework">
+```yaml
+# serverless.yml
+service: user-api
+
+provider:
+  name: aws
+  runtime: python3.12
+  region: us-east-1
+  memorySize: 256
+  timeout: 30
+  environment:
+    TABLE_NAME: !Ref UsersTable
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:Query
+            - dynamodb:DeleteItem
+          Resource:
+            - !GetAtt UsersTable.Arn
+
+functions:
+  getUser:
+    handler: handlers/users.get_user
+    events:
+      - httpApi:
+          path: /users/{id}
+          method: get
+
+  createUser:
+    handler: handlers/users.create_user
+    events:
+      - httpApi:
+          path: /users
+          method: post
+
+  processOrder:
+    handler: handlers/orders.process
+    events:
+      - sqs:
+          arn: !GetAtt OrderQueue.Arn
+          batchSize: 10
+
+  dailyReport:
+    handler: handlers/reports.generate
+    events:
+      - schedule: cron(0 2 * * ? *)
+
+resources:
+  Resources:
+    UsersTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: Users
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: userId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: userId
+            KeyType: HASH
+
+    OrderQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: order-processing
+```
+</TabItem>
+<TabItem label="AWS SAM">
+```yaml
+# template.yaml (AWS SAM)
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Globals:
+  Function:
+    Runtime: python3.12
+    MemorySize: 256
+    Timeout: 30
+    Environment:
+      Variables:
+        TABLE_NAME: !Ref UsersTable
+
+Resources:
+  GetUserFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: handlers/users.get_user
+      Events:
+        GetUser:
+          Type: HttpApi
+          Properties:
+            Path: /users/{id}
+            Method: get
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref UsersTable
+
+  CreateUserFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: handlers/users.create_user
+      Events:
+        CreateUser:
+          Type: HttpApi
+          Properties:
+            Path: /users
+            Method: post
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UsersTable
+
+  UsersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+```
+</TabItem>
+</Tabs>
+
+---
+
+## Summary
+
+| Concept | Key Takeaway |
+|---|---|
+| **Serverless** | Run code without managing servers; pay per execution |
+| **Cold starts** | First invocation latency; mitigate with provisioned concurrency |
+| **Event-driven** | Functions triggered by events (HTTP, queues, files, schedules) |
+| **Serverless databases** | Auto-scaling databases with pay-per-use pricing |
+| **Best for** | Variable traffic, event processing, scheduled tasks |
+| **Not ideal for** | Long-running jobs, constant high load, stateful apps |
+
+<LinkCard
+  title="Next: Cloud Design Patterns"
+  description="Learn essential cloud design patterns: circuit breaker, retry, bulkhead, sidecar, and more."
+  href="/software-engineering/cloud-architecture/cloud-patterns/"
+/>

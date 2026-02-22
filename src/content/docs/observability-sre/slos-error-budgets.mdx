@@ -1,0 +1,651 @@
+---
+title: "SLOs & Error Budgets"
+description: "Learn SLI, SLO, and SLA definitions, how to choose good SLIs, set realistic SLOs, calculate error budgets, and implement SLO-based alerting for reliable systems"
+difficulty: "intermediate"
+prerequisites: ["Observability & SRE Overview", "Logging & Metrics", "Incident Response"]
+timeToRead: "22 min"
+topics: ["slo", "sli", "sla", "error-budget", "reliability", "sre", "alerting"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+import SLOCalculator from '../../../components/interactive/SLOCalculator';
+
+## Interactive SLO Calculator
+
+Calculate error budgets, allowed downtime, and burn rates for different SLO targets.
+
+<SLOCalculator client:load />
+
+## SLI, SLO, and SLA Defined
+
+These three terms form the foundation of reliability engineering. They create a shared language between engineering teams, product teams, and customers.
+
+```
+    ┌─────────────────────────────────────────────────────────────┐
+    │                                                             │
+    │   SLI (Service Level Indicator)                             │
+    │   ─────────────────────────────                             │
+    │   A quantitative measurement of service behavior.           │
+    │   "What are we measuring?"                                  │
+    │                                                             │
+    │   Example: The proportion of requests that return           │
+    │   successfully within 200ms.                                │
+    │                                                             │
+    │   SLO (Service Level Objective)                             │
+    │   ─────────────────────────────                             │
+    │   A target value or range for an SLI.                       │
+    │   "How good should it be?"                                  │
+    │                                                             │
+    │   Example: 99.9% of requests should succeed                 │
+    │   within 200ms over a 30-day rolling window.                │
+    │                                                             │
+    │   SLA (Service Level Agreement)                             │
+    │   ─────────────────────────────                             │
+    │   A contract with consequences if the SLO is not met.       │
+    │   "What happens if we miss it?"                             │
+    │                                                             │
+    │   Example: If availability drops below 99.9%,               │
+    │   customers receive a 10% credit.                           │
+    │                                                             │
+    └─────────────────────────────────────────────────────────────┘
+```
+
+### The Relationship
+
+```
+    SLI ──measures──▶ SLO ──promises──▶ SLA
+
+    SLI: "Our availability is 99.95%"
+              │
+              ▼
+    SLO: "We target 99.9% availability"
+              │ (99.95% > 99.9% → meeting SLO)
+              ▼
+    SLA: "If availability < 99.9%, we issue credits"
+         (SLA is the business/legal commitment)
+
+    Key insight:
+    - SLIs are measurements (technical)
+    - SLOs are targets (engineering)
+    - SLAs are contracts (business)
+
+    SLA thresholds should ALWAYS be less strict than SLOs.
+    You want to know you are failing your SLO before you
+    breach your SLA.
+```
+
+| Term | Who Defines It | Who Cares About It | Consequence of Missing |
+|------|---------------|-------------------|----------------------|
+| **SLI** | Engineering | Engineering | "We need better instrumentation" |
+| **SLO** | Engineering + Product | Engineering + Product | "We need to invest in reliability" |
+| **SLA** | Business + Legal | Customers + Business | Financial penalties, legal liability |
+
+:::caution
+Not all services need an SLA. Many internal services only need SLOs. But every service with users should have SLOs, even if there is no formal SLA. SLOs without SLAs still drive engineering decisions and prioritization.
+:::
+
+## Choosing Good SLIs
+
+The best SLIs measure what **users experience**, not what the system does internally. CPU usage is a poor SLI because users do not care about CPU. Request latency is a good SLI because users feel it directly.
+
+### SLI Categories
+
+| Category | What It Measures | Good SLIs | Poor SLIs |
+|----------|-----------------|-----------|-----------|
+| **Availability** | Can users use the service? | Successful request ratio | Server uptime |
+| **Latency** | How fast is the response? | p50, p95, p99 response time | Average response time |
+| **Quality** | Is the response correct? | Correct response ratio | Internal error count |
+| **Freshness** | How up-to-date is the data? | Data age percentile | Replication lag |
+| **Throughput** | Can it handle the load? | Successful operations/sec | Peak capacity |
+
+### SLI Specification
+
+An SLI should be expressed as a ratio:
+
+```
+    SLI = (Good events / Total events) x 100%
+
+    Availability SLI:
+    ─────────────────
+    Good events = requests with status < 500
+    Total events = all requests
+
+    SLI = (successful requests / total requests) x 100%
+    SLI = (9,990 / 10,000) x 100% = 99.9%
+
+    Latency SLI:
+    ─────────────
+    Good events = requests completed in < 200ms
+    Total events = all requests
+
+    SLI = (fast requests / total requests) x 100%
+    SLI = (9,850 / 10,000) x 100% = 98.5%
+```
+
+:::tip
+**Use percentiles, not averages, for latency SLIs.** An average of 50ms might hide the fact that 1% of users experience 5-second latencies. p99 (99th percentile) captures the experience of your worst-off users.
+:::
+
+### Choosing SLIs by Service Type
+
+| Service Type | Recommended SLIs |
+|-------------|-----------------|
+| **API / Web service** | Availability (success rate), Latency (p50, p99) |
+| **Data pipeline** | Freshness (data age), Completeness (records processed) |
+| **Storage system** | Availability, Durability, Latency |
+| **Streaming service** | Throughput, Latency, Message loss rate |
+| **Batch job** | Success rate, Completion time, Freshness |
+
+## Setting Realistic SLOs
+
+SLOs should be ambitious but achievable. Setting an SLO too high wastes engineering effort. Setting it too low fails to meet user expectations.
+
+### SLO Setting Process
+
+```
+    Step 1: Measure current performance
+    ──────────────────────────────────
+    Observe the SLI over 30+ days.
+    Current availability: 99.97%
+    Current p99 latency: 180ms
+
+    Step 2: Understand user expectations
+    ──────────────────────────────────
+    What do users actually need?
+    Survey, support tickets, competitor analysis.
+    Users complain when latency > 500ms.
+
+    Step 3: Set the SLO
+    ──────────────────────────────────
+    SLO should be between current performance
+    and user expectations.
+
+    Availability SLO: 99.95%  (below current 99.97%)
+    Latency SLO: 99% of requests < 300ms
+
+    Step 4: Define the measurement window
+    ──────────────────────────────────
+    Rolling 30-day window (most common)
+    Calendar month (for SLA alignment)
+    Rolling 7-day window (for fast feedback)
+
+    Step 5: Review and adjust quarterly
+    ──────────────────────────────────
+    Are we consistently meeting the SLO?
+    → Maybe tighten it.
+    Are we consistently missing the SLO?
+    → Fix reliability or loosen it.
+```
+
+### Common SLO Targets
+
+| Service Tier | Availability | Latency (p99) | Error Budget/Month |
+|-------------|-------------|---------------|-------------------|
+| **Tier 1** (revenue-critical) | 99.99% | < 200ms | 4.32 minutes |
+| **Tier 2** (important) | 99.9% | < 500ms | 43.2 minutes |
+| **Tier 3** (internal) | 99.5% | < 1s | 3.6 hours |
+| **Tier 4** (best-effort) | 99% | < 2s | 7.2 hours |
+
+## Error Budget Calculation
+
+The **error budget** is the inverse of the SLO. It quantifies how much unreliability your service is allowed within a given period.
+
+```
+    Error Budget = 1 - SLO
+
+    Example: SLO = 99.9% availability
+
+    Error Budget = 1 - 0.999 = 0.001 = 0.1%
+
+    In a 30-day month (43,200 minutes):
+    Error Budget = 43,200 * 0.001 = 43.2 minutes of downtime
+
+    ┌──────────────────────────────────────────────────────┐
+    │          30-Day Error Budget Visualization            │
+    │                                                      │
+    │ SLO = 99.9%                                          │
+    │                                                      │
+    │ Total minutes: 43,200                                │
+    │ Error budget:  43.2 minutes                          │
+    │                                                      │
+    │ ████████████████████████████████████████████████ OK   │
+    │ ░ Error budget (43.2 min)                            │
+    │                                                      │
+    │ Day 5:  Incident consumed 15 minutes                 │
+    │ ████████████████████████████████████████████████ OK   │
+    │ ░░░░░░░░░░░░ Remaining: 28.2 min                    │
+    │                                                      │
+    │ Day 12: Incident consumed 20 minutes                 │
+    │ ████████████████████████████████████████████████ WARN │
+    │ ░░░░ Remaining: 8.2 min                              │
+    │                                                      │
+    │ Day 18: Incident consumed 10 minutes                 │
+    │ ████████████████████████████████████████████████ OVER │
+    │ Budget EXHAUSTED. SLO breached.                      │
+    └──────────────────────────────────────────────────────┘
+```
+
+### Error Budget by SLO Level
+
+| SLO | Error Budget | Downtime/Year | Downtime/Month | Downtime/Week |
+|-----|-------------|--------------|---------------|--------------|
+| 99% | 1% | 3.65 days | 7.31 hours | 1.68 hours |
+| 99.5% | 0.5% | 1.83 days | 3.65 hours | 50.4 min |
+| 99.9% | 0.1% | 8.76 hours | 43.2 min | 10.1 min |
+| 99.95% | 0.05% | 4.38 hours | 21.6 min | 5.04 min |
+| 99.99% | 0.01% | 52.6 min | 4.32 min | 1.01 min |
+| 99.999% | 0.001% | 5.26 min | 25.9 sec | 6.05 sec |
+
+<Tabs>
+  <TabItem label="Python">
+    ```python
+    from dataclasses import dataclass
+    from datetime import datetime, timedelta
+    from typing import List
+
+    @dataclass
+    class SLOConfig:
+        name: str
+        target: float       # e.g., 0.999 for 99.9%
+        window_days: int     # e.g., 30
+        sli_query: str       # Prometheus query for the SLI
+
+    @dataclass
+    class ErrorBudgetStatus:
+        slo_name: str
+        slo_target: float
+        current_sli: float
+        budget_total_minutes: float
+        budget_consumed_minutes: float
+        budget_remaining_minutes: float
+        budget_remaining_percent: float
+        is_budget_exhausted: bool
+        burn_rate: float     # How fast budget is being consumed
+
+    class ErrorBudgetTracker:
+        def __init__(self, slo: SLOConfig):
+            self.slo = slo
+            self.window_minutes = slo.window_days * 24 * 60
+
+        def calculate_budget(
+            self,
+            total_requests: int,
+            failed_requests: int,
+            window_elapsed_minutes: float
+        ) -> ErrorBudgetStatus:
+            # Calculate current SLI
+            current_sli = (
+                (total_requests - failed_requests)
+                / total_requests
+            ) if total_requests > 0 else 1.0
+
+            # Total error budget in minutes
+            budget_total = (
+                self.window_minutes * (1 - self.slo.target)
+            )
+
+            # Budget consumed (based on actual failures)
+            error_rate = 1 - current_sli
+            budget_consumed = (
+                window_elapsed_minutes * error_rate
+                / (1 - self.slo.target)
+            ) * (1 - self.slo.target)
+
+            # Simpler: budget consumed based on request ratio
+            allowed_failures = (
+                total_requests * (1 - self.slo.target)
+            )
+            budget_consumed_pct = (
+                failed_requests / allowed_failures * 100
+                if allowed_failures > 0 else 0
+            )
+
+            budget_remaining = max(
+                0, budget_total - budget_consumed
+            )
+            budget_remaining_pct = max(
+                0, 100 - budget_consumed_pct
+            )
+
+            # Burn rate: how fast are we consuming budget
+            # relative to the uniform rate
+            window_fraction = (
+                window_elapsed_minutes / self.window_minutes
+            )
+            expected_consumed_pct = window_fraction * 100
+            burn_rate = (
+                budget_consumed_pct / expected_consumed_pct
+                if expected_consumed_pct > 0 else 0
+            )
+
+            return ErrorBudgetStatus(
+                slo_name=self.slo.name,
+                slo_target=self.slo.target,
+                current_sli=current_sli,
+                budget_total_minutes=budget_total,
+                budget_consumed_minutes=budget_consumed,
+                budget_remaining_minutes=budget_remaining,
+                budget_remaining_percent=budget_remaining_pct,
+                is_budget_exhausted=budget_remaining_pct <= 0,
+                burn_rate=burn_rate,
+            )
+
+    # Usage
+    slo = SLOConfig(
+        name="Payment API Availability",
+        target=0.999,  # 99.9%
+        window_days=30,
+        sli_query='sum(rate(http_requests_total'
+                  '{status!~"5.."}[5m])) / '
+                  'sum(rate(http_requests_total[5m]))'
+    )
+
+    tracker = ErrorBudgetTracker(slo)
+
+    status = tracker.calculate_budget(
+        total_requests=1_000_000,
+        failed_requests=800,
+        window_elapsed_minutes=10 * 24 * 60  # 10 days in
+    )
+
+    print(f"SLO: {status.slo_name}")
+    print(f"Current SLI: {status.current_sli:.4%}")
+    print(f"Target: {status.slo_target:.2%}")
+    print(f"Budget remaining: {status.budget_remaining_percent:.1f}%")
+    print(f"Burn rate: {status.burn_rate:.2f}x")
+    print(f"Budget exhausted: {status.is_budget_exhausted}")
+    ```
+  </TabItem>
+</Tabs>
+
+## Error Budget Policies
+
+An error budget policy defines what happens when the error budget is running low or exhausted. It provides a structured decision-making framework.
+
+```
+    Error Budget Policy:
+
+    Budget > 50% remaining:
+    ┌─────────────────────────────────────────────┐
+    │ GREEN: Normal operations                    │
+    │ - Feature development continues             │
+    │ - Normal deployment cadence                 │
+    │ - Regular on-call load                      │
+    └─────────────────────────────────────────────┘
+
+    Budget 20-50% remaining:
+    ┌─────────────────────────────────────────────┐
+    │ YELLOW: Caution                             │
+    │ - Prioritize reliability work               │
+    │ - Reduce risky deployments                  │
+    │ - Increase testing for changes              │
+    │ - Review recent incidents                   │
+    └─────────────────────────────────────────────┘
+
+    Budget < 20% remaining:
+    ┌─────────────────────────────────────────────┐
+    │ ORANGE: At risk                             │
+    │ - Freeze non-critical deployments           │
+    │ - All engineering focus on reliability       │
+    │ - Daily error budget review                 │
+    │ - Escalate to engineering leadership         │
+    └─────────────────────────────────────────────┘
+
+    Budget exhausted (0%):
+    ┌─────────────────────────────────────────────┐
+    │ RED: SLO breached                           │
+    │ - Complete deployment freeze                │
+    │ - All hands on reliability                  │
+    │ - Mandatory postmortem                      │
+    │ - Executive review                          │
+    │ - Resume feature work only when budget      │
+    │   recovers (next window period)             │
+    └─────────────────────────────────────────────┘
+```
+
+### The Error Budget as a Negotiation Tool
+
+```
+    The fundamental tension in software engineering:
+
+    Product Team                    SRE / Platform Team
+    "Ship features faster!"  ◀──▶  "Don't break things!"
+
+    Error budgets resolve this tension:
+
+    Budget available? → Ship features. Move fast.
+    Budget low?       → Invest in reliability.
+    Budget spent?     → Freeze features. Fix reliability.
+
+    This turns reliability from an opinion ("I think
+    we need more tests") into a data-driven decision
+    ("We've consumed 80% of our error budget with
+     15 days remaining in the window").
+```
+
+## SLO-Based Alerting
+
+Traditional threshold-based alerting ("alert if error rate > 1%") is crude and leads to false positives. **SLO-based alerting** alerts based on how fast you are consuming your error budget.
+
+### Multi-Window, Multi-Burn-Rate Alerting
+
+```
+    Burn Rate:
+    The rate at which you are consuming your error budget
+    relative to the steady-state rate.
+
+    Burn rate 1.0 = Consuming budget at exactly the
+                    rate that would exhaust it at the
+                    end of the window.
+
+    Burn rate 14.4 = Consuming budget 14.4x faster
+                     than sustainable.
+                     (Would exhaust 30-day budget in 2 days)
+
+    Burn rate 6.0 =  Would exhaust budget in 5 days.
+    Burn rate 1.0 =  Sustainable for the full window.
+    Burn rate 0.0 =  No errors. Perfect.
+
+
+    Multi-window alerting:
+
+    ┌─────────────────────────────────────────────────────┐
+    │ Severity │ Burn Rate │ Long Window │ Short Window   │
+    ├──────────┼───────────┼─────────────┼────────────────┤
+    │ Page     │   14.4x   │    1 hour   │   5 minutes    │
+    │ Page     │    6.0x   │    6 hours  │  30 minutes    │
+    │ Ticket   │    3.0x   │    1 day    │   2 hours      │
+    │ Ticket   │    1.0x   │    3 days   │   6 hours      │
+    └─────────────────────────────────────────────────────┘
+
+    Both windows must trigger for the alert to fire.
+    Short window: confirms it is happening NOW.
+    Long window: confirms it is sustained, not a blip.
+```
+
+<Tabs>
+  <TabItem label="Python">
+    ```yaml
+    # Prometheus alerting rules for SLO-based alerting
+    # SLO: 99.9% availability over 30 days
+    # Error budget: 0.1% = 43.2 minutes/month
+
+    groups:
+      - name: slo-alerts
+        rules:
+          # Burn rate 14.4x over 1h (budget gone in 2 days)
+          # This is a critical, page-worthy alert
+          - alert: ErrorBudgetBurnCritical
+            expr: |
+              (
+                1 - (
+                  sum(rate(http_requests_total{
+                    status!~"5..", job="api-server"
+                  }[1h]))
+                  /
+                  sum(rate(http_requests_total{
+                    job="api-server"
+                  }[1h]))
+                )
+              ) > (14.4 * 0.001)
+              and
+              (
+                1 - (
+                  sum(rate(http_requests_total{
+                    status!~"5..", job="api-server"
+                  }[5m]))
+                  /
+                  sum(rate(http_requests_total{
+                    job="api-server"
+                  }[5m]))
+                )
+              ) > (14.4 * 0.001)
+            labels:
+              severity: critical
+              slo: "api-availability-99.9"
+            annotations:
+              summary: >
+                Error budget burning 14.4x too fast.
+                At this rate, the 30-day budget will be
+                exhausted in less than 2 days.
+              dashboard: "https://grafana/d/slo-overview"
+              runbook: "https://wiki/runbooks/slo-burn"
+
+          # Burn rate 6x over 6h (budget gone in 5 days)
+          - alert: ErrorBudgetBurnHigh
+            expr: |
+              (
+                1 - (
+                  sum(rate(http_requests_total{
+                    status!~"5..", job="api-server"
+                  }[6h]))
+                  /
+                  sum(rate(http_requests_total{
+                    job="api-server"
+                  }[6h]))
+                )
+              ) > (6.0 * 0.001)
+              and
+              (
+                1 - (
+                  sum(rate(http_requests_total{
+                    status!~"5..", job="api-server"
+                  }[30m]))
+                  /
+                  sum(rate(http_requests_total{
+                    job="api-server"
+                  }[30m]))
+                )
+              ) > (6.0 * 0.001)
+            labels:
+              severity: critical
+              slo: "api-availability-99.9"
+
+          # Burn rate 3x over 1d (budget gone in 10 days)
+          - alert: ErrorBudgetBurnMedium
+            expr: |
+              (
+                1 - (
+                  sum(rate(http_requests_total{
+                    status!~"5..", job="api-server"
+                  }[1d]))
+                  /
+                  sum(rate(http_requests_total{
+                    job="api-server"
+                  }[1d]))
+                )
+              ) > (3.0 * 0.001)
+              and
+              (
+                1 - (
+                  sum(rate(http_requests_total{
+                    status!~"5..", job="api-server"
+                  }[2h]))
+                  /
+                  sum(rate(http_requests_total{
+                    job="api-server"
+                  }[2h]))
+                )
+              ) > (3.0 * 0.001)
+            labels:
+              severity: warning
+              slo: "api-availability-99.9"
+    ```
+  </TabItem>
+</Tabs>
+
+### Why Multi-Window Works
+
+```
+    Scenario 1: Brief spike (5 minutes of errors)
+    ┌──────────────────────────────────────────────┐
+    │ Short window (5m): FIRING  (error rate high) │
+    │ Long window (1h):  OK      (averaged out)    │
+    │ Alert: Does NOT fire. Spike was transient.   │
+    └──────────────────────────────────────────────┘
+    Avoids false positive.
+
+    Scenario 2: Sustained problem (2 hours of errors)
+    ┌──────────────────────────────────────────────┐
+    │ Short window (5m): FIRING  (still happening) │
+    │ Long window (1h):  FIRING  (sustained issue) │
+    │ Alert: FIRES. This is a real problem.        │
+    └──────────────────────────────────────────────┘
+    Catches real issues.
+
+    Scenario 3: Past issue resolved
+    ┌──────────────────────────────────────────────┐
+    │ Short window (5m): OK      (recovered)       │
+    │ Long window (1h):  FIRING  (still shows it)  │
+    │ Alert: Does NOT fire. Issue is resolved.     │
+    └──────────────────────────────────────────────┘
+    Auto-resolves when the issue is fixed.
+```
+
+## Implementing SLOs in Practice
+
+### Step-by-Step Guide
+
+1. **Start with 2-3 SLOs per service** -- do not try to cover everything
+2. **Measure first, then set targets** -- observe your SLIs for 30 days before setting SLOs
+3. **Start with loose SLOs** -- tighten them over time as reliability improves
+4. **Automate error budget tracking** -- dashboard showing current budget status
+5. **Define policies** -- agree on what happens when budget is low
+6. **Review quarterly** -- are SLOs still appropriate?
+
+### SLO Dashboard Checklist
+
+| Component | Purpose |
+|-----------|---------|
+| **Current SLI value** | Where are we right now? |
+| **SLO target line** | Visual reference for the target |
+| **Error budget remaining** | How much room is left? |
+| **Budget burn rate** | How fast are we consuming? |
+| **Time to budget exhaustion** | When will we run out at current rate? |
+| **Incident markers** | When did incidents consume budget? |
+| **Deployment markers** | Correlate deployments with SLI changes |
+
+## Summary
+
+| Concept | Key Takeaway |
+|---------|-------------|
+| **SLI** | Quantitative measurement of user-visible service behavior |
+| **SLO** | Target value for the SLI -- the reliability goal |
+| **SLA** | Business contract with consequences for missing the target |
+| **Error Budget** | The allowed unreliability: `1 - SLO` |
+| **Error Budget Policy** | What to do when budget is low or exhausted |
+| **SLO-Based Alerting** | Alert on burn rate, not raw thresholds |
+| **Multi-Window** | Use long and short windows to avoid false positives |
+
+<CardGrid>
+  <LinkCard
+    title="Observability & SRE Overview"
+    description="Return to the section overview"
+    href="/software-engineering/observability-sre/"
+  />
+  <LinkCard
+    title="Incident Response"
+    description="Learn how to handle incidents effectively"
+    href="/software-engineering/observability-sre/incident-response/"
+  />
+</CardGrid>

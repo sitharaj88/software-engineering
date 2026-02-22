@@ -1,0 +1,883 @@
+---
+title: Consensus Algorithms
+description: Deep dive into distributed consensus including the Raft algorithm, Paxos, and ZAB, with step-by-step examples of leader election, log replication, and safety guarantees.
+difficulty: advanced
+prerequisites:
+  - Distributed Systems overview
+  - CAP theorem and consistency models
+  - Replication and partitioning concepts
+timeToRead: "30 min"
+topics:
+  - consensus
+  - Raft
+  - Paxos
+  - ZAB
+  - leader election
+  - log replication
+  - distributed agreement
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+import ConsensusVisualizer from '../../../components/interactive/ConsensusVisualizer';
+
+## Interactive Consensus Visualizer
+
+Explore the Raft consensus algorithm interactively. Start a leader election, send writes, and observe log replication across nodes in real time.
+
+<ConsensusVisualizer client:load />
+
+Consensus is the process by which a group of distributed nodes agree on a single value. It is the foundation of fault-tolerant distributed systems -- from electing a leader to committing a transaction to maintaining a replicated state machine. Getting consensus right is one of the hardest problems in computer science.
+
+---
+
+## The Consensus Problem
+
+### Formal Definition
+
+A consensus algorithm must satisfy three properties:
+
+1. **Agreement**: All non-faulty nodes must agree on the same value.
+2. **Validity**: The agreed-upon value must have been proposed by some node (no values from nowhere).
+3. **Termination**: All non-faulty nodes must eventually decide on a value.
+
+```
+   Node A proposes: "x = 42"
+   Node B proposes: "x = 99"
+   Node C proposes: "x = 42"
+
+   After consensus:
+   Node A decides: "x = 42"  ✓
+   Node B decides: "x = 42"  ✓  (agrees, even though it proposed 99)
+   Node C decides: "x = 42"  ✓
+```
+
+### Why Is Consensus Hard?
+
+The **FLP impossibility result** (Fischer, Lynch, Patterson, 1985) proves that in an asynchronous system where even one node can crash, no deterministic consensus algorithm can guarantee termination. This is a fundamental theoretical limit.
+
+In practice, consensus algorithms work around FLP by:
+- Using **timeouts** to detect failures (making the system partially synchronous)
+- Using **randomization** to break symmetry
+- Guaranteeing **safety** always but only guaranteeing **liveness** (termination) when the network is well-behaved
+
+```
+Safety:   "Nothing bad ever happens"
+           (No two nodes decide differently)
+           Guaranteed ALWAYS, even during network failures.
+
+Liveness: "Something good eventually happens"
+           (Nodes eventually make a decision)
+           Guaranteed only when the network behaves well enough.
+```
+
+### Where Is Consensus Used?
+
+| Application | What Nodes Agree On |
+|---|---|
+| **Leader election** | Which node is the current leader |
+| **Atomic broadcast** | The order of messages delivered to all nodes |
+| **Replicated state machine** | The same sequence of commands applied in the same order |
+| **Distributed locks** | Which node holds a given lock |
+| **Configuration management** | The current cluster configuration |
+
+---
+
+## The Raft Consensus Algorithm
+
+Raft was designed by Diego Ongaro and John Ousterhout in 2014 as an understandable alternative to Paxos. It decomposes consensus into three sub-problems: **leader election**, **log replication**, and **safety**.
+
+### Node States
+
+Every Raft node is in one of three states:
+
+```
+               times out,              receives votes
+               starts election         from majority
+  ┌──────────┐ ──────────────▶ ┌────────────┐ ──────────▶ ┌──────────┐
+  │ Follower │                 │ Candidate  │              │  Leader  │
+  │          │ ◀────────────── │            │              │          │
+  └──────────┘   discovers     └────────────┘              └──────────┘
+       ▲         current leader     ▲                          │
+       │         or new term        │                          │
+       │                            │  discovers node          │
+       └────────────────────────────┘  with higher term        │
+                                       ◀───────────────────────┘
+```
+
+### Terms
+
+Time is divided into **terms** of arbitrary length. Each term begins with an election. Terms act as a logical clock.
+
+```
+Term 1        Term 2        Term 3        Term 4
+┌─────────┐  ┌─────────┐  ┌───┐         ┌──────────────┐
+│Election │  │Election │  │Elec│         │Election │    │
+│  Leader  │  │  Leader  │  │tion│         │  Leader  │    │
+│  normal  │  │  normal  │  │fail│         │  normal   │    │
+│  opertn  │  │  opertn  │  │    │         │  opertn   │    │
+└─────────┘  └─────────┘  └───┘         └──────────────┘
+                           No leader      Split vote or
+                           elected        timeout caused
+                           this term      new election
+```
+
+### Leader Election
+
+1. A follower increments its term and transitions to **candidate** state
+2. It votes for itself and sends `RequestVote` RPCs to all other nodes
+3. It wins the election if it receives votes from a **majority** of nodes
+4. The winner becomes the leader for this term
+
+```
+Step-by-step example with 5 nodes (A, B, C, D, E):
+
+1. Node C has not received a heartbeat from the leader.
+   Its election timeout expires.
+
+2. Node C: term 1 → term 2, becomes Candidate
+   Votes for itself (1 vote)
+
+3. Node C sends RequestVote(term=2) to A, B, D, E
+
+4. Responses:
+   Node A: "Yes, I vote for C in term 2" (2 votes)
+   Node B: "Yes, I vote for C in term 2" (3 votes) ← MAJORITY!
+   Node D: (network delay, response pending)
+   Node E: (network delay, response pending)
+
+5. Node C has 3 out of 5 votes → becomes Leader for term 2
+
+6. Node C immediately sends AppendEntries heartbeats
+   to all nodes to assert leadership.
+```
+
+**Election safety**: At most one leader can be elected in a given term, because each node votes for at most one candidate per term, and a candidate needs a majority.
+
+### Log Replication
+
+Once a leader is elected, it handles all client requests. Each request is appended to the leader's log and replicated to followers.
+
+```
+Leader's Log:
+┌───┬───┬───┬───┬───┬───┐
+│ 1 │ 2 │ 3 │ 4 │ 5 │ 6 │  ← Log index
+│x=3│y=1│x=5│y=9│z=2│x=7│  ← Commands
+│T1 │T1 │T2 │T2 │T2 │T3 │  ← Term when entry was created
+└───┴───┴───┴───┴───┴───┘
+                         ↑
+                    commit index = 5
+                    (entries 1-5 are committed)
+
+Follower A's Log:
+┌───┬───┬───┬───┬───┐
+│ 1 │ 2 │ 3 │ 4 │ 5 │
+│x=3│y=1│x=5│y=9│z=2│  ← Up to date
+│T1 │T1 │T2 │T2 │T2 │
+└───┴───┴───┴───┴───┘
+
+Follower B's Log:
+┌───┬───┬───┐
+│ 1 │ 2 │ 3 │
+│x=3│y=1│x=5│  ← Behind (entries 4-5 not yet replicated)
+│T1 │T1 │T2 │
+└───┴───┴───┘
+```
+
+#### AppendEntries RPC
+
+The leader sends `AppendEntries` RPCs to each follower containing:
+- The leader's term
+- The index and term of the entry immediately preceding the new entries
+- The new log entries to append
+- The leader's commit index
+
+```
+Leader sends to Follower B:
+  AppendEntries(
+    term = 3,
+    prevLogIndex = 3,
+    prevLogTerm = 2,
+    entries = [entry4, entry5, entry6],
+    leaderCommit = 5
+  )
+
+Follower B checks:
+  "Do I have an entry at index 3 with term 2?"
+  Yes! → Accept entries 4, 5, 6. Update commit index to 5.
+  No?  → Reject. Leader will decrement prevLogIndex and retry.
+```
+
+#### Commit Rules
+
+An entry is committed when it has been replicated to a **majority** of nodes. Once committed, it will never be lost (as long as a majority survives).
+
+```
+5-node cluster. Entry at index 6 (term 3):
+
+Leader:     ✓ (has entry 6)
+Follower A: ✓ (replicated)
+Follower B: ✓ (replicated)   ← 3 out of 5 = majority!
+Follower C: ✗ (not yet)
+Follower D: ✗ (not yet)
+
+Entry 6 is COMMITTED. Leader advances commit index to 6.
+Even if Follower C and D never receive it before a failure,
+the entry is safe because 3 nodes have it.
+```
+
+### Safety Guarantees
+
+Raft guarantees several safety properties:
+
+**Election Restriction**: A candidate must have a log at least as up-to-date as any majority of nodes. This ensures the new leader has all committed entries.
+
+```
+Node A's log: [1:T1] [2:T1] [3:T2] [4:T2] [5:T3]
+Node B's log: [1:T1] [2:T1] [3:T2]
+
+Node B starts election. It requests votes.
+Node A checks: "Is B's log at least as up-to-date as mine?"
+  B's last entry: index 3, term 2
+  A's last entry: index 5, term 3
+  Term 3 > Term 2, so A's log is more up-to-date.
+  A rejects B's vote request.
+
+This prevents B from becoming leader and losing entries 4 and 5.
+```
+
+### Raft Implementation Sketch
+
+<Tabs>
+<TabItem label="Python">
+```python
+import random
+import time
+import threading
+from enum import Enum
+from dataclasses import dataclass, field
+
+class NodeState(Enum):
+    FOLLOWER = "follower"
+    CANDIDATE = "candidate"
+    LEADER = "leader"
+
+@dataclass
+class LogEntry:
+    term: int
+    command: str
+    index: int
+
+@dataclass
+class RaftNode:
+    node_id: str
+    peers: list  # list of peer node IDs
+    state: NodeState = NodeState.FOLLOWER
+    current_term: int = 0
+    voted_for: str = None
+    log: list = field(default_factory=list)
+    commit_index: int = 0
+    last_applied: int = 0
+
+    # Volatile leader state
+    next_index: dict = field(default_factory=dict)
+    match_index: dict = field(default_factory=dict)
+
+    def __post_init__(self):
+        self.election_timeout = random.uniform(150, 300)
+        # milliseconds
+        self.last_heartbeat = time.time()
+        self.lock = threading.Lock()
+
+    def start_election(self):
+        """Transition to candidate and request votes."""
+        with self.lock:
+            self.state = NodeState.CANDIDATE
+            self.current_term += 1
+            self.voted_for = self.node_id
+            votes_received = 1  # Vote for self
+
+        # Request votes from all peers
+        for peer in self.peers:
+            vote_granted = self.send_request_vote(
+                peer, self.current_term
+            )
+            if vote_granted:
+                votes_received += 1
+
+        # Check if we won the election
+        majority = (len(self.peers) + 1) // 2 + 1
+        if votes_received >= majority:
+            self.become_leader()
+        else:
+            self.state = NodeState.FOLLOWER
+
+    def become_leader(self):
+        """Transition to leader state."""
+        with self.lock:
+            self.state = NodeState.LEADER
+            # Initialize leader volatile state
+            last_log_index = len(self.log)
+            for peer in self.peers:
+                self.next_index[peer] = last_log_index + 1
+                self.match_index[peer] = 0
+
+        print(
+            f"Node {self.node_id} became leader "
+            f"for term {self.current_term}"
+        )
+        self.send_heartbeats()
+
+    def handle_client_request(self, command: str):
+        """Leader handles a client write request."""
+        if self.state != NodeState.LEADER:
+            return False  # Redirect to leader
+
+        with self.lock:
+            entry = LogEntry(
+                term=self.current_term,
+                command=command,
+                index=len(self.log) + 1
+            )
+            self.log.append(entry)
+
+        # Replicate to followers
+        acks = 1  # Leader counts as one
+        for peer in self.peers:
+            success = self.send_append_entries(
+                peer, [entry]
+            )
+            if success:
+                acks += 1
+
+        # Commit if majority acknowledged
+        majority = (len(self.peers) + 1) // 2 + 1
+        if acks >= majority:
+            self.commit_index = entry.index
+            self.apply_committed_entries()
+            return True
+        return False
+
+    def apply_committed_entries(self):
+        """Apply committed but not yet applied entries."""
+        while self.last_applied < self.commit_index:
+            self.last_applied += 1
+            entry = self.log[self.last_applied - 1]
+            # Apply entry.command to state machine
+            print(
+                f"Applying: {entry.command} "
+                f"(index {entry.index})"
+            )
+
+    def send_request_vote(self, peer, term):
+        """Send RequestVote RPC (stub)."""
+        # In practice, this would be a network call
+        pass
+
+    def send_append_entries(self, peer, entries):
+        """Send AppendEntries RPC (stub)."""
+        # In practice, this would be a network call
+        pass
+
+    def send_heartbeats(self):
+        """Send empty AppendEntries as heartbeats."""
+        for peer in self.peers:
+            self.send_append_entries(peer, [])
+```
+</TabItem>
+<TabItem label="JavaScript">
+```javascript
+const FOLLOWER = 'follower';
+const CANDIDATE = 'candidate';
+const LEADER = 'leader';
+
+class RaftNode {
+  constructor(nodeId, peers) {
+    this.nodeId = nodeId;
+    this.peers = peers;
+
+    // Persistent state
+    this.state = FOLLOWER;
+    this.currentTerm = 0;
+    this.votedFor = null;
+    this.log = []; // Array of { term, command, index }
+
+    // Volatile state
+    this.commitIndex = 0;
+    this.lastApplied = 0;
+
+    // Leader state
+    this.nextIndex = {};
+    this.matchIndex = {};
+
+    // Timing
+    this.electionTimeout = 150 + Math.random() * 150;
+    this.lastHeartbeat = Date.now();
+  }
+
+  startElection() {
+    this.state = CANDIDATE;
+    this.currentTerm++;
+    this.votedFor = this.nodeId;
+    let votesReceived = 1; // Vote for self
+
+    const lastLogIndex = this.log.length;
+    const lastLogTerm = lastLogIndex > 0
+      ? this.log[lastLogIndex - 1].term
+      : 0;
+
+    // Request votes from all peers
+    const votePromises = this.peers.map(async (peer) => {
+      const granted = await this.sendRequestVote(peer, {
+        term: this.currentTerm,
+        candidateId: this.nodeId,
+        lastLogIndex,
+        lastLogTerm
+      });
+      if (granted) votesReceived++;
+    });
+
+    Promise.all(votePromises).then(() => {
+      const majority = Math.floor(
+        (this.peers.length + 1) / 2
+      ) + 1;
+      if (votesReceived >= majority) {
+        this.becomeLeader();
+      } else {
+        this.state = FOLLOWER;
+      }
+    });
+  }
+
+  becomeLeader() {
+    this.state = LEADER;
+    const lastLogIndex = this.log.length;
+
+    for (const peer of this.peers) {
+      this.nextIndex[peer] = lastLogIndex + 1;
+      this.matchIndex[peer] = 0;
+    }
+
+    console.log(
+      `Node ${this.nodeId} became leader ` +
+      `for term ${this.currentTerm}`
+    );
+    this.sendHeartbeats();
+  }
+
+  async handleClientRequest(command) {
+    if (this.state !== LEADER) {
+      return { success: false, error: 'Not the leader' };
+    }
+
+    const entry = {
+      term: this.currentTerm,
+      command,
+      index: this.log.length + 1
+    };
+    this.log.push(entry);
+
+    // Replicate to followers
+    let acks = 1;
+    for (const peer of this.peers) {
+      const success = await this.sendAppendEntries(
+        peer, [entry]
+      );
+      if (success) acks++;
+    }
+
+    const majority = Math.floor(
+      (this.peers.length + 1) / 2
+    ) + 1;
+
+    if (acks >= majority) {
+      this.commitIndex = entry.index;
+      this.applyCommittedEntries();
+      return { success: true, index: entry.index };
+    }
+
+    return { success: false, error: 'Failed to replicate' };
+  }
+
+  applyCommittedEntries() {
+    while (this.lastApplied < this.commitIndex) {
+      this.lastApplied++;
+      const entry = this.log[this.lastApplied - 1];
+      console.log(
+        `Applying: ${entry.command} (index ${entry.index})`
+      );
+    }
+  }
+
+  async sendRequestVote(peer, args) { /* network call */ }
+  async sendAppendEntries(peer, entries) { /* network call */ }
+  sendHeartbeats() {
+    for (const peer of this.peers) {
+      this.sendAppendEntries(peer, []);
+    }
+  }
+}
+```
+</TabItem>
+<TabItem label="Java">
+```java
+import java.util.*;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.*;
+
+public class RaftNode {
+
+    enum State { FOLLOWER, CANDIDATE, LEADER }
+
+    record LogEntry(int term, String command, int index) {}
+
+    private final String nodeId;
+    private final List<String> peers;
+
+    // Persistent state
+    private volatile State state = State.FOLLOWER;
+    private final AtomicInteger currentTerm =
+        new AtomicInteger(0);
+    private volatile String votedFor = null;
+    private final List<LogEntry> log =
+        new CopyOnWriteArrayList<>();
+
+    // Volatile state
+    private volatile int commitIndex = 0;
+    private volatile int lastApplied = 0;
+
+    // Leader state
+    private final Map<String, Integer> nextIndex =
+        new ConcurrentHashMap<>();
+    private final Map<String, Integer> matchIndex =
+        new ConcurrentHashMap<>();
+
+    public RaftNode(String nodeId, List<String> peers) {
+        this.nodeId = nodeId;
+        this.peers = peers;
+    }
+
+    public void startElection() {
+        state = State.CANDIDATE;
+        int term = currentTerm.incrementAndGet();
+        votedFor = nodeId;
+        AtomicInteger votes = new AtomicInteger(1);
+
+        int lastIdx = log.size();
+        int lastTerm = lastIdx > 0
+            ? log.get(lastIdx - 1).term() : 0;
+
+        for (String peer : peers) {
+            boolean granted = sendRequestVote(
+                peer, term, lastIdx, lastTerm
+            );
+            if (granted) votes.incrementAndGet();
+        }
+
+        int majority = (peers.size() + 1) / 2 + 1;
+        if (votes.get() >= majority) {
+            becomeLeader();
+        } else {
+            state = State.FOLLOWER;
+        }
+    }
+
+    private void becomeLeader() {
+        state = State.LEADER;
+        int lastIdx = log.size();
+        for (String peer : peers) {
+            nextIndex.put(peer, lastIdx + 1);
+            matchIndex.put(peer, 0);
+        }
+        System.out.printf(
+            "Node %s became leader for term %d%n",
+            nodeId, currentTerm.get()
+        );
+        sendHeartbeats();
+    }
+
+    public boolean handleClientRequest(String command) {
+        if (state != State.LEADER) return false;
+
+        LogEntry entry = new LogEntry(
+            currentTerm.get(), command, log.size() + 1
+        );
+        log.add(entry);
+
+        AtomicInteger acks = new AtomicInteger(1);
+        for (String peer : peers) {
+            if (sendAppendEntries(peer, List.of(entry))) {
+                acks.incrementAndGet();
+            }
+        }
+
+        int majority = (peers.size() + 1) / 2 + 1;
+        if (acks.get() >= majority) {
+            commitIndex = entry.index();
+            applyCommittedEntries();
+            return true;
+        }
+        return false;
+    }
+
+    private void applyCommittedEntries() {
+        while (lastApplied < commitIndex) {
+            lastApplied++;
+            LogEntry entry = log.get(lastApplied - 1);
+            System.out.printf(
+                "Applying: %s (index %d)%n",
+                entry.command(), entry.index()
+            );
+        }
+    }
+
+    private boolean sendRequestVote(
+        String peer, int term, int lastIdx, int lastTerm
+    ) { return false; /* network call */ }
+
+    private boolean sendAppendEntries(
+        String peer, List<LogEntry> entries
+    ) { return false; /* network call */ }
+
+    private void sendHeartbeats() {
+        for (String peer : peers) {
+            sendAppendEntries(peer, List.of());
+        }
+    }
+}
+```
+</TabItem>
+</Tabs>
+
+---
+
+## Paxos
+
+Paxos, invented by Leslie Lamport, is the original consensus algorithm. It is proven correct but notoriously difficult to understand and implement. Most production systems use Raft or Paxos-derived protocols instead of raw Paxos.
+
+### Basic Paxos (Single-Decree)
+
+Basic Paxos agrees on a single value through two phases:
+
+```
+Phase 1: Prepare
+─────────────────
+Proposer sends Prepare(n) to acceptors, where n is a unique
+proposal number.
+
+Acceptors respond with:
+  - Promise: "I will not accept any proposal with number < n"
+  - The highest-numbered proposal they have already accepted (if any)
+
+Phase 2: Accept
+─────────────────
+If the proposer receives promises from a majority:
+  - It sends Accept(n, value) to acceptors
+  - If an acceptor already accepted a value, the proposer must
+    use that value (to preserve previous agreements)
+
+Acceptors respond with:
+  - Accepted: "I have accepted proposal (n, value)"
+
+If a majority of acceptors accept, the value is chosen.
+```
+
+### Paxos Example Walkthrough
+
+```
+3 Acceptors: A1, A2, A3
+2 Proposers: P1 (proposes "X"), P2 (proposes "Y")
+
+Step 1: P1 sends Prepare(1) to A1, A2, A3
+        All three promise (no previous proposals)
+
+Step 2: P1 sends Accept(1, "X") to A1, A2, A3
+        A1 accepts, A2 accepts → majority!
+        Value "X" is chosen.
+
+Step 3: P2 sends Prepare(2) to A1, A2, A3
+        A1 responds: "I promised, but I already accepted (1, X)"
+        A2 responds: "I promised, but I already accepted (1, X)"
+
+Step 4: P2 must now propose "X" (not "Y")!
+        P2 sends Accept(2, "X") to A1, A2, A3
+        The value "X" is confirmed.
+
+Paxos ensures that once a value is chosen, all future
+proposals will converge to the same value.
+```
+
+### Multi-Paxos
+
+Basic Paxos is impractical for a sequence of values because each value requires two phases of communication. **Multi-Paxos** optimizes this by electing a stable leader:
+
+```
+Basic Paxos for each value:
+  Phase 1 (Prepare) + Phase 2 (Accept) per value = 4 message delays
+
+Multi-Paxos:
+  Phase 1 once (elect a leader)
+  Phase 2 for each subsequent value = 2 message delays per value
+
+  Much more efficient for a stream of values!
+```
+
+---
+
+## ZAB (ZooKeeper Atomic Broadcast)
+
+ZAB is the consensus protocol used by Apache ZooKeeper. It is designed for **primary-backup replication** with total ordering of updates.
+
+### ZAB Phases
+
+```
+Phase 1: Leader Election (Discovery)
+──────────────────────────────────────
+- Nodes elect a leader
+- The leader collects the latest transaction history
+  from a quorum of followers
+- The leader has the most up-to-date state
+
+Phase 2: Synchronization
+──────────────────────────
+- The leader brings all followers up to date
+- Followers receive any missing transactions
+- Once a quorum is synchronized, the leader is ready
+
+Phase 3: Broadcast (Normal Operation)
+──────────────────────────────────────
+- Client sends write request to leader
+- Leader proposes the write to followers
+- Followers acknowledge
+- Leader commits when a quorum acknowledges
+- Leader sends commit message to followers
+```
+
+### ZAB Transaction Flow
+
+```
+Client ──▶ Leader: "Create /config/db_host = 10.0.1.5"
+
+Leader ──▶ Follower 1: PROPOSE(zxid=0x100000003, create /config/db_host)
+Leader ──▶ Follower 2: PROPOSE(zxid=0x100000003, create /config/db_host)
+
+Follower 1 ──▶ Leader: ACK(0x100000003)  ← Quorum reached (Leader + F1)
+Follower 2 ──▶ Leader: ACK(0x100000003)
+
+Leader ──▶ Follower 1: COMMIT(0x100000003)
+Leader ──▶ Follower 2: COMMIT(0x100000003)
+
+Leader ──▶ Client: "OK, /config/db_host created"
+
+ZXID format: [epoch (32 bits)][counter (32 bits)]
+  epoch:   Incremented each time a new leader is elected
+  counter: Incremented for each transaction within an epoch
+```
+
+---
+
+## Comparison of Consensus Algorithms
+
+| Feature | Raft | Paxos | ZAB |
+|---|---|---|---|
+| **Understandability** | High (designed to be understandable) | Low (notoriously complex) | Medium |
+| **Leader** | Required (single leader) | Optional (can be leaderless) | Required (single leader) |
+| **Ordering** | Total order of log entries | Per-instance (Multi-Paxos adds ordering) | Total order (atomic broadcast) |
+| **Membership changes** | Joint consensus or single-server changes | Reconfiguration Paxos | Dynamic reconfiguration |
+| **Used by** | etcd, CockroachDB, TiKV, Consul | Chubby (Google), Spanner | ZooKeeper |
+| **Fault tolerance** | Tolerates `f` failures with `2f+1` nodes | Same | Same |
+| **Performance** | 2 message delays per commit | 2 message delays (Multi-Paxos) | 2 message delays per commit |
+
+---
+
+## Practical Usage: etcd and Raft
+
+etcd is a distributed key-value store that uses Raft for consensus. It is the backbone of Kubernetes for storing cluster state.
+
+```
+Kubernetes Cluster:
+
+┌────────────────────────────────────────┐
+│              Control Plane              │
+│                                        │
+│  ┌──────────┐  ┌──────────┐  ┌──────┐ │
+│  │ etcd     │  │ etcd     │  │ etcd │ │
+│  │ (Leader) │──│(Follower)│──│(Fllwr)│ │
+│  └──────────┘  └──────────┘  └──────┘ │
+│       ▲                                │
+│       │ Raft consensus                 │
+│  ┌────┴─────┐                          │
+│  │ API      │                          │
+│  │ Server   │                          │
+│  └──────────┘                          │
+└────────────────────────────────────────┘
+
+Every Kubernetes object (pods, services, deployments)
+is stored in etcd via Raft consensus.
+```
+
+:::tip[Production Cluster Sizing]
+For consensus algorithms that require a majority quorum, use an **odd number** of nodes. With 3 nodes you can tolerate 1 failure. With 5 nodes you can tolerate 2 failures. Using 4 nodes gives no advantage over 3 (both tolerate only 1 failure) but increases the coordination cost.
+:::
+
+---
+
+## Byzantine Fault Tolerance
+
+Standard consensus algorithms (Raft, Paxos, ZAB) assume nodes can crash but will not behave maliciously. **Byzantine fault tolerance (BFT)** handles nodes that can lie, send conflicting messages, or deliberately try to break consensus.
+
+```
+Crash fault:     Node stops responding (detectable)
+Byzantine fault: Node sends conflicting data to different nodes
+                 (much harder to handle)
+
+Crash fault tolerance:    Requires 2f + 1 nodes for f failures
+Byzantine fault tolerance: Requires 3f + 1 nodes for f failures
+```
+
+**PBFT (Practical Byzantine Fault Tolerance)**: Requires `3f + 1` nodes to tolerate `f` byzantine failures. Used in some blockchain systems.
+
+**Where BFT matters**:
+- Public blockchains (Bitcoin, Ethereum)
+- Multi-organization systems where participants do not fully trust each other
+- Aviation and space systems
+
+**Where BFT is unnecessary**:
+- Internal data center systems (you control all nodes)
+- Cloud-managed services (provider is trusted)
+- Most enterprise applications
+
+---
+
+## Common Pitfalls and Best Practices
+
+:::caution[Consensus Pitfalls]
+1. **Using consensus for everything**: Consensus is expensive. Use it for critical coordination (leader election, configuration) but not for every data operation.
+
+2. **Ignoring network partitions in testing**: Test what happens when nodes are partitioned. Tools like Jepsen can validate consensus implementations.
+
+3. **Wrong cluster size**: Using an even number of nodes wastes resources. 4 nodes tolerates the same failures as 3 but requires more communication.
+
+4. **Clock dependency**: Do not rely on synchronized wall clocks for ordering. Use logical clocks or consensus-derived ordering.
+
+5. **Ignoring log compaction**: Consensus logs grow indefinitely. Implement snapshotting to truncate old log entries.
+:::
+
+---
+
+## Summary
+
+| Concept | Key Takeaway |
+|---|---|
+| **Consensus Problem** | How distributed nodes agree on a single value |
+| **FLP Impossibility** | No deterministic async consensus can guarantee termination |
+| **Raft** | Understandable consensus with leader election and log replication |
+| **Paxos** | The original consensus algorithm; correct but complex |
+| **ZAB** | ZooKeeper's atomic broadcast protocol for total ordering |
+| **Quorum** | Majority agreement for fault tolerance (2f+1 nodes for f failures) |
+| **BFT** | Handles malicious nodes (3f+1 nodes for f failures) |
+
+<LinkCard
+  title="Next: Distributed Transactions"
+  description="Learn patterns for maintaining data integrity across services: 2PC, sagas, compensating transactions, and idempotency."
+  href="/software-engineering/distributed-systems/distributed-transactions/"
+/>

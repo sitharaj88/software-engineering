@@ -1,0 +1,246 @@
+---
+title: "Accessibility & Internationalization"
+description: "Understand why accessibility matters, disability types, assistive technologies, and the difference between internationalization and localization"
+difficulty: "intermediate"
+prerequisites: ["Web Fundamentals", "HTML & Semantic Markup"]
+timeToRead: "20 min"
+topics: ["accessibility", "a11y", "i18n", "l10n", "assistive-technology", "disability", "inclusive-design"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid, Card } from '@astrojs/starlight/components';
+
+Building software that works for **everyone** is not optional — it is a fundamental engineering responsibility. **Accessibility** (often abbreviated as **a11y**, where 11 represents the eleven letters between "a" and "y") ensures that people with disabilities can perceive, understand, navigate, and interact with your application. **Internationalization** (i18n) and **localization** (l10n) ensure your software works across languages, cultures, and regions.
+
+---
+
+## Why Accessibility Matters
+
+### The Legal Case
+
+Accessibility is required by law in many jurisdictions:
+
+| Regulation | Region | Scope |
+|-----------|--------|-------|
+| **ADA** (Americans with Disabilities Act) | United States | Public accommodations, including websites |
+| **Section 508** | United States | Federal government websites and technology |
+| **EAA** (European Accessibility Act) | European Union | Products and services in the EU market (2025) |
+| **AODA** | Ontario, Canada | Public-sector and large private organizations |
+| **EN 301 549** | Europe | ICT products and services procurement |
+
+Web accessibility lawsuits have increased significantly. In the US alone, thousands of digital accessibility lawsuits are filed annually, and courts have consistently ruled that websites are "places of public accommodation" under the ADA.
+
+### The Ethical Case
+
+- Over **1 billion people** worldwide live with some form of disability (about 15 percent of the global population)
+- Disabilities can be **permanent** (blindness), **temporary** (broken arm), or **situational** (bright sunlight on a screen)
+- Accessible design benefits everyone, not just people with disabilities — curb cuts help wheelchair users, parents with strollers, and delivery workers with carts
+- Technology has the power to be the great equalizer — or the great excluder
+
+### The Business Case
+
+| Benefit | Impact |
+|---------|--------|
+| **Larger market** | 15 percent of the global population has a disability |
+| **Better SEO** | Semantic HTML and alt text improve search rankings |
+| **Improved usability** | Accessible sites are more usable for everyone |
+| **Legal risk reduction** | Avoid lawsuits, fines, and negative publicity |
+| **Brand reputation** | Demonstrates commitment to inclusion |
+| **Innovation** | Constraints drive creative solutions (SMS, voice interfaces, audiobooks all originated from accessibility needs) |
+
+---
+
+## Types of Disabilities
+
+Understanding the spectrum of disabilities helps you build more inclusive software:
+
+### Visual
+
+```
+┌──────────────────────────────────────────────────────────┐
+│ Visual Disabilities                                       │
+├──────────────────────────────────────────────────────────┤
+│                                                          │
+│  Blindness          → Screen readers (JAWS, NVDA,        │
+│                       VoiceOver), braille displays        │
+│                                                          │
+│  Low vision         → Screen magnifiers, high contrast,  │
+│                       large text, zoom                    │
+│                                                          │
+│  Color blindness    → Sufficient contrast, not relying   │
+│                       on color alone for meaning          │
+│                                                          │
+│  Situational        → Bright sunlight on screen,         │
+│                       small mobile screen                 │
+│                                                          │
+└──────────────────────────────────────────────────────────┘
+```
+
+### Auditory
+
+- **Deafness** — Captions for video, visual notifications instead of sound-only alerts
+- **Hard of hearing** — Captions, transcripts, volume controls
+- **Situational** — Noisy environment, no headphones available
+
+### Motor/Physical
+
+- **Limited dexterity** — Keyboard navigation, large click targets, voice control
+- **Paralysis** — Eye tracking, switch devices, voice control
+- **Tremors** — Forgiving click targets, no hover-dependent interactions
+- **Situational** — Broken arm, holding a baby, wearing gloves
+
+### Cognitive
+
+- **Learning disabilities** — Clear language, consistent navigation, visual aids
+- **Attention disorders** — Minimal distractions, clear structure, progress indicators
+- **Memory impairments** — Recognition over recall, persistent state, clear labels
+- **Situational** — Stress, fatigue, multitasking, unfamiliar environment
+
+---
+
+## Assistive Technologies
+
+| Technology | Users | How It Works |
+|-----------|-------|-------------|
+| **Screen readers** | Blind and low-vision users | Reads page content aloud, navigates by headings, landmarks, and links |
+| **Screen magnifiers** | Low-vision users | Enlarges portions of the screen |
+| **Voice control** | Motor-impaired users | Commands spoken to navigate and interact |
+| **Switch devices** | Motor-impaired users | Physical buttons that cycle through interactive elements |
+| **Braille displays** | Blind users | Hardware that renders text as braille dots |
+| **Eye tracking** | Motor-impaired users | Cursor follows eye movement |
+| **Captions/subtitles** | Deaf and hard-of-hearing users | Text representation of audio content |
+| **High contrast mode** | Low-vision users | OS-level setting that increases contrast |
+
+### Popular Screen Readers
+
+| Screen Reader | Platform | Cost |
+|--------------|----------|------|
+| **JAWS** | Windows | Commercial |
+| **NVDA** | Windows | Free/open source |
+| **VoiceOver** | macOS, iOS | Built-in |
+| **TalkBack** | Android | Built-in |
+| **Narrator** | Windows | Built-in |
+| **Orca** | Linux | Free/open source |
+
+---
+
+## i18n vs l10n
+
+**Internationalization** and **localization** are complementary but distinct processes:
+
+```
+i18n (Internationalization)
+────────────────────────────
+Designing and building software so it CAN be adapted
+to various languages and regions WITHOUT engineering changes.
+
+  • Extract strings from code
+  • Support Unicode (UTF-8)
+  • Handle date/time/number formatting
+  • Support RTL text direction
+  • Design flexible layouts
+
+l10n (Localization)
+────────────────────
+Adapting software for a SPECIFIC locale by translating
+content and adjusting cultural elements.
+
+  • Translate UI strings
+  • Adapt images and icons
+  • Adjust date/currency formats
+  • Modify content for cultural context
+  • Comply with local regulations
+```
+
+### The i18n/l10n Process
+
+```
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│  Develop     │     │  Extract    │     │  Translate   │
+│  with i18n   │ ──▶ │  strings    │ ──▶ │  (l10n)      │
+│  patterns    │     │  to files   │     │              │
+└──────┬──────┘     └─────────────┘     └──────┬──────┘
+       │                                        │
+       │           ┌─────────────┐              │
+       │           │  Build &    │              │
+       └─────────▶ │  Deploy     │ ◀────────────┘
+                   │  per locale │
+                   └─────────────┘
+```
+
+### Locale Concepts
+
+A **locale** identifies a specific language and region combination:
+
+```
+en-US     English (United States)
+en-GB     English (United Kingdom)
+fr-FR     French (France)
+fr-CA     French (Canada)
+zh-Hans   Chinese (Simplified)
+zh-Hant   Chinese (Traditional)
+ar-SA     Arabic (Saudi Arabia)
+ja-JP     Japanese (Japan)
+
+Format: language[-script][-region]
+  language:  ISO 639-1 (2-letter) or ISO 639-2 (3-letter)
+  script:    ISO 15924 (4-letter, e.g., Hans, Latn)
+  region:    ISO 3166-1 alpha-2 (2-letter country code)
+```
+
+---
+
+## The Accessibility Mindset
+
+Accessibility is not a feature — it is a quality attribute that should be considered in every design and implementation decision.
+
+### The Curb-Cut Effect
+
+Accessible design often benefits everyone:
+
+| Accessibility Feature | Intended Audience | Benefits Everyone |
+|----------------------|-------------------|-------------------|
+| Captions on video | Deaf users | Noisy environments, non-native speakers, search indexing |
+| Keyboard navigation | Motor-impaired users | Power users, developers, broken trackpad |
+| High contrast | Low-vision users | Bright sunlight, projector display |
+| Clear, simple language | Cognitive disabilities | Non-native speakers, stressed users |
+| Alt text on images | Screen reader users | Slow connections (text loads first), SEO |
+| Voice interfaces | Motor-impaired users | Driving, cooking, hands full |
+
+---
+
+## What You Will Learn
+
+<CardGrid>
+  <LinkCard
+    title="WCAG & ARIA"
+    description="WCAG 2.1 principles, conformance levels, ARIA roles, and common patterns"
+    href="/software-engineering/accessibility-i18n/wcag-aria/"
+  />
+  <LinkCard
+    title="i18n Patterns"
+    description="Unicode, locale handling, date/time formatting, RTL support, and translation workflows"
+    href="/software-engineering/accessibility-i18n/i18n-patterns/"
+  />
+  <LinkCard
+    title="Testing for Accessibility"
+    description="Manual testing, automated tools, screen reader testing, and CI/CD integration"
+    href="/software-engineering/accessibility-i18n/a11y-testing/"
+  />
+</CardGrid>
+
+---
+
+## Related Topics
+
+<CardGrid>
+  <LinkCard
+    title="Web Fundamentals"
+    description="HTML, CSS, and JavaScript foundations for accessible web development"
+    href="/software-engineering/web-fundamentals/"
+  />
+  <LinkCard
+    title="Testing"
+    description="Testing strategies and frameworks for comprehensive quality assurance"
+    href="/software-engineering/testing/"
+  />
+</CardGrid>

@@ -1,0 +1,544 @@
+---
+title: Cloud Architecture
+description: Master cloud computing fundamentals including cloud-native principles, the well-architected framework, and the strategic benefits of cloud adoption for modern software systems.
+difficulty: intermediate
+prerequisites:
+  - Basic networking concepts
+  - Software architecture fundamentals
+  - Operating systems basics
+timeToRead: "25 min"
+topics:
+  - cloud computing
+  - AWS
+  - Azure
+  - GCP
+  - cloud-native
+  - well-architected framework
+  - elasticity
+  - scalability
+---
+
+import { Card, CardGrid, LinkCard, Tabs, TabItem } from '@astrojs/starlight/components';
+
+Cloud computing has fundamentally changed how software is built, deployed, and operated. Instead of purchasing and managing physical hardware, teams provision virtual resources on demand, paying only for what they use. This shift enables organizations of all sizes to build systems that scale globally, tolerate failures gracefully, and evolve rapidly.
+
+---
+
+## What Is Cloud Computing?
+
+The National Institute of Standards and Technology (NIST) defines cloud computing through five essential characteristics:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│              Five Essential Characteristics                  │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  1. On-demand self-service                                   │
+│     Provision resources without human interaction             │
+│                                                              │
+│  2. Broad network access                                     │
+│     Available over the network via standard mechanisms        │
+│                                                              │
+│  3. Resource pooling                                         │
+│     Provider's resources serve multiple consumers             │
+│     (multi-tenancy)                                          │
+│                                                              │
+│  4. Rapid elasticity                                         │
+│     Scale up and down quickly, often automatically            │
+│                                                              │
+│  5. Measured service                                         │
+│     Resource usage is monitored, controlled, and billed       │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Before Cloud vs After Cloud
+
+| Aspect | Traditional (On-Premise) | Cloud |
+|---|---|---|
+| **Provisioning** | Weeks to months (hardware procurement) | Minutes (API call) |
+| **Capital expense** | Large upfront investment | No upfront cost (pay-as-you-go) |
+| **Scaling** | Manual; buy more hardware | Automatic; add instances on demand |
+| **Utilization** | Often 10-20% average | Optimized through elasticity |
+| **Global reach** | Requires building/leasing data centers | Deploy to any region instantly |
+| **Maintenance** | In-house team manages everything | Provider manages infrastructure |
+| **Disaster recovery** | Expensive secondary data center | Built-in multi-region options |
+
+---
+
+## Why Cloud Computing Matters
+
+### 1. Elasticity
+
+Scale resources up during peak demand and down during quiet periods. Pay only for what you actually use.
+
+```
+Traffic Pattern:
+         ▲ Capacity
+         │
+Wasted ──┤ ┌────────────────────────── On-premise capacity
+capacity │ │ ████                       (fixed, overprovisioned)
+         │ │ ████  ██
+         │ │ ████  ████
+         │ │ ████  ████  ██
+         ├─┤─████──████──████──────── Avg traffic
+         │ │ ████  ████  ████  ██
+         │ │ ████  ████  ████  ████
+         └─┴─────────────────────────▶ Time
+
+Cloud auto-scaling:
+         ▲ Capacity
+         │
+         │   ┌──┐
+         │   │  │  ┌──┐               Cloud capacity
+         │ ┌─┤  ├──┤  │              (matches demand)
+         │ │ │  │  │  │  ┌──┐
+         ├─┤ │  │  │  ├──┤  │
+         │ │ │  │  │  │  │  │  ┌──┐
+         │ │ │  │  │  │  │  │  │  │
+         └─┴─┴──┴──┴──┴──┴──┴──┴──┴─▶ Time
+```
+
+### 2. Pay-As-You-Go Economics
+
+Traditional infrastructure requires guessing future capacity. Cloud computing transforms capital expenditure (CapEx) into operational expenditure (OpEx).
+
+### 3. Global Distribution
+
+Deploy your application to data centers around the world in minutes:
+
+```
+┌─────────────────────────────────────────────────────┐
+│                   Global Cloud Regions               │
+│                                                      │
+│   North America     Europe        Asia Pacific       │
+│   ─────────────     ──────        ────────────       │
+│   US East (VA)      Ireland       Tokyo              │
+│   US West (OR)      Frankfurt     Singapore          │
+│   Canada            London        Sydney             │
+│   US East (OH)      Paris         Mumbai             │
+│   US West (CA)      Stockholm     Seoul              │
+│                     Milan         Hong Kong           │
+│                                                      │
+│   South America     Middle East   Africa             │
+│   ─────────────     ───────────   ──────             │
+│   Sao Paulo         Bahrain       Cape Town          │
+│                     UAE                              │
+└─────────────────────────────────────────────────────┘
+```
+
+### 4. Managed Services
+
+Cloud providers offer hundreds of managed services that eliminate operational burden:
+
+| Category | Examples |
+|---|---|
+| **Compute** | Virtual machines, containers, serverless functions |
+| **Storage** | Object storage, block storage, file systems |
+| **Databases** | Relational, NoSQL, in-memory, graph |
+| **Networking** | Load balancers, CDN, DNS, VPN |
+| **AI/ML** | Training platforms, pre-built models, inference |
+| **Analytics** | Data warehouses, streaming analytics, BI tools |
+| **Security** | Identity management, encryption, compliance tools |
+
+---
+
+## Major Cloud Providers
+
+### The Big Three
+
+```
+┌──────────────────────────────────────────────────────────┐
+│                    Market Share (IaaS)                     │
+├──────────┬───────────┬───────────┬───────────────────────┤
+│  AWS     │   Azure   │   GCP     │   Others              │
+│  ~31%    │   ~25%    │   ~11%    │   ~33%                │
+│          │           │           │  (Alibaba, Oracle,     │
+│          │           │           │   IBM, etc.)           │
+└──────────┴───────────┴───────────┴───────────────────────┘
+```
+
+| Feature | AWS | Azure | GCP |
+|---|---|---|---|
+| **Launched** | 2006 | 2010 | 2008 |
+| **Strengths** | Broadest service catalog; largest ecosystem | Enterprise integration; hybrid cloud | Data/ML/analytics; Kubernetes (GKE) |
+| **Compute** | EC2, Lambda, ECS/EKS | VMs, Functions, AKS | Compute Engine, Cloud Run, GKE |
+| **Storage** | S3, EBS, EFS | Blob Storage, Disk, Files | Cloud Storage, Persistent Disk |
+| **Database** | RDS, DynamoDB, Aurora | SQL DB, Cosmos DB | Cloud SQL, Spanner, Bigtable |
+| **Serverless** | Lambda | Azure Functions | Cloud Functions |
+| **Container orchestration** | EKS, ECS | AKS | GKE (strongest K8s offering) |
+| **Global regions** | 30+ | 60+ | 35+ |
+| **Best for** | Startups, broad workloads | Microsoft shops, enterprise | Data-heavy, ML workloads |
+
+---
+
+## Cloud-Native Principles
+
+Cloud-native applications are designed from the ground up to exploit the advantages of cloud computing. The Cloud Native Computing Foundation (CNCF) defines cloud-native technologies as those that "empower organizations to build and run scalable applications in modern, dynamic environments."
+
+### The Twelve-Factor App
+
+The Twelve-Factor methodology (by Heroku co-founder Adam Wiggins) defines best practices for building cloud-native applications:
+
+```
+┌────┬─────────────────────────┬─────────────────────────────────┐
+│  # │ Factor                  │ Principle                       │
+├────┼─────────────────────────┼─────────────────────────────────┤
+│  1 │ Codebase                │ One codebase per app, many      │
+│    │                         │ deploys                         │
+│  2 │ Dependencies            │ Explicitly declare and isolate  │
+│  3 │ Config                  │ Store config in environment     │
+│    │                         │ variables                       │
+│  4 │ Backing Services        │ Treat as attached resources     │
+│  5 │ Build, Release, Run     │ Strictly separate stages        │
+│  6 │ Processes               │ Execute as stateless processes  │
+│  7 │ Port Binding            │ Export services via port binding│
+│  8 │ Concurrency             │ Scale out via the process model │
+│  9 │ Disposability           │ Fast startup and graceful       │
+│    │                         │ shutdown                        │
+│ 10 │ Dev/Prod Parity         │ Keep environments similar       │
+│ 11 │ Logs                    │ Treat logs as event streams     │
+│ 12 │ Admin Processes         │ Run admin tasks as one-off      │
+│    │                         │ processes                       │
+└────┴─────────────────────────┴─────────────────────────────────┘
+```
+
+### Key Cloud-Native Concepts
+
+**Microservices**: Decompose applications into small, independently deployable services.
+
+**Containers**: Package applications with their dependencies for consistent deployment across environments.
+
+**Orchestration**: Use Kubernetes or similar platforms to manage containerized workloads at scale.
+
+**Service Mesh**: Handle service-to-service communication, security, and observability transparently.
+
+**Infrastructure as Code (IaC)**: Define infrastructure using code (Terraform, CloudFormation, Pulumi) for version control and reproducibility.
+
+**CI/CD**: Automate build, test, and deployment pipelines for rapid, reliable releases.
+
+```
+Cloud-Native Application Stack:
+
+┌─────────────────────────────────────┐
+│         Application Code            │
+│    (Microservices, 12-Factor)       │
+├─────────────────────────────────────┤
+│     Container Runtime (Docker)      │
+├─────────────────────────────────────┤
+│   Orchestration (Kubernetes)        │
+├─────────────────────────────────────┤
+│   Service Mesh (Istio/Linkerd)      │
+├─────────────────────────────────────┤
+│     Cloud Infrastructure            │
+│  (Compute, Storage, Networking)     │
+├─────────────────────────────────────┤
+│    IaC (Terraform/CloudFormation)   │
+└─────────────────────────────────────┘
+```
+
+---
+
+## Well-Architected Framework
+
+All three major cloud providers publish a well-architected framework. The AWS version defines six pillars that represent the key design principles for cloud-based systems:
+
+### The Six Pillars
+
+```
+                   Well-Architected Framework
+    ┌──────────┬──────────┬──────────┬──────────┬──────────┬──────────┐
+    │Operational│ Security │Reliability│ Perf.   │  Cost    │ Sustain- │
+    │Excellence │          │           │Efficiency│ Optim.  │ ability  │
+    ├──────────┼──────────┼──────────┼──────────┼──────────┼──────────┤
+    │ Automate │ Least    │ Auto     │ Right-   │ Pay for  │ Minimize │
+    │ operations│privilege │ recovery │ size     │ what you │ environ. │
+    │ IaC      │ Encrypt  │ Scale    │ Caching  │ use      │ impact   │
+    │ Observe  │ Audit    │ Test     │ Async    │ Optimize │ Efficient│
+    │          │ Layers   │ failures │ Global   │ Reserved │ resources│
+    └──────────┴──────────┴──────────┴──────────┴──────────┴──────────┘
+```
+
+**1. Operational Excellence**: Automate operations, use infrastructure as code, make frequent small changes, anticipate failure, and learn from operational events.
+
+**2. Security**: Implement strong identity controls, enable traceability, apply security at all layers, automate security best practices, protect data in transit and at rest.
+
+**3. Reliability**: Automatically recover from failure, test recovery procedures, scale horizontally, stop guessing capacity, manage change through automation.
+
+**4. Performance Efficiency**: Use the right resource types and sizes, make data-driven decisions about architecture, use managed services, and experiment frequently.
+
+**5. Cost Optimization**: Adopt a consumption model, measure overall efficiency, stop spending money on undifferentiated heavy lifting, analyze and attribute expenditure.
+
+**6. Sustainability**: Understand the environmental impact of your workloads, establish sustainability goals, maximize utilization, use efficient hardware and software.
+
+---
+
+## Cloud Architecture Example
+
+Here is a typical cloud-native web application architecture:
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                        Cloud Architecture                            │
+│                                                                      │
+│  Users ──▶ CloudFront (CDN) ──▶ Route 53 (DNS)                      │
+│                │                                                     │
+│                ▼                                                     │
+│         Application Load Balancer                                    │
+│                │                                                     │
+│         ┌──────┴──────┐                                              │
+│         ▼             ▼                                              │
+│    ┌─────────┐  ┌─────────┐   Auto Scaling Group                    │
+│    │  ECS    │  │  ECS    │   (containers or EC2)                    │
+│    │ Task 1  │  │ Task 2  │                                          │
+│    └────┬────┘  └────┬────┘                                          │
+│         │            │                                               │
+│    ┌────▼────────────▼────┐                                          │
+│    │     VPC (Private)     │                                          │
+│    │                       │                                          │
+│    │  ┌─────────┐ ┌──────┐│                                          │
+│    │  │ RDS     │ │Redis ││                                          │
+│    │  │(Primary)│ │Cache ││                                          │
+│    │  └────┬────┘ └──────┘│                                          │
+│    │       │               │                                          │
+│    │  ┌────▼────┐          │                                          │
+│    │  │ RDS     │          │                                          │
+│    │  │(Replica)│          │                                          │
+│    │  └─────────┘          │                                          │
+│    └───────────────────────┘                                          │
+│                                                                      │
+│    ┌───────────┐  ┌───────────┐  ┌───────────┐                      │
+│    │    S3     │  │ SQS/SNS  │  │CloudWatch │                      │
+│    │(Objects)  │  │(Messaging)│  │(Monitoring)│                      │
+│    └───────────┘  └───────────┘  └───────────┘                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Cloud Deployment Models
+
+| Model | Description | Use Case |
+|---|---|---|
+| **Public Cloud** | Resources shared among multiple tenants on provider infrastructure | Startups, web apps, variable workloads |
+| **Private Cloud** | Dedicated infrastructure for a single organization | Regulated industries, sensitive data |
+| **Hybrid Cloud** | Combination of public and private clouds with workload portability | Gradual migration, burst capacity |
+| **Multi-Cloud** | Using services from multiple cloud providers | Avoid vendor lock-in, best-of-breed |
+
+---
+
+## Getting Started with Cloud
+
+<Tabs>
+<TabItem label="AWS CLI">
+```bash
+# Install AWS CLI
+curl "https://awscli.amazonaws.com/AWSCLIV2.pkg" -o "AWSCLIV2.pkg"
+sudo installer -pkg AWSCLIV2.pkg -target /
+
+# Configure credentials
+aws configure
+
+# Launch an EC2 instance
+aws ec2 run-instances \
+  --image-id ami-0abcdef1234567890 \
+  --instance-type t3.micro \
+  --key-name my-key-pair \
+  --security-group-ids sg-12345678 \
+  --subnet-id subnet-12345678
+
+# Create an S3 bucket
+aws s3 mb s3://my-application-bucket
+
+# Deploy a Lambda function
+aws lambda create-function \
+  --function-name my-function \
+  --runtime python3.12 \
+  --handler lambda_function.handler \
+  --zip-file fileb://function.zip \
+  --role arn:aws:iam::123456789012:role/lambda-role
+```
+</TabItem>
+<TabItem label="Terraform">
+```hcl
+# Infrastructure as Code with Terraform
+
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+}
+
+provider "aws" {
+  region = "us-east-1"
+}
+
+# VPC
+resource "aws_vpc" "main" {
+  cidr_block = "10.0.0.0/16"
+
+  tags = {
+    Name = "main-vpc"
+  }
+}
+
+# EC2 Instance
+resource "aws_instance" "web" {
+  ami           = "ami-0abcdef1234567890"
+  instance_type = "t3.micro"
+  subnet_id     = aws_subnet.public.id
+
+  tags = {
+    Name = "web-server"
+  }
+}
+
+# RDS Database
+resource "aws_db_instance" "postgres" {
+  allocated_storage    = 20
+  db_name              = "myapp"
+  engine               = "postgres"
+  engine_version       = "15"
+  instance_class       = "db.t3.micro"
+  username             = "admin"
+  password             = var.db_password
+  skip_final_snapshot  = true
+
+  vpc_security_group_ids = [
+    aws_security_group.db.id
+  ]
+}
+
+# S3 Bucket
+resource "aws_s3_bucket" "assets" {
+  bucket = "my-app-assets-bucket"
+
+  tags = {
+    Environment = "production"
+  }
+}
+```
+</TabItem>
+<TabItem label="Docker + K8s">
+```yaml
+# Kubernetes Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-app
+  labels:
+    app: web-app
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: web-app
+  template:
+    metadata:
+      labels:
+        app: web-app
+    spec:
+      containers:
+      - name: web-app
+        image: my-registry/web-app:1.0.0
+        ports:
+        - containerPort: 8080
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "250m"
+          limits:
+            memory: "256Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-app-service
+spec:
+  type: LoadBalancer
+  selector:
+    app: web-app
+  ports:
+  - port: 80
+    targetPort: 8080
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: web-app-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: web-app
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+```
+</TabItem>
+</Tabs>
+
+---
+
+## Topics in This Section
+
+<CardGrid>
+  <Card title="Cloud Service Models" icon="list-format">
+    Understand IaaS, PaaS, SaaS, FaaS, and the shared responsibility model for each tier.
+
+    [Explore Service Models](/software-engineering/cloud-architecture/service-models/)
+  </Card>
+  <Card title="Serverless Architecture" icon="rocket">
+    Build event-driven applications with serverless functions, understand cold starts, and learn when serverless is the right choice.
+
+    [Explore Serverless](/software-engineering/cloud-architecture/serverless/)
+  </Card>
+  <Card title="Cloud Design Patterns" icon="puzzle">
+    Master essential patterns: circuit breaker, retry, bulkhead, sidecar, strangler fig, and CQRS in cloud environments.
+
+    [Explore Patterns](/software-engineering/cloud-architecture/cloud-patterns/)
+  </Card>
+  <Card title="Cost Optimization" icon="star">
+    Learn FinOps principles, right-sizing strategies, reserved instance planning, and cost monitoring approaches.
+
+    [Explore Cost Optimization](/software-engineering/cloud-architecture/cost-optimization/)
+  </Card>
+</CardGrid>
+
+---
+
+## Related Topics
+
+- **[Distributed Systems](/software-engineering/distributed-systems/)** -- Cloud applications are inherently distributed
+- **[DevOps](/software-engineering/devops/)** -- CI/CD, infrastructure as code, and operational practices
+- **[System Design](/software-engineering/system-design/)** -- Architect systems that leverage cloud services effectively
+- **[Security](/software-engineering/security/)** -- Securing cloud infrastructure and applications
+- **[Caching & Performance](/software-engineering/caching-performance/)** -- Optimize cloud application performance
+
+<LinkCard
+  title="Next: Cloud Service Models"
+  description="Understand the differences between IaaS, PaaS, SaaS, and the shared responsibility model for each."
+  href="/software-engineering/cloud-architecture/service-models/"
+/>

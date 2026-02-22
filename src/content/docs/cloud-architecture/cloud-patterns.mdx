@@ -1,0 +1,670 @@
+---
+title: Cloud Design Patterns
+description: Master essential cloud design patterns including circuit breaker, retry with backoff, bulkhead, sidecar, ambassador, strangler fig, CQRS, and multi-region deployment strategies.
+difficulty: advanced
+prerequisites:
+  - Cloud Architecture overview
+  - Distributed Systems fundamentals
+  - Microservices concepts
+timeToRead: "28 min"
+topics:
+  - circuit breaker
+  - retry pattern
+  - bulkhead
+  - sidecar
+  - ambassador
+  - strangler fig
+  - CQRS
+  - multi-region
+  - cloud patterns
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+Cloud design patterns are proven solutions to common challenges in distributed cloud-based systems. These patterns address reliability, scalability, performance, and migration concerns that arise when building applications in the cloud.
+
+---
+
+## Reliability Patterns
+
+### Circuit Breaker Pattern
+
+The circuit breaker prevents an application from repeatedly trying to execute an operation that is likely to fail. Like an electrical circuit breaker, it "trips" when failures exceed a threshold, blocking further calls until the downstream service recovers.
+
+```
+           ┌─────────────────────────────────────────┐
+           │           Circuit Breaker States          │
+           │                                           │
+           │  ┌──────────┐   failures    ┌──────────┐ │
+           │  │  CLOSED   │──exceed ────▶│   OPEN   │ │
+           │  │ (normal)  │  threshold   │ (failing)│ │
+           │  └──────────┘               └────┬─────┘ │
+           │       ▲                          │       │
+           │       │                     timeout      │
+           │       │ success                  │       │
+           │       │                   ┌──────▼──────┐│
+           │       └───────────────────│ HALF-OPEN   ││
+           │        failure ──────────▶│ (testing)   ││
+           │                           └─────────────┘│
+           └─────────────────────────────────────────┘
+
+CLOSED:    Requests pass through normally.
+           Failures are counted.
+
+OPEN:      Requests fail immediately without calling
+           the downstream service (fail fast).
+
+HALF-OPEN: After a timeout, allow a limited number
+           of test requests through.
+           If they succeed, transition to CLOSED.
+           If they fail, transition back to OPEN.
+```
+
+<Tabs>
+<TabItem label="Python">
+```python
+import time
+import threading
+from enum import Enum
+from functools import wraps
+
+class CircuitState(Enum):
+    CLOSED = "closed"
+    OPEN = "open"
+    HALF_OPEN = "half_open"
+
+class CircuitBreaker:
+    def __init__(
+        self,
+        failure_threshold: int = 5,
+        recovery_timeout: float = 30.0,
+        half_open_max_calls: int = 3,
+    ):
+        self.failure_threshold = failure_threshold
+        self.recovery_timeout = recovery_timeout
+        self.half_open_max_calls = half_open_max_calls
+
+        self.state = CircuitState.CLOSED
+        self.failure_count = 0
+        self.success_count = 0
+        self.last_failure_time = 0
+        self.half_open_calls = 0
+        self.lock = threading.Lock()
+
+    def call(self, func, *args, **kwargs):
+        with self.lock:
+            if self.state == CircuitState.OPEN:
+                if self._should_attempt_reset():
+                    self.state = CircuitState.HALF_OPEN
+                    self.half_open_calls = 0
+                else:
+                    raise CircuitBreakerOpenError(
+                        "Circuit breaker is OPEN"
+                    )
+
+            if self.state == CircuitState.HALF_OPEN:
+                if self.half_open_calls >= \
+                   self.half_open_max_calls:
+                    raise CircuitBreakerOpenError(
+                        "Half-open call limit reached"
+                    )
+                self.half_open_calls += 1
+
+        try:
+            result = func(*args, **kwargs)
+            self._on_success()
+            return result
+        except Exception as e:
+            self._on_failure()
+            raise
+
+    def _on_success(self):
+        with self.lock:
+            self.failure_count = 0
+            if self.state == CircuitState.HALF_OPEN:
+                self.success_count += 1
+                if self.success_count >= \
+                   self.half_open_max_calls:
+                    self.state = CircuitState.CLOSED
+                    self.success_count = 0
+
+    def _on_failure(self):
+        with self.lock:
+            self.failure_count += 1
+            self.last_failure_time = time.time()
+            if self.state == CircuitState.HALF_OPEN:
+                self.state = CircuitState.OPEN
+            elif self.failure_count >= \
+                 self.failure_threshold:
+                self.state = CircuitState.OPEN
+
+    def _should_attempt_reset(self) -> bool:
+        return (time.time() - self.last_failure_time) \
+               >= self.recovery_timeout
+
+
+class CircuitBreakerOpenError(Exception):
+    pass
+
+
+# Usage
+breaker = CircuitBreaker(
+    failure_threshold=3,
+    recovery_timeout=10.0
+)
+
+def call_payment_service(order_id):
+    # This might fail
+    return breaker.call(
+        _make_payment_request, order_id
+    )
+```
+</TabItem>
+<TabItem label="JavaScript">
+```javascript
+class CircuitBreaker {
+  constructor({
+    failureThreshold = 5,
+    recoveryTimeout = 30000,
+    halfOpenMaxCalls = 3
+  } = {}) {
+    this.failureThreshold = failureThreshold;
+    this.recoveryTimeout = recoveryTimeout;
+    this.halfOpenMaxCalls = halfOpenMaxCalls;
+
+    this.state = 'CLOSED';
+    this.failureCount = 0;
+    this.successCount = 0;
+    this.lastFailureTime = 0;
+    this.halfOpenCalls = 0;
+  }
+
+  async call(fn, ...args) {
+    if (this.state === 'OPEN') {
+      if (this._shouldAttemptReset()) {
+        this.state = 'HALF_OPEN';
+        this.halfOpenCalls = 0;
+      } else {
+        throw new Error('Circuit breaker is OPEN');
+      }
+    }
+
+    if (this.state === 'HALF_OPEN') {
+      if (this.halfOpenCalls >= this.halfOpenMaxCalls) {
+        throw new Error('Half-open call limit reached');
+      }
+      this.halfOpenCalls++;
+    }
+
+    try {
+      const result = await fn(...args);
+      this._onSuccess();
+      return result;
+    } catch (error) {
+      this._onFailure();
+      throw error;
+    }
+  }
+
+  _onSuccess() {
+    this.failureCount = 0;
+    if (this.state === 'HALF_OPEN') {
+      this.successCount++;
+      if (this.successCount >= this.halfOpenMaxCalls) {
+        this.state = 'CLOSED';
+        this.successCount = 0;
+      }
+    }
+  }
+
+  _onFailure() {
+    this.failureCount++;
+    this.lastFailureTime = Date.now();
+    if (this.state === 'HALF_OPEN') {
+      this.state = 'OPEN';
+    } else if (
+      this.failureCount >= this.failureThreshold
+    ) {
+      this.state = 'OPEN';
+    }
+  }
+
+  _shouldAttemptReset() {
+    return Date.now() - this.lastFailureTime
+           >= this.recoveryTimeout;
+  }
+}
+
+// Usage
+const breaker = new CircuitBreaker({
+  failureThreshold: 3,
+  recoveryTimeout: 10000
+});
+
+async function callPaymentService(orderId) {
+  return breaker.call(makePaymentRequest, orderId);
+}
+```
+</TabItem>
+</Tabs>
+
+---
+
+### Retry with Exponential Backoff
+
+When a transient failure occurs, retry the operation with increasing delays between attempts. This prevents overwhelming a recovering service with immediate retries.
+
+```
+Attempt 1: Immediate
+Attempt 2: Wait 1 second
+Attempt 3: Wait 2 seconds
+Attempt 4: Wait 4 seconds
+Attempt 5: Wait 8 seconds (+ random jitter)
+
+With jitter (randomized delay to avoid thundering herd):
+Attempt 2: Wait 1s + random(0, 0.5s)
+Attempt 3: Wait 2s + random(0, 1.0s)
+Attempt 4: Wait 4s + random(0, 2.0s)
+```
+
+<Tabs>
+<TabItem label="Python">
+```python
+import time
+import random
+from functools import wraps
+
+def retry_with_backoff(
+    max_retries: int = 5,
+    base_delay: float = 1.0,
+    max_delay: float = 60.0,
+    exponential_base: float = 2.0,
+    jitter: bool = True,
+    retryable_exceptions: tuple = (Exception,)
+):
+    """Decorator for retry with exponential backoff."""
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            for attempt in range(max_retries + 1):
+                try:
+                    return func(*args, **kwargs)
+                except retryable_exceptions as e:
+                    if attempt == max_retries:
+                        raise  # Final attempt failed
+
+                    delay = min(
+                        base_delay
+                        * (exponential_base ** attempt),
+                        max_delay
+                    )
+
+                    if jitter:
+                        delay = delay * (
+                            0.5 + random.random()
+                        )
+
+                    print(
+                        f"Attempt {attempt + 1} failed: "
+                        f"{e}. Retrying in {delay:.1f}s"
+                    )
+                    time.sleep(delay)
+        return wrapper
+    return decorator
+
+@retry_with_backoff(
+    max_retries=3,
+    base_delay=1.0,
+    retryable_exceptions=(
+        ConnectionError, TimeoutError
+    )
+)
+def fetch_data(url):
+    """Fetch data with automatic retry."""
+    import requests
+    response = requests.get(url, timeout=5)
+    response.raise_for_status()
+    return response.json()
+```
+</TabItem>
+<TabItem label="JavaScript">
+```javascript
+async function retryWithBackoff(
+  fn,
+  {
+    maxRetries = 5,
+    baseDelay = 1000,
+    maxDelay = 60000,
+    exponentialBase = 2,
+    jitter = true,
+    retryableErrors = null
+  } = {}
+) {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      if (attempt === maxRetries) throw error;
+
+      if (retryableErrors && !retryableErrors.some(
+        E => error instanceof E
+      )) {
+        throw error; // Not retryable
+      }
+
+      let delay = Math.min(
+        baseDelay * Math.pow(exponentialBase, attempt),
+        maxDelay
+      );
+
+      if (jitter) {
+        delay = delay * (0.5 + Math.random());
+      }
+
+      console.log(
+        `Attempt ${attempt + 1} failed: ` +
+        `${error.message}. ` +
+        `Retrying in ${(delay / 1000).toFixed(1)}s`
+      );
+
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
+}
+
+// Usage
+const data = await retryWithBackoff(
+  () => fetch('https://api.example.com/data')
+    .then(r => r.json()),
+  { maxRetries: 3, baseDelay: 1000 }
+);
+```
+</TabItem>
+</Tabs>
+
+---
+
+### Bulkhead Pattern
+
+The bulkhead pattern isolates different parts of a system so that a failure in one component does not cascade to others. Named after the watertight compartments in a ship's hull.
+
+```
+Without Bulkhead:
+┌─────────────────────────────────────────┐
+│           Single Thread Pool            │
+│  ┌─────┐ ┌─────┐ ┌─────┐ ┌─────┐     │
+│  │Req A│ │Req B│ │Req C│ │Req D│     │
+│  │(DB) │ │(API)│ │(DB) │ │(API)│     │
+│  └─────┘ └─────┘ └─────┘ └─────┘     │
+│  If the external API hangs, ALL        │
+│  threads are consumed. DB calls also   │
+│  fail because no threads are available.│
+└─────────────────────────────────────────┘
+
+With Bulkhead:
+┌───────────────────┐  ┌────────────────────┐
+│  DB Thread Pool   │  │  API Thread Pool   │
+│  (max 10 threads) │  │  (max 5 threads)   │
+│  ┌─────┐ ┌─────┐ │  │  ┌─────┐ ┌─────┐  │
+│  │Req A│ │Req C│ │  │  │Req B│ │Req D│  │
+│  │(DB) │ │(DB) │ │  │  │(API)│ │(API)│  │
+│  └─────┘ └─────┘ │  │  └─────┘ └─────┘  │
+│  DB calls are     │  │  If API hangs,     │
+│  unaffected by    │  │  only API pool     │
+│  API issues       │  │  is affected       │
+└───────────────────┘  └────────────────────┘
+```
+
+---
+
+## Structural Patterns
+
+### Sidecar Pattern
+
+A sidecar is a helper process deployed alongside your main application, sharing the same lifecycle. It handles cross-cutting concerns like logging, monitoring, networking, and security without modifying the application code.
+
+```
+┌────────────────────────────────────────┐
+│                  Pod                    │
+│  ┌──────────────┐  ┌────────────────┐ │
+│  │  Application  │  │    Sidecar     │ │
+│  │   Container   │  │   Container   │ │
+│  │               │  │               │ │
+│  │   Your code   │──│  Envoy Proxy  │ │
+│  │               │  │  Log Shipper  │ │
+│  │               │  │  Config Agent │ │
+│  └──────────────┘  └────────────────┘ │
+│                                        │
+│  Shared: network namespace, volumes    │
+└────────────────────────────────────────┘
+```
+
+**Common sidecar use cases**:
+
+| Sidecar | Purpose | Example |
+|---|---|---|
+| **Service mesh proxy** | Traffic management, mTLS, observability | Envoy (Istio), Linkerd-proxy |
+| **Log collector** | Ship logs to centralized system | Fluentd, Filebeat |
+| **Config updater** | Watch for config changes, reload app | consul-template |
+| **Monitoring agent** | Collect and export metrics | Prometheus node exporter |
+| **Secret manager** | Inject secrets into the application | Vault Agent |
+
+### Ambassador Pattern
+
+The ambassador pattern is a specialized sidecar that acts as a proxy for outbound connections. It handles concerns like retries, circuit breaking, and service discovery on behalf of the application.
+
+```
+┌──────────────────────────────────────────────┐
+│                    Pod                         │
+│  ┌──────────────┐    ┌─────────────────────┐ │
+│  │  Application  │    │     Ambassador      │ │
+│  │               │───▶│  (outbound proxy)   │─────▶ External
+│  │  "Call DB     │    │                     │       Services
+│  │   on          │    │  - Connection pool  │
+│  │   localhost"  │    │  - Retry logic      │
+│  │               │    │  - Circuit breaker  │
+│  └──────────────┘    │  - TLS termination  │
+│                       └─────────────────────┘ │
+└──────────────────────────────────────────────┘
+```
+
+---
+
+## Migration Patterns
+
+### Strangler Fig Pattern
+
+Named after strangler fig trees that gradually envelop their host tree, this pattern incrementally migrates a legacy system to a new architecture. New functionality is built in the new system while the old system is gradually replaced.
+
+```
+Phase 1: Initial State
+┌─────────────────────────────┐
+│       Legacy Monolith        │
+│  ┌─────┐ ┌─────┐ ┌─────┐  │
+│  │Users│ │Orders│ │Pay  │  │
+│  │     │ │     │ │ment │  │
+│  └─────┘ └─────┘ └─────┘  │
+└─────────────────────────────┘
+
+Phase 2: Start Strangling (route some traffic to new services)
+┌──────────────────────────────────────────────┐
+│                 API Gateway / Proxy           │
+│  /users/* ──▶ New User Service               │
+│  /orders/* ──▶ Legacy Monolith               │
+│  /payments/* ──▶ Legacy Monolith             │
+└──────────────────────────────────────────────┘
+
+Phase 3: Continue Migrating
+┌──────────────────────────────────────────────┐
+│                 API Gateway / Proxy           │
+│  /users/* ──▶ New User Service               │
+│  /orders/* ──▶ New Order Service             │
+│  /payments/* ──▶ Legacy Monolith             │
+└──────────────────────────────────────────────┘
+
+Phase 4: Complete
+┌──────────────────────────────────────────────┐
+│                 API Gateway / Proxy           │
+│  /users/* ──▶ User Service                   │
+│  /orders/* ──▶ Order Service                 │
+│  /payments/* ──▶ Payment Service             │
+└──────────────────────────────────────────────┘
+Legacy monolith decommissioned.
+```
+
+:::tip[Strangler Fig Best Practices]
+1. Start with the simplest, most independent module
+2. Use a facade (API gateway) to route traffic between old and new
+3. Run both systems in parallel with feature flags
+4. Migrate data gradually, not all at once
+5. Monitor carefully during each migration phase
+6. Have a rollback plan for each increment
+:::
+
+---
+
+## Data Patterns
+
+### CQRS (Command Query Responsibility Segregation) in Cloud
+
+CQRS separates read operations (queries) from write operations (commands) into different models and potentially different data stores. This enables independent optimization and scaling of reads and writes.
+
+```
+Traditional (single model):
+  Client ──▶ [API] ──▶ [Single DB]
+                        Reads + Writes
+
+CQRS (separate models):
+  Client ──▶ [Command API] ──▶ [Write DB] ──event──▶ [Read DB]
+  Client ──▶ [Query API]  ──────────────────────────▶ [Read DB]
+
+  Write side: Optimized for transactional consistency
+  Read side:  Optimized for fast queries (denormalized views)
+```
+
+```
+Detailed CQRS Architecture:
+
+  ┌──────────────────────┐     ┌──────────────────────┐
+  │    Command Side       │     │     Query Side        │
+  │                       │     │                       │
+  │  Client               │     │  Client               │
+  │    │                  │     │    │                  │
+  │    ▼                  │     │    ▼                  │
+  │  Command Handler      │     │  Query Handler        │
+  │    │                  │     │    │                  │
+  │    ▼                  │     │    ▼                  │
+  │  Domain Model         │     │  Read Model (View)    │
+  │    │                  │     │    │                  │
+  │    ▼                  │     │    ▼                  │
+  │  Write Database       │     │  Read Database        │
+  │  (PostgreSQL,         │     │  (Elasticsearch,      │
+  │   normalized)         │     │   Redis, DynamoDB)    │
+  └───────────┬───────────┘     └──────────▲───────────┘
+              │                            │
+              │    Event Bus / Stream      │
+              └────────────────────────────┘
+              (Kafka, SNS/SQS, Event Grid)
+```
+
+---
+
+## Multi-Region Deployment Patterns
+
+### Active-Passive
+
+One region handles all traffic. The secondary region is on standby for disaster recovery.
+
+```
+┌──────────────────────┐       ┌──────────────────────┐
+│   US-East (Active)    │       │  EU-West (Passive)    │
+│                       │       │                       │
+│  ┌────────┐          │ async │  ┌────────┐          │
+│  │ App    │──────────│──────▶│  │ App    │ (standby)│
+│  └────┬───┘          │ repl. │  └────┬───┘          │
+│       │              │       │       │              │
+│  ┌────▼───┐          │       │  ┌────▼───┐          │
+│  │  DB    │──────────│──────▶│  │  DB    │ (replica)│
+│  │(primary)│         │       │  │(standby)│         │
+│  └────────┘          │       │  └────────┘          │
+└──────────────────────┘       └──────────────────────┘
+
+RTO: Minutes to hours (failover time)
+RPO: Seconds to minutes (replication lag)
+```
+
+### Active-Active
+
+Both regions handle traffic simultaneously. This provides the lowest latency for users but is the most complex to implement.
+
+```
+                   Global Load Balancer
+                  (Route 53 / Traffic Manager)
+                         │
+              ┌──────────┴──────────┐
+              ▼                     ▼
+┌──────────────────────┐  ┌──────────────────────┐
+│   US-East (Active)    │  │  EU-West (Active)     │
+│                       │  │                       │
+│  ┌────────┐          │  │  ┌────────┐          │
+│  │ App    │          │  │  │ App    │          │
+│  └────┬───┘          │  │  └────┬───┘          │
+│       │              │  │       │              │
+│  ┌────▼───┐          │  │  ┌────▼───┐          │
+│  │  DB    │◀────────▶│  │  │  DB    │          │
+│  │(primary)│ bidir.  │  │  │(primary)│         │
+│  └────────┘  repl.   │  │  └────────┘          │
+└──────────────────────┘  └──────────────────────┘
+
+RTO: Near zero (no failover needed)
+RPO: Near zero (simultaneous writes)
+Challenge: Conflict resolution for concurrent writes
+```
+
+### Follow-the-Sun
+
+Route traffic to the region closest to the current peak usage time. Useful for applications with geographically concentrated traffic patterns.
+
+```
+         00:00    06:00    12:00    18:00    00:00
+Asia     ████████                            ████
+Europe            ████████
+Americas                   ████████████████
+```
+
+---
+
+## Pattern Selection Guide
+
+| Problem | Pattern | Complexity |
+|---|---|---|
+| Downstream service failing | Circuit Breaker | Medium |
+| Transient network errors | Retry with Backoff | Low |
+| Cascading failures | Bulkhead | Medium |
+| Cross-cutting concerns | Sidecar | Medium |
+| Outbound proxy needs | Ambassador | Medium |
+| Legacy migration | Strangler Fig | High |
+| Read/write scaling imbalance | CQRS | High |
+| Global low latency | Multi-Region Active-Active | Very High |
+| Disaster recovery | Multi-Region Active-Passive | High |
+
+---
+
+## Summary
+
+| Pattern | Key Takeaway |
+|---|---|
+| **Circuit Breaker** | Fail fast when downstream services are unhealthy |
+| **Retry with Backoff** | Retry transient failures with increasing delays and jitter |
+| **Bulkhead** | Isolate failure domains to prevent cascading failures |
+| **Sidecar** | Deploy helper processes alongside your application |
+| **Ambassador** | Proxy outbound connections with built-in resilience |
+| **Strangler Fig** | Incrementally migrate legacy systems to modern architecture |
+| **CQRS** | Separate read and write models for independent optimization |
+| **Multi-Region** | Deploy across regions for latency, availability, and DR |
+
+<LinkCard
+  title="Next: Cost Optimization"
+  description="Learn FinOps principles, right-sizing strategies, and cost optimization techniques for cloud infrastructure."
+  href="/software-engineering/cloud-architecture/cost-optimization/"
+/>

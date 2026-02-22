@@ -1,0 +1,529 @@
+---
+title: "File System & Permissions"
+description: "Understand the Linux filesystem hierarchy, file types, permissions model (rwx), chmod, chown, umask, special permissions, and ACLs"
+difficulty: "beginner"
+prerequisites: ["Linux & CLI Overview", "Shell Scripting basics"]
+timeToRead: "22 min"
+topics: ["linux", "filesystem", "permissions", "chmod", "chown", "acl", "umask"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+## Linux Filesystem Hierarchy
+
+The Linux filesystem follows the **Filesystem Hierarchy Standard** (FHS), providing a consistent directory structure across distributions. Everything in Linux is organized under a single root directory `/`.
+
+```
+    /                          Root of the entire filesystem
+    ├── bin/                   Essential user binaries (ls, cp, grep)
+    ├── boot/                  Bootloader and kernel files
+    ├── dev/                   Device files (hardware as files)
+    ├── etc/                   System configuration files
+    │   ├── nginx/             Nginx configuration
+    │   ├── ssh/               SSH configuration
+    │   ├── systemd/           Systemd service configs
+    │   ├── passwd             User accounts
+    │   └── hosts              Hostname mappings
+    ├── home/                  User home directories
+    │   ├── alice/             Alice's home directory
+    │   └── bob/               Bob's home directory
+    ├── lib/                   Shared libraries (like .dll/.dylib)
+    ├── media/                 Mount points for removable media
+    ├── mnt/                   Temporary mount points
+    ├── opt/                   Optional/third-party software
+    ├── proc/                  Virtual filesystem (process info)
+    ├── root/                  Root user's home directory
+    ├── run/                   Runtime data (PIDs, sockets)
+    ├── sbin/                  System binaries (admin commands)
+    ├── srv/                   Data for services (web, FTP)
+    ├── sys/                   Virtual filesystem (kernel/hardware)
+    ├── tmp/                   Temporary files (cleared on reboot)
+    ├── usr/                   User programs and data
+    │   ├── bin/               User binaries
+    │   ├── lib/               Libraries
+    │   ├── local/             Locally installed software
+    │   └── share/             Architecture-independent data
+    └── var/                   Variable data (logs, caches, mail)
+        ├── log/               System and application logs
+        ├── cache/             Application caches
+        ├── lib/               Variable state data
+        └── tmp/               Temporary files (persist reboot)
+```
+
+### Key Directories for Engineers
+
+| Directory | Purpose | What You Will Find |
+|-----------|---------|-------------------|
+| `/etc` | Configuration | nginx.conf, sshd_config, hosts, resolv.conf |
+| `/var/log` | Log files | syslog, auth.log, nginx/access.log, application logs |
+| `/home` | User data | Your code, dotfiles, SSH keys |
+| `/tmp` | Temporary files | Build artifacts, temporary uploads |
+| `/opt` | Third-party software | Custom installations, vendor packages |
+| `/proc` | Process information | Process details, system info (virtual, not real files) |
+| `/dev` | Device files | `/dev/null`, `/dev/sda`, `/dev/random` |
+| `/usr/local/bin` | Local binaries | Custom-installed CLI tools |
+
+:::note
+**`/proc` and `/sys` are virtual filesystems** -- they do not represent actual files on disk. They are interfaces to kernel data. For example, `/proc/cpuinfo` shows CPU information, and `/proc/meminfo` shows memory statistics.
+:::
+
+## File Types
+
+In Linux, everything is a file -- including directories, devices, and network sockets.
+
+```
+    ls -la output:
+    drwxr-xr-x  2 alice devs 4096 Mar 15 14:30 src/
+    -rw-r--r--  1 alice devs 8192 Mar 15 14:25 app.py
+    lrwxrwxrwx  1 alice devs   12 Mar 15 14:20 link -> /opt/app
+    crw-rw----  1 root  disk 8, 0 Mar 15 10:00 /dev/sda
+    brw-rw----  1 root  disk 8, 0 Mar 15 10:00 /dev/sdb
+    srwxrwxr-x  1 mysql mysql   0 Mar 15 10:00 mysql.sock
+    prw-r--r--  1 alice devs    0 Mar 15 14:00 mypipe
+    ^
+    │
+    File type indicator
+```
+
+| Indicator | Type | Description |
+|-----------|------|-------------|
+| `-` | Regular file | Normal files (text, binaries, images) |
+| `d` | Directory | Container for other files |
+| `l` | Symbolic link | Pointer to another file/directory |
+| `c` | Character device | Stream-oriented devices (terminals, serial ports) |
+| `b` | Block device | Block-oriented devices (disks, partitions) |
+| `s` | Socket | Inter-process communication endpoint |
+| `p` | Named pipe (FIFO) | Inter-process communication pipe |
+
+## Permissions Model
+
+Linux uses a three-tier permission model: **owner**, **group**, and **others**. Each tier has three permission types: **read**, **write**, and **execute**.
+
+```
+    Permission String Breakdown:
+
+    -rwxr-xr--
+    │├─┤├─┤├─┤
+    │ │  │  │
+    │ │  │  └── Others:  r-- (read only)
+    │ │  └───── Group:   r-x (read + execute)
+    │ └──────── Owner:   rwx (read + write + execute)
+    └────────── File type: - (regular file)
+
+    Permission Bits:
+    ┌──────┬──────────┬─────────┬───────────────────────┐
+    │ Bit  │ Letter   │ Numeric │ Meaning               │
+    ├──────┼──────────┼─────────┼───────────────────────┤
+    │ Read │    r     │    4    │ View file contents    │
+    │      │          │         │ List directory entries │
+    ├──────┼──────────┼─────────┼───────────────────────┤
+    │Write │    w     │    2    │ Modify file contents  │
+    │      │          │         │ Create/delete in dir  │
+    ├──────┼──────────┼─────────┼───────────────────────┤
+    │Exec  │    x     │    1    │ Execute file as       │
+    │      │          │         │ program. Enter dir    │
+    └──────┴──────────┴─────────┴───────────────────────┘
+```
+
+### Numeric (Octal) Permissions
+
+Each permission is a bit. The three bits for each tier combine into an octal digit (0-7).
+
+```
+    Permission Calculation:
+
+    rwx = 4 + 2 + 1 = 7
+    r-x = 4 + 0 + 1 = 5
+    r-- = 4 + 0 + 0 = 4
+    rw- = 4 + 2 + 0 = 6
+    --- = 0 + 0 + 0 = 0
+
+    Common Permission Sets:
+    ┌──────────┬─────────┬──────────────────────────────┐
+    │ Numeric  │ Letters │ Meaning                      │
+    ├──────────┼─────────┼──────────────────────────────┤
+    │  755     │ rwxr-xr-x │ Owner full, others read+exec│
+    │  644     │ rw-r--r-- │ Owner read/write, others read│
+    │  700     │ rwx------  │ Owner only, full access     │
+    │  600     │ rw-------  │ Owner read/write only       │
+    │  777     │ rwxrwxrwx │ Everyone can do everything  │
+    │  000     │ ---------  │ No access for anyone        │
+    └──────────┴─────────┴──────────────────────────────┘
+```
+
+### Common Permission Recommendations
+
+| File Type | Permission | Octal | Why |
+|-----------|-----------|-------|-----|
+| **Scripts** | `rwxr-xr-x` | 755 | Owner edits, everyone executes |
+| **Config files** | `rw-r--r--` | 644 | Owner edits, everyone reads |
+| **SSH private keys** | `rw-------` | 600 | Owner only! SSH refuses if wider |
+| **Sensitive config** | `rw-------` | 600 | Database passwords, API keys |
+| **Web content** | `rw-r--r--` | 644 | Web server needs to read |
+| **Upload directories** | `rwxrwxrwt` | 1777 | Everyone writes, sticky bit |
+| **Log files** | `rw-r-----` | 640 | Owner writes, group reads |
+
+## chmod -- Changing Permissions
+
+```bash
+# Numeric mode
+chmod 755 script.sh        # rwxr-xr-x
+chmod 644 config.yaml      # rw-r--r--
+chmod 600 id_rsa           # rw-------
+
+# Symbolic mode
+chmod u+x script.sh        # Add execute for owner
+chmod g-w file.txt         # Remove write from group
+chmod o-rx file.txt        # Remove read+exec from others
+chmod a+r file.txt         # Add read for all (a = all)
+chmod u=rwx,g=rx,o=r file  # Set exactly
+
+# Recursive (directories and contents)
+chmod -R 755 /var/www/html/
+
+# Make a file executable
+chmod +x deploy.sh
+
+# Remove all permissions for others
+chmod o= sensitive_data.conf
+
+# Common operations
+chmod u+s program          # Set SUID bit
+chmod g+s shared_dir/      # Set SGID bit
+chmod +t /tmp              # Set sticky bit
+```
+
+## chown -- Changing Ownership
+
+```bash
+# Change owner
+chown alice file.txt         # Change owner to alice
+
+# Change owner and group
+chown alice:developers file.txt
+
+# Change group only
+chown :developers file.txt
+# or
+chgrp developers file.txt
+
+# Recursive
+chown -R www-data:www-data /var/www/
+
+# Common scenarios
+# Web server files
+sudo chown -R www-data:www-data /var/www/html/
+
+# Application files
+sudo chown -R appuser:appgroup /opt/myapp/
+
+# Fix SSH key permissions
+chown "$USER":"$USER" ~/.ssh/id_rsa
+chmod 600 ~/.ssh/id_rsa
+```
+
+## umask -- Default Permissions
+
+The **umask** determines default permissions for newly created files and directories. It subtracts permissions from the maximum.
+
+```
+    How umask works:
+
+    For files:   default max = 666 (rw-rw-rw-)
+    For dirs:    default max = 777 (rwxrwxrwx)
+
+    umask 022 (most common default):
+    Files: 666 - 022 = 644 (rw-r--r--)
+    Dirs:  777 - 022 = 755 (rwxr-xr-x)
+
+    umask 027 (more restrictive):
+    Files: 666 - 027 = 640 (rw-r-----)
+    Dirs:  777 - 027 = 750 (rwxr-x---)
+
+    umask 077 (most restrictive):
+    Files: 666 - 077 = 600 (rw-------)
+    Dirs:  777 - 077 = 700 (rwx------)
+```
+
+```bash
+# Check current umask
+umask          # e.g., 0022
+
+# Set umask for current session
+umask 027
+
+# Verify with a test file
+touch test_file
+ls -la test_file   # Shows the resulting permissions
+rm test_file
+
+# Set permanently in ~/.bashrc or ~/.profile
+echo "umask 027" >> ~/.bashrc
+```
+
+## Special Permissions
+
+Linux has three special permission bits that provide additional access control.
+
+### SUID (Set User ID)
+
+When set on an executable, it runs with the **owner's privileges** instead of the executing user's privileges.
+
+```
+    Without SUID:
+    alice runs /usr/bin/passwd → runs as alice → FAILS
+    (alice cannot write to /etc/shadow)
+
+    With SUID:
+    alice runs /usr/bin/passwd → runs as root → SUCCESS
+    (passwd has SUID, so it runs as its owner: root)
+
+    -rwsr-xr-x 1 root root  68208 /usr/bin/passwd
+       ^
+       s = SUID bit is set
+```
+
+```bash
+# Find SUID files
+find / -perm -4000 -type f 2>/dev/null
+
+# Set SUID
+chmod u+s program        # Symbolic
+chmod 4755 program       # Numeric (4 = SUID)
+```
+
+:::caution
+**SUID is a security-sensitive feature.** A poorly written SUID program can be exploited to gain root access. Only well-audited system utilities (like `passwd`, `sudo`, `ping`) should have SUID set. Never set SUID on scripts -- it is ignored for security reasons.
+:::
+
+### SGID (Set Group ID)
+
+On executables, it runs with the **group's privileges**. On directories, new files inherit the directory's group.
+
+```
+    SGID on directories (most common use):
+
+    drwxrwsr-x 2 alice developers 4096 /shared/project/
+                ^
+                s = SGID bit
+
+    When bob creates a file in /shared/project/:
+    - Without SGID: file group = bob's primary group
+    - With SGID:    file group = developers
+                    (inherited from directory)
+```
+
+```bash
+# Set SGID
+chmod g+s shared_dir/     # Symbolic
+chmod 2755 shared_dir/    # Numeric (2 = SGID)
+
+# Create shared directory for team collaboration
+sudo mkdir -p /shared/project
+sudo chown :developers /shared/project
+sudo chmod 2775 /shared/project
+# Now all files created in /shared/project will belong
+# to the "developers" group
+```
+
+### Sticky Bit
+
+Prevents users from deleting files they do not own, even if they have write permissions on the directory. Used on shared directories like `/tmp`.
+
+```
+    /tmp with sticky bit:
+
+    drwxrwxrwt  root root  /tmp
+                       ^
+                       t = sticky bit
+
+    - alice can create files in /tmp
+    - bob can create files in /tmp
+    - alice can ONLY delete her own files
+    - bob can ONLY delete his own files
+    - root can delete any file
+```
+
+```bash
+# Set sticky bit
+chmod +t /shared/uploads   # Symbolic
+chmod 1777 /shared/uploads # Numeric (1 = sticky bit)
+
+# Verify
+ls -ld /tmp
+# drwxrwxrwt 10 root root 4096 Mar 15 14:00 /tmp
+```
+
+### Special Permissions Summary
+
+| Permission | Octal | On Files | On Directories |
+|-----------|-------|----------|---------------|
+| **SUID** | 4000 | Execute as file owner | No effect |
+| **SGID** | 2000 | Execute as file group | New files inherit group |
+| **Sticky** | 1000 | No effect | Only owner can delete files |
+
+## ACLs (Access Control Lists)
+
+Standard Unix permissions are limited to one owner, one group, and others. **ACLs** provide fine-grained access control for multiple users and groups.
+
+```
+    Standard Permissions (limited):
+    -rw-r----- 1 alice developers report.pdf
+    │ Only alice (owner) and developers (group) have access
+
+    ACL (flexible):
+    -rw-r-----+ 1 alice developers report.pdf
+    │ alice: read/write
+    │ developers group: read
+    │ bob (specific user): read/write
+    │ marketing group: read
+    └── The + indicates ACLs are set
+```
+
+```bash
+# View ACLs
+getfacl report.pdf
+
+# Output:
+# # file: report.pdf
+# # owner: alice
+# # group: developers
+# user::rw-
+# user:bob:rw-
+# group::r--
+# group:marketing:r--
+# mask::rw-
+# other::---
+
+# Set ACL for a specific user
+setfacl -m u:bob:rw report.pdf
+
+# Set ACL for a specific group
+setfacl -m g:marketing:r report.pdf
+
+# Remove ACL for a user
+setfacl -x u:bob report.pdf
+
+# Remove all ACLs
+setfacl -b report.pdf
+
+# Set default ACL on directory (applies to new files)
+setfacl -d -m g:developers:rwx /shared/project/
+
+# Recursive ACL
+setfacl -R -m g:developers:rwx /shared/project/
+
+# Copy ACLs from one file to another
+getfacl source.txt | setfacl --set-file=- target.txt
+```
+
+### When to Use ACLs vs Standard Permissions
+
+| Scenario | Use Standard Permissions | Use ACLs |
+|----------|------------------------|----------|
+| Simple owner/group/others | Yes | Overkill |
+| Multiple groups need different access | No | Yes |
+| One additional user needs access | Possible (add to group) | Easier with ACL |
+| Complex shared directory structure | Difficult | Yes |
+| Maximum compatibility | Yes | Check if filesystem supports ACLs |
+
+## Practical Scenarios
+
+### Setting Up a Shared Development Directory
+
+```bash
+#!/bin/bash
+# Set up a shared project directory for a development team
+
+PROJECT_DIR="/opt/projects/webapp"
+GROUP="developers"
+
+# Create directory structure
+sudo mkdir -p "$PROJECT_DIR"/{src,docs,config,logs}
+
+# Set ownership
+sudo chown -R root:"$GROUP" "$PROJECT_DIR"
+
+# Set permissions with SGID for group inheritance
+sudo chmod -R 2775 "$PROJECT_DIR"
+
+# Make config directory more restrictive
+sudo chmod 2770 "$PROJECT_DIR"/config
+
+# Make logs writable but not deletable by others (sticky)
+sudo chmod 1775 "$PROJECT_DIR"/logs
+
+# Set default ACL so new files are group-writable
+sudo setfacl -R -d -m g:"$GROUP":rwx "$PROJECT_DIR"
+
+# Verify
+echo "Directory structure:"
+ls -la "$PROJECT_DIR"
+echo ""
+echo "ACLs:"
+getfacl "$PROJECT_DIR"
+```
+
+### Securing SSH Keys
+
+```bash
+#!/bin/bash
+# Fix SSH key permissions (SSH refuses to use keys
+# with overly permissive settings)
+
+SSH_DIR="$HOME/.ssh"
+
+# Directory must be 700
+chmod 700 "$SSH_DIR"
+
+# Private keys must be 600
+chmod 600 "$SSH_DIR"/id_*
+
+# Public keys should be 644
+chmod 644 "$SSH_DIR"/*.pub
+
+# authorized_keys must be 600
+if [[ -f "$SSH_DIR/authorized_keys" ]]; then
+    chmod 600 "$SSH_DIR/authorized_keys"
+fi
+
+# config file should be 600
+if [[ -f "$SSH_DIR/config" ]]; then
+    chmod 600 "$SSH_DIR/config"
+fi
+
+# known_hosts can be 644
+if [[ -f "$SSH_DIR/known_hosts" ]]; then
+    chmod 644 "$SSH_DIR/known_hosts"
+fi
+
+echo "SSH permissions fixed."
+ls -la "$SSH_DIR"
+```
+
+## Summary
+
+| Concept | Key Takeaway |
+|---------|-------------|
+| **FHS** | Standard directory layout: `/etc` for config, `/var/log` for logs, `/home` for users |
+| **File Types** | Everything is a file: regular, directory, link, device, socket, pipe |
+| **Permissions** | Three tiers (owner/group/others) with three types (read/write/execute) |
+| **chmod** | Change permissions numerically (755) or symbolically (u+x) |
+| **chown** | Change file ownership (user and group) |
+| **umask** | Controls default permissions for new files (commonly 022) |
+| **SUID/SGID** | Run as owner/group; SGID on directories inherits group |
+| **Sticky Bit** | Prevents deletion of files by non-owners in shared directories |
+| **ACLs** | Fine-grained permissions beyond the basic owner/group/others model |
+
+<CardGrid>
+  <LinkCard
+    title="Process Management"
+    description="Learn about processes, signals, systemd, and resource management"
+    href="/software-engineering/linux-cli/process-management/"
+  />
+  <LinkCard
+    title="Shell Scripting"
+    description="Review Bash scripting fundamentals"
+    href="/software-engineering/linux-cli/shell-scripting/"
+  />
+</CardGrid>

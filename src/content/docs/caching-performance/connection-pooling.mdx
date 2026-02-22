@@ -1,0 +1,818 @@
+---
+title: "Connection Pooling & Load Balancing"
+description: "Master database connection pools, HTTP keep-alive, pool sizing strategies, load balancing algorithms, and thread pools"
+difficulty: "intermediate"
+prerequisites:
+  - Profiling & Benchmarking
+  - Database fundamentals
+  - Networking basics
+timeToRead: "23 min"
+topics:
+  - connection-pooling
+  - HTTP-keep-alive
+  - pool-sizing
+  - load-balancing
+  - round-robin
+  - least-connections
+  - consistent-hashing
+  - thread-pools
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+Opening a new database connection or TCP socket for every request is expensive. Connection pooling maintains a set of reusable connections that are checked out when needed and returned when done, amortizing the setup cost across many requests. Load balancing distributes those requests across multiple servers. Together, pooling and load balancing are essential for building scalable, high-throughput systems.
+
+---
+
+## Why Connection Pooling Matters
+
+### The Cost of a New Connection
+
+Establishing a database connection involves multiple round trips:
+
+```
+Without pooling (every request):
+
+  App ──── TCP handshake (3-way) ────► DB        ~1 ms
+  App ──── TLS handshake ────────────► DB        ~2 ms
+  App ──── Authentication ───────────► DB        ~1 ms
+  App ──── Query ────────────────────► DB        ~5 ms
+  App ──── Close connection ─────────► DB        ~0.5 ms
+                                       Total:    ~9.5 ms
+
+With pooling (reused connection):
+
+  App ──── Checkout from pool ───────► Pool      ~0.01 ms
+  App ──── Query ────────────────────► DB        ~5 ms
+  App ──── Return to pool ──────────► Pool      ~0.01 ms
+                                       Total:    ~5.02 ms
+
+Savings: ~47% latency reduction per request
+At 1000 req/s: 4,480 ms of overhead eliminated per second
+```
+
+### Connection Pool Architecture
+
+```
+┌──────────────────────────────────────────────────┐
+│                  Application                      │
+│                                                    │
+│  Thread 1 ─┐                                      │
+│  Thread 2 ─┤   ┌────────────────────────────┐     │
+│  Thread 3 ─┼──►│     Connection Pool         │     │
+│  Thread 4 ─┤   │                            │     │
+│  Thread N ─┘   │  ┌────┐ ┌────┐ ┌────┐     │     │
+│                │  │Conn│ │Conn│ │Conn│ ... │     │
+│                │  │ 1  │ │ 2  │ │ 3  │     │     │
+│                │  └──┬─┘ └──┬─┘ └──┬─┘     │     │
+│                └─────┼──────┼──────┼────────┘     │
+└──────────────────────┼──────┼──────┼──────────────┘
+                       │      │      │
+                       ▼      ▼      ▼
+                  ┌──────────────────────┐
+                  │      Database        │
+                  └──────────────────────┘
+
+Pool States:
+  ● Active (checked out by a thread)
+  ○ Idle (available for checkout)
+  ✕ Closed (removed from pool)
+```
+
+---
+
+## Database Connection Pools
+
+<Tabs>
+<TabItem label="Python">
+```python
+# SQLAlchemy connection pool (most common in Python)
+from sqlalchemy import create_engine
+
+engine = create_engine(
+    "postgresql://user:pass@localhost:5432/mydb",
+    pool_size=10,           # Steady-state pool size
+    max_overflow=20,        # Extra connections beyond pool_size
+    pool_timeout=30,        # Seconds to wait for a connection
+    pool_recycle=1800,      # Recycle connections after 30 min
+    pool_pre_ping=True,     # Test connections before use
+)
+
+# Usage: connections are automatically pooled
+with engine.connect() as conn:
+    result = conn.execute("SELECT * FROM users WHERE id = %s", 42)
+    user = result.fetchone()
+# Connection returned to pool automatically
+
+
+# psycopg2 pool (lower-level)
+from psycopg2 import pool
+
+connection_pool = pool.ThreadedConnectionPool(
+    minconn=5,    # Minimum connections maintained
+    maxconn=20,   # Maximum connections allowed
+    host="localhost",
+    database="mydb",
+    user="user",
+    password="pass"
+)
+
+# Checkout
+conn = connection_pool.getconn()
+try:
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM users WHERE id = %s", (42,))
+    user = cursor.fetchone()
+    conn.commit()
+finally:
+    # Return to pool (do not close!)
+    connection_pool.putconn(conn)
+```
+</TabItem>
+<TabItem label="JavaScript">
+```javascript
+// pg (node-postgres) built-in pool
+const { Pool } = require('pg');
+
+const pool = new Pool({
+  host: 'localhost',
+  database: 'mydb',
+  user: 'user',
+  password: 'pass',
+  max: 20,                    // Maximum connections
+  idleTimeoutMillis: 30000,   // Close idle connections after 30s
+  connectionTimeoutMillis: 5000, // Timeout waiting for connection
+});
+
+// Method 1: Automatic checkout/return
+async function getUser(userId) {
+  const result = await pool.query(
+    'SELECT * FROM users WHERE id = $1', [userId]
+  );
+  return result.rows[0];
+  // Connection returned to pool automatically
+}
+
+// Method 2: Manual checkout (for transactions)
+async function transferFunds(from, to, amount) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(
+      'UPDATE accounts SET balance = balance - $1 WHERE id = $2',
+      [amount, from]
+    );
+    await client.query(
+      'UPDATE accounts SET balance = balance + $1 WHERE id = $2',
+      [amount, to]
+    );
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release(); // Return to pool
+  }
+}
+
+// Monitor pool health
+pool.on('error', (err) => {
+  console.error('Idle client error:', err.message);
+});
+
+setInterval(() => {
+  console.log({
+    total: pool.totalCount,
+    idle: pool.idleCount,
+    waiting: pool.waitingCount,
+  });
+}, 10000);
+```
+</TabItem>
+<TabItem label="Java">
+```java
+// HikariCP: the fastest Java connection pool
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
+
+HikariConfig config = new HikariConfig();
+config.setJdbcUrl("jdbc:postgresql://localhost:5432/mydb");
+config.setUsername("user");
+config.setPassword("pass");
+
+// Pool sizing
+config.setMinimumIdle(5);        // Minimum idle connections
+config.setMaximumPoolSize(20);   // Maximum total connections
+config.setConnectionTimeout(30000); // 30s wait for connection
+config.setIdleTimeout(600000);    // 10 min idle before close
+config.setMaxLifetime(1800000);   // 30 min max connection age
+config.setLeakDetectionThreshold(60000); // Warn if held > 60s
+
+// Connection validation
+config.setConnectionTestQuery("SELECT 1");
+
+HikariDataSource dataSource = new HikariDataSource(config);
+
+// Usage with try-with-resources
+try (Connection conn = dataSource.getConnection()) {
+    PreparedStatement stmt = conn.prepareStatement(
+        "SELECT * FROM users WHERE id = ?"
+    );
+    stmt.setInt(1, 42);
+    ResultSet rs = stmt.executeQuery();
+    if (rs.next()) {
+        String name = rs.getString("name");
+    }
+} // Connection returned to pool automatically
+
+// Monitor pool metrics
+HikariPoolMXBean poolMXBean = dataSource.getHikariPoolMXBean();
+System.out.println("Active: " + poolMXBean.getActiveConnections());
+System.out.println("Idle: " + poolMXBean.getIdleConnections());
+System.out.println("Waiting: " + poolMXBean.getThreadsAwaitingConnection());
+```
+</TabItem>
+</Tabs>
+
+---
+
+## Pool Sizing
+
+Choosing the right pool size is critical. Too few connections cause request queueing; too many overwhelm the database.
+
+### The Formula
+
+A widely cited guideline from the HikariCP documentation:
+
+```
+Optimal pool size = (core_count * 2) + effective_spindle_count
+
+Where:
+  core_count              = number of CPU cores on the DB server
+  effective_spindle_count = number of disk spindles (SSDs count as 0)
+
+Example:
+  DB server: 4 cores, SSD storage
+  Pool size = (4 * 2) + 0 = 8 connections
+
+This is a starting point. Benchmark and adjust based on actual workload.
+```
+
+:::caution[Common Mistake: Over-Provisioning]
+A pool of 100 connections for a database that can only efficiently handle 20 concurrent queries will cause **more** contention, not less. The database's internal locks, buffer pool, and I/O subsystem become bottlenecks. Fewer connections with request queueing often yields higher throughput than flooding the database.
+:::
+
+### Monitoring Pool Health
+
+| Metric | Healthy | Warning | Critical |
+|--------|---------|---------|----------|
+| **Active connections** | less than 70% of max | 70-90% of max | greater than 90% of max |
+| **Wait time for connection** | less than 10ms | 10-100ms | greater than 100ms |
+| **Connection creation rate** | Low (pool reuses) | Moderate | High (pool too small or leaking) |
+| **Idle connections** | Matches `minIdle` | Fluctuates normally | 0 (pool exhausted) |
+| **Connection age** | Within `maxLifetime` | Approaching limit | Exceeding limit |
+
+---
+
+## HTTP Keep-Alive
+
+HTTP keep-alive (persistent connections) reuses TCP connections for multiple HTTP requests instead of opening a new connection for each request.
+
+```
+Without Keep-Alive:
+  Request 1: TCP handshake → HTTP request → response → close
+  Request 2: TCP handshake → HTTP request → response → close
+  Request 3: TCP handshake → HTTP request → response → close
+
+With Keep-Alive:
+  TCP handshake → HTTP request 1 → response 1
+                → HTTP request 2 → response 2
+                → HTTP request 3 → response 3
+                → ... (connection reused)
+                → close (after idle timeout)
+
+Savings: 2 round trips per request (TCP + TLS handshake)
+```
+
+### HTTP/1.1 vs HTTP/2
+
+| Feature | HTTP/1.1 Keep-Alive | HTTP/2 |
+|---------|-------------------|--------|
+| Connections per host | 6-8 (browser limit) | 1 (multiplexed) |
+| Request ordering | Sequential per connection | Parallel streams |
+| Head-of-line blocking | Yes (per connection) | No (at HTTP level) |
+| Header compression | No | HPACK |
+| Server push | No | Yes |
+
+:::tip[HTTP/2 Eliminates Connection Pooling Overhead]
+With HTTP/2 multiplexing, a single TCP connection carries hundreds of concurrent streams. Client-side HTTP connection pools become less important because one connection handles all requests to a given host.
+:::
+
+---
+
+## Load Balancing Algorithms
+
+When you have multiple backend servers, a load balancer distributes incoming requests across them. The algorithm determines which server handles each request.
+
+```
+                        ┌──────────┐
+                        │  Client  │
+                        └────┬─────┘
+                             │
+                        ┌────┴─────┐
+                        │  Load    │
+                        │ Balancer │
+                        └────┬─────┘
+                    ┌────────┼────────┐
+                    ▼        ▼        ▼
+              ┌─────────┐ ┌─────────┐ ┌─────────┐
+              │Server A │ │Server B │ │Server C │
+              └─────────┘ └─────────┘ └─────────┘
+```
+
+### Round Robin
+
+Sends each request to the next server in sequence.
+
+```
+Request 1 → Server A
+Request 2 → Server B
+Request 3 → Server C
+Request 4 → Server A  (wraps around)
+Request 5 → Server B
+...
+```
+
+- **Pros**: Simple, even distribution when servers are identical
+- **Cons**: Ignores server load; a slow server gets the same traffic as a fast one
+
+### Weighted Round Robin
+
+Like round robin, but servers with higher weights receive more requests.
+
+```
+Weights: A=5, B=3, C=2  (total=10)
+
+Server A handles 50% of requests
+Server B handles 30% of requests
+Server C handles 20% of requests
+```
+
+### Least Connections
+
+Sends each request to the server with the fewest active connections.
+
+```
+Active connections: A=12, B=8, C=15
+
+Next request → Server B (fewest active)
+
+After: A=12, B=9, C=15
+```
+
+- **Pros**: Adapts to server speed; slow servers naturally get fewer requests
+- **Cons**: More overhead (must track active connections)
+
+### IP Hash
+
+Hashes the client's IP address to determine which server handles the request. The same client always goes to the same server (session affinity).
+
+```
+hash(client_ip) % num_servers = server_index
+
+hash("192.168.1.100") % 3 = 1 → Server B  (always)
+hash("10.0.0.50")     % 3 = 0 → Server A  (always)
+```
+
+- **Pros**: Session stickiness without cookies
+- **Cons**: Uneven distribution if some IPs are more active; adding/removing servers reshuffles most clients
+
+### Consistent Hashing
+
+Maps both servers and keys to a hash ring. Each key is handled by the next server clockwise on the ring. Adding or removing a server only redistributes keys near that server, not all keys.
+
+```
+Hash Ring:
+
+         0
+         │
+    S3 ──┤── S1        S1 handles keys from S3 to S1
+         │              S2 handles keys from S1 to S2
+         │              S3 handles keys from S2 to S3
+    S2 ──┘
+
+Adding S4 between S1 and S2:
+  Only keys between S1 and S4 move from S2 to S4.
+  All other keys stay on their current server.
+```
+
+:::note[Virtual Nodes]
+In practice, each physical server is placed at multiple positions on the ring (virtual nodes). This ensures an even distribution of keys even with a small number of servers.
+:::
+
+### Algorithm Comparison
+
+| Algorithm | Distribution | Session Affinity | Adaptability | Complexity |
+|-----------|-------------|-----------------|--------------|------------|
+| **Round Robin** | Even (static) | No | None | Very low |
+| **Weighted Round Robin** | Proportional | No | None | Low |
+| **Least Connections** | Adaptive | No | High | Medium |
+| **IP Hash** | Varies | Yes (by IP) | Low | Low |
+| **Consistent Hashing** | Even (dynamic) | Yes (by key) | High | Medium |
+| **Random** | Statistically even | No | None | Very low |
+
+<Tabs>
+<TabItem label="Python">
+```python
+import hashlib
+from bisect import bisect_right
+
+class ConsistentHashRing:
+    """Consistent hashing with virtual nodes."""
+
+    def __init__(self, nodes=None, replicas=150):
+        self.replicas = replicas
+        self.ring = {}      # hash -> node
+        self.sorted_keys = []
+
+        if nodes:
+            for node in nodes:
+                self.add_node(node)
+
+    def _hash(self, key: str) -> int:
+        return int(hashlib.md5(
+            key.encode()
+        ).hexdigest(), 16)
+
+    def add_node(self, node: str):
+        for i in range(self.replicas):
+            virtual_key = f"{node}:vn{i}"
+            h = self._hash(virtual_key)
+            self.ring[h] = node
+            self.sorted_keys.append(h)
+        self.sorted_keys.sort()
+
+    def remove_node(self, node: str):
+        for i in range(self.replicas):
+            virtual_key = f"{node}:vn{i}"
+            h = self._hash(virtual_key)
+            del self.ring[h]
+            self.sorted_keys.remove(h)
+
+    def get_node(self, key: str) -> str:
+        if not self.ring:
+            return None
+        h = self._hash(key)
+        idx = bisect_right(self.sorted_keys, h)
+        if idx == len(self.sorted_keys):
+            idx = 0  # Wrap around
+        return self.ring[self.sorted_keys[idx]]
+
+# Usage
+ring = ConsistentHashRing(["server-a", "server-b", "server-c"])
+print(ring.get_node("user:123"))   # server-b
+print(ring.get_node("user:456"))   # server-a
+
+# Adding a server only moves ~1/N of the keys
+ring.add_node("server-d")
+print(ring.get_node("user:123"))   # may still be server-b
+```
+</TabItem>
+<TabItem label="JavaScript">
+```javascript
+const crypto = require('crypto');
+
+class ConsistentHashRing {
+  constructor(nodes = [], replicas = 150) {
+    this.replicas = replicas;
+    this.ring = new Map();
+    this.sortedKeys = [];
+
+    nodes.forEach(node => this.addNode(node));
+  }
+
+  _hash(key) {
+    return crypto.createHash('md5')
+      .update(key)
+      .digest('hex');
+  }
+
+  addNode(node) {
+    for (let i = 0; i < this.replicas; i++) {
+      const virtualKey = `${node}:vn${i}`;
+      const hash = this._hash(virtualKey);
+      this.ring.set(hash, node);
+      this.sortedKeys.push(hash);
+    }
+    this.sortedKeys.sort();
+  }
+
+  removeNode(node) {
+    for (let i = 0; i < this.replicas; i++) {
+      const virtualKey = `${node}:vn${i}`;
+      const hash = this._hash(virtualKey);
+      this.ring.delete(hash);
+      this.sortedKeys = this.sortedKeys.filter(k => k !== hash);
+    }
+  }
+
+  getNode(key) {
+    if (this.ring.size === 0) return null;
+    const hash = this._hash(key);
+    let idx = this.sortedKeys.findIndex(k => k >= hash);
+    if (idx === -1) idx = 0; // Wrap around
+    return this.ring.get(this.sortedKeys[idx]);
+  }
+}
+
+const ring = new ConsistentHashRing([
+  'server-a', 'server-b', 'server-c'
+]);
+console.log(ring.getNode('user:123')); // server-b
+console.log(ring.getNode('user:456')); // server-a
+```
+</TabItem>
+</Tabs>
+
+---
+
+## Thread Pools
+
+A thread pool maintains a fixed set of worker threads that process tasks from a shared queue. This avoids the overhead of creating and destroying threads for each task.
+
+```
+┌─────────────────────────────────────────────────┐
+│                  Thread Pool                    │
+│                                                  │
+│  ┌──────────────────────────────────────┐       │
+│  │          Task Queue                   │       │
+│  │  [Task5] [Task4] [Task3] [Task2]     │       │
+│  └──────────────────┬───────────────────┘       │
+│                     │                            │
+│         ┌───────────┼───────────┐               │
+│         ▼           ▼           ▼               │
+│    ┌─────────┐ ┌─────────┐ ┌─────────┐         │
+│    │Worker 1 │ │Worker 2 │ │Worker 3 │         │
+│    │(Task 1) │ │ (idle)  │ │(Task 6) │         │
+│    └─────────┘ └─────────┘ └─────────┘         │
+└─────────────────────────────────────────────────┘
+
+Workers pull tasks from the queue.
+Idle workers wait for new tasks.
+If all workers are busy, tasks queue up.
+```
+
+### Thread Pool Sizing
+
+| Workload Type | Recommended Pool Size | Reason |
+|--------------|----------------------|--------|
+| **CPU-bound** | Number of CPU cores | More threads cause context-switching overhead |
+| **I/O-bound** | Cores * (1 + wait_time / compute_time) | Threads spend time waiting, so more threads keep CPUs busy |
+| **Mixed** | Profile and tune | Start with 2x cores and adjust |
+
+```
+Example: I/O-bound workload
+  CPU cores: 4
+  Average wait time per task: 200ms (DB query)
+  Average compute time per task: 10ms
+
+  Pool size = 4 * (1 + 200/10) = 4 * 21 = 84 threads
+
+  This keeps all 4 cores busy despite the long I/O waits.
+```
+
+<Tabs>
+<TabItem label="Python">
+```python
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import time
+
+def fetch_url(url: str) -> str:
+    """Simulate an I/O-bound task."""
+    time.sleep(0.5)  # Simulate network latency
+    return f"Response from {url}"
+
+urls = [f"https://api.example.com/item/{i}" for i in range(20)]
+
+# ThreadPoolExecutor: built-in thread pool
+with ThreadPoolExecutor(max_workers=10) as executor:
+    # Submit all tasks
+    future_to_url = {
+        executor.submit(fetch_url, url): url
+        for url in urls
+    }
+
+    # Collect results as they complete
+    for future in as_completed(future_to_url):
+        url = future_to_url[future]
+        try:
+            result = future.result()
+            print(f"{url}: {result}")
+        except Exception as exc:
+            print(f"{url} raised {exc}")
+
+# Without pool: 20 * 0.5s = 10 seconds
+# With 10 threads: ~1 second (20/10 * 0.5s)
+
+
+# ProcessPoolExecutor: for CPU-bound tasks
+from concurrent.futures import ProcessPoolExecutor
+
+def compute_heavy(n: int) -> int:
+    return sum(i ** 2 for i in range(n))
+
+with ProcessPoolExecutor(max_workers=4) as executor:
+    results = list(executor.map(compute_heavy,
+                                 [10**6] * 8))
+```
+</TabItem>
+<TabItem label="JavaScript">
+```javascript
+// Node.js worker_threads pool (for CPU-bound work)
+const { Worker, isMainThread, workerData } = require('worker_threads');
+const os = require('os');
+
+class ThreadPool {
+  constructor(workerScript, poolSize = os.cpus().length) {
+    this.workerScript = workerScript;
+    this.poolSize = poolSize;
+    this.workers = [];
+    this.queue = [];
+
+    for (let i = 0; i < poolSize; i++) {
+      this._createWorker();
+    }
+  }
+
+  _createWorker() {
+    const worker = new Worker(this.workerScript);
+    worker.busy = false;
+    worker.on('message', (result) => {
+      worker.busy = false;
+      worker.resolve(result);
+      this._processQueue();
+    });
+    worker.on('error', (err) => {
+      worker.busy = false;
+      worker.reject(err);
+      this._processQueue();
+    });
+    this.workers.push(worker);
+  }
+
+  execute(data) {
+    return new Promise((resolve, reject) => {
+      const task = { data, resolve, reject };
+      const freeWorker = this.workers.find(w => !w.busy);
+      if (freeWorker) {
+        freeWorker.busy = true;
+        freeWorker.resolve = resolve;
+        freeWorker.reject = reject;
+        freeWorker.postMessage(data);
+      } else {
+        this.queue.push(task);
+      }
+    });
+  }
+
+  _processQueue() {
+    if (this.queue.length === 0) return;
+    const freeWorker = this.workers.find(w => !w.busy);
+    if (!freeWorker) return;
+    const task = this.queue.shift();
+    freeWorker.busy = true;
+    freeWorker.resolve = task.resolve;
+    freeWorker.reject = task.reject;
+    freeWorker.postMessage(task.data);
+  }
+}
+```
+</TabItem>
+<TabItem label="Java">
+```java
+import java.util.concurrent.*;
+
+public class ThreadPoolExample {
+    public static void main(String[] args) throws Exception {
+        // Fixed thread pool: best for known, stable workloads
+        ExecutorService fixedPool =
+            Executors.newFixedThreadPool(
+                Runtime.getRuntime().availableProcessors()
+            );
+
+        // Custom thread pool with full control
+        ThreadPoolExecutor customPool = new ThreadPoolExecutor(
+            4,              // Core pool size
+            16,             // Maximum pool size
+            60L,            // Keep-alive time for idle threads
+            TimeUnit.SECONDS,
+            new LinkedBlockingQueue<>(1000), // Task queue
+            new ThreadPoolExecutor.CallerRunsPolicy() // Backpressure
+        );
+
+        // Submit tasks
+        List<Future<String>> futures = new ArrayList<>();
+        for (int i = 0; i < 100; i++) {
+            final int taskId = i;
+            futures.add(customPool.submit(() -> {
+                Thread.sleep(100); // Simulate work
+                return "Result-" + taskId;
+            }));
+        }
+
+        // Collect results
+        for (Future<String> future : futures) {
+            System.out.println(future.get());
+        }
+
+        // Monitor pool health
+        System.out.printf(
+            "Pool: active=%d, completed=%d, queue=%d%n",
+            customPool.getActiveCount(),
+            customPool.getCompletedTaskCount(),
+            customPool.getQueue().size()
+        );
+
+        // Virtual threads (Java 21+): no pool needed
+        try (var executor =
+                 Executors.newVirtualThreadPerTaskExecutor()) {
+            for (int i = 0; i < 10_000; i++) {
+                executor.submit(() -> {
+                    // Each virtual thread is lightweight (~1 KB)
+                    Thread.sleep(100);
+                    return "done";
+                });
+            }
+        }
+
+        customPool.shutdown();
+        fixedPool.shutdown();
+    }
+}
+```
+</TabItem>
+</Tabs>
+
+---
+
+## Connection Pool Anti-Patterns
+
+:::caution[Avoid These Mistakes]
+1. **Connection leaks** -- Forgetting to close or return a connection. Always use try-with-resources or context managers.
+2. **Pool too large** -- Overwhelming the database with too many connections. Start small and increase based on metrics.
+3. **No timeout** -- Waiting forever for a connection. Set `connectionTimeout` to fail fast.
+4. **No health checks** -- Using dead connections. Enable `pool_pre_ping` or `connectionTestQuery`.
+5. **Shared pools across tenants** -- One noisy tenant can exhaust the pool. Use per-tenant pools or quotas.
+6. **No monitoring** -- Flying blind. Track active, idle, and waiting counts.
+:::
+
+---
+
+## Real-World Architecture
+
+```
+┌─────────┐     ┌──────────────┐     ┌──────────────┐     ┌──────────┐
+│         │     │              │     │              │     │          │
+│ Clients │────►│ Load Balancer│────►│ App Servers  │────►│ Database │
+│         │     │ (L7/L4)     │     │ (Pool: 20)   │     │ (max: 100│
+│         │     │              │     │              │     │  conn)   │
+└─────────┘     └──────────────┘     └──────────────┘     └──────────┘
+
+Sizing example:
+  5 app servers * 20 connections each = 100 DB connections
+  Database max_connections = 100 (match!)
+
+  If you add a 6th server: 6 * 20 = 120 > 100
+  Solution: use a connection proxy (PgBouncer, ProxySQL)
+
+┌──────────┐     ┌───────────┐     ┌──────────┐
+│ App (20) │────►│           │     │          │
+│ App (20) │────►│ PgBouncer │────►│ Database │
+│ App (20) │────►│ (pool: 50)│     │ (max:100)│
+│ App (20) │────►│           │     │          │
+│ App (20) │────►│           │     │          │
+└──────────┘     └───────────┘     └──────────┘
+  100 app-side         50 actual DB connections
+  connections          (multiplexed)
+```
+
+---
+
+## Summary
+
+| Concept | Key Takeaway |
+|---------|-------------|
+| **Connection pool** | Reuses connections to avoid per-request setup overhead |
+| **Pool sizing** | Start with `(cores * 2) + spindles`; benchmark and adjust |
+| **HTTP keep-alive** | Reuses TCP connections for multiple HTTP requests |
+| **Round robin** | Simple, even distribution; ignores server load |
+| **Least connections** | Adaptive; sends requests to the least-busy server |
+| **Consistent hashing** | Minimal key redistribution when servers are added/removed |
+| **Thread pool** | Pre-created worker threads that process tasks from a shared queue |
+| **Connection proxy** | Multiplexes many app connections into fewer DB connections |
+
+<LinkCard
+  title="Back to: Caching & Performance Overview"
+  description="Return to the section overview covering cache fundamentals, latency numbers, and the performance optimization mindset."
+  href="/software-engineering/caching-performance/"
+/>

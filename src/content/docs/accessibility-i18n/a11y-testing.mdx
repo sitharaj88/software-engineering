@@ -1,0 +1,630 @@
+---
+title: "Testing for Accessibility"
+description: "Master manual a11y testing with keyboard and screen readers, automated tools like axe-core and Lighthouse, color contrast checking, and CI/CD integration"
+difficulty: "intermediate"
+prerequisites: ["WCAG & ARIA", "Testing fundamentals"]
+timeToRead: "25 min"
+topics: ["a11y-testing", "axe-core", "lighthouse", "screen-reader", "keyboard-testing", "pa11y", "color-contrast", "ci-cd"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+Accessibility testing ensures your application is usable by people with disabilities. It requires a combination of automated scanning (which catches about 30-40 percent of issues) and manual testing (which catches the rest). Neither approach alone is sufficient.
+
+---
+
+## The Testing Pyramid for Accessibility
+
+```
+                    ┌──────────┐
+                    │  User    │  Testing with real users
+                    │  Testing │  who have disabilities
+                   ┌┴──────────┴┐
+                   │   Manual    │  Keyboard navigation,
+                   │   Testing   │  screen reader testing
+                  ┌┴────────────┴┐
+                  │  Integration  │  Component tests with
+                  │  Tests        │  a11y assertions
+                 ┌┴──────────────┴┐
+                 │  Automated      │  axe-core, Lighthouse,
+                 │  Scanning       │  Pa11y in CI/CD
+                 └────────────────┘
+
+Coverage: Automated ~30-40%  |  Manual ~60-70%  |  Users ~90%+
+```
+
+:::note[Automated Tools Cannot Catch Everything]
+Automated tools excel at checking:
+- Missing alt text
+- Insufficient color contrast
+- Missing form labels
+- Invalid ARIA attributes
+- Heading hierarchy violations
+
+But they **cannot** check:
+- Whether alt text is meaningful
+- Whether focus order is logical
+- Whether content makes sense to a screen reader user
+- Whether interactions are intuitive for keyboard users
+- Whether the application is usable in practice
+:::
+
+---
+
+## Manual Testing: Keyboard Navigation
+
+Keyboard testing is the most important manual test. If your application is not keyboard-accessible, it is not accessible.
+
+### Keyboard Testing Checklist
+
+| Action | Keys | What to Check |
+|--------|------|---------------|
+| Navigate forward | `Tab` | Focus moves to next interactive element |
+| Navigate backward | `Shift + Tab` | Focus moves to previous element |
+| Activate button/link | `Enter` | Buttons and links activate |
+| Toggle checkbox | `Space` | Checkbox state changes |
+| Select radio | `Arrow keys` | Move between radio options |
+| Open dropdown | `Enter` / `Space` / `Arrow Down` | Dropdown opens |
+| Navigate dropdown | `Arrow Up/Down` | Move between options |
+| Close dialog/menu | `Escape` | Dialog closes, focus returns |
+| Scroll | `Space` / `Page Up` / `Page Down` | Page scrolls |
+| Navigate tabs | `Arrow Left/Right` | Move between tab buttons |
+
+### What to Look For
+
+```
+✓ Every interactive element is reachable by Tab
+✓ Focus order is logical (left to right, top to bottom)
+✓ Focus is visible (clear focus indicator on every element)
+✓ No keyboard traps (focus can always move away)
+✓ Skip navigation link works (bypass repetitive content)
+✓ Modals trap focus inside (Tab cycles within dialog)
+✓ After closing a modal, focus returns to the trigger
+✓ Custom widgets have correct keyboard behavior
+✓ Dropdown menus are navigable with arrow keys
+✓ Form validation errors are announced
+```
+
+### Common Keyboard Issues
+
+| Issue | Cause | Fix |
+|-------|-------|-----|
+| Element not focusable | Using `<div>` instead of `<button>` | Use semantic elements or add `tabindex="0"` |
+| No visible focus | CSS `outline: none` without replacement | Provide custom focus styles |
+| Focus trap | Modal does not allow Tab to escape | Implement focus trapping with Escape key exit |
+| Focus lost | Element removed from DOM while focused | Move focus to a logical destination |
+| Skip link missing | No bypass mechanism | Add skip link as first element in body |
+| Wrong tab order | Misuse of `tabindex` values greater than 0 | Use `tabindex="0"` and rely on DOM order |
+
+:::caution[Never Use tabindex Greater Than 0]
+`tabindex="1"`, `tabindex="2"`, etc. override the natural tab order and create a confusing experience. Use only `tabindex="0"` (add to tab order) or `tabindex="-1"` (programmatically focusable but not in tab order).
+:::
+
+---
+
+## Manual Testing: Screen Readers
+
+Screen reader testing is essential for verifying that your application makes sense when content is read aloud.
+
+### Screen Reader Basics
+
+<Tabs>
+  <TabItem label="VoiceOver (macOS)">
+```
+Getting Started:
+  Enable: Cmd + F5  (or System Settings → Accessibility → VoiceOver)
+  Toggle: Cmd + F5 to turn off
+
+Essential Commands:
+  VO key = Control + Option
+
+  Navigate next:     VO + Right Arrow
+  Navigate previous: VO + Left Arrow
+  Activate:          VO + Space
+  Read all:          VO + A
+  Read heading:      VO + Cmd + H (next heading)
+  Headings list:     VO + U (rotor) → Headings
+  Landmarks list:    VO + U (rotor) → Landmarks
+  Links list:        VO + U (rotor) → Links
+  Web rotor:         VO + U (lists headings, links, landmarks, etc.)
+
+Rotor Navigation:
+  VO + U opens the rotor
+  Left/Right arrows switch between categories
+  Up/Down arrows navigate within a category
+```
+  </TabItem>
+  <TabItem label="NVDA (Windows)">
+```
+Getting Started:
+  Download from nvaccess.org (free)
+  Enable: Ctrl + Alt + N
+
+Essential Commands:
+  NVDA key = Insert (default)
+
+  Navigate next:     Down Arrow (in browse mode)
+  Navigate previous: Up Arrow
+  Activate:          Enter
+  Read all:          NVDA + Down Arrow
+  Next heading:      H
+  Previous heading:  Shift + H
+  Next landmark:     D
+  Headings list:     NVDA + F7 → Headings tab
+  Links list:        NVDA + F7 → Links tab
+  Form fields:       NVDA + F7 → Form Fields tab
+  Toggle browse/focus: NVDA + Space
+
+Quick Navigation (in browse mode):
+  H  = next heading       1-6 = heading level 1-6
+  K  = next link           D  = next landmark
+  F  = next form field     T  = next table
+  B  = next button         L  = next list
+```
+  </TabItem>
+  <TabItem label="TalkBack (Android)">
+```
+Getting Started:
+  Enable: Settings → Accessibility → TalkBack
+
+Essential Gestures:
+  Explore by touch:     Slide finger across screen
+  Next item:            Swipe right
+  Previous item:        Swipe left
+  Activate:             Double-tap
+  Scroll:               Two-finger swipe
+  Back:                 Two-finger swipe down then right
+  TalkBack menu:        Three-finger tap
+  Read from top:        Swipe down then up
+
+Navigation Shortcuts:
+  Swipe up/down to change navigation granularity:
+    Characters → Words → Lines → Headings → Links → Controls
+```
+  </TabItem>
+</Tabs>
+
+### Screen Reader Testing Checklist
+
+```
+Content:
+  ✓ All images have meaningful alt text (or alt="" for decorative)
+  ✓ Headings convey document structure
+  ✓ Links have descriptive text (not "click here")
+  ✓ Tables have headers (th) and captions
+  ✓ Form inputs have associated labels
+  ✓ Error messages are announced
+
+Navigation:
+  ✓ Landmarks are present and labeled
+  ✓ Heading hierarchy is logical (h1 → h2 → h3)
+  ✓ Skip link navigates to main content
+  ✓ Page title is descriptive
+
+Dynamic Content:
+  ✓ Live regions announce updates (aria-live)
+  ✓ Modal dialogs announce their title on open
+  ✓ Loading states are communicated
+  ✓ Form validation errors are announced
+  ✓ Toast/notification messages are announced
+  ✓ Expanding/collapsing sections announce state changes
+
+Interactive Components:
+  ✓ Custom widgets announce their role and state
+  ✓ Tabs announce "selected" state
+  ✓ Checkboxes announce "checked/unchecked"
+  ✓ Menus announce when open/closed
+  ✓ Progress bars announce progress
+```
+
+---
+
+## Automated Testing Tools
+
+### axe-core
+
+**axe-core** is the most widely used accessibility testing engine. It powers many other tools and can be integrated into unit tests, browser extensions, and CI/CD.
+
+<Tabs>
+  <TabItem label="Jest + Testing Library">
+```javascript
+// jest-axe: accessibility assertions in unit tests
+import { render } from '@testing-library/react';
+import { axe, toHaveNoViolations } from 'jest-axe';
+
+expect.extend(toHaveNoViolations);
+
+test('navigation has no accessibility violations', async () => {
+  const { container } = render(<Navigation />);
+  const results = await axe(container);
+  expect(results).toHaveNoViolations();
+});
+
+test('form has proper labels', async () => {
+  const { container } = render(<LoginForm />);
+  const results = await axe(container);
+
+  // Check specific rules
+  const labelViolations = results.violations
+    .filter(v => v.id === 'label');
+  expect(labelViolations).toHaveLength(0);
+});
+
+// With specific rules
+test('color contrast meets AA standards', async () => {
+  const { container } = render(<Dashboard />);
+  const results = await axe(container, {
+    rules: {
+      'color-contrast': { enabled: true },
+    },
+  });
+  expect(results).toHaveNoViolations();
+});
+```
+  </TabItem>
+  <TabItem label="Playwright">
+```javascript
+// @axe-core/playwright
+import { test, expect } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
+
+test('homepage has no accessibility violations', async ({ page }) => {
+  await page.goto('https://example.com');
+
+  const results = await new AxeBuilder({ page }).analyze();
+
+  expect(results.violations).toEqual([]);
+});
+
+test('login page meets WCAG AA', async ({ page }) => {
+  await page.goto('https://example.com/login');
+
+  const results = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+    .analyze();
+
+  expect(results.violations).toEqual([]);
+});
+
+test('dialog component is accessible', async ({ page }) => {
+  await page.goto('https://example.com/settings');
+  await page.click('button[data-testid="open-dialog"]');
+
+  const results = await new AxeBuilder({ page })
+    .include('[role="dialog"]')  // only scan the dialog
+    .analyze();
+
+  expect(results.violations).toEqual([]);
+});
+```
+  </TabItem>
+  <TabItem label="Cypress">
+```javascript
+// cypress-axe
+import 'cypress-axe';
+
+describe('Accessibility Tests', () => {
+  beforeEach(() => {
+    cy.visit('/');
+    cy.injectAxe();
+  });
+
+  it('has no detectable a11y violations on load', () => {
+    cy.checkA11y();
+  });
+
+  it('navigation is accessible', () => {
+    cy.checkA11y('nav');
+  });
+
+  it('main content meets WCAG AA', () => {
+    cy.checkA11y('main', {
+      runOnly: {
+        type: 'tag',
+        values: ['wcag2a', 'wcag2aa'],
+      },
+    });
+  });
+
+  it('dialog is accessible when open', () => {
+    cy.get('[data-testid="open-dialog"]').click();
+    cy.checkA11y('[role="dialog"]');
+  });
+});
+```
+  </TabItem>
+</Tabs>
+
+### Lighthouse
+
+Google Lighthouse includes an accessibility audit as part of its overall performance analysis:
+
+```bash
+# CLI usage
+npx lighthouse https://example.com \
+  --only-categories=accessibility \
+  --output=json \
+  --output-path=./a11y-report.json
+
+# Programmatic usage
+npx lighthouse https://example.com \
+  --only-categories=accessibility \
+  --output=html \
+  --output-path=./a11y-report.html
+
+# With Chrome flags
+npx lighthouse https://example.com \
+  --only-categories=accessibility \
+  --chrome-flags="--headless --no-sandbox"
+```
+
+### Pa11y
+
+**Pa11y** is a command-line tool for running accessibility tests:
+
+```bash
+# Basic usage
+npx pa11y https://example.com
+
+# With specific standard
+npx pa11y --standard WCAG2AA https://example.com
+
+# Test multiple URLs from a config file
+npx pa11y-ci
+
+# pa11y-ci configuration (.pa11yci.json)
+```
+
+```json
+{
+  "defaults": {
+    "standard": "WCAG2AA",
+    "timeout": 30000,
+    "wait": 1000,
+    "ignore": [
+      "WCAG2AA.Principle1.Guideline1_4.1_4_3.G18.Fail"
+    ]
+  },
+  "urls": [
+    "https://example.com/",
+    "https://example.com/login",
+    "https://example.com/dashboard",
+    {
+      "url": "https://example.com/settings",
+      "actions": [
+        "click element #tab-profile",
+        "wait for element #profile-form to be visible"
+      ]
+    }
+  ]
+}
+```
+
+---
+
+## Color Contrast Checking
+
+WCAG requires minimum contrast ratios between text and its background:
+
+| Text Type | Level AA | Level AAA |
+|-----------|----------|-----------|
+| Normal text (under 18pt / 14pt bold) | 4.5:1 | 7:1 |
+| Large text (18pt+ or 14pt+ bold) | 3:1 | 4.5:1 |
+| UI components and graphics | 3:1 | Not defined |
+
+### Tools for Contrast Checking
+
+| Tool | Type | Use Case |
+|------|------|----------|
+| **axe browser extension** | Browser extension | Check contrast on any page |
+| **Contrast** (macOS app) | Native app | Quick checking with eyedropper |
+| **WebAIM Contrast Checker** | Web tool | Manual contrast ratio calculation |
+| **Stark** (Figma/Sketch plugin) | Design tool | Check contrast during design |
+| **Chrome DevTools** | Built-in | Contrast ratio shown in color picker |
+
+### Programmatic Contrast Checking
+
+```javascript
+// Calculating contrast ratio
+function getLuminance(r, g, b) {
+  const [rs, gs, bs] = [r, g, b].map(c => {
+    c = c / 255;
+    return c <= 0.03928
+      ? c / 12.92
+      : Math.pow((c + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * rs + 0.7152 * gs + 0.0722 * bs;
+}
+
+function getContrastRatio(color1, color2) {
+  const l1 = getLuminance(...color1);
+  const l2 = getLuminance(...color2);
+  const lighter = Math.max(l1, l2);
+  const darker = Math.min(l1, l2);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+// Example: white text on blue background
+const white = [255, 255, 255];
+const blue = [37, 99, 235];
+const ratio = getContrastRatio(white, blue);
+console.log(`Contrast ratio: ${ratio.toFixed(2)}:1`);
+// Check against WCAG thresholds
+console.log(`AA (normal text): ${ratio >= 4.5 ? 'PASS' : 'FAIL'}`);
+console.log(`AA (large text): ${ratio >= 3 ? 'PASS' : 'FAIL'}`);
+console.log(`AAA (normal text): ${ratio >= 7 ? 'PASS' : 'FAIL'}`);
+```
+
+### Color Blindness Considerations
+
+Do not rely on color alone to convey information:
+
+```css
+/* BAD: only color distinguishes valid from invalid */
+.valid { color: green; }
+.invalid { color: red; }
+
+/* GOOD: color + icon + text */
+.valid {
+  color: green;
+}
+.valid::before {
+  content: "✓ ";
+}
+.invalid {
+  color: red;
+}
+.invalid::before {
+  content: "✗ ";
+}
+```
+
+---
+
+## Testing with Real Users
+
+The most valuable accessibility testing involves people who actually use assistive technologies daily.
+
+### How to Conduct User Testing
+
+1. **Recruit participants** — Include users with different disabilities (blind, low vision, motor, cognitive)
+2. **Define tasks** — "Find and purchase a product," "Create an account," "Find the help section"
+3. **Observe without helping** — Note where users struggle, not just where they succeed
+4. **Ask open questions** — "What did you expect to happen?" "Was anything confusing?"
+5. **Document findings** — Record sessions (with consent), categorize issues by severity
+6. **Prioritize fixes** — Address blocking issues first, then usability improvements
+
+### Severity Levels
+
+| Level | Description | Example |
+|-------|-------------|---------|
+| **Critical** | Cannot complete core task | Form cannot be submitted with keyboard |
+| **Major** | Significant difficulty completing task | Error messages not announced to screen reader |
+| **Minor** | Inconvenient but workaround exists | Focus order is slightly unintuitive |
+| **Cosmetic** | Minor annoyance, low impact | Focus ring color could be more visible |
+
+---
+
+## CI/CD Integration
+
+Integrating accessibility checks into your CI/CD pipeline catches regressions before they reach production.
+
+<Tabs>
+  <TabItem label="GitHub Actions">
+```yaml
+# .github/workflows/a11y.yml
+name: Accessibility Tests
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  a11y:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm ci
+
+      - run: npm run build
+
+      - name: Start server
+        run: npm run preview &
+        env:
+          PORT: 3000
+
+      - name: Wait for server
+        run: npx wait-on http://localhost:3000
+
+      - name: Run Pa11y CI
+        run: npx pa11y-ci
+
+      - name: Run Lighthouse
+        uses: treosh/lighthouse-ci-action@v11
+        with:
+          urls: |
+            http://localhost:3000/
+            http://localhost:3000/login
+            http://localhost:3000/dashboard
+          budgetPath: ./.lighthouserc-budget.json
+          uploadArtifacts: true
+```
+  </TabItem>
+  <TabItem label="Lighthouse Budget">
+```json
+[
+  {
+    "path": "/**",
+    "options": {
+      "assertions": {
+        "categories:accessibility": ["error", { "minScore": 0.9 }],
+        "categories:best-practices": ["warn", { "minScore": 0.9 }]
+      }
+    }
+  }
+]
+```
+  </TabItem>
+  <TabItem label="Pre-commit Hook">
+```javascript
+// lint-staged configuration in package.json
+{
+  "lint-staged": {
+    "**/*.{tsx,jsx}": [
+      "eslint --rule 'jsx-a11y/alt-text: error'",
+      "eslint --rule 'jsx-a11y/aria-props: error'",
+      "eslint --rule 'jsx-a11y/aria-role: error'",
+      "eslint --rule 'jsx-a11y/label-has-associated-control: error'"
+    ]
+  }
+}
+
+// .eslintrc.js
+module.exports = {
+  plugins: ['jsx-a11y'],
+  extends: ['plugin:jsx-a11y/recommended'],
+  rules: {
+    'jsx-a11y/anchor-is-valid': 'error',
+    'jsx-a11y/click-events-have-key-events': 'error',
+    'jsx-a11y/no-static-element-interactions': 'error',
+  },
+};
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## Accessibility Testing Strategy
+
+| Phase | Testing Type | Tools | Frequency |
+|-------|-------------|-------|-----------|
+| **Development** | Linting (eslint-plugin-jsx-a11y) | ESLint | Every save |
+| **Code Review** | Manual review checklist | Checklist + browser extension | Every PR |
+| **Unit Tests** | Component a11y assertions | jest-axe | Every commit |
+| **Integration** | Page-level scanning | Playwright + axe | Every build |
+| **CI/CD** | Regression prevention | Pa11y-CI, Lighthouse CI | Every merge |
+| **Staging** | Manual keyboard + screen reader | VoiceOver, NVDA | Before release |
+| **Quarterly** | User testing with disabled users | Participant recruitment | Quarterly |
+
+:::tip[Start with the Basics]
+If you are just beginning your accessibility journey, start with these three steps:
+1. Install the axe browser extension and scan your site
+2. Navigate your site using only the keyboard
+3. Add `eslint-plugin-jsx-a11y` to your linting configuration
+
+These three actions alone will catch the majority of common accessibility issues.
+:::
+
+---
+
+<LinkCard
+  title="Next: Cryptography"
+  description="Learn cryptographic fundamentals, symmetric and asymmetric encryption, hashing, and TLS"
+  href="/software-engineering/cryptography/"
+/>

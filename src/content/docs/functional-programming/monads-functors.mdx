@@ -1,0 +1,786 @@
+---
+title: "Monads & Functors"
+description: "Understand functors, monads, Maybe/Option, Either/Result types, and functional error handling without jargon"
+difficulty: "advanced"
+prerequisites:
+  - Higher-Order Functions
+  - Pure Functions & Side Effects
+timeToRead: "25 min"
+topics:
+  - functors
+  - monads
+  - Maybe
+  - Option
+  - Either
+  - Result
+  - error-handling
+  - chaining
+  - flatMap
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+Monads and functors have a reputation for being impenetrable, but the core ideas are practical and intuitive. A **functor** is a container you can map over. A **monad** is a container you can chain computations through. If you have ever used `.map()` on an array or chained `.then()` on a Promise, you have already used these concepts.
+
+---
+
+## The Problem: Null, Errors, and Nested Conditionals
+
+Before we define functors and monads, consider the problem they solve.
+
+```
+Without Maybe/Option:
+
+function getUserCity(userId) {
+  const user = getUser(userId);        // might be null
+  if (user === null) return null;
+
+  const address = user.getAddress();   // might be null
+  if (address === null) return null;
+
+  const city = address.getCity();      // might be null
+  if (city === null) return null;
+
+  return city.toUpperCase();
+}
+
+With Maybe/Option:
+
+function getUserCity(userId) {
+  return Maybe.of(getUser(userId))
+    .flatMap(user => Maybe.of(user.getAddress()))
+    .flatMap(addr => Maybe.of(addr.getCity()))
+    .map(city => city.toUpperCase())
+    .getOrElse("Unknown");
+}
+
+No null checks. No nested ifs. The Maybe handles it.
+```
+
+---
+
+## Functors
+
+A **functor** is any type that implements a `map` function, which applies a function to the value inside the container while preserving the container's structure.
+
+### The Rules
+
+1. **Identity**: `functor.map(x => x)` equals `functor` (mapping the identity function changes nothing).
+2. **Composition**: `functor.map(f).map(g)` equals `functor.map(x => g(f(x)))` (mapping two functions in sequence is the same as mapping their composition).
+
+### Familiar Functors
+
+```
+Arrays are functors:
+  [1, 2, 3].map(x => x * 2)  =  [2, 4, 6]
+  Container: Array
+  Value: numbers inside
+  map: applies function to each element
+
+Promises are (roughly) functors:
+  Promise.resolve(5).then(x => x * 2)  =  Promise(10)
+  Container: Promise
+  Value: resolved value
+  map (then): applies function when resolved
+
+Optional/Maybe is a functor:
+  Some(5).map(x => x * 2)  =  Some(10)
+  None.map(x => x * 2)     =  None
+  Container: Maybe
+  Value: possibly absent value
+  map: applies function only if value exists
+```
+
+<Tabs>
+<TabItem label="Python">
+```python
+from __future__ import annotations
+from typing import TypeVar, Generic, Callable
+
+T = TypeVar('T')
+U = TypeVar('U')
+
+class Functor(Generic[T]):
+    """Base functor: a container you can map over."""
+
+    def __init__(self, value: T):
+        self._value = value
+
+    def map(self, fn: Callable[[T], U]) -> Functor[U]:
+        return Functor(fn(self._value))
+
+    def __repr__(self):
+        return f"Functor({self._value!r})"
+
+# Usage
+result = (
+    Functor(5)
+    .map(lambda x: x * 2)     # Functor(10)
+    .map(lambda x: x + 1)     # Functor(11)
+    .map(str)                  # Functor('11')
+)
+print(result)  # Functor('11')
+
+# Verify functor laws
+f = Functor(3)
+
+# Identity: map(id) == id
+assert f.map(lambda x: x)._value == f._value
+
+# Composition: map(f).map(g) == map(g . f)
+double = lambda x: x * 2
+inc = lambda x: x + 1
+assert (f.map(double).map(inc)._value ==
+        f.map(lambda x: inc(double(x)))._value)
+```
+</TabItem>
+<TabItem label="JavaScript">
+```javascript
+class Functor {
+  constructor(value) {
+    this._value = value;
+  }
+
+  map(fn) {
+    return new Functor(fn(this._value));
+  }
+
+  toString() {
+    return `Functor(${this._value})`;
+  }
+}
+
+// Usage
+const result = new Functor(5)
+  .map(x => x * 2)     // Functor(10)
+  .map(x => x + 1)     // Functor(11)
+  .map(String);         // Functor('11')
+
+console.log(result.toString()); // Functor(11)
+
+
+// Arrays are functors
+[1, 2, 3]
+  .map(x => x * 2)       // [2, 4, 6]       -- preserves structure
+  .map(x => x + 1);      // [3, 5, 7]       -- composable
+
+// Promises are (approximately) functors
+Promise.resolve(5)
+  .then(x => x * 2)      // Promise(10)
+  .then(x => x + 1);     // Promise(11)
+```
+</TabItem>
+</Tabs>
+
+---
+
+## The Maybe (Option) Type
+
+**Maybe** (called `Option` in Rust, Scala, and Java) represents a value that might or might not exist. It replaces `null`/`None` with an explicit type, making the absence of a value visible in the type system.
+
+```
+Maybe has two variants:
+
+  Some(value)  -- the value exists
+  Nothing      -- the value is absent (like null, but safe)
+
+Operations on Maybe:
+
+  Some(5).map(x => x * 2)    = Some(10)   -- applies function
+  Nothing.map(x => x * 2)    = Nothing    -- does nothing
+
+  Some(5).flatMap(x => Some(x * 2))  = Some(10)
+  Some(5).flatMap(x => Nothing)      = Nothing
+  Nothing.flatMap(x => Some(x * 2)) = Nothing
+
+  Some(5).getOrElse(0)   = 5
+  Nothing.getOrElse(0)   = 0
+```
+
+<Tabs>
+<TabItem label="Python">
+```python
+from __future__ import annotations
+from typing import TypeVar, Generic, Callable, Optional
+
+T = TypeVar('T')
+U = TypeVar('U')
+
+class Maybe(Generic[T]):
+    """Maybe monad: handles the absence of a value."""
+
+    def __init__(self, value: Optional[T]):
+        self._value = value
+
+    @staticmethod
+    def of(value: Optional[T]) -> Maybe[T]:
+        return Maybe(value)
+
+    @staticmethod
+    def nothing() -> Maybe:
+        return Maybe(None)
+
+    def is_nothing(self) -> bool:
+        return self._value is None
+
+    def map(self, fn: Callable[[T], U]) -> Maybe[U]:
+        if self.is_nothing():
+            return Maybe.nothing()
+        return Maybe.of(fn(self._value))
+
+    def flat_map(self, fn: Callable[[T], Maybe[U]]) -> Maybe[U]:
+        if self.is_nothing():
+            return Maybe.nothing()
+        return fn(self._value)
+
+    def get_or_else(self, default: T) -> T:
+        return default if self.is_nothing() else self._value
+
+    def __repr__(self):
+        if self.is_nothing():
+            return "Nothing"
+        return f"Some({self._value!r})"
+
+
+# Real-world example: safe property access
+def get_user(user_id: str) -> Maybe[dict]:
+    users = {"1": {"name": "Alice", "address": {"city": "NYC"}}}
+    return Maybe.of(users.get(user_id))
+
+def get_address(user: dict) -> Maybe[dict]:
+    return Maybe.of(user.get("address"))
+
+def get_city(address: dict) -> Maybe[str]:
+    return Maybe.of(address.get("city"))
+
+# Chained lookup -- no null checks
+city = (
+    get_user("1")
+    .flat_map(get_address)
+    .flat_map(get_city)
+    .map(str.upper)
+    .get_or_else("Unknown")
+)
+print(city)  # NYC
+
+# Missing user -- gracefully returns default
+city = (
+    get_user("999")
+    .flat_map(get_address)
+    .flat_map(get_city)
+    .map(str.upper)
+    .get_or_else("Unknown")
+)
+print(city)  # Unknown
+```
+</TabItem>
+<TabItem label="JavaScript">
+```javascript
+class Maybe {
+  constructor(value) {
+    this._value = value;
+  }
+
+  static of(value) {
+    return new Maybe(value);
+  }
+
+  static nothing() {
+    return new Maybe(null);
+  }
+
+  isNothing() {
+    return this._value === null || this._value === undefined;
+  }
+
+  map(fn) {
+    return this.isNothing() ? Maybe.nothing() : Maybe.of(fn(this._value));
+  }
+
+  flatMap(fn) {
+    return this.isNothing() ? Maybe.nothing() : fn(this._value);
+  }
+
+  getOrElse(defaultValue) {
+    return this.isNothing() ? defaultValue : this._value;
+  }
+
+  toString() {
+    return this.isNothing() ? 'Nothing' : `Some(${this._value})`;
+  }
+}
+
+
+// Real-world: safe nested property access
+function getUser(id) {
+  const users = {
+    '1': { name: 'Alice', address: { city: 'NYC' } },
+    '2': { name: 'Bob' }, // no address
+  };
+  return Maybe.of(users[id] ?? null);
+}
+
+function getAddress(user) {
+  return Maybe.of(user.address ?? null);
+}
+
+function getCity(address) {
+  return Maybe.of(address.city ?? null);
+}
+
+// Clean chaining -- no null checks
+const city = getUser('1')
+  .flatMap(getAddress)
+  .flatMap(getCity)
+  .map(c => c.toUpperCase())
+  .getOrElse('Unknown');
+
+console.log(city); // NYC
+
+// Missing data -- returns default
+const city2 = getUser('2')
+  .flatMap(getAddress)
+  .flatMap(getCity)
+  .map(c => c.toUpperCase())
+  .getOrElse('Unknown');
+
+console.log(city2); // Unknown
+```
+</TabItem>
+<TabItem label="Java">
+```java
+import java.util.Optional;
+import java.util.Map;
+
+// Java has Optional built-in (java.util.Optional)
+Map<String, Map<String, String>> users = Map.of(
+    "1", Map.of("name", "Alice", "city", "NYC"),
+    "2", Map.of("name", "Bob")
+);
+
+// Safe chaining with Optional
+String city = Optional.ofNullable(users.get("1"))
+    .flatMap(user -> Optional.ofNullable(user.get("city")))
+    .map(String::toUpperCase)
+    .orElse("Unknown");
+
+System.out.println(city); // NYC
+
+// Missing data
+String city2 = Optional.ofNullable(users.get("999"))
+    .flatMap(user -> Optional.ofNullable(user.get("city")))
+    .map(String::toUpperCase)
+    .orElse("Unknown");
+
+System.out.println(city2); // Unknown
+
+
+// Optional best practices
+Optional<User> findUser(String id) {
+    // Return Optional instead of null
+    User user = db.findById(id);
+    return Optional.ofNullable(user);
+}
+
+// DO: use map/flatMap/orElse
+String name = findUser("42")
+    .map(User::getName)
+    .orElse("Guest");
+
+// DO NOT: use isPresent/get (defeats the purpose)
+// if (opt.isPresent()) { opt.get() } -- anti-pattern!
+```
+</TabItem>
+</Tabs>
+
+:::tip[Optional vs Null]
+Optional/Maybe makes the possibility of absence **explicit** in the type signature. A function returning `Optional<User>` tells the caller "this might not return a value." A function returning `User` that secretly returns `null` is a trap.
+:::
+
+---
+
+## The Either (Result) Type
+
+**Either** (called `Result` in Rust) represents a computation that can succeed or fail. It has two variants:
+
+- `Right(value)` -- success (the "right" answer)
+- `Left(error)` -- failure (with error information)
+
+```
+Either:
+
+  Right(value)  -- success, contains the result
+  Left(error)   -- failure, contains the error
+
+Operations:
+
+  Right(5).map(x => x * 2)    = Right(10)    -- applies function
+  Left("err").map(x => x * 2) = Left("err")  -- skips function
+
+  Right(5).flatMap(x => Right(x * 2))    = Right(10)
+  Right(5).flatMap(x => Left("oops"))    = Left("oops")
+  Left("err").flatMap(x => Right(x * 2)) = Left("err")
+```
+
+<Tabs>
+<TabItem label="Python">
+```python
+from __future__ import annotations
+from typing import TypeVar, Generic, Callable, Union
+
+T = TypeVar('T')
+E = TypeVar('E')
+U = TypeVar('U')
+
+class Either(Generic[E, T]):
+    """Either monad for error handling without exceptions."""
+    pass
+
+class Right(Either[E, T]):
+    """Success case."""
+    def __init__(self, value: T):
+        self._value = value
+
+    def map(self, fn: Callable[[T], U]) -> Either[E, U]:
+        return Right(fn(self._value))
+
+    def flat_map(self, fn: Callable[[T], Either[E, U]]) -> Either[E, U]:
+        return fn(self._value)
+
+    def get_or_else(self, default: T) -> T:
+        return self._value
+
+    def is_right(self) -> bool:
+        return True
+
+    def __repr__(self):
+        return f"Right({self._value!r})"
+
+class Left(Either[E, T]):
+    """Failure case."""
+    def __init__(self, error: E):
+        self._error = error
+
+    def map(self, fn) -> Either:
+        return self  # Skip: already failed
+
+    def flat_map(self, fn) -> Either:
+        return self  # Skip: already failed
+
+    def get_or_else(self, default):
+        return default
+
+    def is_right(self) -> bool:
+        return False
+
+    def __repr__(self):
+        return f"Left({self._error!r})"
+
+
+# Real-world: validation pipeline
+def parse_age(input_str: str) -> Either[str, int]:
+    try:
+        age = int(input_str)
+    except ValueError:
+        return Left(f"'{input_str}' is not a number")
+    return Right(age)
+
+def validate_age(age: int) -> Either[str, int]:
+    if age < 0:
+        return Left("Age cannot be negative")
+    if age > 150:
+        return Left("Age is unrealistic")
+    return Right(age)
+
+def categorize_age(age: int) -> str:
+    if age < 18: return "minor"
+    if age < 65: return "adult"
+    return "senior"
+
+# Chain operations -- first failure short-circuits
+result = (
+    parse_age("25")
+    .flat_map(validate_age)
+    .map(categorize_age)
+)
+print(result)  # Right('adult')
+
+result = (
+    parse_age("abc")
+    .flat_map(validate_age)
+    .map(categorize_age)
+)
+print(result)  # Left("'abc' is not a number")
+
+result = (
+    parse_age("-5")
+    .flat_map(validate_age)
+    .map(categorize_age)
+)
+print(result)  # Left('Age cannot be negative')
+```
+</TabItem>
+<TabItem label="JavaScript">
+```javascript
+class Right {
+  constructor(value) {
+    this._value = value;
+  }
+
+  map(fn) {
+    return new Right(fn(this._value));
+  }
+
+  flatMap(fn) {
+    return fn(this._value);
+  }
+
+  getOrElse(_default) {
+    return this._value;
+  }
+
+  fold(leftFn, rightFn) {
+    return rightFn(this._value);
+  }
+
+  isRight() { return true; }
+  toString() { return `Right(${this._value})`; }
+}
+
+class Left {
+  constructor(error) {
+    this._error = error;
+  }
+
+  map(_fn) {
+    return this; // Skip
+  }
+
+  flatMap(_fn) {
+    return this; // Skip
+  }
+
+  getOrElse(defaultValue) {
+    return defaultValue;
+  }
+
+  fold(leftFn, _rightFn) {
+    return leftFn(this._error);
+  }
+
+  isRight() { return false; }
+  toString() { return `Left(${this._error})`; }
+}
+
+
+// Validation pipeline
+function parseAge(input) {
+  const age = parseInt(input, 10);
+  return isNaN(age)
+    ? new Left(`'${input}' is not a number`)
+    : new Right(age);
+}
+
+function validateAge(age) {
+  if (age < 0) return new Left('Age cannot be negative');
+  if (age > 150) return new Left('Age is unrealistic');
+  return new Right(age);
+}
+
+function categorize(age) {
+  if (age < 18) return 'minor';
+  if (age < 65) return 'adult';
+  return 'senior';
+}
+
+// Success path
+const result = parseAge('25')
+  .flatMap(validateAge)
+  .map(categorize);
+console.log(result.toString()); // Right(adult)
+
+// Error path -- short-circuits at first failure
+const error = parseAge('abc')
+  .flatMap(validateAge)
+  .map(categorize);
+console.log(error.toString()); // Left('abc' is not a number)
+
+// fold: handle both cases
+const message = result.fold(
+  err => `Error: ${err}`,
+  val => `Category: ${val}`
+);
+console.log(message); // Category: adult
+```
+</TabItem>
+</Tabs>
+
+---
+
+## What Makes a Monad
+
+A monad is a type that implements three things:
+
+1. **`of`** (also called `return` or `unit`) -- Wraps a value in the monad.
+2. **`flatMap`** (also called `bind`, `chain`, or `>>=`) -- Chains computations that return monads.
+3. Satisfies three **laws**.
+
+```
+Monad Laws:
+
+1. Left identity:   of(a).flatMap(f)  ==  f(a)
+   Wrapping a value and immediately flatMapping is the same as
+   just calling f directly.
+
+2. Right identity:  m.flatMap(of)  ==  m
+   FlatMapping with the wrapper function returns the same monad.
+
+3. Associativity:   m.flatMap(f).flatMap(g)  ==  m.flatMap(x => f(x).flatMap(g))
+   The order of nesting flatMaps does not matter.
+```
+
+### Why flatMap Instead of map?
+
+`map` wraps the result in the container, which can cause nesting:
+
+```
+Maybe.of(5).map(x => Maybe.of(x * 2))
+  = Maybe(Maybe(10))     -- nested! We wanted Maybe(10)
+
+Maybe.of(5).flatMap(x => Maybe.of(x * 2))
+  = Maybe(10)            -- flattened! That is what we wanted.
+
+flatMap = map + flatten
+```
+
+---
+
+## Common Monads in Practice
+
+| Monad | Purpose | `map` applies when... | `flatMap` chains... |
+|-------|---------|----------------------|---------------------|
+| **Maybe/Option** | Handle absence | Value exists | Operations that might return nothing |
+| **Either/Result** | Handle errors | Right (success) | Operations that might fail |
+| **Promise/Future** | Handle async | Resolved | Async operations |
+| **List/Array** | Handle multiple values | To each element | Operations that return lists |
+| **IO** | Handle side effects | Deferred computation | Sequenced I/O actions |
+
+:::note[Promises Are Monads (Almost)]
+JavaScript Promises behave like monads: `.then()` acts as both `map` and `flatMap` (it auto-flattens nested Promises). However, they violate some monad laws due to auto-flattening and eager evaluation, so they are technically not pure monads.
+:::
+
+---
+
+## Either vs Exceptions
+
+| Feature | Exceptions | Either/Result |
+|---------|-----------|---------------|
+| **Control flow** | Jumps to nearest catch block | Returns through normal call chain |
+| **Type safety** | Error type is invisible in signature | Error type is explicit |
+| **Composability** | Hard to chain; try/catch blocks nest awkwardly | Chains naturally with `flatMap` |
+| **Performance** | Stack unwinding is expensive | No stack unwinding; normal return |
+| **Forgotten errors** | Uncaught exceptions crash the program | Compiler warns about unhandled variants |
+| **Best for** | Truly exceptional situations | Expected failure cases (validation, parsing) |
+
+:::tip[When to Use Which]
+- Use **exceptions** for truly unexpected situations: programming errors, out-of-memory, assertion failures.
+- Use **Either/Result** for expected failure cases: validation errors, missing records, parse failures, network timeouts.
+:::
+
+---
+
+## Real-World Composition
+
+Here is how monads enable clean, composable error handling in a realistic scenario.
+
+<Tabs>
+<TabItem label="Python">
+```python
+# Composing multiple Either operations
+def find_user(user_id: str) -> Either[str, dict]:
+    users = {"1": {"name": "Alice", "email": "alice@example.com"}}
+    user = users.get(user_id)
+    return Right(user) if user else Left(f"User {user_id} not found")
+
+def validate_email(user: dict) -> Either[str, dict]:
+    email = user.get("email", "")
+    if "@" not in email:
+        return Left(f"Invalid email: {email}")
+    return Right(user)
+
+def send_welcome_email(user: dict) -> Either[str, str]:
+    # In reality, this might fail (network error, etc.)
+    return Right(f"Welcome email sent to {user['email']}")
+
+# Clean pipeline: processes user or returns first error
+result = (
+    find_user("1")
+    .flat_map(validate_email)
+    .flat_map(send_welcome_email)
+)
+print(result)  # Right('Welcome email sent to alice@example.com')
+
+# Error case: user not found
+result = (
+    find_user("999")
+    .flat_map(validate_email)
+    .flat_map(send_welcome_email)
+)
+print(result)  # Left('User 999 not found')
+# validate_email and send_welcome_email never executed
+```
+</TabItem>
+<TabItem label="JavaScript">
+```javascript
+// Composing Either operations
+function findUser(id) {
+  const users = { '1': { name: 'Alice', email: 'alice@example.com' } };
+  return users[id]
+    ? new Right(users[id])
+    : new Left(`User ${id} not found`);
+}
+
+function validateEmail(user) {
+  return user.email && user.email.includes('@')
+    ? new Right(user)
+    : new Left(`Invalid email: ${user.email}`);
+}
+
+function sendWelcomeEmail(user) {
+  return new Right(`Welcome email sent to ${user.email}`);
+}
+
+// Clean pipeline
+const result = findUser('1')
+  .flatMap(validateEmail)
+  .flatMap(sendWelcomeEmail)
+  .fold(
+    err => ({ status: 'error', message: err }),
+    msg => ({ status: 'ok', message: msg })
+  );
+
+console.log(result);
+// { status: 'ok', message: 'Welcome email sent to alice@example.com' }
+```
+</TabItem>
+</Tabs>
+
+---
+
+## Summary
+
+| Concept | Key Takeaway |
+|---------|-------------|
+| **Functor** | A container with `map`: apply a function to the value inside |
+| **Monad** | A container with `flatMap` (`bind`): chain operations that return containers |
+| **Maybe/Option** | Represents presence or absence of a value; replaces null |
+| **Either/Result** | Represents success or failure; replaces exceptions for expected errors |
+| **flatMap vs map** | `map` wraps the result (can nest); `flatMap` flattens (avoids nesting) |
+| **Monad laws** | Left identity, right identity, associativity -- ensure predictable behavior |
+| **Composition** | Monads enable clean pipelines of operations that might fail or produce nothing |
+
+<LinkCard
+  title="Next: Pattern Matching"
+  description="Learn pattern matching in different languages, algebraic data types, exhaustive matching, and destructuring."
+  href="/software-engineering/functional-programming/pattern-matching/"
+/>

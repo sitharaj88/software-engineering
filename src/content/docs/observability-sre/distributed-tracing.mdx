@@ -1,0 +1,779 @@
+---
+title: "Distributed Tracing"
+description: "Understand distributed tracing in microservices -- the trace-span model, OpenTelemetry instrumentation, Jaeger, context propagation, sampling strategies, and log correlation"
+difficulty: "intermediate"
+prerequisites: ["Observability & SRE Overview", "Logging & Metrics", "Microservices basics"]
+timeToRead: "25 min"
+topics: ["distributed-tracing", "opentelemetry", "jaeger", "spans", "context-propagation", "sampling"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+## Why Tracing Matters in Microservices
+
+In a monolithic application, a stack trace tells you exactly what happened when a request failed. In a microservices architecture, a single user request may flow through 5, 10, or even 50 services. When something goes wrong, you need a way to follow that request across service boundaries.
+
+```
+    Monolith: One stack trace tells the whole story
+    ┌────────────────────────────────┐
+    │  → handleRequest()             │
+    │    → validateInput()           │
+    │    → queryDatabase()           │
+    │    → processPayment()  ← ERROR │
+    │    → sendNotification()        │
+    └────────────────────────────────┘
+
+    Microservices: Request crosses multiple processes
+    ┌──────────┐  ┌──────────┐  ┌──────────┐
+    │ API      │──▶│ Order    │──▶│ Payment  │ ← ERROR
+    │ Gateway  │  │ Service  │  │ Service  │
+    └──────────┘  └──────────┘  └──────────┘
+         │                           │
+         │                      ┌──────────┐
+         └─────────────────────▶│Inventory │
+                                │ Service  │
+                                └──────────┘
+
+    Without tracing, which service caused the problem?
+    How long did each service take?
+    What was the call sequence?
+```
+
+Distributed tracing answers three critical questions:
+1. **Where** did the request go? (Which services did it touch?)
+2. **How long** did each service take? (Where is the bottleneck?)
+3. **What** went wrong? (Which service or operation failed?)
+
+## The Trace-Span Model
+
+A **trace** represents the entire journey of a request through a distributed system. It consists of **spans** -- each span represents a unit of work within a single service.
+
+```
+    Trace Structure:
+
+    Trace ID: 4bf92f3577b34da6a3ce929d0e0e4736
+    ┌──────────────────────────────────────────────────────────┐
+    │                                                          │
+    │  Span A: API Gateway [450ms]                             │
+    │  ┌──────────────────────────────────────────────────┐    │
+    │  │ trace_id: 4bf92f...                               │    │
+    │  │ span_id:  a1b2c3                                  │    │
+    │  │ parent:   none (root span)                        │    │
+    │  │ service:  api-gateway                             │    │
+    │  │ operation: GET /api/orders/123                     │    │
+    │  │ duration: 450ms                                   │    │
+    │  └──────────────────────────────────────────────────┘    │
+    │       │                                                   │
+    │       ├──▶ Span B: Auth Service [80ms]                   │
+    │       │    ┌────────────────────────────────────────┐    │
+    │       │    │ span_id: d4e5f6                        │    │
+    │       │    │ parent:  a1b2c3                        │    │
+    │       │    │ service: auth-service                  │    │
+    │       │    │ operation: validateToken               │    │
+    │       │    └────────────────────────────────────────┘    │
+    │       │                                                   │
+    │       └──▶ Span C: Order Service [320ms]                 │
+    │            ┌────────────────────────────────────────┐    │
+    │            │ span_id: g7h8i9                        │    │
+    │            │ parent:  a1b2c3                        │    │
+    │            │ service: order-service                 │    │
+    │            └────────────────────────────────────────┘    │
+    │                 │                                         │
+    │                 ├──▶ Span D: DB Query [200ms]            │
+    │                 │    span_id: j0k1l2                     │
+    │                 │    parent:  g7h8i9                     │
+    │                 │                                         │
+    │                 └──▶ Span E: Cache [15ms]                │
+    │                      span_id: m3n4o5                     │
+    │                      parent:  g7h8i9                     │
+    └──────────────────────────────────────────────────────────┘
+```
+
+### Span Anatomy
+
+Each span carries detailed information about the work it represents.
+
+| Field | Description | Example |
+|-------|-------------|---------|
+| **Trace ID** | Unique identifier for the entire trace | `4bf92f3577b34da6...` |
+| **Span ID** | Unique identifier for this span | `a1b2c3d4e5f6` |
+| **Parent Span ID** | ID of the calling span | `none` (root) or parent ID |
+| **Operation Name** | The specific operation | `GET /api/orders/123` |
+| **Service Name** | Which service executed it | `order-service` |
+| **Start Time** | When the span started | `2024-03-15T14:32:01.234Z` |
+| **Duration** | How long it took | `320ms` |
+| **Status** | Success or error | `OK`, `ERROR` |
+| **Attributes** | Key-value metadata | `http.method=GET`, `db.statement=SELECT...` |
+| **Events** | Timestamped annotations within the span | Exceptions, log messages |
+
+## OpenTelemetry
+
+**OpenTelemetry** (OTel) is the industry-standard, vendor-neutral framework for collecting traces, metrics, and logs. It provides APIs, SDKs, and tools for instrumenting applications.
+
+```
+    OpenTelemetry Architecture:
+
+    ┌──────────────────────────────────────────────────────┐
+    │                   Your Application                   │
+    │                                                      │
+    │  ┌────────────────────────────────────────────────┐  │
+    │  │           OpenTelemetry SDK                     │  │
+    │  │                                                │  │
+    │  │  ┌──────────┐ ┌──────────┐ ┌──────────────┐   │  │
+    │  │  │ Tracer   │ │ Meter    │ │ Log Provider │   │  │
+    │  │  │ Provider │ │ Provider │ │              │   │  │
+    │  │  └─────┬────┘ └─────┬────┘ └──────┬───────┘   │  │
+    │  │        │            │             │            │  │
+    │  │  ┌─────▼────────────▼─────────────▼───────┐   │  │
+    │  │  │          Exporters                      │   │  │
+    │  │  │  (OTLP, Jaeger, Prometheus, Console)   │   │  │
+    │  │  └────────────────┬───────────────────────┘   │  │
+    │  └───────────────────┼───────────────────────────┘  │
+    └──────────────────────┼──────────────────────────────┘
+                           │
+                           ▼
+    ┌──────────────────────────────────────────────────────┐
+    │              OTel Collector (optional)                │
+    │                                                      │
+    │  Receive → Process → Export                          │
+    │  (batch, filter, sample, transform)                  │
+    └──────────┬──────────┬──────────┬─────────────────────┘
+               │          │          │
+               ▼          ▼          ▼
+            Jaeger    Prometheus   Loki
+            (Traces)  (Metrics)   (Logs)
+```
+
+### Instrumenting Your Application
+
+<Tabs>
+  <TabItem label="Python">
+    ```python
+    from opentelemetry import trace
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import (
+        BatchSpanProcessor,
+        ConsoleSpanExporter,
+    )
+    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (
+        OTLPSpanExporter,
+    )
+    from opentelemetry.sdk.resources import Resource
+    from opentelemetry.instrumentation.flask import FlaskInstrumentor
+    from opentelemetry.instrumentation.requests import (
+        RequestsInstrumentor,
+    )
+    from opentelemetry.instrumentation.psycopg2 import (
+        Psycopg2Instrumentor,
+    )
+
+    # Configure the tracer
+    resource = Resource.create({
+        "service.name": "order-service",
+        "service.version": "1.2.0",
+        "deployment.environment": "production",
+    })
+
+    provider = TracerProvider(resource=resource)
+
+    # Export traces to Jaeger via OTLP
+    otlp_exporter = OTLPSpanExporter(
+        endpoint="http://jaeger-collector:4317"
+    )
+    provider.add_span_processor(
+        BatchSpanProcessor(otlp_exporter)
+    )
+
+    trace.set_tracer_provider(provider)
+    tracer = trace.get_tracer(__name__)
+
+    # Auto-instrument frameworks and libraries
+    FlaskInstrumentor().instrument()
+    RequestsInstrumentor().instrument()
+    Psycopg2Instrumentor().instrument()
+
+    # Manual instrumentation for custom logic
+    def process_order(order_id: str):
+        with tracer.start_as_current_span(
+            "process_order",
+            attributes={
+                "order.id": order_id,
+                "order.source": "web",
+            }
+        ) as span:
+            # Validate order
+            with tracer.start_as_current_span("validate_order"):
+                validate(order_id)
+
+            # Check inventory
+            with tracer.start_as_current_span(
+                "check_inventory"
+            ) as inv_span:
+                available = check_inventory(order_id)
+                inv_span.set_attribute(
+                    "inventory.available", available
+                )
+
+                if not available:
+                    span.set_status(
+                        trace.StatusCode.ERROR,
+                        "Out of stock"
+                    )
+                    span.add_event("inventory_check_failed", {
+                        "order_id": order_id,
+                        "reason": "out_of_stock",
+                    })
+                    return None
+
+            # Process payment
+            with tracer.start_as_current_span("process_payment"):
+                payment_result = charge_payment(order_id)
+                span.set_attribute(
+                    "payment.status",
+                    payment_result.status
+                )
+
+            return order_id
+    ```
+  </TabItem>
+  <TabItem label="JavaScript">
+    ```javascript
+    const { NodeSDK } = require('@opentelemetry/sdk-node');
+    const { OTLPTraceExporter } = require(
+      '@opentelemetry/exporter-trace-otlp-grpc'
+    );
+    const { getNodeAutoInstrumentations } = require(
+      '@opentelemetry/auto-instrumentations-node'
+    );
+    const { Resource } = require('@opentelemetry/resources');
+    const {
+      ATTR_SERVICE_NAME,
+      ATTR_SERVICE_VERSION
+    } = require('@opentelemetry/semantic-conventions');
+    const opentelemetry = require('@opentelemetry/api');
+
+    // Configure SDK
+    const sdk = new NodeSDK({
+      resource: new Resource({
+        [ATTR_SERVICE_NAME]: 'order-service',
+        [ATTR_SERVICE_VERSION]: '1.2.0',
+      }),
+      traceExporter: new OTLPTraceExporter({
+        url: 'http://jaeger-collector:4317',
+      }),
+      instrumentations: [
+        getNodeAutoInstrumentations({
+          // Auto-instrument HTTP, Express, pg, Redis, etc.
+          '@opentelemetry/instrumentation-http': {
+            enabled: true,
+          },
+          '@opentelemetry/instrumentation-express': {
+            enabled: true,
+          },
+          '@opentelemetry/instrumentation-pg': {
+            enabled: true,
+          },
+        }),
+      ],
+    });
+
+    sdk.start();
+
+    // Manual instrumentation
+    const tracer = opentelemetry.trace.getTracer('order-service');
+
+    async function processOrder(orderId) {
+      return tracer.startActiveSpan(
+        'process_order',
+        { attributes: { 'order.id': orderId } },
+        async (span) => {
+          try {
+            // Validate order
+            await tracer.startActiveSpan(
+              'validate_order',
+              async (valSpan) => {
+                await validate(orderId);
+                valSpan.end();
+              }
+            );
+
+            // Check inventory
+            await tracer.startActiveSpan(
+              'check_inventory',
+              async (invSpan) => {
+                const available = await checkInventory(orderId);
+                invSpan.setAttribute(
+                  'inventory.available',
+                  available
+                );
+                invSpan.end();
+
+                if (!available) {
+                  span.setStatus({
+                    code: opentelemetry.SpanStatusCode.ERROR,
+                    message: 'Out of stock',
+                  });
+                  return null;
+                }
+              }
+            );
+
+            // Process payment
+            await tracer.startActiveSpan(
+              'process_payment',
+              async (paySpan) => {
+                const result = await chargePayment(orderId);
+                paySpan.setAttribute(
+                  'payment.status', result.status
+                );
+                paySpan.end();
+              }
+            );
+
+            return orderId;
+          } catch (error) {
+            span.recordException(error);
+            span.setStatus({
+              code: opentelemetry.SpanStatusCode.ERROR,
+              message: error.message,
+            });
+            throw error;
+          } finally {
+            span.end();
+          }
+        }
+      );
+    }
+    ```
+  </TabItem>
+  <TabItem label="Go">
+    ```go
+    package main
+
+    import (
+        "context"
+        "go.opentelemetry.io/otel"
+        "go.opentelemetry.io/otel/attribute"
+        "go.opentelemetry.io/otel/codes"
+        "go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+        "go.opentelemetry.io/otel/sdk/resource"
+        sdktrace "go.opentelemetry.io/otel/sdk/trace"
+        semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
+        "go.opentelemetry.io/otel/trace"
+    )
+
+    var tracer trace.Tracer
+
+    func initTracer() func() {
+        exporter, _ := otlptracegrpc.New(
+            context.Background(),
+            otlptracegrpc.WithEndpoint("jaeger:4317"),
+            otlptracegrpc.WithInsecure(),
+        )
+
+        res, _ := resource.Merge(
+            resource.Default(),
+            resource.NewWithAttributes(
+                semconv.SchemaURL,
+                semconv.ServiceName("order-service"),
+                semconv.ServiceVersion("1.2.0"),
+            ),
+        )
+
+        tp := sdktrace.NewTracerProvider(
+            sdktrace.WithBatcher(exporter),
+            sdktrace.WithResource(res),
+        )
+
+        otel.SetTracerProvider(tp)
+        tracer = otel.Tracer("order-service")
+
+        return func() { tp.Shutdown(context.Background()) }
+    }
+
+    func processOrder(ctx context.Context, orderID string) error {
+        ctx, span := tracer.Start(ctx, "process_order",
+            trace.WithAttributes(
+                attribute.String("order.id", orderID),
+            ),
+        )
+        defer span.End()
+
+        // Validate
+        ctx, valSpan := tracer.Start(ctx, "validate_order")
+        if err := validate(ctx, orderID); err != nil {
+            valSpan.RecordError(err)
+            valSpan.SetStatus(codes.Error, err.Error())
+            valSpan.End()
+            return err
+        }
+        valSpan.End()
+
+        // Check inventory
+        ctx, invSpan := tracer.Start(ctx, "check_inventory")
+        available, err := checkInventory(ctx, orderID)
+        invSpan.SetAttributes(
+            attribute.Bool("inventory.available", available),
+        )
+        invSpan.End()
+        if !available {
+            span.SetStatus(codes.Error, "out of stock")
+            return fmt.Errorf("out of stock")
+        }
+
+        return nil
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+## Context Propagation
+
+For tracing to work across service boundaries, the **trace context** (trace ID, span ID, flags) must be propagated from service to service. This typically happens via HTTP headers.
+
+```
+    Context Propagation via HTTP Headers:
+
+    Service A                          Service B
+    ┌─────────────────────┐           ┌─────────────────────┐
+    │ Span: processOrder  │           │ Span: chargePayment │
+    │ trace_id: abc123    │           │ trace_id: abc123    │
+    │ span_id: span_A     │           │ span_id: span_B     │
+    │                     │  HTTP     │ parent: span_A      │
+    │                     │──────────▶│                     │
+    │                     │ Headers:  │                     │
+    │                     │ traceparent: 00-abc123-span_A-01│
+    └─────────────────────┘           └─────────────────────┘
+
+    W3C Trace Context Header Format:
+    traceparent: {version}-{trace-id}-{parent-span-id}-{trace-flags}
+    traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
+```
+
+### Propagation Formats
+
+| Format | Standard | Header Name |
+|--------|----------|-------------|
+| **W3C Trace Context** | W3C standard (recommended) | `traceparent`, `tracestate` |
+| **B3** | Zipkin format | `X-B3-TraceId`, `X-B3-SpanId`, `X-B3-Sampled` |
+| **Jaeger** | Jaeger native | `uber-trace-id` |
+| **AWS X-Ray** | AWS format | `X-Amzn-Trace-Id` |
+
+:::tip
+Always use **W3C Trace Context** for new systems. It is the industry standard and supported by all major tracing backends. OpenTelemetry uses it by default.
+:::
+
+## Trace Sampling Strategies
+
+In high-traffic systems, tracing every single request would generate enormous volumes of data. **Sampling** controls which requests are traced.
+
+```
+    Sampling Decision Point:
+
+    All Requests
+    ┌────────────────────────────────┐
+    │ ● ● ● ● ● ● ● ● ● ● ● ● ●  │
+    │ ● ● ● ● ● ● ● ● ● ● ● ● ●  │  1,000 req/s
+    │ ● ● ● ● ● ● ● ● ● ● ● ● ●  │
+    └────────────┬───────────────────┘
+                 │
+                 ▼  Sampling (10%)
+    ┌────────────────────────────────┐
+    │ ●     ●       ● ●     ●      │
+    │   ●       ●         ●        │  100 req/s stored
+    │       ●       ●   ●     ●    │
+    └────────────────────────────────┘
+```
+
+### Sampling Strategies Compared
+
+| Strategy | Description | Pros | Cons |
+|----------|-------------|------|------|
+| **Head-based (probabilistic)** | Decide at start of request | Simple, low overhead | May miss important traces |
+| **Tail-based** | Decide after trace completes | Can keep all errors | Higher resource usage |
+| **Rate-limited** | Keep N traces per second | Predictable costs | May miss spikes |
+| **Always-on** | Trace everything | Complete data | Very expensive at scale |
+| **Parent-based** | Follow parent's decision | Consistent traces | Depends on upstream |
+
+<Tabs>
+  <TabItem label="Python">
+    ```python
+    from opentelemetry.sdk.trace.sampling import (
+        TraceIdRatioBased,
+        ParentBasedTraceIdRatio,
+    )
+    from opentelemetry.sdk.trace import TracerProvider
+
+    # Head-based: sample 10% of traces
+    sampler = TraceIdRatioBased(0.1)
+
+    # Parent-based: respect parent's sampling decision,
+    # use ratio for root spans
+    sampler = ParentBasedTraceIdRatio(0.1)
+
+    provider = TracerProvider(sampler=sampler)
+
+    # Custom sampler: always sample errors and slow requests
+    from opentelemetry.sdk.trace.sampling import (
+        Sampler,
+        SamplingResult,
+        Decision,
+    )
+
+    class SmartSampler(Sampler):
+        def __init__(self, base_rate=0.1):
+            self.base_rate = base_rate
+            self.base_sampler = TraceIdRatioBased(base_rate)
+
+        def should_sample(
+            self, parent_context, trace_id,
+            name, kind, attributes, links
+        ):
+            # Always sample specific operations
+            always_sample = [
+                "process_payment",
+                "user_signup",
+                "admin_action",
+            ]
+            if name in always_sample:
+                return SamplingResult(
+                    Decision.RECORD_AND_SAMPLE,
+                    attributes,
+                )
+
+            # Use base rate for everything else
+            return self.base_sampler.should_sample(
+                parent_context, trace_id,
+                name, kind, attributes, links
+            )
+
+        def get_description(self):
+            return f"SmartSampler(base_rate={self.base_rate})"
+
+    provider = TracerProvider(sampler=SmartSampler(0.1))
+    ```
+  </TabItem>
+</Tabs>
+
+## Correlating Logs with Traces
+
+The true power of observability emerges when you can jump from an alert (metric) to a trace to the specific log line that shows what went wrong.
+
+```
+    Correlation Flow:
+
+    1. Alert fires: "Error rate > 5%"
+              │
+              ▼
+    2. Find trace IDs from error spans
+              │
+              ▼
+    3. Query logs with trace ID
+              │
+              ▼
+    4. See exact error: "CardDeclinedException
+       for user 789 at line 142 of payment.py"
+```
+
+<Tabs>
+  <TabItem label="Python">
+    ```python
+    import logging
+    import json
+    from opentelemetry import trace
+
+    class TraceContextFormatter(logging.Formatter):
+        """Add trace context to every log line."""
+
+        def format(self, record):
+            # Get current span context
+            span = trace.get_current_span()
+            ctx = span.get_span_context()
+
+            log_entry = {
+                "timestamp": self.formatTime(record),
+                "level": record.levelname.lower(),
+                "message": record.getMessage(),
+                "logger": record.name,
+                # Trace correlation fields
+                "trace_id": format(ctx.trace_id, "032x")
+                    if ctx.trace_id else None,
+                "span_id": format(ctx.span_id, "016x")
+                    if ctx.span_id else None,
+                "service": "order-service",
+            }
+
+            # Add any extra fields
+            for key in ["user_id", "order_id", "duration_ms"]:
+                if hasattr(record, key):
+                    log_entry[key] = getattr(record, key)
+
+            if record.exc_info:
+                log_entry["exception"] = self.formatException(
+                    record.exc_info
+                )
+
+            return json.dumps(log_entry)
+
+    # Configure logger
+    logger = logging.getLogger("order-service")
+    handler = logging.StreamHandler()
+    handler.setFormatter(TraceContextFormatter())
+    logger.addHandler(handler)
+
+    # Now every log automatically includes trace_id and span_id
+    def process_order(order_id):
+        with tracer.start_as_current_span("process_order"):
+            logger.info(
+                "Processing order",
+                extra={"order_id": order_id}
+            )
+            # Log output includes trace_id automatically:
+            # {"trace_id": "4bf92f...", "span_id": "a1b2c3...",
+            #  "message": "Processing order",
+            #  "order_id": "order_123"}
+    ```
+  </TabItem>
+  <TabItem label="JavaScript">
+    ```javascript
+    const opentelemetry = require('@opentelemetry/api');
+    const pino = require('pino');
+
+    // Create a logger that includes trace context
+    const logger = pino({
+      mixin() {
+        const span = opentelemetry.trace.getActiveSpan();
+        if (span) {
+          const ctx = span.spanContext();
+          return {
+            traceId: ctx.traceId,
+            spanId: ctx.spanId,
+            traceFlags: ctx.traceFlags,
+          };
+        }
+        return {};
+      },
+      level: 'info',
+      timestamp: pino.stdTimeFunctions.isoTime,
+    });
+
+    // Usage -- trace context is automatically included
+    async function processOrder(orderId) {
+      return tracer.startActiveSpan('process_order', async (span) => {
+        // This log automatically includes traceId and spanId
+        logger.info(
+          { orderId, step: 'start' },
+          'Processing order'
+        );
+        // Output: {"traceId":"4bf92f...","spanId":"a1b2c3...",
+        //          "orderId":"order_123","message":"Processing order"}
+
+        try {
+          await chargePayment(orderId);
+          logger.info(
+            { orderId, step: 'payment' },
+            'Payment processed'
+          );
+        } catch (error) {
+          logger.error(
+            { orderId, error: error.message },
+            'Payment failed'
+          );
+          span.recordException(error);
+          throw error;
+        } finally {
+          span.end();
+        }
+      });
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+## Jaeger: Trace Visualization
+
+Jaeger is an open-source distributed tracing platform that provides trace storage, querying, and visualization.
+
+```
+    Jaeger Architecture:
+
+    Applications               Jaeger Backend
+    ┌─────────┐              ┌──────────────────────┐
+    │Service A│──┐            │                      │
+    ├─────────┤  │  OTLP     │  ┌────────────────┐  │
+    │Service B│──┼──────────▶│  │   Collector     │  │
+    ├─────────┤  │            │  │  (receive,     │  │
+    │Service C│──┘            │  │   process,     │  │
+    └─────────┘              │  │   store)       │  │
+                              │  └───────┬────────┘  │
+                              │          │            │
+                              │  ┌───────▼────────┐  │
+                              │  │   Storage       │  │
+                              │  │  (Elasticsearch,│  │
+                              │  │   Cassandra,    │  │
+                              │  │   or in-memory) │  │
+                              │  └───────┬────────┘  │
+                              │          │            │
+                              │  ┌───────▼────────┐  │
+                              │  │   Query + UI    │  │
+                              │  │  (search,      │  │
+                              │  │   visualize)   │  │
+                              │  └────────────────┘  │
+                              └──────────────────────┘
+```
+
+### Setting Up Jaeger
+
+```yaml
+# docker-compose.yaml for local Jaeger
+version: '3.8'
+services:
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    ports:
+      - "16686:16686"  # Jaeger UI
+      - "4317:4317"    # OTLP gRPC
+      - "4318:4318"    # OTLP HTTP
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+      - SPAN_STORAGE_TYPE=elasticsearch
+      - ES_SERVER_URLS=http://elasticsearch:9200
+```
+
+## Tracing Best Practices
+
+| Practice | Description |
+|----------|-------------|
+| **Name spans meaningfully** | Use `HTTP GET /api/orders` not just `HTTP` |
+| **Add semantic attributes** | Follow OpenTelemetry semantic conventions |
+| **Record errors properly** | Use `span.recordException()` and set error status |
+| **Propagate context** | Ensure trace context flows through all service calls |
+| **Use baggage sparingly** | Baggage items travel with every request -- keep them small |
+| **Sample intelligently** | Always keep errors, sample routine traffic |
+| **Set resource attributes** | Service name, version, environment on every span |
+| **Instrument at boundaries** | HTTP handlers, database calls, queue operations |
+
+## Summary
+
+| Concept | Key Takeaway |
+|---------|-------------|
+| **Distributed Tracing** | Follow a single request across all services in a microservice architecture |
+| **Traces and Spans** | A trace is a tree of spans; each span represents one operation |
+| **OpenTelemetry** | Vendor-neutral standard for instrumenting applications |
+| **Context Propagation** | W3C Trace Context headers carry trace IDs across service boundaries |
+| **Sampling** | Control trace volume: head-based, tail-based, or smart sampling |
+| **Log Correlation** | Include trace IDs in logs to connect logs, traces, and metrics |
+| **Jaeger** | Open-source tracing backend for storage and visualization |
+
+<CardGrid>
+  <LinkCard
+    title="Incident Response"
+    description="Learn on-call practices, incident management, and blameless postmortems"
+    href="/software-engineering/observability-sre/incident-response/"
+  />
+  <LinkCard
+    title="Logging & Metrics"
+    description="Review structured logging and metrics fundamentals"
+    href="/software-engineering/observability-sre/logging-metrics/"
+  />
+</CardGrid>

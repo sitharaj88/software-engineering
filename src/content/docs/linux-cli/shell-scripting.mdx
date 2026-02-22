@@ -1,0 +1,697 @@
+---
+title: "Shell Scripting"
+description: "Master Bash shell scripting -- variables, conditionals, loops, functions, pipes, redirection, error handling, debugging, and common scripting patterns"
+difficulty: "beginner"
+prerequisites: ["Linux & CLI Overview", "Basic programming knowledge"]
+timeToRead: "25 min"
+topics: ["bash", "shell-scripting", "automation", "scripting", "cli"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+## Bash Fundamentals
+
+Bash (Bourne Again Shell) is the default shell on most Linux distributions and the standard for writing shell scripts. A shell script is simply a text file containing a sequence of commands that the shell interprets and executes.
+
+### Script Structure
+
+```bash
+#!/bin/bash
+# The shebang line (#!/bin/bash) tells the OS which
+# interpreter to use when executing this script.
+
+# Script description:
+# This script demonstrates the basic structure
+
+# Exit on error, undefined variables, and pipe failures
+set -euo pipefail
+
+# Constants
+readonly LOG_FILE="/var/log/myapp.log"
+readonly MAX_RETRIES=3
+
+# Functions
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"
+}
+
+# Main logic
+main() {
+    log "Script started"
+    # Your code here
+    log "Script completed"
+}
+
+# Entry point
+main "$@"
+```
+
+:::tip
+**Always start scripts with `set -euo pipefail`.** This is the unofficial "strict mode" for Bash:
+- `-e`: Exit immediately if any command fails
+- `-u`: Treat undefined variables as errors
+- `-o pipefail`: A pipeline fails if any command in it fails (not just the last one)
+:::
+
+## Variables
+
+```bash
+#!/bin/bash
+
+# Variable assignment (no spaces around =)
+name="Alice"
+age=30
+readonly PI=3.14159    # Constant (cannot be changed)
+
+# Using variables
+echo "Name: $name"
+echo "Age: $age"
+echo "Pi: $PI"
+
+# String quoting
+# Double quotes: variables are expanded
+echo "Hello, $name"           # Hello, Alice
+
+# Single quotes: everything is literal
+echo 'Hello, $name'           # Hello, $name
+
+# Curly braces: disambiguate variable names
+echo "${name}_backup"         # Alice_backup
+echo "$name_backup"           # Error! Looks for $name_backup
+
+# Command substitution
+current_date=$(date '+%Y-%m-%d')
+file_count=$(ls | wc -l)
+echo "Date: $current_date, Files: $file_count"
+
+# Arithmetic
+count=5
+((count++))                    # Increment: count = 6
+((count += 10))                # Add: count = 16
+result=$((count * 2))          # Multiply: result = 32
+echo "Result: $result"
+
+# Default values
+# Use default if variable is unset or empty
+echo "${USER:-anonymous}"
+# Assign default if variable is unset or empty
+: "${LOG_LEVEL:=info}"
+
+# String operations
+text="Hello, World!"
+echo "${#text}"                # Length: 13
+echo "${text:7}"               # Substring from index 7: World!
+echo "${text:0:5}"             # Substring 0-5: Hello
+echo "${text/World/Bash}"      # Replace: Hello, Bash!
+echo "${text,,}"               # Lowercase: hello, world!
+echo "${text^^}"               # Uppercase: HELLO, WORLD!
+```
+
+### Special Variables
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `$0` | Script name | `/path/to/script.sh` |
+| `$1`, `$2`, ... | Positional arguments | First arg, second arg |
+| `$#` | Number of arguments | `3` |
+| `$@` | All arguments (individually quoted) | `"arg1" "arg2" "arg3"` |
+| `$*` | All arguments (as single string) | `"arg1 arg2 arg3"` |
+| `$?` | Exit status of last command | `0` (success) |
+| `$$` | Current process ID | `12345` |
+| `$!` | PID of last background process | `12346` |
+
+## Conditionals
+
+```bash
+#!/bin/bash
+
+# if/elif/else
+if [[ "$age" -gt 18 ]]; then
+    echo "Adult"
+elif [[ "$age" -gt 12 ]]; then
+    echo "Teenager"
+else
+    echo "Child"
+fi
+
+# String comparisons
+if [[ "$name" == "Alice" ]]; then
+    echo "Found Alice"
+fi
+
+if [[ "$name" != "Bob" ]]; then
+    echo "Not Bob"
+fi
+
+if [[ -z "$name" ]]; then
+    echo "Name is empty"
+fi
+
+if [[ -n "$name" ]]; then
+    echo "Name is not empty"
+fi
+
+# Numeric comparisons
+# -eq (equal), -ne (not equal), -lt (less than)
+# -le (less or equal), -gt (greater), -ge (greater or equal)
+if [[ "$count" -ge 10 ]]; then
+    echo "Count is 10 or more"
+fi
+
+# File tests
+if [[ -f "$file" ]]; then
+    echo "File exists and is a regular file"
+fi
+
+if [[ -d "$dir" ]]; then
+    echo "Directory exists"
+fi
+
+if [[ -r "$file" ]]; then
+    echo "File is readable"
+fi
+
+if [[ -w "$file" ]]; then
+    echo "File is writable"
+fi
+
+if [[ -x "$file" ]]; then
+    echo "File is executable"
+fi
+
+if [[ -s "$file" ]]; then
+    echo "File is not empty"
+fi
+
+# Logical operators
+if [[ "$age" -gt 18 && "$name" == "Alice" ]]; then
+    echo "Adult named Alice"
+fi
+
+if [[ "$status" == "active" || "$status" == "pending" ]]; then
+    echo "Status is active or pending"
+fi
+
+# Negation
+if [[ ! -f "$file" ]]; then
+    echo "File does not exist"
+fi
+
+# Case statement (like switch)
+case "$action" in
+    start)
+        echo "Starting..."
+        ;;
+    stop)
+        echo "Stopping..."
+        ;;
+    restart)
+        echo "Restarting..."
+        ;;
+    status|health)
+        echo "Checking status..."
+        ;;
+    *)
+        echo "Unknown action: $action"
+        echo "Usage: $0 {start|stop|restart|status}"
+        exit 1
+        ;;
+esac
+```
+
+:::caution
+**Always use `[[ ]]` instead of `[ ]` in Bash scripts.** The double-bracket form is a Bash-specific construct that is safer and more powerful than the single-bracket POSIX test. It handles unquoted variables, pattern matching, and regular expressions without the pitfalls of `[ ]`.
+:::
+
+## Loops
+
+```bash
+#!/bin/bash
+
+# For loop -- iterate over a list
+for fruit in apple banana cherry; do
+    echo "Fruit: $fruit"
+done
+
+# For loop -- iterate over files
+for file in /var/log/*.log; do
+    echo "Processing: $file"
+    wc -l "$file"
+done
+
+# For loop -- C-style
+for ((i = 0; i < 10; i++)); do
+    echo "Iteration: $i"
+done
+
+# For loop -- range
+for i in {1..5}; do
+    echo "Number: $i"
+done
+
+# For loop -- range with step
+for i in {0..100..10}; do
+    echo "Value: $i"  # 0, 10, 20, ..., 100
+done
+
+# While loop
+count=0
+while [[ "$count" -lt 5 ]]; do
+    echo "Count: $count"
+    ((count++))
+done
+
+# While loop -- read lines from a file
+while IFS= read -r line; do
+    echo "Line: $line"
+done < input.txt
+
+# While loop -- read from command output
+ps aux | while IFS= read -r line; do
+    if echo "$line" | grep -q "python"; then
+        echo "Python process: $line"
+    fi
+done
+
+# Until loop (opposite of while)
+attempts=0
+until [[ "$attempts" -ge 3 ]]; do
+    echo "Attempt: $((attempts + 1))"
+    ((attempts++))
+done
+
+# Loop control
+for i in {1..10}; do
+    if [[ "$i" -eq 5 ]]; then
+        continue   # Skip this iteration
+    fi
+    if [[ "$i" -eq 8 ]]; then
+        break      # Exit the loop
+    fi
+    echo "$i"
+done
+# Output: 1 2 3 4 6 7
+```
+
+## Functions
+
+```bash
+#!/bin/bash
+
+# Basic function
+greet() {
+    echo "Hello, $1!"
+}
+greet "Alice"   # Hello, Alice!
+
+# Function with return value (exit code)
+is_even() {
+    local num=$1
+    if (( num % 2 == 0 )); then
+        return 0   # True (success)
+    else
+        return 1   # False (failure)
+    fi
+}
+
+if is_even 4; then
+    echo "4 is even"
+fi
+
+# Function with output (capture with $())
+get_timestamp() {
+    date '+%Y-%m-%d %H:%M:%S'
+}
+ts=$(get_timestamp)
+echo "Timestamp: $ts"
+
+# Local variables
+calculate() {
+    local x=$1    # local prevents pollution
+    local y=$2
+    local result=$((x + y))
+    echo "$result"
+}
+sum=$(calculate 10 20)
+echo "Sum: $sum"
+
+# Function with error handling
+safe_cd() {
+    local target_dir=$1
+    if [[ ! -d "$target_dir" ]]; then
+        echo "ERROR: Directory '$target_dir' does not exist" >&2
+        return 1
+    fi
+    cd "$target_dir" || return 1
+    echo "Changed to: $(pwd)"
+}
+
+# Function with multiple return values (via echo)
+get_system_info() {
+    local hostname
+    local os
+    local kernel
+    hostname=$(hostname)
+    os=$(uname -s)
+    kernel=$(uname -r)
+    echo "$hostname|$os|$kernel"
+}
+
+# Parse the output
+IFS='|' read -r host os kern <<< "$(get_system_info)"
+echo "Host: $host, OS: $os, Kernel: $kern"
+
+# Logging function (reusable pattern)
+log() {
+    local level=$1
+    shift
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$level] $*" >&2
+}
+
+log "INFO" "Application started"
+log "ERROR" "Connection failed"
+```
+
+## Pipes and Redirection
+
+```bash
+#!/bin/bash
+
+# Standard file descriptors
+# 0 = stdin  (input)
+# 1 = stdout (output)
+# 2 = stderr (errors)
+
+# Redirect stdout to file
+echo "Hello" > output.txt        # Overwrite
+echo "World" >> output.txt       # Append
+
+# Redirect stderr to file
+command_that_might_fail 2> errors.log
+
+# Redirect both
+command &> all_output.log
+
+# Redirect stderr to stdout
+command 2>&1
+
+# Discard output
+command > /dev/null 2>&1         # Discard everything
+command &> /dev/null             # Same, shorter form
+
+# Pipe: connect stdout of one command to stdin of another
+cat access.log | grep "500" | awk '{print $7}' | sort | uniq -c | sort -rn | head -10
+# Read log → filter 500 errors → extract URL → sort → count → sort by count → top 10
+
+# Here documents (heredoc)
+cat << 'EOF'
+This is a multi-line string.
+Variables are NOT expanded with single-quoted EOF.
+Useful for templates and configuration.
+EOF
+
+cat << EOF
+This is a multi-line string.
+Variables ARE expanded: $USER
+Today is: $(date)
+EOF
+
+# Process substitution
+diff <(ls dir1/) <(ls dir2/)   # Compare two directory listings
+
+# Named pipes (FIFO)
+mkfifo mypipe
+echo "Hello" > mypipe &         # Writer (background)
+cat mypipe                       # Reader
+rm mypipe
+```
+
+## Error Handling
+
+```bash
+#!/bin/bash
+set -euo pipefail
+
+# Trap: run cleanup on exit, error, or signal
+cleanup() {
+    local exit_code=$?
+    echo "Cleaning up... (exit code: $exit_code)"
+    # Remove temp files, release locks, etc.
+    rm -f "$TEMP_FILE"
+}
+trap cleanup EXIT
+
+# Trap specific signals
+handle_sigint() {
+    echo "Caught SIGINT (Ctrl+C). Exiting gracefully..."
+    exit 130
+}
+trap handle_sigint SIGINT
+
+# Error handling with || (or)
+cd /nonexistent || {
+    echo "Failed to change directory"
+    exit 1
+}
+
+# Retry pattern
+retry() {
+    local max_attempts=$1
+    local delay=$2
+    shift 2
+    local cmd=("$@")
+
+    for ((attempt = 1; attempt <= max_attempts; attempt++)); do
+        echo "Attempt $attempt of $max_attempts: ${cmd[*]}"
+        if "${cmd[@]}"; then
+            echo "Success on attempt $attempt"
+            return 0
+        fi
+        if [[ "$attempt" -lt "$max_attempts" ]]; then
+            echo "Failed. Retrying in ${delay}s..."
+            sleep "$delay"
+        fi
+    done
+
+    echo "All $max_attempts attempts failed"
+    return 1
+}
+
+# Usage
+retry 3 5 curl -sf "https://api.example.com/health"
+
+# Exit codes
+# 0 = success
+# 1 = general error
+# 2 = misuse of shell command
+# 126 = command not executable
+# 127 = command not found
+# 128+N = killed by signal N (e.g., 130 = SIGINT)
+```
+
+## Debugging Scripts
+
+```bash
+#!/bin/bash
+
+# Debug mode: print each command before executing
+set -x              # Enable debug output
+# ...your code...
+set +x              # Disable debug output
+
+# Run with debug from the command line
+# bash -x script.sh
+
+# Trace specific sections
+debug_section() {
+    set -x
+    # commands to debug
+    ls -la /tmp
+    echo "debug info"
+    set +x
+}
+
+# Print debug info conditionally
+DEBUG=${DEBUG:-false}
+
+debug_log() {
+    if [[ "$DEBUG" = true ]]; then
+        echo "[DEBUG] $*" >&2
+    fi
+}
+
+debug_log "Variable x = $x"
+# Run with: DEBUG=true ./script.sh
+
+# Validate inputs
+validate_args() {
+    if [[ $# -lt 2 ]]; then
+        echo "Usage: $0 <source> <destination>" >&2
+        exit 1
+    fi
+
+    if [[ ! -f "$1" ]]; then
+        echo "Error: Source file '$1' not found" >&2
+        exit 1
+    fi
+
+    if [[ ! -d "$(dirname "$2")" ]]; then
+        echo "Error: Destination directory does not exist" >&2
+        exit 1
+    fi
+}
+
+validate_args "$@"
+```
+
+## Common Patterns
+
+### Deployment Script
+
+```bash
+#!/bin/bash
+set -euo pipefail
+
+# Deploy a web application
+readonly APP_NAME="myapp"
+readonly DEPLOY_DIR="/opt/${APP_NAME}"
+readonly BACKUP_DIR="/opt/backups/${APP_NAME}"
+readonly RELEASE_FILE=$1
+
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"
+}
+
+check_prerequisites() {
+    log "Checking prerequisites..."
+    if [[ ! -f "$RELEASE_FILE" ]]; then
+        log "ERROR: Release file not found: $RELEASE_FILE"
+        exit 1
+    fi
+    if ! command -v tar &> /dev/null; then
+        log "ERROR: tar is required but not installed"
+        exit 1
+    fi
+}
+
+backup_current() {
+    log "Backing up current deployment..."
+    mkdir -p "$BACKUP_DIR"
+    local backup_name="${APP_NAME}_$(date '+%Y%m%d_%H%M%S').tar.gz"
+    tar -czf "${BACKUP_DIR}/${backup_name}" -C "$DEPLOY_DIR" . 2>/dev/null || true
+    log "Backup created: $backup_name"
+}
+
+deploy_release() {
+    log "Deploying release..."
+    tar -xzf "$RELEASE_FILE" -C "$DEPLOY_DIR"
+    log "Release extracted to $DEPLOY_DIR"
+}
+
+restart_service() {
+    log "Restarting service..."
+    sudo systemctl restart "$APP_NAME"
+    sleep 3
+    if systemctl is-active --quiet "$APP_NAME"; then
+        log "Service is running"
+    else
+        log "ERROR: Service failed to start"
+        log "Rolling back..."
+        rollback
+        exit 1
+    fi
+}
+
+rollback() {
+    local latest_backup
+    latest_backup=$(ls -t "${BACKUP_DIR}"/*.tar.gz 2>/dev/null | head -1)
+    if [[ -n "$latest_backup" ]]; then
+        log "Rolling back to: $latest_backup"
+        tar -xzf "$latest_backup" -C "$DEPLOY_DIR"
+        sudo systemctl restart "$APP_NAME"
+    else
+        log "ERROR: No backup found for rollback"
+    fi
+}
+
+main() {
+    log "=== Starting deployment of $APP_NAME ==="
+    check_prerequisites
+    backup_current
+    deploy_release
+    restart_service
+    log "=== Deployment complete ==="
+}
+
+main
+```
+
+### Log Processing Script
+
+```bash
+#!/bin/bash
+set -euo pipefail
+
+# Analyze access logs
+analyze_logs() {
+    local log_file=$1
+
+    echo "=== Log Analysis Report ==="
+    echo "File: $log_file"
+    echo "Generated: $(date)"
+    echo ""
+
+    echo "--- Request Count by Status Code ---"
+    awk '{print $9}' "$log_file" | sort | uniq -c | sort -rn
+
+    echo ""
+    echo "--- Top 10 Requested URLs ---"
+    awk '{print $7}' "$log_file" | sort | uniq -c | sort -rn | head -10
+
+    echo ""
+    echo "--- Requests per Hour ---"
+    awk '{print substr($4, 2, 14)}' "$log_file" | sort | uniq -c
+
+    echo ""
+    echo "--- Top 10 IP Addresses ---"
+    awk '{print $1}' "$log_file" | sort | uniq -c | sort -rn | head -10
+
+    echo ""
+    echo "--- 5xx Errors ---"
+    awk '$9 ~ /^5/ {print $0}' "$log_file" | tail -20
+}
+
+if [[ $# -ne 1 ]]; then
+    echo "Usage: $0 <log_file>" >&2
+    exit 1
+fi
+
+analyze_logs "$1"
+```
+
+## Summary
+
+| Concept | Key Takeaway |
+|---------|-------------|
+| **Shebang** | Always start with `#!/bin/bash` |
+| **Strict mode** | Use `set -euo pipefail` for safer scripts |
+| **Variables** | No spaces around `=`, use `${}` for clarity |
+| **Conditionals** | Use `[[ ]]` for safer tests |
+| **Loops** | `for`, `while`, `until` with `break` and `continue` |
+| **Functions** | Use `local` variables, return exit codes |
+| **Pipes** | Chain commands with `\|` for powerful one-liners |
+| **Error handling** | Use `trap` for cleanup, retry patterns for resilience |
+| **Debugging** | Use `set -x` or `bash -x script.sh` |
+
+<CardGrid>
+  <LinkCard
+    title="File System & Permissions"
+    description="Learn the Linux filesystem hierarchy, permissions, and access control"
+    href="/software-engineering/linux-cli/filesystem-permissions/"
+  />
+  <LinkCard
+    title="Linux & CLI Overview"
+    description="Return to the section overview"
+    href="/software-engineering/linux-cli/"
+  />
+</CardGrid>

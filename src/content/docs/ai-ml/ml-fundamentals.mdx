@@ -1,0 +1,965 @@
+---
+title: "ML Fundamentals"
+description: "Master the core concepts of machine learning -- linear regression, classification algorithms, data splitting, overfitting, the bias-variance tradeoff, and evaluation metrics"
+difficulty: "intermediate"
+prerequisites: ["AI/ML Overview", "Basic statistics", "Python or JavaScript basics"]
+timeToRead: "25 min"
+topics: ["machine-learning", "linear-regression", "classification", "overfitting", "bias-variance", "evaluation-metrics"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+## Core ML Concepts
+
+Before diving into specific algorithms, you need to understand the fundamental concepts that underpin all of machine learning. Every ML problem involves a **model** that learns a **function** mapping inputs to outputs from **training data**, and is then evaluated on unseen **test data**.
+
+```
+    Input Features (X)              Output / Target (y)
+    ┌─────────────────┐             ┌──────────────┐
+    │ x₁, x₂, ... xₙ │──▶ f(X) ──▶│ ŷ (predicted)│
+    └─────────────────┘             └──────────────┘
+
+    The goal of ML: learn f(X) from data so that ŷ ≈ y
+```
+
+## Linear Regression
+
+Linear regression is the simplest and most foundational ML algorithm. It models the relationship between input features and a continuous output as a **linear equation**.
+
+### The Math (Simplified)
+
+For a single feature, linear regression fits a line:
+
+```
+    ŷ = w₁x + b
+
+    where:
+      ŷ  = predicted value
+      x  = input feature
+      w₁ = weight (slope)
+      b  = bias (intercept)
+```
+
+For multiple features, it becomes:
+
+```
+    ŷ = w₁x₁ + w₂x₂ + ... + wₙxₙ + b
+```
+
+The training process finds the values of weights `w` and bias `b` that minimize the **loss function** -- typically Mean Squared Error (MSE):
+
+```
+    MSE = (1/n) * Σ(yᵢ - ŷᵢ)²
+
+    where:
+      yᵢ  = actual value for sample i
+      ŷᵢ  = predicted value for sample i
+      n   = number of samples
+```
+
+```
+    Price ($)
+    │
+    │                              ●
+    │                         ●  /
+    │                       ●  /
+    │                    ● / ●
+    │               ●  / ●
+    │            ●   /
+    │         ●   /●
+    │       ●  /
+    │     ● /
+    │   ● /
+    │  /
+    └──────────────────────────── Size (sqft)
+
+    Linear regression finds the "best fit" line
+    through the data points.
+```
+
+<Tabs>
+  <TabItem label="Python">
+    ```python
+    import numpy as np
+    from sklearn.linear_model import LinearRegression
+    from sklearn.model_selection import train_test_split
+    from sklearn.metrics import mean_squared_error, r2_score
+
+    # Example: Predict house prices from size
+    # X = house sizes (sqft), y = prices ($)
+    X = np.array([[850], [1200], [1500], [1800], [2200], [2500], [3000]])
+    y = np.array([150000, 220000, 260000, 310000, 380000, 420000, 510000])
+
+    # Split data
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.3, random_state=42
+    )
+
+    # Train model
+    model = LinearRegression()
+    model.fit(X_train, y_train)
+
+    # Evaluate
+    y_pred = model.predict(X_test)
+    print(f"Weight (slope): {model.coef_[0]:.2f}")
+    print(f"Bias (intercept): {model.intercept_:.2f}")
+    print(f"MSE: {mean_squared_error(y_test, y_pred):.2f}")
+    print(f"R² Score: {r2_score(y_test, y_pred):.4f}")
+
+    # Predict price for a 2000 sqft house
+    new_house = np.array([[2000]])
+    predicted_price = model.predict(new_house)
+    print(f"Predicted price for 2000 sqft: ${predicted_price[0]:,.2f}")
+    ```
+  </TabItem>
+  <TabItem label="JavaScript">
+    ```javascript
+    // Simple linear regression from scratch
+    function linearRegression(X, y) {
+      const n = X.length;
+      const sumX = X.reduce((a, b) => a + b, 0);
+      const sumY = y.reduce((a, b) => a + b, 0);
+      const sumXY = X.reduce((acc, xi, i) => acc + xi * y[i], 0);
+      const sumX2 = X.reduce((acc, xi) => acc + xi * xi, 0);
+
+      // Calculate slope (weight) and intercept (bias)
+      const w = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+      const b = (sumY - w * sumX) / n;
+
+      return {
+        weight: w,
+        bias: b,
+        predict: (x) => w * x + b,
+        mse: (xTest, yTest) => {
+          const predictions = xTest.map(x => w * x + b);
+          const errors = predictions.map((p, i) => (p - yTest[i]) ** 2);
+          return errors.reduce((a, b) => a + b, 0) / errors.length;
+        }
+      };
+    }
+
+    // Example usage
+    const sizes = [850, 1200, 1500, 1800, 2200, 2500, 3000];
+    const prices = [150000, 220000, 260000, 310000, 380000, 420000, 510000];
+
+    const model = linearRegression(sizes, prices);
+    console.log(`Weight: ${model.weight.toFixed(2)}`);
+    console.log(`Bias: ${model.bias.toFixed(2)}`);
+    console.log(`Predicted price for 2000 sqft: $${model.predict(2000).toFixed(2)}`);
+    ```
+  </TabItem>
+</Tabs>
+
+## Classification
+
+Classification predicts a **discrete category** (class) rather than a continuous value. The most common types are binary classification (two classes) and multi-class classification (three or more classes).
+
+### Logistic Regression
+
+Despite its name, logistic regression is a **classification** algorithm. It uses the sigmoid function to output a probability between 0 and 1.
+
+```
+    Sigmoid Function: σ(z) = 1 / (1 + e^(-z))
+
+    Output
+    1.0 ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ●●●●●
+                                  ●●
+                                ●●
+    0.5 ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ●●
+                            ●●
+                          ●●
+    0.0 ●●●●●●●●●●●●● ─ ─ ─ ─ ─ ─ ─ ─ ─
+        ─────────────────────────────────── Input (z)
+
+    If σ(z) >= 0.5 → Class 1 (Positive)
+    If σ(z) <  0.5 → Class 0 (Negative)
+```
+
+<Tabs>
+  <TabItem label="Python">
+    ```python
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.datasets import load_breast_cancer
+    from sklearn.model_selection import train_test_split
+    from sklearn.metrics import classification_report
+
+    # Load a real dataset
+    data = load_breast_cancer()
+    X_train, X_test, y_train, y_test = train_test_split(
+        data.data, data.target, test_size=0.2, random_state=42
+    )
+
+    # Train logistic regression
+    model = LogisticRegression(max_iter=10000)
+    model.fit(X_train, y_train)
+
+    # Evaluate
+    y_pred = model.predict(X_test)
+    print(classification_report(y_test, y_pred,
+                                target_names=data.target_names))
+
+    # Get probability scores
+    probabilities = model.predict_proba(X_test)
+    print(f"Sample probabilities: {probabilities[0]}")
+    # Output: [0.03, 0.97] → 97% confident it's class 1
+    ```
+  </TabItem>
+  <TabItem label="JavaScript">
+    ```javascript
+    // Logistic regression with sigmoid function
+    function sigmoid(z) {
+      return 1 / (1 + Math.exp(-z));
+    }
+
+    class LogisticRegression {
+      constructor(learningRate = 0.01, epochs = 1000) {
+        this.lr = learningRate;
+        this.epochs = epochs;
+        this.weights = null;
+        this.bias = 0;
+      }
+
+      fit(X, y) {
+        const n = X.length;
+        const features = X[0].length;
+        this.weights = new Array(features).fill(0);
+
+        for (let epoch = 0; epoch < this.epochs; epoch++) {
+          for (let i = 0; i < n; i++) {
+            const z = X[i].reduce(
+              (sum, xj, j) => sum + xj * this.weights[j], this.bias
+            );
+            const prediction = sigmoid(z);
+            const error = y[i] - prediction;
+
+            // Update weights using gradient descent
+            for (let j = 0; j < features; j++) {
+              this.weights[j] += this.lr * error * X[i][j];
+            }
+            this.bias += this.lr * error;
+          }
+        }
+      }
+
+      predict(x) {
+        const z = x.reduce(
+          (sum, xj, j) => sum + xj * this.weights[j], this.bias
+        );
+        return sigmoid(z) >= 0.5 ? 1 : 0;
+      }
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+### Decision Trees
+
+A decision tree makes predictions by learning a series of `if/then` rules from data. It splits the data at each node based on the feature and threshold that best separates the classes.
+
+```
+                    ┌─────────────────────┐
+                    │ Income > $50,000?   │
+                    └──────────┬──────────┘
+                      Yes /         \ No
+                         /           \
+              ┌─────────────────┐ ┌─────────────────┐
+              │ Age > 30?       │ │ Credit Score     │
+              │                 │ │ > 700?           │
+              └────────┬────────┘ └────────┬─────────┘
+                Yes /     \ No      Yes /     \ No
+                   /       \           /       \
+            ┌──────┐ ┌──────┐   ┌──────┐ ┌──────┐
+            │Approve│ │Review│   │Review│ │Deny  │
+            └──────┘ └──────┘   └──────┘ └──────┘
+
+    Decision trees are intuitive and explainable --
+    you can trace exactly why a prediction was made.
+```
+
+**Advantages:**
+- Highly interpretable -- you can explain every prediction
+- Handle both numerical and categorical features
+- No feature scaling required
+- Can capture non-linear relationships
+
+**Disadvantages:**
+- Prone to overfitting (easily grow too deep)
+- Unstable -- small data changes can create very different trees
+- Greedy splitting may miss globally optimal solutions
+
+:::tip
+**Random Forests** solve many decision tree problems by training hundreds of trees on random subsets of data and features, then averaging their predictions. This technique is called **ensemble learning** and dramatically improves accuracy and robustness.
+:::
+
+<Tabs>
+  <TabItem label="Python">
+    ```python
+    from sklearn.tree import DecisionTreeClassifier
+    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.datasets import load_iris
+    from sklearn.model_selection import train_test_split
+    from sklearn.metrics import accuracy_score
+
+    # Load dataset
+    iris = load_iris()
+    X_train, X_test, y_train, y_test = train_test_split(
+        iris.data, iris.target, test_size=0.2, random_state=42
+    )
+
+    # Single Decision Tree
+    tree = DecisionTreeClassifier(max_depth=3, random_state=42)
+    tree.fit(X_train, y_train)
+    tree_acc = accuracy_score(y_test, tree.predict(X_test))
+
+    # Random Forest (ensemble of trees)
+    forest = RandomForestClassifier(
+        n_estimators=100,
+        max_depth=5,
+        random_state=42
+    )
+    forest.fit(X_train, y_train)
+    forest_acc = accuracy_score(y_test, forest.predict(X_test))
+
+    print(f"Decision Tree Accuracy: {tree_acc:.4f}")
+    print(f"Random Forest Accuracy: {forest_acc:.4f}")
+
+    # Feature importance
+    for name, importance in zip(
+        iris.feature_names, forest.feature_importances_
+    ):
+        print(f"  {name}: {importance:.4f}")
+    ```
+  </TabItem>
+  <TabItem label="Java">
+    ```java
+    // Using Weka library for Decision Tree in Java
+    import weka.classifiers.trees.J48;
+    import weka.classifiers.Evaluation;
+    import weka.core.Instances;
+    import weka.core.converters.ConverterUtils.DataSource;
+
+    public class DecisionTreeExample {
+        public static void main(String[] args) throws Exception {
+            // Load dataset
+            DataSource source = new DataSource("iris.arff");
+            Instances data = source.getDataSet();
+            data.setClassIndex(data.numAttributes() - 1);
+
+            // Build decision tree (J48 = C4.5 algorithm)
+            J48 tree = new J48();
+            tree.setConfidenceFactor(0.25f);  // Pruning parameter
+            tree.setMinNumObj(2);             // Min samples per leaf
+
+            // 10-fold cross-validation
+            Evaluation eval = new Evaluation(data);
+            eval.crossValidateModel(tree, data, 10, new java.util.Random(42));
+
+            System.out.println("Accuracy: " +
+                String.format("%.4f", eval.pctCorrect() / 100));
+            System.out.println(eval.toSummaryString());
+
+            // Train on full dataset and print tree
+            tree.buildClassifier(data);
+            System.out.println(tree.toString());
+        }
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+## Training, Validation, and Test Split
+
+Properly splitting your data is critical to building reliable models. You need to ensure the model generalizes to unseen data, not just memorizes the training examples.
+
+### The Three-Way Split
+
+```
+    Full Dataset (100%)
+    ┌──────────────────────────────────────────────────────────────────┐
+    │                                                                  │
+    │  ┌──────────────────────────────┐ ┌───────────┐ ┌────────────┐  │
+    │  │     Training Set (60-70%)    │ │Validation │ │ Test Set   │  │
+    │  │                              │ │(15-20%)   │ │ (15-20%)   │  │
+    │  │  Used to learn model         │ │           │ │            │  │
+    │  │  parameters (weights)        │ │ Tune      │ │ Final      │  │
+    │  │                              │ │ hyper-    │ │ unbiased   │  │
+    │  │                              │ │ params    │ │ evaluation │  │
+    │  └──────────────────────────────┘ └───────────┘ └────────────┘  │
+    │                                                                  │
+    └──────────────────────────────────────────────────────────────────┘
+```
+
+| Set | Purpose | When Used |
+|-----|---------|-----------|
+| **Training** | Learn model parameters (weights, biases) | During training |
+| **Validation** | Tune hyperparameters, select best model | During development |
+| **Test** | Final unbiased evaluation | Once, at the end |
+
+### Cross-Validation
+
+When data is limited, **k-fold cross-validation** gives a more robust estimate of model performance by rotating which portion is used for validation.
+
+```
+    5-Fold Cross-Validation:
+
+    Fold 1: [VAL][Train][Train][Train][Train]  → Score₁
+    Fold 2: [Train][VAL][Train][Train][Train]  → Score₂
+    Fold 3: [Train][Train][VAL][Train][Train]  → Score₃
+    Fold 4: [Train][Train][Train][VAL][Train]  → Score₄
+    Fold 5: [Train][Train][Train][Train][VAL]  → Score₅
+
+    Final Score = Average(Score₁, Score₂, ..., Score₅)
+```
+
+<Tabs>
+  <TabItem label="Python">
+    ```python
+    from sklearn.model_selection import (
+        train_test_split,
+        cross_val_score,
+        KFold
+    )
+    from sklearn.ensemble import RandomForestClassifier
+
+    # Simple train/test split
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42, stratify=y
+    )
+
+    # Train/validation/test split
+    X_temp, X_test, y_temp, y_test = train_test_split(
+        X, y, test_size=0.15, random_state=42, stratify=y
+    )
+    X_train, X_val, y_train, y_val = train_test_split(
+        X_temp, y_temp, test_size=0.18, random_state=42, stratify=y_temp
+    )
+    # Results in ~70% train, 15% val, 15% test
+
+    # K-Fold Cross-Validation
+    model = RandomForestClassifier(n_estimators=100)
+    kfold = KFold(n_splits=5, shuffle=True, random_state=42)
+    scores = cross_val_score(model, X, y, cv=kfold, scoring='accuracy')
+
+    print(f"CV Accuracy: {scores.mean():.4f} (+/- {scores.std():.4f})")
+    print(f"Per-fold scores: {scores}")
+    ```
+  </TabItem>
+  <TabItem label="JavaScript">
+    ```javascript
+    // Train/test split implementation
+    function trainTestSplit(X, y, testSize = 0.2, seed = 42) {
+      const n = X.length;
+      const indices = Array.from({ length: n }, (_, i) => i);
+
+      // Shuffle with seed (simple LCG)
+      let rng = seed;
+      for (let i = n - 1; i > 0; i--) {
+        rng = (rng * 1664525 + 1013904223) % 2 ** 32;
+        const j = rng % (i + 1);
+        [indices[i], indices[j]] = [indices[j], indices[i]];
+      }
+
+      const splitIdx = Math.floor(n * (1 - testSize));
+      const trainIdx = indices.slice(0, splitIdx);
+      const testIdx = indices.slice(splitIdx);
+
+      return {
+        X_train: trainIdx.map(i => X[i]),
+        X_test: testIdx.map(i => X[i]),
+        y_train: trainIdx.map(i => y[i]),
+        y_test: testIdx.map(i => y[i])
+      };
+    }
+
+    // K-Fold cross-validation
+    function kFoldSplit(n, k = 5) {
+      const foldSize = Math.floor(n / k);
+      const folds = [];
+
+      for (let i = 0; i < k; i++) {
+        const valStart = i * foldSize;
+        const valEnd = (i === k - 1) ? n : (i + 1) * foldSize;
+        const valIndices = Array.from(
+          { length: valEnd - valStart },
+          (_, j) => valStart + j
+        );
+        const trainIndices = Array.from({ length: n }, (_, j) => j)
+          .filter(j => j < valStart || j >= valEnd);
+        folds.push({ train: trainIndices, val: valIndices });
+      }
+      return folds;
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+:::caution
+**Data leakage** is one of the most common and dangerous mistakes in ML. It occurs when information from the test set "leaks" into the training process. Common causes include:
+- Scaling or normalizing data before splitting
+- Using future data to predict past events (time series)
+- Including the target variable (or a proxy of it) as a feature
+- Not properly handling duplicates across splits
+:::
+
+## Overfitting and Underfitting
+
+Understanding the balance between underfitting and overfitting is crucial for building models that generalize well.
+
+```
+    Underfitting              Good Fit               Overfitting
+    (High Bias)              (Balanced)             (High Variance)
+
+    │  ● ●                  │  ● ●                  │  ●  ●
+    │      ●  ●             │     /\●               │   /\/\●
+    │────────────────       │   /    \●              │  /    \●
+    │  ●                    │  / ●    \              │ / ●    \
+    │     ●                 │ /        ●             │/  /\    ●
+    │         ●             │/    ●                  │  /  \
+    └──────────────         └──────────────          └──────────────
+
+    Too simple:              Just right:              Too complex:
+    Misses the pattern       Captures the true        Memorizes noise
+    in the data              underlying pattern       in training data
+```
+
+| Aspect | Underfitting | Overfitting |
+|--------|-------------|-------------|
+| **Training error** | High | Low (near zero) |
+| **Test error** | High | High |
+| **Model complexity** | Too simple | Too complex |
+| **Cause** | Model cannot capture patterns | Model memorizes noise |
+| **Fix** | More features, complex model, more training | Regularization, less complexity, more data |
+
+### How to Detect
+
+```
+    Error
+    │
+    │  \                              /
+    │   \    Test Error             /
+    │    \                        /
+    │     \                     /
+    │      \        ___________/
+    │       \      /
+    │        \    /
+    │         \  /  ← Sweet spot
+    │          \/
+    │           \
+    │            \ Training Error
+    │             \_________________
+    │
+    └──────────────────────────────────── Model Complexity
+         Underfitting    │    Overfitting
+                    Optimal
+```
+
+### Techniques to Prevent Overfitting
+
+| Technique | How It Works |
+|-----------|-------------|
+| **Regularization** (L1/L2) | Adds penalty for large weights to the loss function |
+| **Early Stopping** | Stop training when validation error starts increasing |
+| **Dropout** (neural networks) | Randomly disable neurons during training |
+| **Cross-Validation** | Use multiple train/val splits to assess generalization |
+| **More Training Data** | More examples make it harder to memorize |
+| **Data Augmentation** | Create synthetic training examples (rotations, flips) |
+| **Pruning** (decision trees) | Remove branches that do not improve validation accuracy |
+| **Ensemble Methods** | Combine multiple models to reduce variance |
+
+<Tabs>
+  <TabItem label="Python">
+    ```python
+    from sklearn.linear_model import Ridge, Lasso
+    from sklearn.model_selection import learning_curve
+    import numpy as np
+
+    # L2 Regularization (Ridge)
+    ridge = Ridge(alpha=1.0)  # alpha controls regularization strength
+    ridge.fit(X_train, y_train)
+
+    # L1 Regularization (Lasso) -- also performs feature selection
+    lasso = Lasso(alpha=0.1)
+    lasso.fit(X_train, y_train)
+    # Lasso can drive weights to exactly zero
+    print(f"Non-zero features: {np.sum(lasso.coef_ != 0)}")
+
+    # Learning curves to diagnose over/underfitting
+    train_sizes, train_scores, val_scores = learning_curve(
+        RandomForestClassifier(n_estimators=100),
+        X, y,
+        train_sizes=np.linspace(0.1, 1.0, 10),
+        cv=5,
+        scoring='accuracy'
+    )
+
+    # If train and val scores diverge → overfitting
+    # If both scores are low → underfitting
+    print(f"Train: {train_scores.mean(axis=1)}")
+    print(f"Val:   {val_scores.mean(axis=1)}")
+    ```
+  </TabItem>
+  <TabItem label="JavaScript">
+    ```javascript
+    // L2 Regularization (Ridge Regression) from scratch
+    function ridgeRegression(X, y, alpha = 1.0) {
+      // Closed-form solution: w = (X^T X + αI)^(-1) X^T y
+      const n = X.length;
+      const p = X[0].length;
+
+      // Compute X^T * X
+      const XtX = Array.from({ length: p }, (_, i) =>
+        Array.from({ length: p }, (_, j) =>
+          X.reduce((sum, row) => sum + row[i] * row[j], 0)
+        )
+      );
+
+      // Add regularization: X^T * X + alpha * I
+      for (let i = 0; i < p; i++) {
+        XtX[i][i] += alpha;
+      }
+
+      // Compute X^T * y
+      const Xty = Array.from({ length: p }, (_, i) =>
+        X.reduce((sum, row, j) => sum + row[i] * y[j], 0)
+      );
+
+      // Solve using matrix inversion (simplified)
+      const weights = solveLinearSystem(XtX, Xty);
+
+      return {
+        weights,
+        predict: (x) =>
+          x.reduce((sum, xi, i) => sum + xi * weights[i], 0)
+      };
+    }
+
+    // Early stopping implementation
+    function trainWithEarlyStopping(model, trainData, valData, {
+      maxEpochs = 1000,
+      patience = 10
+    } = {}) {
+      let bestValLoss = Infinity;
+      let epochsWithoutImprovement = 0;
+      let bestWeights = null;
+
+      for (let epoch = 0; epoch < maxEpochs; epoch++) {
+        model.trainOneEpoch(trainData);
+        const valLoss = model.evaluate(valData);
+
+        if (valLoss < bestValLoss) {
+          bestValLoss = valLoss;
+          bestWeights = model.getWeights();
+          epochsWithoutImprovement = 0;
+        } else {
+          epochsWithoutImprovement++;
+          if (epochsWithoutImprovement >= patience) {
+            console.log(`Early stopping at epoch ${epoch}`);
+            model.setWeights(bestWeights);
+            break;
+          }
+        }
+      }
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+## Bias-Variance Tradeoff
+
+The bias-variance tradeoff is one of the most important concepts in ML. It explains why models err and how to balance complexity.
+
+```
+    Total Error = Bias² + Variance + Irreducible Noise
+
+    ┌─────────────────────────────────────────────────────┐
+    │  Bias: Error from wrong assumptions in the model    │
+    │  → Underfitting. Model is too simple.               │
+    │                                                     │
+    │  Variance: Error from sensitivity to training data  │
+    │  → Overfitting. Model changes too much with         │
+    │    different training sets.                          │
+    │                                                     │
+    │  Irreducible: Noise inherent in the data.           │
+    │  → Cannot be reduced by any model.                  │
+    └─────────────────────────────────────────────────────┘
+```
+
+```
+    Error
+    │\
+    │ \    Bias²
+    │  \               /  Variance
+    │   \             /
+    │    \           /
+    │     \   ______/
+    │      \ / Total Error
+    │       X
+    │      / \
+    │     /   \__________
+    │    /
+    │   /
+    │──/──────────────────── Irreducible Noise
+    └──────────────────────────── Model Complexity
+        Simple                       Complex
+```
+
+| Model Type | Bias | Variance | Example |
+|-----------|------|----------|---------|
+| **High bias, low variance** | High | Low | Linear regression on non-linear data |
+| **Low bias, high variance** | Low | High | Deep decision tree with no pruning |
+| **Balanced** | Medium | Medium | Regularized model with cross-validation |
+
+:::note
+The goal is not to minimize bias or variance individually, but to find the sweet spot where their sum (total error) is minimized. This is the fundamental challenge of model selection.
+:::
+
+## Evaluation Metrics
+
+Choosing the right metric depends on your problem type and business requirements.
+
+### For Classification
+
+Consider a binary classification problem -- predicting whether an email is spam or not spam.
+
+```
+                        Predicted
+                    Positive   Negative
+              ┌──────────┬──────────┐
+    Actual    │    TP    │    FN    │
+    Positive  │  (Hit)   │ (Miss)  │
+              ├──────────┼──────────┤
+    Actual    │    FP    │    TN    │
+    Negative  │(False    │(Correct │
+              │ Alarm)   │Rejection│
+              └──────────┴──────────┘
+
+    TP = True Positive:  Correctly identified as spam
+    FP = False Positive: Non-spam incorrectly flagged as spam
+    FN = False Negative: Spam that slipped through
+    TN = True Negative:  Non-spam correctly allowed through
+```
+
+### Key Metrics
+
+| Metric | Formula | When to Use |
+|--------|---------|-------------|
+| **Accuracy** | `(TP + TN) / (TP + TN + FP + FN)` | Balanced classes |
+| **Precision** | `TP / (TP + FP)` | When false positives are costly (spam filter) |
+| **Recall** (Sensitivity) | `TP / (TP + FN)` | When false negatives are costly (cancer detection) |
+| **F1 Score** | `2 * (Precision * Recall) / (Precision + Recall)` | When you need balance between precision and recall |
+| **AUC-ROC** | Area under the ROC curve | Overall model quality across all thresholds |
+
+### Precision vs Recall Tradeoff
+
+```
+    Precision
+    1.0 │●
+        │ ●
+        │  ●
+        │   ●●
+        │     ●●
+    0.5 │       ●●●
+        │          ●●●
+        │             ●●●●
+        │                 ●●●●●
+    0.0 │                      ●●●●●●
+        └────────────────────────────── Recall
+       0.0                           1.0
+
+    As you lower the classification threshold:
+    - Recall increases (catch more positives)
+    - Precision decreases (more false alarms)
+
+    The "right" threshold depends on business needs.
+```
+
+### When to Use Which Metric
+
+| Scenario | Prioritize | Why |
+|----------|-----------|-----|
+| **Spam filter** | Precision | Better to let some spam through than block real emails |
+| **Cancer screening** | Recall | Must not miss any potential cancer cases |
+| **Fraud detection** | F1 / AUC | Need balance -- catch fraud without blocking legitimate transactions |
+| **Search engine** | Precision@K | Top results must be relevant |
+| **Balanced dataset** | Accuracy | Works well when classes are evenly distributed |
+| **Imbalanced dataset** | F1 / AUC | Accuracy is misleading with 99/1 class split |
+
+:::caution
+**The accuracy trap:** If 99% of emails are not spam, a model that always predicts "not spam" achieves 99% accuracy but is completely useless. Always check class distribution before using accuracy.
+:::
+
+<Tabs>
+  <TabItem label="Python">
+    ```python
+    from sklearn.metrics import (
+        accuracy_score,
+        precision_score,
+        recall_score,
+        f1_score,
+        roc_auc_score,
+        confusion_matrix,
+        classification_report
+    )
+
+    # Assume y_test and y_pred from a trained model
+    y_test = [1, 0, 1, 1, 0, 1, 0, 0, 1, 0]
+    y_pred = [1, 0, 1, 0, 0, 1, 1, 0, 1, 0]
+
+    # All metrics at once
+    print("Confusion Matrix:")
+    print(confusion_matrix(y_test, y_pred))
+
+    print(f"\nAccuracy:  {accuracy_score(y_test, y_pred):.4f}")
+    print(f"Precision: {precision_score(y_test, y_pred):.4f}")
+    print(f"Recall:    {recall_score(y_test, y_pred):.4f}")
+    print(f"F1 Score:  {f1_score(y_test, y_pred):.4f}")
+
+    # Full classification report
+    print("\nClassification Report:")
+    print(classification_report(y_test, y_pred,
+                                target_names=['Not Spam', 'Spam']))
+
+    # AUC requires probability scores
+    y_proba = [0.9, 0.1, 0.8, 0.3, 0.2, 0.85, 0.6, 0.15, 0.95, 0.05]
+    print(f"AUC-ROC:   {roc_auc_score(y_test, y_proba):.4f}")
+    ```
+  </TabItem>
+  <TabItem label="JavaScript">
+    ```javascript
+    // Classification metrics implementation
+    function confusionMatrix(yTrue, yPred) {
+      let tp = 0, fp = 0, fn = 0, tn = 0;
+
+      for (let i = 0; i < yTrue.length; i++) {
+        if (yTrue[i] === 1 && yPred[i] === 1) tp++;
+        else if (yTrue[i] === 0 && yPred[i] === 1) fp++;
+        else if (yTrue[i] === 1 && yPred[i] === 0) fn++;
+        else tn++;
+      }
+
+      return { tp, fp, fn, tn };
+    }
+
+    function classificationMetrics(yTrue, yPred) {
+      const { tp, fp, fn, tn } = confusionMatrix(yTrue, yPred);
+
+      const accuracy = (tp + tn) / (tp + tn + fp + fn);
+      const precision = tp / (tp + fp) || 0;
+      const recall = tp / (tp + fn) || 0;
+      const f1 = 2 * (precision * recall) / (precision + recall) || 0;
+
+      return {
+        accuracy: accuracy.toFixed(4),
+        precision: precision.toFixed(4),
+        recall: recall.toFixed(4),
+        f1Score: f1.toFixed(4),
+        confusionMatrix: { tp, fp, fn, tn }
+      };
+    }
+
+    // Example usage
+    const yTrue = [1, 0, 1, 1, 0, 1, 0, 0, 1, 0];
+    const yPred = [1, 0, 1, 0, 0, 1, 1, 0, 1, 0];
+
+    const metrics = classificationMetrics(yTrue, yPred);
+    console.log('Classification Metrics:', metrics);
+    ```
+  </TabItem>
+</Tabs>
+
+### For Regression
+
+| Metric | Formula | Characteristics |
+|--------|---------|----------------|
+| **MAE** (Mean Absolute Error) | `(1/n) * Σ\|yᵢ - ŷᵢ\|` | Robust to outliers, same unit as target |
+| **MSE** (Mean Squared Error) | `(1/n) * Σ(yᵢ - ŷᵢ)²` | Penalizes large errors more heavily |
+| **RMSE** (Root MSE) | `√MSE` | Same unit as target, penalizes large errors |
+| **R² Score** | `1 - (SS_res / SS_tot)` | 0 to 1, proportion of variance explained |
+| **MAPE** | `(1/n) * Σ\|yᵢ - ŷᵢ\| / \|yᵢ\|` | Percentage error, interpretable |
+
+## Putting It All Together: A Complete ML Workflow
+
+<Tabs>
+  <TabItem label="Python">
+    ```python
+    import numpy as np
+    import pandas as pd
+    from sklearn.model_selection import (
+        train_test_split, GridSearchCV
+    )
+    from sklearn.preprocessing import StandardScaler
+    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.metrics import classification_report, roc_auc_score
+    from sklearn.pipeline import Pipeline
+
+    # 1. Load and explore data
+    df = pd.read_csv('customer_churn.csv')
+    print(df.describe())
+    print(f"Class distribution:\n{df['churn'].value_counts()}")
+
+    # 2. Feature engineering
+    X = df.drop('churn', axis=1)
+    y = df['churn']
+
+    # 3. Split data
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42, stratify=y
+    )
+
+    # 4. Build pipeline (scaling + model)
+    pipeline = Pipeline([
+        ('scaler', StandardScaler()),
+        ('classifier', RandomForestClassifier(random_state=42))
+    ])
+
+    # 5. Hyperparameter tuning with cross-validation
+    param_grid = {
+        'classifier__n_estimators': [50, 100, 200],
+        'classifier__max_depth': [3, 5, 10, None],
+        'classifier__min_samples_split': [2, 5, 10]
+    }
+
+    grid_search = GridSearchCV(
+        pipeline, param_grid,
+        cv=5, scoring='f1', n_jobs=-1
+    )
+    grid_search.fit(X_train, y_train)
+
+    # 6. Evaluate best model
+    best_model = grid_search.best_estimator_
+    y_pred = best_model.predict(X_test)
+    y_proba = best_model.predict_proba(X_test)[:, 1]
+
+    print(f"\nBest params: {grid_search.best_params_}")
+    print(f"\nClassification Report:")
+    print(classification_report(y_test, y_pred))
+    print(f"AUC-ROC: {roc_auc_score(y_test, y_proba):.4f}")
+    ```
+  </TabItem>
+</Tabs>
+
+## Summary
+
+| Concept | Key Takeaway |
+|---------|-------------|
+| **Linear Regression** | Simplest model for continuous predictions -- fit a line |
+| **Logistic Regression** | Classification using sigmoid function for probabilities |
+| **Decision Trees** | Interpretable but prone to overfitting without ensembles |
+| **Train/Val/Test Split** | Always hold out unseen data for unbiased evaluation |
+| **Cross-Validation** | More robust evaluation, especially with limited data |
+| **Overfitting** | Model memorizes training data instead of learning patterns |
+| **Bias-Variance** | Balance model simplicity (bias) vs flexibility (variance) |
+| **Evaluation Metrics** | Choose based on business needs, not just accuracy |
+
+<CardGrid>
+  <LinkCard
+    title="LLM & Prompt Engineering"
+    description="Learn how large language models work and how to engineer effective prompts"
+    href="/software-engineering/ai-ml/llm-prompt-engineering/"
+  />
+  <LinkCard
+    title="AI/ML Overview"
+    description="Return to the AI/ML section overview"
+    href="/software-engineering/ai-ml/"
+  />
+</CardGrid>

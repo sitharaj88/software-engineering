@@ -1,0 +1,972 @@
+---
+title: "LLM & Prompt Engineering"
+description: "Understand how large language models work under the hood, master prompt design patterns including zero-shot, few-shot, and chain-of-thought, and learn to use tool calling and structured output"
+difficulty: "intermediate"
+prerequisites: ["AI/ML Overview", "ML Fundamentals", "Basic programming knowledge"]
+timeToRead: "28 min"
+topics: ["llm", "prompt-engineering", "transformers", "gpt", "chain-of-thought", "function-calling", "structured-output"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+## How Large Language Models Work
+
+Large Language Models (LLMs) like GPT-4, Claude, Gemini, and LLaMA are neural networks trained to predict the next token in a sequence. Despite this simple objective, the scale of training data and model parameters enables remarkably sophisticated language understanding and generation.
+
+### The Transformer Architecture
+
+The transformer, introduced in the 2017 paper "Attention Is All You Need," is the architecture behind all modern LLMs. Its key innovation is the **self-attention mechanism**, which allows the model to consider all parts of the input simultaneously rather than processing it sequentially.
+
+```
+    Input: "The cat sat on the"
+                    │
+                    ▼
+    ┌───────────────────────────────────┐
+    │         Tokenization              │
+    │  "The" "cat" "sat" "on" "the"    │
+    │   [464] [2368] [3680] [319] [262] │
+    └───────────────┬───────────────────┘
+                    │
+                    ▼
+    ┌───────────────────────────────────┐
+    │      Token Embeddings             │
+    │  + Positional Encodings           │
+    │                                   │
+    │  Each token → dense vector        │
+    │  Position info added              │
+    └───────────────┬───────────────────┘
+                    │
+                    ▼
+    ┌───────────────────────────────────┐
+    │   Transformer Layers (x N)       │
+    │  ┌─────────────────────────────┐  │
+    │  │  Multi-Head Self-Attention  │  │
+    │  │  (What should I focus on?)  │  │
+    │  └──────────────┬──────────────┘  │
+    │                 │                 │
+    │  ┌──────────────▼──────────────┐  │
+    │  │    Feed-Forward Network     │  │
+    │  │    (Process information)    │  │
+    │  └──────────────┬──────────────┘  │
+    │                 │                 │
+    │  Layer Normalization + Residual   │
+    │  (Repeated N times, e.g., 96x)   │
+    └───────────────┬───────────────────┘
+                    │
+                    ▼
+    ┌───────────────────────────────────┐
+    │     Output Probabilities          │
+    │  "mat": 0.35  "rug": 0.12        │
+    │  "floor": 0.08  "couch": 0.06    │
+    │  → Selected: "mat"                │
+    └───────────────────────────────────┘
+```
+
+### Self-Attention Explained
+
+Self-attention allows each token to "look at" every other token in the sequence and decide how much attention to pay to each one.
+
+```
+    Sentence: "The animal didn't cross the street because it was tired"
+
+    When processing "it", attention helps determine what "it" refers to:
+
+    The   animal  didn't  cross  the  street  because  it  was  tired
+     │      │       │       │     │     │        │     │    │     │
+     └──────┼───────┼───────┼─────┼─────┼────────┼─────┤    │     │
+            │       │       │     │     │        │     │    │     │
+     0.02  0.71    0.01   0.03  0.01  0.04     0.02  1.0  0.08  0.08
+
+    "it" attends strongly to "animal" (0.71)
+    → The model understands "it" refers to "animal"
+
+    This is the power of self-attention: capturing
+    long-range dependencies in language.
+```
+
+For each token, attention computes three vectors -- **Query** (Q), **Key** (K), and **Value** (V):
+
+```
+    Attention(Q, K, V) = softmax(Q * K^T / sqrt(d_k)) * V
+
+    Q = "What am I looking for?"
+    K = "What do I contain?"
+    V = "What information do I provide?"
+
+    The dot product Q * K^T measures similarity.
+    Dividing by sqrt(d_k) prevents values from getting too large.
+    Softmax normalizes to probabilities.
+    Multiplying by V extracts the relevant information.
+```
+
+### Tokens and Tokenization
+
+LLMs do not process raw text -- they work with **tokens**, which are subword units created by algorithms like Byte-Pair Encoding (BPE).
+
+```
+    Text: "Understanding tokenization is fundamental"
+
+    Tokens: ["Under", "standing", " token", "ization", " is",
+             " fundamental"]
+
+    Token IDs: [16936, 11200, 11241, 2065, 318, 7531]
+
+    Key facts:
+    - Average English word ≈ 1.3 tokens
+    - Common words are single tokens: "the" → [262]
+    - Rare words are split: "tokenization" → ["token", "ization"]
+    - Spaces are often part of tokens: " is" (with leading space)
+    - Numbers are tokenized digit by digit or in chunks
+```
+
+:::note
+Token count matters because LLMs have a **context window** -- the maximum number of tokens they can process in a single request. GPT-4 supports up to 128K tokens, Claude supports up to 200K tokens. Both input and output count against this limit.
+:::
+
+### Model Scale
+
+| Model | Parameters | Training Data | Context Window |
+|-------|-----------|---------------|---------------|
+| GPT-3 | 175B | 300B tokens | 4K tokens |
+| GPT-4 | ~1.8T (estimated, MoE) | ~13T tokens | 128K tokens |
+| Claude 3.5 Sonnet | Undisclosed | Undisclosed | 200K tokens |
+| LLaMA 3 (70B) | 70B | 15T tokens | 128K tokens |
+| Gemini 1.5 Pro | Undisclosed | Undisclosed | 1M tokens |
+
+## Temperature and Sampling Parameters
+
+When generating text, LLMs produce a probability distribution over possible next tokens. **Sampling parameters** control how the next token is selected from this distribution.
+
+### Temperature
+
+Temperature controls the "randomness" of token selection. It scales the logits (raw model output scores) before applying softmax.
+
+```
+    Temperature = 0.0 (Deterministic)
+    ┌────────────────────────────────────┐
+    │ "mat"   ████████████████████ 0.95  │
+    │ "rug"   █ 0.03                     │
+    │ "floor" ▏ 0.01                     │
+    │ "bed"   ▏ 0.01                     │
+    └────────────────────────────────────┘
+    Always picks the most likely token.
+    Best for: factual Q&A, code, math.
+
+    Temperature = 0.7 (Balanced)
+    ┌────────────────────────────────────┐
+    │ "mat"   ██████████████ 0.55        │
+    │ "rug"   █████ 0.20                 │
+    │ "floor" ███ 0.12                   │
+    │ "bed"   ██ 0.08                    │
+    └────────────────────────────────────┘
+    Good balance of quality and variety.
+    Best for: general conversation, writing.
+
+    Temperature = 1.5 (Creative)
+    ┌────────────────────────────────────┐
+    │ "mat"   ██████ 0.28                │
+    │ "rug"   █████ 0.22                 │
+    │ "floor" ████ 0.18                  │
+    │ "bed"   ███ 0.15                   │
+    └────────────────────────────────────┘
+    More random, surprising outputs.
+    Best for: creative writing, brainstorming.
+```
+
+### Top-p (Nucleus Sampling)
+
+Top-p sampling selects from the smallest set of tokens whose cumulative probability exceeds `p`.
+
+```
+    top_p = 0.9 → Consider tokens until 90% cumulative probability
+
+    Token     Probability  Cumulative  Included?
+    "mat"     0.55         0.55        Yes
+    "rug"     0.20         0.75        Yes
+    "floor"   0.12         0.87        Yes
+    "bed"     0.08         0.95        Yes (crosses 0.9)
+    "couch"   0.03         0.98        No
+    "wall"    0.02         1.00        No
+
+    Then sample from the included tokens (renormalized).
+```
+
+| Parameter | Low Value | High Value | Typical Use |
+|-----------|----------|------------|-------------|
+| **Temperature** | 0.0 - 0.3 (precise, deterministic) | 0.8 - 1.5 (creative, diverse) | Code: 0.0, Chat: 0.7, Creative: 1.0 |
+| **Top-p** | 0.1 (very focused) | 0.95 (broad selection) | Generally 0.9 - 0.95 |
+| **Max tokens** | Short responses | Long, detailed responses | Set based on expected output length |
+
+## Prompt Design Patterns
+
+Prompt engineering is the art and science of crafting inputs that reliably produce high-quality outputs from LLMs. Here are the key patterns.
+
+### Zero-Shot Prompting
+
+Directly ask the model to perform a task without providing examples.
+
+<Tabs>
+  <TabItem label="Python">
+    ```python
+    import openai
+
+    client = openai.OpenAI()
+
+    # Zero-shot classification
+    response = client.chat.completions.create(
+        model="gpt-4",
+        temperature=0,
+        messages=[
+            {
+                "role": "system",
+                "content": "You are a sentiment analysis classifier. "
+                           "Classify the sentiment as positive, negative, "
+                           "or neutral. Respond with only the label."
+            },
+            {
+                "role": "user",
+                "content": "The product arrived late but the quality "
+                           "exceeded my expectations."
+            }
+        ]
+    )
+    print(response.choices[0].message.content)
+    # Output: "positive"
+    ```
+  </TabItem>
+  <TabItem label="JavaScript">
+    ```javascript
+    import OpenAI from 'openai';
+
+    const openai = new OpenAI();
+
+    // Zero-shot classification
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4',
+      temperature: 0,
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a sentiment analysis classifier. ' +
+                   'Classify the sentiment as positive, negative, ' +
+                   'or neutral. Respond with only the label.'
+        },
+        {
+          role: 'user',
+          content: 'The product arrived late but the quality ' +
+                   'exceeded my expectations.'
+        }
+      ]
+    });
+
+    console.log(response.choices[0].message.content);
+    // Output: "positive"
+    ```
+  </TabItem>
+</Tabs>
+
+### Few-Shot Prompting
+
+Provide examples of the desired input-output pattern before the actual task.
+
+<Tabs>
+  <TabItem label="Python">
+    ```python
+    # Few-shot entity extraction
+    response = client.chat.completions.create(
+        model="gpt-4",
+        temperature=0,
+        messages=[
+            {
+                "role": "system",
+                "content": "Extract entities from text. Return JSON."
+            },
+            {
+                "role": "user",
+                "content": "Apple released the iPhone 15 in Cupertino."
+            },
+            {
+                "role": "assistant",
+                "content": '{"companies": ["Apple"], '
+                           '"products": ["iPhone 15"], '
+                           '"locations": ["Cupertino"]}'
+            },
+            {
+                "role": "user",
+                "content": "Microsoft CEO Satya Nadella announced "
+                           "Azure AI updates at Build 2024 in Seattle."
+            },
+            {
+                "role": "assistant",
+                "content": '{"companies": ["Microsoft"], '
+                           '"people": ["Satya Nadella"], '
+                           '"products": ["Azure AI"], '
+                           '"events": ["Build 2024"], '
+                           '"locations": ["Seattle"]}'
+            },
+            {
+                "role": "user",
+                "content": "Google DeepMind published a paper on "
+                           "Gemini from their London research lab."
+            }
+        ]
+    )
+    print(response.choices[0].message.content)
+    # Model follows the established pattern
+    ```
+  </TabItem>
+  <TabItem label="JavaScript">
+    ```javascript
+    // Few-shot entity extraction
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4',
+      temperature: 0,
+      messages: [
+        {
+          role: 'system',
+          content: 'Extract entities from text. Return JSON.'
+        },
+        {
+          role: 'user',
+          content: 'Apple released the iPhone 15 in Cupertino.'
+        },
+        {
+          role: 'assistant',
+          content: JSON.stringify({
+            companies: ['Apple'],
+            products: ['iPhone 15'],
+            locations: ['Cupertino']
+          })
+        },
+        {
+          role: 'user',
+          content: 'Microsoft CEO Satya Nadella announced ' +
+                   'Azure AI updates at Build 2024 in Seattle.'
+        },
+        {
+          role: 'assistant',
+          content: JSON.stringify({
+            companies: ['Microsoft'],
+            people: ['Satya Nadella'],
+            products: ['Azure AI'],
+            events: ['Build 2024'],
+            locations: ['Seattle']
+          })
+        },
+        {
+          role: 'user',
+          content: 'Google DeepMind published a paper on ' +
+                   'Gemini from their London research lab.'
+        }
+      ]
+    });
+
+    console.log(response.choices[0].message.content);
+    ```
+  </TabItem>
+</Tabs>
+
+### Chain-of-Thought (CoT) Prompting
+
+Ask the model to reason step-by-step before providing the final answer. This dramatically improves performance on complex reasoning tasks.
+
+```
+    Without CoT:
+    Q: "If a store has 23 apples and sells 17, then receives
+        a shipment of 12, how many apples does it have?"
+    A: "18" (← the model may make errors)
+
+    With CoT:
+    Q: "... Think step by step."
+    A: "Let me work through this step by step:
+        1. Start with 23 apples
+        2. Sell 17: 23 - 17 = 6 apples
+        3. Receive 12: 6 + 12 = 18 apples
+        The store has 18 apples."
+
+    CoT forces the model to show intermediate reasoning,
+    which leads to more accurate final answers.
+```
+
+<Tabs>
+  <TabItem label="Python">
+    ```python
+    # Chain-of-thought for complex reasoning
+    response = client.chat.completions.create(
+        model="gpt-4",
+        temperature=0,
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "You are a code review expert. When analyzing code, "
+                    "think step by step:\n"
+                    "1. Identify the purpose of the code\n"
+                    "2. Check for bugs or logic errors\n"
+                    "3. Evaluate performance implications\n"
+                    "4. Suggest specific improvements\n"
+                    "5. Provide your final assessment"
+                )
+            },
+            {
+                "role": "user",
+                "content": """Review this Python function:
+
+    def find_duplicates(lst):
+        duplicates = []
+        for i in range(len(lst)):
+            for j in range(i + 1, len(lst)):
+                if lst[i] == lst[j] and lst[i] not in duplicates:
+                    duplicates.append(lst[i])
+        return duplicates
+    """
+            }
+        ]
+    )
+    print(response.choices[0].message.content)
+    ```
+  </TabItem>
+  <TabItem label="JavaScript">
+    ```javascript
+    // Chain-of-thought for debugging
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4',
+      temperature: 0,
+      messages: [
+        {
+          role: 'system',
+          content: `You are a debugging expert. When analyzing errors:
+    1. Read the error message carefully
+    2. Identify the root cause
+    3. Explain why this error occurs
+    4. Provide the fix with explanation
+    5. Suggest how to prevent this in the future`
+        },
+        {
+          role: 'user',
+          content: `I'm getting this error in my Node.js app:
+
+    TypeError: Cannot read properties of undefined (reading 'map')
+        at UserList (/app/components/UserList.js:15:28)
+        at renderWithHooks (/app/node_modules/react-dom/...)`
+        }
+      ]
+    });
+
+    console.log(response.choices[0].message.content);
+    ```
+  </TabItem>
+</Tabs>
+
+### ReAct (Reasoning + Acting)
+
+ReAct combines chain-of-thought reasoning with action-taking. The model alternates between thinking about what to do and taking actions (like calling tools).
+
+```
+    ReAct Pattern:
+
+    User: "What is the population of the capital of France?"
+
+    Thought 1: I need to find the capital of France first.
+    Action 1: search("capital of France")
+    Observation 1: Paris is the capital of France.
+
+    Thought 2: Now I need to find the population of Paris.
+    Action 2: search("population of Paris")
+    Observation 2: Paris has a population of ~2.1 million
+                   (city proper) or ~12.2 million (metro area).
+
+    Thought 3: I have the information needed. The user
+               likely wants the city proper population.
+    Answer: The capital of France is Paris, which has a
+            population of approximately 2.1 million people
+            (city proper) or 12.2 million in the metro area.
+```
+
+## System Prompts
+
+System prompts set the behavior, personality, constraints, and format for the LLM's responses. They are the most powerful lever for controlling output quality.
+
+### System Prompt Best Practices
+
+```
+    Effective System Prompt Structure:
+
+    ┌─────────────────────────────────────┐
+    │  1. Role Definition                 │
+    │  "You are a senior Python developer │
+    │   specializing in Django..."        │
+    ├─────────────────────────────────────┤
+    │  2. Task Description                │
+    │  "Your job is to review code and    │
+    │   suggest improvements..."          │
+    ├─────────────────────────────────────┤
+    │  3. Constraints & Rules             │
+    │  "Always use type hints. Never      │
+    │   suggest print() for logging..."   │
+    ├─────────────────────────────────────┤
+    │  4. Output Format                   │
+    │  "Respond in this JSON structure:   │
+    │   ..."                              │
+    ├─────────────────────────────────────┤
+    │  5. Examples (optional)             │
+    │  "Here is an example of a good      │
+    │   review: ..."                      │
+    └─────────────────────────────────────┘
+```
+
+<Tabs>
+  <TabItem label="Python">
+    ```python
+    # Well-structured system prompt
+    system_prompt = """You are a SQL query optimizer for PostgreSQL databases.
+
+    ## Your Role
+    Analyze SQL queries and suggest optimizations for better performance.
+
+    ## Rules
+    - Always explain WHY a change improves performance
+    - Consider index usage in your recommendations
+    - Flag potential N+1 query problems
+    - Suggest EXPLAIN ANALYZE when relevant
+    - Never suggest changes that alter query results
+
+    ## Output Format
+    For each suggestion, provide:
+    1. The issue identified
+    2. The optimized query
+    3. Expected performance improvement
+    4. Any indexes that should be created
+
+    ## Constraints
+    - Target PostgreSQL 15+
+    - Assume tables may have millions of rows
+    - Prioritize read performance over write performance
+    """
+
+    response = client.chat.completions.create(
+        model="gpt-4",
+        temperature=0,
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {
+                "role": "user",
+                "content": """Optimize this query:
+    SELECT u.name, COUNT(o.id) as order_count
+    FROM users u
+    LEFT JOIN orders o ON u.id = o.user_id
+    WHERE o.created_at > '2024-01-01'
+    GROUP BY u.name
+    HAVING COUNT(o.id) > 5
+    ORDER BY order_count DESC;"""
+            }
+        ]
+    )
+    ```
+  </TabItem>
+</Tabs>
+
+## Structured Output
+
+Getting LLMs to return data in a specific, parseable format is crucial for programmatic use. Modern APIs support structured output natively.
+
+<Tabs>
+  <TabItem label="Python">
+    ```python
+    from pydantic import BaseModel
+    from typing import List, Optional
+    import openai
+
+    # Define the output schema with Pydantic
+    class CodeReview(BaseModel):
+        file_name: str
+        severity: str  # "critical", "warning", "info"
+        line_number: Optional[int]
+        issue: str
+        suggestion: str
+        fixed_code: Optional[str]
+
+    class CodeReviewResponse(BaseModel):
+        summary: str
+        overall_quality: int  # 1-10
+        issues: List[CodeReview]
+
+    # Use structured output (OpenAI)
+    response = client.beta.chat.completions.parse(
+        model="gpt-4o",
+        messages=[
+            {
+                "role": "system",
+                "content": "Review the provided code and return "
+                           "structured feedback."
+            },
+            {
+                "role": "user",
+                "content": "Review this code:\n\n"
+                           "def calc(x,y): return x/y"
+            }
+        ],
+        response_format=CodeReviewResponse,
+    )
+
+    review = response.choices[0].message.parsed
+    print(f"Quality: {review.overall_quality}/10")
+    for issue in review.issues:
+        print(f"  [{issue.severity}] {issue.issue}")
+        print(f"    Fix: {issue.suggestion}")
+    ```
+  </TabItem>
+  <TabItem label="JavaScript">
+    ```javascript
+    import { z } from 'zod';
+    import { zodResponseFormat } from 'openai/helpers/zod';
+
+    // Define schema with Zod
+    const CodeReviewSchema = z.object({
+      summary: z.string(),
+      overall_quality: z.number().min(1).max(10),
+      issues: z.array(z.object({
+        file_name: z.string(),
+        severity: z.enum(['critical', 'warning', 'info']),
+        line_number: z.number().optional(),
+        issue: z.string(),
+        suggestion: z.string(),
+        fixed_code: z.string().optional()
+      }))
+    });
+
+    // Use structured output
+    const response = await openai.beta.chat.completions.parse({
+      model: 'gpt-4o',
+      messages: [
+        {
+          role: 'system',
+          content: 'Review the provided code and return ' +
+                   'structured feedback.'
+        },
+        {
+          role: 'user',
+          content: 'Review this code:\n\n' +
+                   'function calc(x,y) { return x/y; }'
+        }
+      ],
+      response_format: zodResponseFormat(
+        CodeReviewSchema, 'code_review'
+      )
+    });
+
+    const review = response.choices[0].message.parsed;
+    console.log(`Quality: ${review.overall_quality}/10`);
+    review.issues.forEach(issue => {
+      console.log(`  [${issue.severity}] ${issue.issue}`);
+    });
+    ```
+  </TabItem>
+</Tabs>
+
+## Tool Use / Function Calling
+
+Tool use (also called function calling) allows LLMs to interact with external systems -- APIs, databases, code execution environments, and more. The model decides when and how to call tools based on the user's request.
+
+```
+    Tool Use Flow:
+
+    User: "What's the weather in Tokyo and should I bring an umbrella?"
+          │
+          ▼
+    ┌──────────────┐
+    │     LLM      │ → Decides to call get_weather tool
+    └──────┬───────┘
+           │
+           ▼  Tool Call: get_weather(location="Tokyo")
+    ┌──────────────┐
+    │  Weather API │ → Returns: temp=22°C, rain=80%, humidity=75%
+    └──────┬───────┘
+           │
+           ▼  Tool result sent back to LLM
+    ┌──────────────┐
+    │     LLM      │ → Generates natural language response
+    └──────┬───────┘
+           │
+           ▼
+    "It's 22°C in Tokyo with an 80% chance of rain.
+     Definitely bring an umbrella!"
+```
+
+<Tabs>
+  <TabItem label="Python">
+    ```python
+    import openai
+    import json
+
+    # Define available tools
+    tools = [
+        {
+            "type": "function",
+            "function": {
+                "name": "get_weather",
+                "description": "Get current weather for a location",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "location": {
+                            "type": "string",
+                            "description": "City name, e.g., 'Tokyo'"
+                        },
+                        "unit": {
+                            "type": "string",
+                            "enum": ["celsius", "fahrenheit"],
+                            "description": "Temperature unit"
+                        }
+                    },
+                    "required": ["location"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "search_database",
+                "description": "Search the product database",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string"},
+                        "category": {"type": "string"},
+                        "max_results": {
+                            "type": "integer",
+                            "default": 10
+                        }
+                    },
+                    "required": ["query"]
+                }
+            }
+        }
+    ]
+
+    # Step 1: Send message with tools
+    response = client.chat.completions.create(
+        model="gpt-4",
+        messages=[
+            {"role": "user", "content": "What's the weather in Tokyo?"}
+        ],
+        tools=tools,
+        tool_choice="auto"
+    )
+
+    # Step 2: Check if model wants to call a tool
+    message = response.choices[0].message
+    if message.tool_calls:
+        tool_call = message.tool_calls[0]
+        function_name = tool_call.function.name
+        arguments = json.loads(tool_call.function.arguments)
+
+        # Step 3: Execute the function
+        if function_name == "get_weather":
+            # Call your actual weather API
+            result = get_weather(**arguments)
+        elif function_name == "search_database":
+            result = search_database(**arguments)
+
+        # Step 4: Send result back to the model
+        final_response = client.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {"role": "user",
+                 "content": "What's the weather in Tokyo?"},
+                message,  # Include the assistant's tool call
+                {
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
+                    "content": json.dumps(result)
+                }
+            ]
+        )
+        print(final_response.choices[0].message.content)
+    ```
+  </TabItem>
+  <TabItem label="JavaScript">
+    ```javascript
+    // Define tools
+    const tools = [
+      {
+        type: 'function',
+        function: {
+          name: 'get_weather',
+          description: 'Get current weather for a location',
+          parameters: {
+            type: 'object',
+            properties: {
+              location: {
+                type: 'string',
+                description: "City name, e.g., 'Tokyo'"
+              },
+              unit: {
+                type: 'string',
+                enum: ['celsius', 'fahrenheit']
+              }
+            },
+            required: ['location']
+          }
+        }
+      }
+    ];
+
+    // Implement tool dispatch
+    const toolFunctions = {
+      get_weather: async ({ location, unit = 'celsius' }) => {
+        // Call actual weather API
+        const response = await fetch(
+          `https://api.weather.example/v1?` +
+          `city=${encodeURIComponent(location)}&unit=${unit}`
+        );
+        return response.json();
+      }
+    };
+
+    // Complete tool-use loop
+    async function chatWithTools(userMessage) {
+      const messages = [
+        { role: 'user', content: userMessage }
+      ];
+
+      let response = await openai.chat.completions.create({
+        model: 'gpt-4',
+        messages,
+        tools,
+        tool_choice: 'auto'
+      });
+
+      let assistantMessage = response.choices[0].message;
+
+      // Loop until no more tool calls
+      while (assistantMessage.tool_calls) {
+        messages.push(assistantMessage);
+
+        // Execute all tool calls in parallel
+        const toolResults = await Promise.all(
+          assistantMessage.tool_calls.map(async (tc) => {
+            const fn = toolFunctions[tc.function.name];
+            const args = JSON.parse(tc.function.arguments);
+            const result = await fn(args);
+            return {
+              role: 'tool',
+              tool_call_id: tc.id,
+              content: JSON.stringify(result)
+            };
+          })
+        );
+
+        messages.push(...toolResults);
+
+        response = await openai.chat.completions.create({
+          model: 'gpt-4',
+          messages,
+          tools
+        });
+
+        assistantMessage = response.choices[0].message;
+      }
+
+      return assistantMessage.content;
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+## Prompt Engineering Best Practices
+
+### The CRAFT Framework
+
+| Principle | Description | Example |
+|-----------|-------------|---------|
+| **C**ontext | Provide relevant background | "You are reviewing a Python 3.12 FastAPI application..." |
+| **R**ole | Define who the model should be | "Act as a senior security engineer..." |
+| **A**ction | Clearly state what to do | "Identify SQL injection vulnerabilities..." |
+| **F**ormat | Specify output structure | "Return results as a JSON array..." |
+| **T**one | Set communication style | "Be concise and technical, no fluff..." |
+
+### Common Pitfalls
+
+| Pitfall | Problem | Fix |
+|---------|---------|-----|
+| **Vague instructions** | "Make this better" | "Improve readability by adding type hints and docstrings" |
+| **No output format** | Free-form, unparseable text | Specify JSON, markdown, or other structured format |
+| **Overloaded prompts** | Too many tasks at once | Break into separate, focused prompts |
+| **Missing context** | Model hallucinates details | Include relevant code, docs, or constraints |
+| **No examples** | Inconsistent output format | Add 2-3 few-shot examples |
+
+:::tip
+**Iterate on prompts systematically.** Keep a prompt log with versions, test cases, and results. Treat prompts like code -- version control them, test them, and review them.
+:::
+
+## Advanced Patterns
+
+### Prompt Chaining
+
+Break complex tasks into a pipeline of simpler prompts, where each step's output feeds the next.
+
+```
+    Complex Task: "Analyze this codebase and create documentation"
+
+    Step 1: Extract         Step 2: Analyze        Step 3: Generate
+    ┌─────────────┐        ┌─────────────┐        ┌─────────────┐
+    │ List all     │───────▶│ Identify    │───────▶│ Write docs  │
+    │ functions    │  JSON  │ patterns    │  JSON  │ with examples│
+    │ and classes  │  list  │ and deps    │ graph  │ and diagrams │
+    └─────────────┘        └─────────────┘        └─────────────┘
+```
+
+### Self-Consistency
+
+Run the same prompt multiple times and take the majority answer. This improves reliability for reasoning tasks.
+
+```python
+    # Self-consistency: run 5 times, take majority vote
+    answers = []
+    for _ in range(5):
+        response = client.chat.completions.create(
+            model="gpt-4",
+            temperature=0.7,  # Need some randomness
+            messages=[
+                {"role": "user",
+                 "content": "Think step by step. "
+                            "Is this code thread-safe? ..."
+                }
+            ]
+        )
+        answer = extract_yes_no(response.choices[0].message.content)
+        answers.append(answer)
+
+    final_answer = max(set(answers), key=answers.count)
+    confidence = answers.count(final_answer) / len(answers)
+    print(f"Answer: {final_answer} (confidence: {confidence:.0%})")
+```
+
+## Summary
+
+| Concept | Key Takeaway |
+|---------|-------------|
+| **Transformers** | Self-attention mechanism allows processing all tokens simultaneously |
+| **Tokens** | Subword units -- not words -- are the fundamental unit of LLMs |
+| **Temperature** | Controls randomness; low for factual, high for creative |
+| **Zero-shot** | Direct instruction with no examples |
+| **Few-shot** | Provide examples to establish the pattern |
+| **Chain-of-Thought** | "Think step by step" dramatically improves reasoning |
+| **ReAct** | Combine reasoning with tool-calling actions |
+| **System Prompts** | Set role, rules, format, and constraints |
+| **Structured Output** | Use schemas to get parseable JSON responses |
+| **Tool Use** | Let LLMs call functions and APIs |
+
+<CardGrid>
+  <LinkCard
+    title="RAG & Embeddings"
+    description="Learn how to build Retrieval-Augmented Generation systems with vector databases"
+    href="/software-engineering/ai-ml/rag-embeddings/"
+  />
+  <LinkCard
+    title="ML Fundamentals"
+    description="Review core machine learning concepts and algorithms"
+    href="/software-engineering/ai-ml/ml-fundamentals/"
+  />
+</CardGrid>

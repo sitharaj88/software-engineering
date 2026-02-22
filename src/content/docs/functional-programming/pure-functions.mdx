@@ -1,0 +1,598 @@
+---
+title: "Pure Functions & Side Effects"
+description: "Understand pure functions, referential transparency, side effects, and immutability patterns for writing predictable, testable code"
+difficulty: "intermediate"
+prerequisites:
+  - Functional Programming Overview
+timeToRead: "20 min"
+topics:
+  - pure-functions
+  - referential-transparency
+  - side-effects
+  - immutability
+  - idempotency
+  - memoization
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+A **pure function** is a function that, given the same inputs, always returns the same output and produces no observable side effects. This simple property has profound consequences: pure functions are easier to test, easier to reason about, safe to cache, safe to parallelize, and safe to refactor.
+
+---
+
+## What Makes a Function Pure?
+
+A function is pure if it satisfies two conditions:
+
+1. **Deterministic** -- The same inputs always produce the same output.
+2. **No side effects** -- The function does not modify any external state or interact with the outside world.
+
+```
+PURE FUNCTION:
+
+  Input A ──► ┌──────────┐ ──► Output X
+              │  f(A)    │
+  Input B ──► │          │
+              │ No side  │
+              │ effects  │
+              └──────────┘
+
+  - No reading from global state
+  - No writing to global state
+  - No I/O (disk, network, console)
+  - No randomness
+  - No current time
+  - Always: f(A, B) = X
+```
+
+<Tabs>
+<TabItem label="Python">
+```python
+# PURE: same input always produces same output
+def add(a: int, b: int) -> int:
+    return a + b
+
+def area_of_circle(radius: float) -> float:
+    import math
+    return math.pi * radius ** 2
+
+def sort_list(items: list) -> list:
+    return sorted(items)  # Returns new list, does not modify input
+
+
+# IMPURE: depends on external state
+total = 0
+def add_to_total(n: int) -> int:
+    global total
+    total += n       # Side effect: modifies external state
+    return total     # Result depends on previous calls
+
+print(add_to_total(5))  # 5
+print(add_to_total(5))  # 10 -- same input, different output!
+
+
+# IMPURE: performs I/O
+def greet(name: str) -> None:
+    print(f"Hello, {name}!")  # Side effect: console output
+
+# IMPURE: depends on current time
+import time
+def get_greeting() -> str:
+    hour = time.localtime().tm_hour  # External dependency
+    if hour < 12:
+        return "Good morning"
+    return "Good afternoon"
+```
+</TabItem>
+<TabItem label="JavaScript">
+```javascript
+// PURE: same input always produces same output
+function add(a, b) {
+  return a + b;
+}
+
+function areaOfCircle(radius) {
+  return Math.PI * radius ** 2;
+}
+
+function sortArray(items) {
+  return [...items].sort((a, b) => a - b); // New array
+}
+
+
+// IMPURE: depends on external state
+let total = 0;
+function addToTotal(n) {
+  total += n;       // Side effect: modifies external state
+  return total;     // Different result for same input
+}
+
+console.log(addToTotal(5)); // 5
+console.log(addToTotal(5)); // 10 -- same input, different output!
+
+
+// IMPURE: performs I/O
+function greet(name) {
+  console.log(`Hello, ${name}!`); // Side effect
+}
+
+// IMPURE: depends on current time
+function getGreeting() {
+  const hour = new Date().getHours(); // External dependency
+  return hour < 12 ? 'Good morning' : 'Good afternoon';
+}
+```
+</TabItem>
+<TabItem label="Java">
+```java
+// PURE
+public static int add(int a, int b) {
+    return a + b;
+}
+
+public static double areaOfCircle(double radius) {
+    return Math.PI * radius * radius;
+}
+
+public static List<Integer> sortList(List<Integer> items) {
+    var sorted = new ArrayList<>(items);
+    Collections.sort(sorted);
+    return sorted; // New list, original unchanged
+}
+
+
+// IMPURE: modifies external state
+private static int total = 0;
+public static int addToTotal(int n) {
+    total += n;       // Side effect
+    return total;     // Depends on previous calls
+}
+
+// IMPURE: I/O
+public static void greet(String name) {
+    System.out.println("Hello, " + name); // Side effect
+}
+
+// IMPURE: depends on current time
+public static String getGreeting() {
+    int hour = LocalTime.now().getHour(); // External dependency
+    return hour < 12 ? "Good morning" : "Good afternoon";
+}
+```
+</TabItem>
+</Tabs>
+
+---
+
+## Referential Transparency
+
+An expression is **referentially transparent** if it can be replaced by its value without changing the program's behavior. Pure functions are always referentially transparent.
+
+```
+Referentially transparent:
+  add(2, 3) can always be replaced by 5
+
+  result = add(2, 3) * add(2, 3)
+  result = 5 * 5               -- safe substitution
+  result = 25
+
+NOT referentially transparent:
+  random() cannot be replaced by any single value
+
+  result = random() * random()
+  result = 0.7 * 0.3           -- WRONG! Each call may differ
+```
+
+:::tip[Why Referential Transparency Matters]
+Referentially transparent expressions can be:
+- **Memoized** -- Cache the result and skip recomputation.
+- **Parallelized** -- Evaluate sub-expressions in any order.
+- **Reasoned about** -- Substitute equals for equals when debugging.
+- **Tested easily** -- No setup or teardown of external state.
+:::
+
+---
+
+## Catalog of Side Effects
+
+A side effect is anything a function does besides computing a return value.
+
+| Side Effect | Example | Why It Is a Problem |
+|-------------|---------|-------------------|
+| **Mutating input** | `list.sort()` | Caller's data changes unexpectedly |
+| **Mutating global state** | `counter += 1` | Hidden dependencies between functions |
+| **Console I/O** | `print(...)` | Output cannot be captured by the caller |
+| **File I/O** | `open("file").write(...)` | Depends on filesystem state |
+| **Network I/O** | `requests.get(url)` | Depends on external service availability |
+| **Database access** | `db.query(...)` | Depends on database state |
+| **Randomness** | `random.random()` | Non-deterministic output |
+| **Current time** | `datetime.now()` | Different result on every call |
+| **Throwing exceptions** | `raise ValueError(...)` | Alters control flow outside the function |
+
+---
+
+## Making Impure Code Purer
+
+You cannot eliminate side effects entirely -- a program without side effects does nothing observable. The strategy is to **push side effects to the edges** of your system and keep the core logic pure.
+
+```
+Impure Shell / Pure Core Architecture:
+
+┌────────────────────────────────────────────────┐
+│              Impure Shell                       │
+│  (I/O, database, network, user input)           │
+│                                                  │
+│   ┌────────────────────────────────────────┐    │
+│   │            Pure Core                    │    │
+│   │  (business logic, transformations,      │    │
+│   │   validation, calculations)             │    │
+│   │                                         │    │
+│   │  No I/O, no mutation, no randomness     │    │
+│   └────────────────────────────────────────┘    │
+│                                                  │
+│  Read input → Pass to pure core → Write output  │
+└────────────────────────────────────────────────┘
+```
+
+<Tabs>
+<TabItem label="Python">
+```python
+# BEFORE: Impure function that mixes logic and I/O
+def process_order_impure(order_id: str):
+    order = db.get_order(order_id)        # I/O
+    if order['total'] > 100:
+        order['discount'] = order['total'] * 0.1
+    else:
+        order['discount'] = 0
+    order['final_total'] = order['total'] - order['discount']
+    db.save_order(order)                  # I/O
+    send_email(order['email'], order)     # I/O
+
+
+# AFTER: Pure core + impure shell
+# Pure core: no I/O, no mutation
+def calculate_discount(total: float) -> float:
+    """Pure: same input always gives same output."""
+    return total * 0.1 if total > 100 else 0.0
+
+def compute_order_totals(order: dict) -> dict:
+    """Pure: returns a new dict without modifying input."""
+    discount = calculate_discount(order['total'])
+    return {
+        **order,
+        'discount': discount,
+        'final_total': order['total'] - discount,
+    }
+
+# Impure shell: handles I/O at the edges
+def process_order(order_id: str):
+    order = db.get_order(order_id)              # I/O (shell)
+    updated = compute_order_totals(order)       # Pure (core)
+    db.save_order(updated)                      # I/O (shell)
+    send_email(updated['email'], updated)       # I/O (shell)
+
+
+# The pure functions are trivially testable:
+def test_calculate_discount():
+    assert calculate_discount(150) == 15.0
+    assert calculate_discount(50) == 0.0
+    assert calculate_discount(100) == 0.0
+    assert calculate_discount(100.01) == 10.001
+```
+</TabItem>
+<TabItem label="JavaScript">
+```javascript
+// BEFORE: Impure -- mixes logic with I/O
+async function processOrderImpure(orderId) {
+  const order = await db.getOrder(orderId);       // I/O
+  if (order.total > 100) {
+    order.discount = order.total * 0.1;           // Mutation
+  } else {
+    order.discount = 0;
+  }
+  order.finalTotal = order.total - order.discount; // Mutation
+  await db.saveOrder(order);                       // I/O
+  await sendEmail(order.email, order);             // I/O
+}
+
+
+// AFTER: Pure core + impure shell
+// Pure core
+function calculateDiscount(total) {
+  return total > 100 ? total * 0.1 : 0;
+}
+
+function computeOrderTotals(order) {
+  const discount = calculateDiscount(order.total);
+  return {
+    ...order,   // Spread: creates a new object
+    discount,
+    finalTotal: order.total - discount,
+  };
+}
+
+// Impure shell
+async function processOrder(orderId) {
+  const order = await db.getOrder(orderId);        // I/O
+  const updated = computeOrderTotals(order);       // Pure
+  await db.saveOrder(updated);                     // I/O
+  await sendEmail(updated.email, updated);         // I/O
+}
+
+// Pure functions: no mocking needed for tests
+console.assert(calculateDiscount(150) === 15);
+console.assert(calculateDiscount(50) === 0);
+```
+</TabItem>
+</Tabs>
+
+---
+
+## Immutability Patterns
+
+### Defensive Copying
+
+Always return new data structures instead of modifying inputs.
+
+<Tabs>
+<TabItem label="Python">
+```python
+# BAD: Mutates the input list
+def add_item_bad(items: list, item) -> list:
+    items.append(item)  # Mutates the original!
+    return items
+
+original = [1, 2, 3]
+result = add_item_bad(original, 4)
+print(original)  # [1, 2, 3, 4] -- original was modified!
+
+
+# GOOD: Returns a new list
+def add_item(items: list, item) -> list:
+    return [*items, item]  # New list via unpacking
+
+original = [1, 2, 3]
+result = add_item(original, 4)
+print(original)  # [1, 2, 3] -- unchanged
+print(result)    # [1, 2, 3, 4]
+
+
+# Immutable dict update
+def set_field(record: dict, key: str, value) -> dict:
+    return {**record, key: value}
+
+user = {"name": "Alice", "age": 30}
+updated = set_field(user, "age", 31)
+print(user)     # {"name": "Alice", "age": 30}
+print(updated)  # {"name": "Alice", "age": 31}
+```
+</TabItem>
+<TabItem label="JavaScript">
+```javascript
+// BAD: Mutates the input array
+function addItemBad(items, item) {
+  items.push(item); // Mutates!
+  return items;
+}
+
+// GOOD: Returns a new array
+function addItem(items, item) {
+  return [...items, item]; // New array
+}
+
+// GOOD: Remove without mutation
+function removeItem(items, index) {
+  return [...items.slice(0, index), ...items.slice(index + 1)];
+}
+
+// GOOD: Update object without mutation
+function setField(obj, key, value) {
+  return { ...obj, [key]: value };
+}
+
+// GOOD: Deep immutable update
+function updateNested(state, path, value) {
+  if (path.length === 1) {
+    return { ...state, [path[0]]: value };
+  }
+  return {
+    ...state,
+    [path[0]]: updateNested(
+      state[path[0]], path.slice(1), value
+    ),
+  };
+}
+
+const state = { user: { profile: { name: 'Alice' } } };
+const updated = updateNested(
+  state, ['user', 'profile', 'name'], 'Bob'
+);
+// state.user.profile.name is still 'Alice'
+```
+</TabItem>
+</Tabs>
+
+---
+
+## Dependency Injection for Purity
+
+When a function needs something impure (like the current time or a random number), inject it as a parameter instead of calling it directly. This makes the function pure and testable.
+
+<Tabs>
+<TabItem label="Python">
+```python
+from datetime import datetime
+
+# IMPURE: calls datetime.now() internally
+def get_greeting_impure() -> str:
+    hour = datetime.now().hour
+    if hour < 12: return "Good morning"
+    if hour < 18: return "Good afternoon"
+    return "Good evening"
+
+# PURE: time is injected
+def get_greeting(current_hour: int) -> str:
+    if current_hour < 12: return "Good morning"
+    if current_hour < 18: return "Good afternoon"
+    return "Good evening"
+
+# In production:
+greeting = get_greeting(datetime.now().hour)
+
+# In tests (no mocking needed!):
+assert get_greeting(9) == "Good morning"
+assert get_greeting(14) == "Good afternoon"
+assert get_greeting(20) == "Good evening"
+
+
+# Injecting randomness
+import random
+
+# IMPURE
+def roll_dice_impure() -> int:
+    return random.randint(1, 6)
+
+# PURE: inject the random function
+def roll_dice(rng=random.randint) -> int:
+    return rng(1, 6)
+
+# Test with deterministic "randomness"
+assert roll_dice(rng=lambda a, b: 4) == 4
+```
+</TabItem>
+<TabItem label="JavaScript">
+```javascript
+// IMPURE: calls Date.now() internally
+function getGreetingImpure() {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good morning';
+  if (hour < 18) return 'Good afternoon';
+  return 'Good evening';
+}
+
+// PURE: time is injected
+function getGreeting(currentHour) {
+  if (currentHour < 12) return 'Good morning';
+  if (currentHour < 18) return 'Good afternoon';
+  return 'Good evening';
+}
+
+// In production:
+const greeting = getGreeting(new Date().getHours());
+
+// In tests:
+console.assert(getGreeting(9)  === 'Good morning');
+console.assert(getGreeting(14) === 'Good afternoon');
+console.assert(getGreeting(20) === 'Good evening');
+```
+</TabItem>
+</Tabs>
+
+---
+
+## Memoization: Caching Pure Functions
+
+Because pure functions always return the same output for the same input, their results can be cached (memoized) safely.
+
+<Tabs>
+<TabItem label="Python">
+```python
+from functools import lru_cache
+
+@lru_cache(maxsize=None)
+def fibonacci(n: int) -> int:
+    if n < 2:
+        return n
+    return fibonacci(n - 1) + fibonacci(n - 2)
+
+# Without memoization: O(2^n) time
+# With memoization:    O(n) time, O(n) space
+print(fibonacci(100))  # 354224848179261915075 (instant)
+
+# lru_cache only works with hashable arguments
+# For unhashable args, use a manual cache:
+def memoize(fn):
+    cache = {}
+    def wrapper(*args):
+        if args not in cache:
+            cache[args] = fn(*args)
+        return cache[args]
+    return wrapper
+
+@memoize
+def expensive_calculation(x, y):
+    return x ** y + y ** x
+```
+</TabItem>
+<TabItem label="JavaScript">
+```javascript
+function memoize(fn) {
+  const cache = new Map();
+  return function (...args) {
+    const key = JSON.stringify(args);
+    if (cache.has(key)) return cache.get(key);
+    const result = fn.apply(this, args);
+    cache.set(key, result);
+    return result;
+  };
+}
+
+const fibonacci = memoize(function fib(n) {
+  if (n < 2) return n;
+  return fibonacci(n - 1) + fibonacci(n - 2);
+});
+
+console.log(fibonacci(50)); // 12586269025 (instant)
+```
+</TabItem>
+</Tabs>
+
+:::caution[Memoize Only Pure Functions]
+Memoizing an impure function will cache a stale result. If `getUser(id)` reads from a database, memoizing it means you will never see updates. Only memoize functions that are guaranteed to return the same result for the same input.
+:::
+
+---
+
+## Pure Functions and Testing
+
+Pure functions are the easiest code to test. No mocks, no stubs, no setup, no teardown -- just input and expected output.
+
+```
+Testing pure vs impure functions:
+
+Pure function test:
+  assert add(2, 3) == 5        -- that is it. Done.
+
+Impure function test:
+  1. Set up mock database
+  2. Seed test data
+  3. Set up mock email service
+  4. Set up mock clock
+  5. Call the function
+  6. Assert database was called with correct args
+  7. Assert email was sent
+  8. Tear down mocks
+  9. Clean up test data
+
+Pure functions eliminate most of this ceremony.
+```
+
+---
+
+## Summary
+
+| Concept | Key Takeaway |
+|---------|-------------|
+| **Pure function** | Same inputs produce same output; no side effects |
+| **Referential transparency** | Expression can be replaced by its value without changing behavior |
+| **Side effects** | Anything beyond computing a return value (I/O, mutation, randomness) |
+| **Impure shell / pure core** | Push side effects to the edges; keep business logic pure |
+| **Immutability** | Return new data structures instead of modifying inputs |
+| **Dependency injection** | Inject impure dependencies as parameters for testability |
+| **Memoization** | Safe to cache pure function results; same input always gives same output |
+
+<LinkCard
+  title="Next: Higher-Order Functions"
+  description="Explore map, filter, reduce, closures, currying, and partial application."
+  href="/software-engineering/functional-programming/higher-order-functions/"
+/>

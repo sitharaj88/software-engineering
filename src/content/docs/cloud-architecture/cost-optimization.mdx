@@ -1,0 +1,608 @@
+---
+title: Cost Optimization
+description: Master cloud cost optimization strategies including right-sizing, reserved vs spot instances, auto-scaling, storage tiering, cost monitoring tools, and FinOps principles.
+difficulty: intermediate
+prerequisites:
+  - Cloud Architecture overview
+  - Cloud service models
+  - Basic understanding of cloud resource types
+timeToRead: "24 min"
+topics:
+  - cost optimization
+  - FinOps
+  - right-sizing
+  - reserved instances
+  - spot instances
+  - auto-scaling
+  - storage tiering
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+Cloud computing shifts costs from upfront capital expenditure to ongoing operational expenditure. While this model offers flexibility, it also introduces the risk of unchecked spending. Without deliberate cost management, cloud bills can spiral out of control. Cost optimization is not just about spending less -- it is about maximizing the business value of every dollar spent on cloud resources.
+
+---
+
+## The Cost Optimization Mindset
+
+```
+Traditional IT Spending:        Cloud Spending:
+┌─────────────────────┐         ┌─────────────────────┐
+│ Buy servers upfront  │         │ Pay per hour/second  │
+│ Fixed cost           │         │ Variable cost        │
+│ Long procurement     │         │ Instant provisioning │
+│ Depreciation model   │         │ OpEx model           │
+│ Hard to scale down   │         │ Easy to scale down   │
+└─────────────────────┘         └─────────────────────┘
+
+The challenge: Easy provisioning means easy overspending.
+The opportunity: Flexibility means you can optimize continuously.
+```
+
+### Common Sources of Cloud Waste
+
+| Waste Type | Typical Impact | Example |
+|---|---|---|
+| **Idle resources** | 20-30% of cloud spend | Dev/test instances running 24/7 |
+| **Oversized instances** | 15-25% of compute cost | Running m5.xlarge when t3.medium suffices |
+| **Unused storage** | 10-15% of storage cost | Old snapshots, orphaned volumes |
+| **No reserved pricing** | 30-60% higher than needed | Running on-demand when usage is predictable |
+| **Data transfer** | 5-15% of total bill | Cross-region data movement |
+| **Zombie resources** | 5-10% of spend | Load balancers, IP addresses with no traffic |
+
+---
+
+## Right-Sizing
+
+Right-sizing means matching resource allocations to actual workload requirements. It is consistently the highest-impact optimization you can make.
+
+### The Right-Sizing Process
+
+```
+Step 1: Monitor actual usage (2-4 weeks minimum)
+  ┌──────────────────────────────────────────┐
+  │ CPU Usage for web-server-prod-01          │
+  │                                           │
+  │ 100%├                                     │
+  │     │                                     │
+  │  80%├                                     │
+  │     │                                     │
+  │  60%├                                     │
+  │     │      ██                              │
+  │  40%├      ██                              │
+  │     │  ██  ██  ██                          │
+  │  20%├──██──██──██──██──██──██──██──██──── │
+  │     │  ██  ██  ██  ██  ██  ██  ██  ██     │
+  │   0%├──┴───┴───┴───┴───┴───┴───┴───┴──── │
+  │     Mon  Tue  Wed  Thu  Fri  Sat  Sun     │
+  └──────────────────────────────────────────┘
+
+  Average CPU: 18%  Peak CPU: 45%
+  Current instance: m5.xlarge (4 vCPUs, 16 GB RAM)
+  Recommendation: m5.large (2 vCPUs, 8 GB RAM)
+  Savings: ~50% on this instance
+
+Step 2: Analyze memory, network, disk I/O similarly
+Step 3: Recommend a smaller instance type
+Step 4: Test the recommendation in staging
+Step 5: Apply in production with monitoring
+```
+
+### Instance Type Selection Guide
+
+```
+Workload Type → Best Instance Family
+
+General purpose (balanced)     → t3/t4g, m5/m6i, m6g (ARM)
+Compute-intensive              → c5/c6i, c6g (ARM)
+Memory-intensive               → r5/r6i, x1
+Storage-intensive              → i3, d2
+GPU / ML training              → p4, g5
+Burstable (variable CPU)       → t3/t4g (cheapest for low-avg CPU)
+ARM-based (20% cheaper)        → m6g, c6g, r6g (Graviton)
+```
+
+:::tip[Start with Burstable Instances]
+For workloads with low average CPU usage (under 20-30%), burstable instances like `t3` or `t4g` are significantly cheaper than fixed-performance instances. They provide baseline CPU with the ability to burst when needed. Monitor CPU credits to ensure you do not run out during peak periods.
+:::
+
+---
+
+## Pricing Models
+
+### On-Demand vs Reserved vs Spot
+
+```
+Price (relative)
+     │
+100% ├── On-Demand ──────────────────── (full price, no commitment)
+     │
+ 70% ├── 1-Year Reserved ────────────── (30% savings, 1-yr commitment)
+     │
+ 55% ├── 3-Year Reserved ────────────── (45% savings, 3-yr commitment)
+     │
+ 40% ├── Convertible Reserved ───────── (60% savings, flexible type)
+     │
+ 10% ├── Spot Instances ─────────────── (up to 90% savings, can be
+     │                                   interrupted with 2-min notice)
+     └────────────────────────────────────────────────────────────────
+```
+
+| Pricing Model | Savings | Commitment | Risk | Best For |
+|---|---|---|---|---|
+| **On-Demand** | 0% (baseline) | None | None | Short-term, unpredictable workloads |
+| **Reserved (1yr)** | ~30% | 1 year | Must pay even if unused | Steady-state production workloads |
+| **Reserved (3yr)** | ~45% | 3 years | Longest commitment | Databases, core infrastructure |
+| **Savings Plans** | 20-40% | 1 or 3 years | Commit to dollar amount, not specific instances | Flexible workloads |
+| **Spot Instances** | 60-90% | None | 2-minute interruption notice | Batch processing, CI/CD, stateless workers |
+
+### Spot Instance Strategies
+
+Spot instances offer massive savings but can be interrupted. Use them for workloads that are **fault-tolerant** and **stateless**.
+
+```
+Good for Spot:                    Bad for Spot:
+──────────────                    ──────────────
+Batch processing                  Production databases
+CI/CD build agents                Single-instance applications
+Data processing pipelines         Stateful services
+Machine learning training         Real-time trading systems
+Dev/test environments             Anything with long startup time
+Rendering farms
+Distributed computing
+```
+
+<Tabs>
+<TabItem label="AWS Spot Fleet">
+```bash
+# Request a spot fleet with mixed instance types
+aws ec2 request-spot-fleet \
+  --spot-fleet-request-config '{
+    "IamFleetRole": "arn:aws:iam::123456:role/spot-fleet",
+    "TargetCapacity": 10,
+    "SpotPrice": "0.05",
+    "LaunchSpecifications": [
+      {
+        "InstanceType": "m5.large",
+        "ImageId": "ami-12345",
+        "SubnetId": "subnet-abc",
+        "WeightedCapacity": 1
+      },
+      {
+        "InstanceType": "m5.xlarge",
+        "ImageId": "ami-12345",
+        "SubnetId": "subnet-abc",
+        "WeightedCapacity": 2
+      },
+      {
+        "InstanceType": "m4.large",
+        "ImageId": "ami-12345",
+        "SubnetId": "subnet-def",
+        "WeightedCapacity": 1
+      }
+    ],
+    "AllocationStrategy": "capacityOptimized",
+    "Type": "maintain"
+  }'
+```
+</TabItem>
+<TabItem label="Kubernetes Spot Nodes">
+```yaml
+# Kubernetes node pool with spot instances
+# (EKS managed node group)
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: my-cluster
+  region: us-east-1
+
+managedNodeGroups:
+  # On-demand nodes for critical workloads
+  - name: on-demand-nodes
+    instanceType: m5.large
+    minSize: 2
+    maxSize: 5
+    labels:
+      lifecycle: on-demand
+
+  # Spot nodes for fault-tolerant workloads
+  - name: spot-nodes
+    instanceTypes:
+      - m5.large
+      - m5a.large
+      - m4.large
+      - m5.xlarge
+    spot: true
+    minSize: 0
+    maxSize: 20
+    labels:
+      lifecycle: spot
+    taints:
+      - key: spot
+        value: "true"
+        effect: PreferNoSchedule
+---
+# Pod that tolerates spot instances
+apiVersion: v1
+kind: Pod
+metadata:
+  name: batch-processor
+spec:
+  tolerations:
+    - key: spot
+      operator: Equal
+      value: "true"
+  nodeSelector:
+    lifecycle: spot
+  containers:
+    - name: processor
+      image: batch-processor:latest
+      resources:
+        requests:
+          cpu: "500m"
+          memory: "512Mi"
+```
+</TabItem>
+</Tabs>
+
+---
+
+## Auto-Scaling Strategies
+
+Auto-scaling adjusts resource capacity based on demand, ensuring you have enough capacity during peak times and are not paying for idle resources during quiet times.
+
+### Types of Auto-Scaling
+
+| Type | Description | Use Case |
+|---|---|---|
+| **Target tracking** | Maintain a target metric value (e.g., 70% CPU) | Most common; simple and effective |
+| **Step scaling** | Add/remove capacity in steps based on alarm thresholds | Workloads with known traffic patterns |
+| **Scheduled scaling** | Change capacity at specific times | Predictable traffic patterns (business hours) |
+| **Predictive scaling** | ML-based forecasting of future demand | Recurring traffic patterns |
+
+```
+Target Tracking Example (target: 70% CPU):
+
+Capacity
+    │
+ 10 ├                    ┌───┐
+    │                    │   │  ← Scale up
+  8 ├               ┌───┤   │     (CPU > 70%)
+    │               │   │   │
+  6 ├          ┌───┤   │   │
+    │          │   │   │   │
+  4 ├─────┬───┤   │   │   ├───┐
+    │     │   │   │   │   │   │  ← Scale down
+  2 ├─────┤   │   │   │   │   ├───── (CPU < 70%)
+    │     │   │   │   │   │   │
+    └─────┴───┴───┴───┴───┴───┴───▶ Time
+     6am  9am 12pm 3pm 6pm 9pm 12am
+```
+
+### Auto-Scaling Best Practices
+
+:::note[Scaling Best Practices]
+1. **Scale out early, scale in slowly**: Add instances quickly but remove them gradually to avoid thrashing
+2. **Use multiple metrics**: Combine CPU, memory, request count, and queue depth
+3. **Set appropriate cooldown periods**: Prevent rapid scaling oscillations (typically 300 seconds)
+4. **Always set a maximum**: Prevent runaway scaling that could bankrupt your budget
+5. **Test your scaling policies**: Simulate load to verify scaling behavior before production
+6. **Use warm-up periods**: Allow new instances time to initialize before receiving full traffic
+:::
+
+---
+
+## Storage Tiering
+
+Cloud providers offer storage tiers at different price points. Moving data to cheaper tiers as it ages can dramatically reduce storage costs.
+
+### AWS S3 Storage Classes
+
+```
+Access Frequency:  Frequent    Infrequent    Rare        Archive
+                     │            │            │            │
+                     ▼            ▼            ▼            ▼
+                ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐
+                │S3 Std   │  │S3 IA    │  │Glacier  │  │Glacier  │
+                │$0.023/GB│  │$0.0125  │  │Instant  │  │Deep     │
+                │         │  │/GB      │  │$0.004/GB│  │$0.00099 │
+                │         │  │         │  │         │  │/GB      │
+                └─────────┘  └─────────┘  └─────────┘  └─────────┘
+Retrieval time:  Immediate    Immediate    Immediate    12 hours
+Retrieval cost:  None         Per-GB fee   Per-GB fee   Per-GB fee
+Min duration:    None         30 days      90 days      180 days
+```
+
+### Lifecycle Policies
+
+```
+Object lifecycle:
+
+Day 0     Day 30      Day 90      Day 365     Day 730
+  │         │           │           │           │
+  ▼         ▼           ▼           ▼           ▼
+S3 Std → S3 IA → Glacier Instant → Glacier → Delete
+                                    Deep
+
+Automated via lifecycle policy:
+```
+
+<Tabs>
+<TabItem label="AWS S3 Lifecycle (CLI)">
+```json
+{
+  "Rules": [
+    {
+      "ID": "archive-old-data",
+      "Status": "Enabled",
+      "Filter": {
+        "Prefix": "logs/"
+      },
+      "Transitions": [
+        {
+          "Days": 30,
+          "StorageClass": "STANDARD_IA"
+        },
+        {
+          "Days": 90,
+          "StorageClass": "GLACIER_IR"
+        },
+        {
+          "Days": 365,
+          "StorageClass": "DEEP_ARCHIVE"
+        }
+      ],
+      "Expiration": {
+        "Days": 730
+      }
+    }
+  ]
+}
+```
+</TabItem>
+<TabItem label="Terraform">
+```hcl
+resource "aws_s3_bucket" "data" {
+  bucket = "my-data-bucket"
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "data" {
+  bucket = aws_s3_bucket.data.id
+
+  rule {
+    id     = "archive-old-data"
+    status = "Enabled"
+
+    filter {
+      prefix = "logs/"
+    }
+
+    transition {
+      days          = 30
+      storage_class = "STANDARD_IA"
+    }
+
+    transition {
+      days          = 90
+      storage_class = "GLACIER_IR"
+    }
+
+    transition {
+      days          = 365
+      storage_class = "DEEP_ARCHIVE"
+    }
+
+    expiration {
+      days = 730
+    }
+  }
+}
+```
+</TabItem>
+</Tabs>
+
+---
+
+## Cost Monitoring and Tools
+
+### Cloud Provider Tools
+
+| Tool | Provider | Capabilities |
+|---|---|---|
+| **AWS Cost Explorer** | AWS | Visualize, understand, and manage costs |
+| **AWS Trusted Advisor** | AWS | Cost optimization recommendations |
+| **AWS Compute Optimizer** | AWS | Right-sizing recommendations |
+| **Azure Cost Management** | Azure | Cost analysis and budgets |
+| **Azure Advisor** | Azure | Right-sizing and optimization |
+| **GCP Cost Management** | GCP | Cost breakdown and recommendations |
+
+### Third-Party Tools
+
+| Tool | Focus |
+|---|---|
+| **CloudHealth (VMware)** | Multi-cloud cost management |
+| **Spot.io (NetApp)** | Spot instance management and optimization |
+| **Kubecost** | Kubernetes cost monitoring |
+| **Infracost** | Cost estimation in CI/CD (Terraform) |
+| **Vantage** | Cloud cost transparency |
+
+### Setting Up Cost Alerts
+
+<Tabs>
+<TabItem label="AWS Budget Alert">
+```bash
+# Create a monthly budget with alerts
+aws budgets create-budget \
+  --account-id 123456789012 \
+  --budget '{
+    "BudgetName": "monthly-budget",
+    "BudgetLimit": {
+      "Amount": "5000",
+      "Unit": "USD"
+    },
+    "TimeUnit": "MONTHLY",
+    "BudgetType": "COST"
+  }' \
+  --notifications-with-subscribers '[
+    {
+      "Notification": {
+        "NotificationType": "ACTUAL",
+        "ComparisonOperator": "GREATER_THAN",
+        "Threshold": 80,
+        "ThresholdType": "PERCENTAGE"
+      },
+      "Subscribers": [
+        {
+          "SubscriptionType": "EMAIL",
+          "Address": "finance@company.com"
+        }
+      ]
+    },
+    {
+      "Notification": {
+        "NotificationType": "FORECASTED",
+        "ComparisonOperator": "GREATER_THAN",
+        "Threshold": 100,
+        "ThresholdType": "PERCENTAGE"
+      },
+      "Subscribers": [
+        {
+          "SubscriptionType": "EMAIL",
+          "Address": "engineering@company.com"
+        }
+      ]
+    }
+  ]'
+```
+</TabItem>
+<TabItem label="Terraform Cost Estimation">
+```bash
+# Use Infracost to estimate costs before deploying
+# Install infracost
+brew install infracost
+
+# Get a cost breakdown of your Terraform plan
+infracost breakdown --path /path/to/terraform
+
+# Example output:
+# NAME                    MONTHLY QTY  UNIT    MONTHLY COST
+#
+# aws_instance.web
+#   Linux/UNIX usage        730  hours       $33.41
+#   root_block_device
+#     Storage (gp3)          30  GB           $2.40
+#
+# aws_db_instance.postgres
+#   Database instance       730  hours      $24.82
+#   Storage (gp2)            20  GB          $2.30
+#
+# aws_s3_bucket.assets
+#   Storage                 100  GB          $2.30
+#
+# OVERALL TOTAL                             $65.23
+
+# Add to CI/CD to comment cost estimates on PRs
+infracost comment github \
+  --path /path/to/infracost.json \
+  --repo myorg/myrepo \
+  --pull-request 42 \
+  --github-token $GITHUB_TOKEN
+```
+</TabItem>
+</Tabs>
+
+---
+
+## FinOps Principles
+
+FinOps (Financial Operations) is the practice of bringing financial accountability to cloud spending. It is a cultural practice, not just a set of tools.
+
+### The Three Phases of FinOps
+
+```
+┌─────────────────┐    ┌──────────────────┐    ┌──────────────────┐
+│    INFORM        │    │    OPTIMIZE      │    │    OPERATE       │
+│                  │    │                  │    │                  │
+│ - Visibility     │───▶│ - Right-sizing   │───▶│ - Continuous     │
+│ - Allocation     │    │ - Reserved       │    │   improvement    │
+│ - Benchmarking   │    │   pricing        │    │ - Automation     │
+│ - Forecasting    │    │ - Spot usage     │    │ - Policy         │
+│                  │    │ - Waste removal  │    │   enforcement    │
+└─────────────────┘    └──────────────────┘    └──────────────────┘
+                                                        │
+                                                        │
+                              ◀─────────────────────────┘
+                              (Continuous cycle)
+```
+
+### FinOps Core Principles
+
+1. **Teams need to collaborate**: Engineering, finance, and business work together on cloud spending decisions.
+
+2. **Everyone takes ownership**: Engineers are accountable for the cost of the resources they provision.
+
+3. **A centralized team drives FinOps**: A FinOps team provides best practices, tools, and governance.
+
+4. **Reports should be accessible and timely**: Real-time cost data enables better decisions.
+
+5. **Decisions are driven by business value**: Cost optimization is about maximizing value, not just minimizing spend.
+
+6. **Take advantage of the variable cost model**: The cloud's flexibility is an advantage, not just a risk.
+
+### Cost Allocation with Tags
+
+Tagging resources enables cost attribution to teams, projects, and environments:
+
+```
+Required Tags for Cost Allocation:
+
+Tag Key          Example Values       Purpose
+───────────────  ──────────────────   ──────────────────
+team             platform, payments   Charge to team budget
+environment      prod, staging, dev   Identify non-prod waste
+project          checkout-v2, search  Track project costs
+cost-center      CC-1234              Financial allocation
+owner            jane.doe@company     Accountability
+managed-by       terraform, manual    Infrastructure tracking
+```
+
+---
+
+## Quick Wins Checklist
+
+:::tip[Cost Optimization Quick Wins]
+Start with these high-impact, low-effort optimizations:
+
+1. **Delete unused resources**: Unattached EBS volumes, old snapshots, unused Elastic IPs, idle load balancers
+2. **Stop non-production resources after hours**: Schedule dev/test environments to shut down at night and weekends (save 65% or more)
+3. **Right-size oversized instances**: Check CPU and memory utilization; downsize anything under 40% average
+4. **Enable S3 lifecycle policies**: Automatically tier old data to cheaper storage classes
+5. **Buy reserved instances for steady workloads**: Databases and baseline compute are predictable -- commit for savings
+6. **Use spot instances for batch workloads**: CI/CD, data processing, testing
+7. **Review and consolidate data transfer**: Avoid unnecessary cross-region and cross-AZ traffic
+8. **Set up budget alerts**: Get notified before costs exceed expectations
+9. **Tag everything**: Enable cost attribution and identify untagged (often forgotten) resources
+10. **Review monthly**: Dedicate time each month to review and optimize cloud spending
+:::
+
+---
+
+## Summary
+
+| Concept | Key Takeaway |
+|---|---|
+| **Right-sizing** | Match instance size to actual workload needs; highest impact optimization |
+| **Reserved pricing** | Commit to 1-3 year terms for 30-60% savings on predictable workloads |
+| **Spot instances** | Up to 90% savings for fault-tolerant, stateless workloads |
+| **Auto-scaling** | Scale capacity with demand to avoid paying for idle resources |
+| **Storage tiering** | Automatically move aging data to cheaper storage classes |
+| **Cost monitoring** | Set budgets, alerts, and use tools for continuous visibility |
+| **FinOps** | Cultural practice of financial accountability for cloud spending |
+| **Tagging** | Tag every resource for cost attribution and identification |
+
+<LinkCard
+  title="Next: Message Queues & Streaming"
+  description="Explore asynchronous communication patterns, message brokers, and event streaming for distributed systems."
+  href="/software-engineering/message-queues/"
+/>

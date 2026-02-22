@@ -1,0 +1,782 @@
+---
+title: "Pattern Matching"
+description: "Learn pattern matching across languages, algebraic data types, exhaustive matching, destructuring, and how pattern matching eliminates brittle conditional logic"
+difficulty: "advanced"
+prerequisites:
+  - Monads & Functors
+  - Higher-Order Functions
+timeToRead: "23 min"
+topics:
+  - pattern-matching
+  - algebraic-data-types
+  - exhaustive-matching
+  - destructuring
+  - sum-types
+  - product-types
+  - match-expression
+  - structural-matching
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+**Pattern matching** is a powerful control flow mechanism that checks a value against a series of patterns and executes the code associated with the first matching pattern. Think of it as a `switch` statement that can match on structure, type, and nested data -- not just equality. Pattern matching is a cornerstone of functional programming and is increasingly being adopted by mainstream languages.
+
+---
+
+## Why Pattern Matching?
+
+Consider how you typically handle different cases without pattern matching:
+
+```
+Without pattern matching (if/else chains):
+
+  if isinstance(shape, Circle):
+      area = pi * shape.radius ** 2
+  elif isinstance(shape, Rectangle):
+      area = shape.width * shape.height
+  elif isinstance(shape, Triangle):
+      area = 0.5 * shape.base * shape.height
+  else:
+      raise ValueError("Unknown shape")
+
+Problems:
+  - Easy to forget a case (no exhaustiveness check)
+  - Cannot destructure in the condition
+  - Verbose and error-prone
+  - Adding a new shape requires finding all if/elif chains
+
+With pattern matching:
+
+  match shape:
+      case Circle(radius=r):
+          area = pi * r ** 2
+      case Rectangle(width=w, height=h):
+          area = w * h
+      case Triangle(base=b, height=h):
+          area = 0.5 * b * h
+
+Benefits:
+  - Concise and readable
+  - Destructures values inline
+  - Compiler/linter can warn about missing cases
+  - Adding a new shape triggers warnings everywhere
+```
+
+---
+
+## Pattern Matching Across Languages
+
+### Language Support
+
+| Language | Feature | Since | Exhaustive? |
+|----------|---------|-------|-------------|
+| **Python** | `match`/`case` | 3.10 (2021) | No (but linters can check) |
+| **JavaScript** | TC39 proposal (Stage 1) | Proposed | N/A |
+| **Java** | `switch` expressions + patterns | 21 (2023) | Yes (sealed types) |
+| **Rust** | `match` | 1.0 (2015) | Yes (enforced by compiler) |
+| **Scala** | `match` | 1.0 | Yes (sealed traits) |
+| **Haskell** | `case`/function patterns | 1.0 | Yes (with warnings) |
+| **Elixir** | `case`/function heads | 1.0 | Yes (with guards) |
+| **C#** | `switch` expressions + patterns | 8.0 (2019) | Partial |
+| **Kotlin** | `when` | 1.0 | Yes (sealed classes) |
+
+---
+
+## Basic Pattern Matching
+
+<Tabs>
+<TabItem label="Python">
+```python
+# Python 3.10+ structural pattern matching
+
+# Literal patterns
+def describe_http_status(status: int) -> str:
+    match status:
+        case 200:
+            return "OK"
+        case 301:
+            return "Moved Permanently"
+        case 404:
+            return "Not Found"
+        case 500:
+            return "Internal Server Error"
+        case _:
+            return f"Unknown status: {status}"
+
+print(describe_http_status(404))  # Not Found
+
+
+# OR patterns
+def classify_char(c: str) -> str:
+    match c:
+        case 'a' | 'e' | 'i' | 'o' | 'u':
+            return "vowel"
+        case c if c.isalpha():
+            return "consonant"
+        case c if c.isdigit():
+            return "digit"
+        case _:
+            return "other"
+
+
+# Guard clauses
+def classify_number(n: int) -> str:
+    match n:
+        case n if n < 0:
+            return "negative"
+        case 0:
+            return "zero"
+        case n if n % 2 == 0:
+            return "positive even"
+        case _:
+            return "positive odd"
+```
+</TabItem>
+<TabItem label="JavaScript">
+```javascript
+// JavaScript does not have native pattern matching (yet).
+// TC39 proposal is at Stage 1.
+// Workaround: use object dispatch or switch
+
+// Object dispatch (simple pattern matching)
+const httpStatus = {
+  200: 'OK',
+  301: 'Moved Permanently',
+  404: 'Not Found',
+  500: 'Internal Server Error',
+};
+
+function describeHttpStatus(status) {
+  return httpStatus[status] || `Unknown status: ${status}`;
+}
+
+
+// Switch expression (closest JS has)
+function classifyNumber(n) {
+  switch (true) {
+    case n < 0:         return 'negative';
+    case n === 0:       return 'zero';
+    case n % 2 === 0:   return 'positive even';
+    default:            return 'positive odd';
+  }
+}
+
+
+// Libraries: ts-pattern (TypeScript)
+// import { match, P } from 'ts-pattern';
+//
+// const result = match(value)
+//   .with({ type: 'circle', radius: P.number }, ({ radius }) =>
+//     Math.PI * radius ** 2)
+//   .with({ type: 'rectangle', width: P.number, height: P.number },
+//     ({ width, height }) => width * height)
+//   .exhaustive();
+```
+</TabItem>
+<TabItem label="Java">
+```java
+// Java 21+ pattern matching with switch expressions
+
+// Basic pattern matching
+String describeHttpStatus(int status) {
+    return switch (status) {
+        case 200 -> "OK";
+        case 301 -> "Moved Permanently";
+        case 404 -> "Not Found";
+        case 500 -> "Internal Server Error";
+        default  -> "Unknown status: " + status;
+    };
+}
+
+// Type patterns (Java 21+)
+String describeObject(Object obj) {
+    return switch (obj) {
+        case Integer i when i < 0    -> "negative int: " + i;
+        case Integer i               -> "positive int: " + i;
+        case String s when s.isEmpty() -> "empty string";
+        case String s                -> "string: " + s;
+        case null                    -> "null";
+        default                      -> "other: " + obj;
+    };
+}
+
+// Record patterns (Java 21+)
+record Point(int x, int y) {}
+
+String describePoint(Object obj) {
+    return switch (obj) {
+        case Point(int x, int y) when x == 0 && y == 0
+            -> "origin";
+        case Point(int x, int y) when y == 0
+            -> "on x-axis at " + x;
+        case Point(int x, int y) when x == 0
+            -> "on y-axis at " + y;
+        case Point(int x, int y)
+            -> "point at (" + x + ", " + y + ")";
+        default -> "not a point";
+    };
+}
+```
+</TabItem>
+</Tabs>
+
+---
+
+## Destructuring
+
+Pattern matching often includes **destructuring**: extracting values from data structures as part of the match.
+
+<Tabs>
+<TabItem label="Python">
+```python
+# Sequence destructuring
+def process_command(command: list) -> str:
+    match command:
+        case ["quit"]:
+            return "Exiting..."
+        case ["greet", name]:
+            return f"Hello, {name}!"
+        case ["move", x, y]:
+            return f"Moving to ({x}, {y})"
+        case ["move", x, y, z]:
+            return f"Moving to ({x}, {y}, {z})"
+        case ["say", *words]:
+            return " ".join(words)
+        case _:
+            return "Unknown command"
+
+print(process_command(["greet", "Alice"]))   # Hello, Alice!
+print(process_command(["move", 3, 4]))       # Moving to (3, 4)
+print(process_command(["say", "hi", "there"]))  # hi there
+
+
+# Dictionary destructuring
+def process_event(event: dict) -> str:
+    match event:
+        case {"type": "click", "x": x, "y": y}:
+            return f"Click at ({x}, {y})"
+        case {"type": "keypress", "key": key}:
+            return f"Key pressed: {key}"
+        case {"type": "scroll", "direction": "up"}:
+            return "Scrolling up"
+        case {"type": "scroll", "direction": "down"}:
+            return "Scrolling down"
+        case _:
+            return "Unknown event"
+
+print(process_event({"type": "click", "x": 100, "y": 200}))
+# Click at (100, 200)
+
+
+# Class destructuring
+from dataclasses import dataclass
+
+@dataclass
+class Circle:
+    radius: float
+
+@dataclass
+class Rectangle:
+    width: float
+    height: float
+
+@dataclass
+class Triangle:
+    base: float
+    height: float
+
+import math
+
+def area(shape) -> float:
+    match shape:
+        case Circle(radius=r):
+            return math.pi * r ** 2
+        case Rectangle(width=w, height=h):
+            return w * h
+        case Triangle(base=b, height=h):
+            return 0.5 * b * h
+        case _:
+            raise ValueError(f"Unknown shape: {shape}")
+
+print(area(Circle(5)))           # 78.54
+print(area(Rectangle(3, 4)))     # 12.0
+print(area(Triangle(6, 8)))      # 24.0
+```
+</TabItem>
+<TabItem label="JavaScript">
+```javascript
+// JavaScript destructuring (not full pattern matching,
+// but covers many of the same use cases)
+
+// Array destructuring
+const [first, second, ...rest] = [1, 2, 3, 4, 5];
+// first=1, second=2, rest=[3,4,5]
+
+// Object destructuring
+const { name, age, city = 'Unknown' } = {
+  name: 'Alice', age: 30
+};
+// name='Alice', age=30, city='Unknown' (default)
+
+// Nested destructuring
+const { address: { street, zip } } = {
+  address: { street: '123 Main St', zip: '10001' }
+};
+
+// Destructuring in function parameters
+function processEvent({ type, ...data }) {
+  switch (type) {
+    case 'click':
+      return `Click at (${data.x}, ${data.y})`;
+    case 'keypress':
+      return `Key pressed: ${data.key}`;
+    case 'scroll':
+      return `Scrolling ${data.direction}`;
+    default:
+      return 'Unknown event';
+  }
+}
+
+console.log(processEvent({ type: 'click', x: 100, y: 200 }));
+// Click at (100, 200)
+
+
+// Destructuring with computed values
+function processCommand([command, ...args]) {
+  switch (command) {
+    case 'greet':
+      return `Hello, ${args[0]}!`;
+    case 'move':
+      return `Moving to (${args.join(', ')})`;
+    case 'say':
+      return args.join(' ');
+    default:
+      return 'Unknown command';
+  }
+}
+
+console.log(processCommand(['greet', 'Alice']));
+// Hello, Alice!
+```
+</TabItem>
+<TabItem label="Java">
+```java
+// Java 21+ nested record patterns
+sealed interface Shape permits Circle, Rectangle, Triangle {}
+record Circle(double radius) implements Shape {}
+record Rectangle(double width, double height) implements Shape {}
+record Triangle(double base, double height) implements Shape {}
+
+double area(Shape shape) {
+    return switch (shape) {
+        case Circle(var r)         -> Math.PI * r * r;
+        case Rectangle(var w, var h) -> w * h;
+        case Triangle(var b, var h)  -> 0.5 * b * h;
+    };
+    // No default needed: sealed interface is exhaustive!
+}
+
+// Nested destructuring
+record Address(String city, String street) {}
+record Person(String name, Address address) {}
+
+String getCity(Object obj) {
+    return switch (obj) {
+        case Person(var name, Address(var city, _))
+            -> city;
+        default
+            -> "Unknown";
+    };
+}
+```
+</TabItem>
+</Tabs>
+
+---
+
+## Algebraic Data Types
+
+**Algebraic Data Types** (ADTs) are types composed from simpler types using two operations:
+
+### Sum Types (Tagged Unions)
+
+A sum type is a type that can be **one of** several variants. Each variant may carry different data.
+
+```
+Sum type: Shape = Circle(radius) | Rectangle(width, height) | Triangle(base, height)
+
+A Shape is EITHER a Circle OR a Rectangle OR a Triangle.
+Never more than one at a time.
+
+  Circle(5)           -- valid Shape
+  Rectangle(3, 4)     -- valid Shape
+  Circle + Rectangle  -- impossible
+```
+
+### Product Types (Records/Tuples)
+
+A product type combines multiple fields **together**. A product type has all of its fields simultaneously.
+
+```
+Product type: Point = (x: float, y: float)
+
+A Point has BOTH an x AND a y coordinate.
+```
+
+### Why "Algebraic"?
+
+The name comes from the number of possible values:
+
+```
+Sum type:    |A + B| = |A| + |B|     (number of variants adds up)
+Product type: |A * B| = |A| * |B|    (combinations multiply)
+
+Example:
+  Bool = True | False               -- 2 values
+  Direction = Up | Down | Left | Right  -- 4 values
+  Point = (Bool, Direction)         -- 2 * 4 = 8 possible values
+  Shape = Circle | Square           -- 2 + ... values
+```
+
+<Tabs>
+<TabItem label="Python">
+```python
+from dataclasses import dataclass
+from typing import Union
+import math
+
+# Sum type via dataclasses + Union
+@dataclass(frozen=True)
+class Circle:
+    radius: float
+
+@dataclass(frozen=True)
+class Rectangle:
+    width: float
+    height: float
+
+@dataclass(frozen=True)
+class Triangle:
+    base: float
+    height: float
+
+Shape = Union[Circle, Rectangle, Triangle]
+
+def area(shape: Shape) -> float:
+    match shape:
+        case Circle(radius=r):
+            return math.pi * r ** 2
+        case Rectangle(width=w, height=h):
+            return w * h
+        case Triangle(base=b, height=h):
+            return 0.5 * b * h
+
+def perimeter(shape: Shape) -> float:
+    match shape:
+        case Circle(radius=r):
+            return 2 * math.pi * r
+        case Rectangle(width=w, height=h):
+            return 2 * (w + h)
+        case Triangle(base=b, height=h):
+            # Approximate for isosceles
+            side = math.sqrt((b / 2) ** 2 + h ** 2)
+            return b + 2 * side
+
+
+# More complex ADT: Expression tree
+@dataclass(frozen=True)
+class Num:
+    value: float
+
+@dataclass(frozen=True)
+class Add:
+    left: 'Expr'
+    right: 'Expr'
+
+@dataclass(frozen=True)
+class Mul:
+    left: 'Expr'
+    right: 'Expr'
+
+@dataclass(frozen=True)
+class Neg:
+    operand: 'Expr'
+
+Expr = Union[Num, Add, Mul, Neg]
+
+def evaluate(expr: Expr) -> float:
+    match expr:
+        case Num(value=v):
+            return v
+        case Add(left=l, right=r):
+            return evaluate(l) + evaluate(r)
+        case Mul(left=l, right=r):
+            return evaluate(l) * evaluate(r)
+        case Neg(operand=o):
+            return -evaluate(o)
+
+# (3 + 4) * -(2)
+expr = Mul(Add(Num(3), Num(4)), Neg(Num(2)))
+print(evaluate(expr))  # -14.0
+```
+</TabItem>
+<TabItem label="Java">
+```java
+// Java sealed interfaces + records = ADTs
+
+// Sum type: Shape is one of Circle, Rectangle, or Triangle
+sealed interface Shape
+    permits Circle, Rectangle, Triangle {}
+
+record Circle(double radius) implements Shape {}
+record Rectangle(double width, double height) implements Shape {}
+record Triangle(double base, double height) implements Shape {}
+
+// Exhaustive pattern matching
+double area(Shape shape) {
+    return switch (shape) {
+        case Circle(var r)           -> Math.PI * r * r;
+        case Rectangle(var w, var h) -> w * h;
+        case Triangle(var b, var h)  -> 0.5 * b * h;
+    };
+    // Compiler ensures all variants are covered!
+}
+
+
+// Expression tree ADT
+sealed interface Expr
+    permits Num, Add, Mul, Neg {}
+
+record Num(double value) implements Expr {}
+record Add(Expr left, Expr right) implements Expr {}
+record Mul(Expr left, Expr right) implements Expr {}
+record Neg(Expr operand) implements Expr {}
+
+double evaluate(Expr expr) {
+    return switch (expr) {
+        case Num(var v)          -> v;
+        case Add(var l, var r)   -> evaluate(l) + evaluate(r);
+        case Mul(var l, var r)   -> evaluate(l) * evaluate(r);
+        case Neg(var o)          -> -evaluate(o);
+    };
+}
+
+// (3 + 4) * -(2) = -14
+var expr = new Mul(
+    new Add(new Num(3), new Num(4)),
+    new Neg(new Num(2))
+);
+System.out.println(evaluate(expr)); // -14.0
+```
+</TabItem>
+</Tabs>
+
+---
+
+## Exhaustive Matching
+
+**Exhaustive matching** means the compiler ensures every possible variant is handled. If you add a new variant to a sum type, the compiler flags every `match`/`switch` that does not handle it.
+
+```
+Exhaustive matching:
+
+sealed interface Shape permits Circle, Rectangle, Triangle {}
+
+// This switch is exhaustive -- no default needed
+double area(Shape s) {
+    return switch (s) {
+        case Circle c    -> ...
+        case Rectangle r -> ...
+        case Triangle t  -> ...
+    };
+}
+
+// If you add a new variant:
+record Hexagon(...) implements Shape {}
+
+// Compiler error: switch is no longer exhaustive!
+// "the switch expression does not cover all possible input values"
+// You are forced to handle the new case. No bug can sneak through.
+```
+
+:::tip[Why Exhaustiveness Matters]
+Without exhaustive matching, adding a new variant to a type requires manually finding and updating every `if`/`else` or `switch` in the codebase. With exhaustive matching, the compiler does this for you -- it is like having a built-in to-do list for every place in your code that handles that type.
+:::
+
+### Languages with Exhaustive Matching
+
+| Language | Mechanism | Enforced At |
+|----------|-----------|-------------|
+| **Rust** | `match` on enums | Compile time (hard error) |
+| **Java 21** | `switch` on sealed interfaces | Compile time (hard error) |
+| **Scala** | `match` on sealed traits | Compile time (warning) |
+| **Haskell** | `case` on data types | Compile time (warning with `-Wall`) |
+| **Kotlin** | `when` on sealed classes | Compile time (hard error) |
+| **TypeScript** | Discriminated unions + `never` | Compile time (type error) |
+| **Python** | `match`/`case` | Not enforced (linter support via Pyright) |
+
+---
+
+## Pattern Matching Best Practices
+
+:::caution[Common Pitfalls]
+1. **Overly broad patterns first** -- A catch-all `_` pattern placed before specific patterns will shadow them. Always put specific patterns before general ones.
+2. **Missing exhaustiveness** -- In languages without compiler enforcement, always include a default case that raises an error to catch unhandled variants at runtime.
+3. **Deep nesting** -- Deeply nested patterns become hard to read. Extract complex matches into helper functions.
+4. **Side effects in patterns** -- Keep pattern matching pure. Perform side effects after the match, not inside guard clauses.
+:::
+
+```
+Pattern ordering:
+
+WRONG (catch-all first):
+  match value:
+      case _:           <-- matches everything, others unreachable
+          ...
+      case Circle(r):   <-- never reached!
+          ...
+
+RIGHT (specific first):
+  match value:
+      case Circle(r):   <-- specific pattern first
+          ...
+      case Rectangle(w, h):
+          ...
+      case _:           <-- catch-all last
+          ...
+```
+
+---
+
+## Real-World Example: JSON Parsing
+
+<Tabs>
+<TabItem label="Python">
+```python
+from dataclasses import dataclass
+from typing import Union
+
+# ADT for JSON values
+@dataclass(frozen=True)
+class JNull:
+    pass
+
+@dataclass(frozen=True)
+class JBool:
+    value: bool
+
+@dataclass(frozen=True)
+class JNumber:
+    value: float
+
+@dataclass(frozen=True)
+class JString:
+    value: str
+
+@dataclass(frozen=True)
+class JArray:
+    items: tuple  # tuple for immutability
+
+@dataclass(frozen=True)
+class JObject:
+    fields: tuple  # tuple of (key, value) pairs
+
+JsonValue = Union[JNull, JBool, JNumber, JString, JArray, JObject]
+
+def stringify(json_val: JsonValue, indent: int = 0) -> str:
+    pad = "  " * indent
+    match json_val:
+        case JNull():
+            return "null"
+        case JBool(value=v):
+            return "true" if v else "false"
+        case JNumber(value=v):
+            return str(v)
+        case JString(value=v):
+            return f'"{v}"'
+        case JArray(items=items):
+            if not items:
+                return "[]"
+            inner = ",\n".join(
+                f"{pad}  {stringify(item, indent + 1)}"
+                for item in items
+            )
+            return f"[\n{inner}\n{pad}]"
+        case JObject(fields=fields):
+            if not fields:
+                return "{}"  # use backticks in prose, braces OK in code
+            inner = ",\n".join(
+                f'{pad}  "{k}": {stringify(v, indent + 1)}'
+                for k, v in fields
+            )
+            return f"{{\n{inner}\n{pad}}}"
+
+# Build a JSON structure
+doc = JObject((
+    ("name", JString("Alice")),
+    ("age", JNumber(30)),
+    ("active", JBool(True)),
+    ("scores", JArray((JNumber(95), JNumber(87), JNumber(92)))),
+    ("address", JNull()),
+))
+
+print(stringify(doc))
+```
+</TabItem>
+<TabItem label="Java">
+```java
+// JSON ADT with sealed interfaces (Java 21+)
+sealed interface JsonValue
+    permits JNull, JBool, JNumber, JString, JArray, JObject {}
+
+record JNull() implements JsonValue {}
+record JBool(boolean value) implements JsonValue {}
+record JNumber(double value) implements JsonValue {}
+record JString(String value) implements JsonValue {}
+record JArray(List<JsonValue> items) implements JsonValue {}
+record JObject(Map<String, JsonValue> fields) implements JsonValue {}
+
+String stringify(JsonValue json) {
+    return switch (json) {
+        case JNull()        -> "null";
+        case JBool(var v)   -> v ? "true" : "false";
+        case JNumber(var v) -> String.valueOf(v);
+        case JString(var v) -> "\"" + v + "\"";
+        case JArray(var items) -> "[" +
+            items.stream()
+                 .map(this::stringify)
+                 .collect(Collectors.joining(", "))
+            + "]";
+        case JObject(var fields) -> "{" +
+            fields.entrySet().stream()
+                .map(e -> "\"" + e.getKey() + "\": "
+                          + stringify(e.getValue()))
+                .collect(Collectors.joining(", "))
+            + "}";
+    };
+    // Exhaustive: compiler checks all variants
+}
+```
+</TabItem>
+</Tabs>
+
+---
+
+## Summary
+
+| Concept | Key Takeaway |
+|---------|-------------|
+| **Pattern matching** | Match on structure, type, and value -- not just equality |
+| **Destructuring** | Extract fields from data structures as part of the match |
+| **Sum types** | A type that is one of several variants (OR) |
+| **Product types** | A type that combines multiple fields (AND) |
+| **Algebraic data types** | Sum types + product types -- the foundation of FP data modeling |
+| **Exhaustive matching** | Compiler ensures all variants are handled; no forgotten cases |
+| **Guard clauses** | Additional conditions on a pattern: `case x if x > 0` |
+| **Wildcard** | The `_` pattern matches anything -- use as the last case |
+
+<LinkCard
+  title="Back to: Functional Programming Overview"
+  description="Return to the section overview covering FP principles, imperative vs functional paradigm, and immutability."
+  href="/software-engineering/functional-programming/"
+/>

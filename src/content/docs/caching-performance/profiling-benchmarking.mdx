@@ -1,0 +1,651 @@
+---
+title: "Profiling & Benchmarking"
+description: "Learn CPU and memory profiling, flame graphs, benchmark methodology, load testing tools, and performance budgets"
+difficulty: "intermediate"
+prerequisites:
+  - CDN & Edge Caching
+  - Basic understanding of runtime performance
+timeToRead: "24 min"
+topics:
+  - profiling
+  - benchmarking
+  - flame-graphs
+  - load-testing
+  - k6
+  - JMeter
+  - wrk
+  - performance-budgets
+  - CPU-profiling
+  - memory-profiling
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+You cannot optimize what you do not measure. Profiling identifies *where* your application spends time and memory; benchmarking measures *how fast* it performs under controlled conditions; load testing reveals *how it behaves* under real-world traffic. Together, these tools transform performance optimization from guesswork into science.
+
+---
+
+## Profiling Fundamentals
+
+Profiling is the process of measuring where a program spends its resources -- CPU cycles, memory allocations, I/O waits, or lock contention.
+
+### Types of Profiling
+
+| Type | What It Measures | Tools |
+|------|-----------------|-------|
+| **CPU profiling** | Time spent executing functions | `cProfile`, `perf`, `async-profiler`, Chrome DevTools |
+| **Memory profiling** | Heap usage, allocations, leaks | `tracemalloc`, `heapdump`, VisualVM, Valgrind |
+| **I/O profiling** | Disk reads/writes, network calls | `strace`, `dtrace`, `blktrace` |
+| **Lock/contention profiling** | Time waiting on locks | `async-profiler`, Java Flight Recorder |
+| **Wall-clock profiling** | Total elapsed time including waits | Most profilers in "wall" mode |
+
+### Sampling vs Instrumentation
+
+```
+Sampling Profiler:
+  Takes periodic snapshots of the call stack (e.g., every 1ms).
+  Low overhead (~2-5%), safe for production.
+
+  Time ──────────────────────────────────►
+       ↑    ↑    ↑    ↑    ↑    ↑    ↑
+     Sample points (stack snapshots)
+
+Instrumentation Profiler:
+  Wraps every function entry/exit with timing code.
+  High accuracy, high overhead (~10-50%), development only.
+
+  func_a() {
+    START_TIMER("func_a")
+      func_b()
+        START_TIMER("func_b")
+        STOP_TIMER("func_b")
+    STOP_TIMER("func_a")
+  }
+```
+
+:::tip[Production Profiling]
+Always use sampling profilers in production. Instrumentation profilers add too much overhead and can change the behavior of the program (the observer effect).
+:::
+
+---
+
+## CPU Profiling
+
+CPU profiling reveals which functions consume the most processing time.
+
+<Tabs>
+<TabItem label="Python">
+```python
+# cProfile: built-in CPU profiler
+import cProfile
+import pstats
+
+def expensive_computation():
+    total = 0
+    for i in range(1_000_000):
+        total += i ** 2
+    return total
+
+def process_data():
+    results = []
+    for _ in range(10):
+        results.append(expensive_computation())
+    return results
+
+# Profile the function
+profiler = cProfile.Profile()
+profiler.enable()
+process_data()
+profiler.disable()
+
+# Print sorted by cumulative time
+stats = pstats.Stats(profiler)
+stats.sort_stats('cumulative')
+stats.print_stats(10)  # Top 10 functions
+
+# Output:
+#    ncalls  tottime  percall  cumtime  percall filename
+#        10    8.234    0.823    8.234    0.823 script.py:4(expensive_computation)
+#         1    0.001    0.001    8.235    8.235 script.py:10(process_data)
+
+
+# py-spy: sampling profiler for production
+# Install: pip install py-spy
+# Record a flame graph (attach to running process):
+#   py-spy record -o profile.svg --pid 12345
+# Top-like view:
+#   py-spy top --pid 12345
+```
+</TabItem>
+<TabItem label="JavaScript">
+```javascript
+// Node.js built-in profiler (V8)
+// Run: node --prof app.js
+// Process: node --prof-process isolate-*.log > profile.txt
+
+// Using console.time for quick measurements
+console.time('processing');
+processData();
+console.timeEnd('processing');
+// Output: processing: 823.456ms
+
+// Using perf_hooks for precise measurement
+const { performance, PerformanceObserver } = require('perf_hooks');
+
+const obs = new PerformanceObserver((items) => {
+  items.getEntries().forEach((entry) => {
+    console.log(`${entry.name}: ${entry.duration.toFixed(2)}ms`);
+  });
+});
+obs.observe({ entryTypes: ['measure'] });
+
+performance.mark('start');
+processData();
+performance.mark('end');
+performance.measure('processData', 'start', 'end');
+
+// Chrome DevTools profiling (browser)
+// 1. Open DevTools -> Performance tab
+// 2. Click Record
+// 3. Perform the action
+// 4. Click Stop
+// 5. Analyze the flame chart
+
+// clinic.js: comprehensive Node.js profiling
+// Install: npm install -g clinic
+// Doctor (general): clinic doctor -- node app.js
+// Flame (CPU):      clinic flame -- node app.js
+// Bubbleprof (I/O): clinic bubbleprof -- node app.js
+```
+</TabItem>
+<TabItem label="Java">
+```java
+// Java Flight Recorder (built into JDK 11+)
+// Start recording:
+//   java -XX:StartFlightRecording=duration=60s,
+//        filename=profile.jfr MyApp
+
+// Attach to running process:
+//   jcmd <pid> JFR.start duration=60s filename=profile.jfr
+
+// async-profiler: low-overhead sampling profiler
+// Attach to running JVM:
+//   ./asprof -d 30 -f profile.html <pid>
+// Generates an interactive flame graph
+
+// JMH (Java Microbenchmark Harness)
+import org.openjdk.jmh.annotations.*;
+import java.util.concurrent.TimeUnit;
+
+@BenchmarkMode(Mode.AverageTime)
+@OutputTimeUnit(TimeUnit.MICROSECONDS)
+@State(Scope.Thread)
+@Warmup(iterations = 3, time = 1)
+@Measurement(iterations = 5, time = 1)
+@Fork(1)
+public class SortBenchmark {
+
+    private int[] data;
+
+    @Setup
+    public void setup() {
+        data = new Random().ints(10_000).toArray();
+    }
+
+    @Benchmark
+    public void arraySort() {
+        int[] copy = data.clone();
+        Arrays.sort(copy);
+    }
+
+    @Benchmark
+    public void parallelSort() {
+        int[] copy = data.clone();
+        Arrays.parallelSort(copy);
+    }
+}
+// Run: java -jar benchmarks.jar
+```
+</TabItem>
+</Tabs>
+
+---
+
+## Memory Profiling
+
+Memory profiling identifies memory leaks, excessive allocations, and opportunities to reduce memory footprint.
+
+### Common Memory Issues
+
+| Issue | Symptom | Cause |
+|-------|---------|-------|
+| **Memory leak** | Memory usage grows continuously | References held to unused objects |
+| **Excessive allocation** | High GC pressure, pauses | Creating too many short-lived objects |
+| **Large object retention** | High baseline memory | Caches or collections that grow unbounded |
+| **Fragmentation** | High virtual memory, low utilization | Many small allocations and deallocations |
+
+<Tabs>
+<TabItem label="Python">
+```python
+# tracemalloc: built-in memory profiler
+import tracemalloc
+
+tracemalloc.start()
+
+# -- Your code here --
+data = [list(range(1000)) for _ in range(1000)]
+
+snapshot = tracemalloc.take_snapshot()
+top_stats = snapshot.statistics('lineno')
+
+print("Top 5 memory allocations:")
+for stat in top_stats[:5]:
+    print(f"  {stat}")
+
+# Output:
+# script.py:6: size=7.7 MiB, count=1001, average=7.9 KiB
+
+
+# objgraph: visualize object references (find leaks)
+# Install: pip install objgraph
+import objgraph
+
+# Show most common object types
+objgraph.show_most_common_types(limit=10)
+
+# Find what is holding a reference to leaked objects
+objgraph.show_backrefs(
+    objgraph.by_type('MyClass')[:3],
+    filename='refs.png'
+)
+
+
+# memory_profiler: line-by-line memory usage
+# Install: pip install memory_profiler
+from memory_profiler import profile
+
+@profile
+def my_function():
+    a = [1] * 1_000_000       # ~8 MB
+    b = [2] * 2_000_000       # ~16 MB
+    del b                      # Free 16 MB
+    return a
+```
+</TabItem>
+<TabItem label="JavaScript">
+```javascript
+// Node.js heap snapshot
+// Generate: node --heapsnapshot-signal=SIGUSR2 app.js
+// Then: kill -USR2 <pid>
+// Load .heapsnapshot in Chrome DevTools -> Memory tab
+
+// v8.getHeapStatistics() for quick overview
+const v8 = require('v8');
+const stats = v8.getHeapStatistics();
+console.log({
+  totalHeapSize: `${(stats.total_heap_size / 1024 / 1024).toFixed(1)} MB`,
+  usedHeapSize:  `${(stats.used_heap_size / 1024 / 1024).toFixed(1)} MB`,
+  heapSizeLimit: `${(stats.heap_size_limit / 1024 / 1024).toFixed(1)} MB`,
+});
+
+// Detecting memory leaks with process.memoryUsage()
+function monitorMemory(label) {
+  const usage = process.memoryUsage();
+  console.log(`[${label}] RSS: ${(usage.rss / 1024 / 1024).toFixed(1)} MB, ` +
+    `Heap: ${(usage.heapUsed / 1024 / 1024).toFixed(1)} MB`);
+}
+
+setInterval(() => monitorMemory('periodic'), 5000);
+
+// Common leak pattern: unbounded event listeners
+const EventEmitter = require('events');
+const emitter = new EventEmitter();
+// Warning emitted if >10 listeners on one event
+emitter.setMaxListeners(20); // Increase if intentional
+```
+</TabItem>
+</Tabs>
+
+---
+
+## Flame Graphs
+
+A **flame graph** is a visualization of profiled stack traces. It shows which functions consume the most CPU time and how they were called.
+
+```
+Reading a flame graph:
+
+┌─────────────────────────────────────────────────────────┐
+│                        main()                           │ Total time
+├───────────────────────────────────┬─────────────────────┤
+│          processData()            │    handleRequest()   │
+├─────────────────┬─────────────────┤─────────────────────┤
+│  parseJSON()    │  transformData()│    queryDB()         │
+├─────────────────┤─────────┬───────┤─────────────────────┤
+│                 │ sort()  │map()  │                     │
+└─────────────────┴─────────┴───────┴─────────────────────┘
+
+  ◄─────────── x-axis = proportion of total time ──────────►
+  ▲ y-axis = call stack depth (callers below, callees above)
+
+  Width = time spent in that function (wider = more time)
+  Color = arbitrary (often random or based on package)
+```
+
+### How to Read Flame Graphs
+
+1. **Look for wide bars** -- These functions consume the most time.
+2. **Look at the top** -- Functions at the top of the stack are where CPU time is actually spent (leaf functions).
+3. **Look for plateaus** -- A wide plateau at the top means one function dominates CPU time.
+4. **Ignore narrow spikes** -- They represent functions that execute briefly.
+
+### Generating Flame Graphs
+
+| Language | Tool | Command |
+|----------|------|---------|
+| Python | py-spy | `py-spy record -o flame.svg --pid PID` |
+| Node.js | clinic flame | `clinic flame -- node app.js` |
+| Java | async-profiler | `./asprof -d 30 -f flame.html PID` |
+| Go | pprof | `go tool pprof -http=:8080 profile.pb.gz` |
+| System-wide | perf + FlameGraph | `perf record -g -- ./app && perf script \| stackcollapse-perf.pl \| flamegraph.pl > flame.svg` |
+
+:::note[Icicle Graphs]
+An icicle graph is a flame graph flipped upside down -- the root is at the top and callees grow downward. Some tools (e.g., Speedscope) support both views. They contain the same information; choose whichever you find more intuitive.
+:::
+
+---
+
+## Benchmark Methodology
+
+Benchmarking requires discipline. Poor methodology leads to misleading results.
+
+### Rules of Benchmarking
+
+1. **Warm up first** -- JIT compilers, caches, and OS page caches need time to reach steady state. Discard the first several iterations.
+2. **Measure multiple iterations** -- A single run is meaningless. Run at least 10-30 iterations and report the median plus percentiles.
+3. **Isolate the variable** -- Change only one thing at a time. Control for hardware, OS state, and background processes.
+4. **Use stable environments** -- Disable CPU frequency scaling, close other applications, and pin to specific CPU cores if possible.
+5. **Report the right metric** -- Mean can be skewed by outliers. Report the **median** (p50), **p95**, and **p99**.
+6. **Avoid dead code elimination** -- Compilers may optimize away code whose result is unused. Consume the result (print it, write it to a volatile variable).
+
+### Statistical Measures
+
+```
+Given latencies (ms): 2, 3, 3, 4, 5, 5, 5, 8, 12, 45
+
+  Mean (average):  9.2 ms   -- skewed by the 45ms outlier
+  Median (p50):    5.0 ms   -- middle value, more representative
+  p95:            28.5 ms   -- 95% of requests are faster than this
+  p99:            45.0 ms   -- the tail; important for user experience
+  Std deviation:  12.8 ms   -- high variance indicates inconsistency
+
+Always report percentiles, not just averages!
+```
+
+---
+
+## Load Testing Tools
+
+Load testing simulates real-world traffic to measure how your system performs under stress.
+
+### Tool Comparison
+
+| Tool | Language | Protocol Support | Scripting | Best For |
+|------|----------|-----------------|-----------|----------|
+| **k6** | Go (JS scripts) | HTTP, WebSocket, gRPC | JavaScript | Developer-friendly load testing |
+| **wrk** | C | HTTP only | Lua | Quick HTTP benchmarks |
+| **JMeter** | Java | HTTP, JDBC, JMS, LDAP, FTP | GUI + XML | Enterprise-grade testing |
+| **Locust** | Python | HTTP (extensible) | Python | Python-centric teams |
+| **Gatling** | Scala | HTTP, WebSocket | Scala/Java DSL | High-performance simulations |
+| **Artillery** | Node.js | HTTP, WebSocket, Socket.IO | YAML + JS | Quick cloud-native tests |
+| **vegeta** | Go | HTTP | CLI | Constant-rate HTTP load |
+
+<Tabs>
+<TabItem label="JavaScript">
+```javascript
+// k6 load test script
+import http from 'k6/http';
+import { check, sleep } from 'k6';
+
+// Test configuration
+export const options = {
+  stages: [
+    { duration: '30s', target: 50 },   // Ramp up to 50 users
+    { duration: '1m',  target: 50 },   // Hold at 50 users
+    { duration: '30s', target: 200 },  // Ramp up to 200 users
+    { duration: '1m',  target: 200 },  // Hold at 200 users
+    { duration: '30s', target: 0 },    // Ramp down
+  ],
+  thresholds: {
+    http_req_duration: ['p(95)<500'],   // 95% under 500ms
+    http_req_failed:   ['rate<0.01'],   // Less than 1% errors
+  },
+};
+
+export default function () {
+  // GET request
+  const res = http.get('https://api.example.com/users');
+
+  // Assertions
+  check(res, {
+    'status is 200':     (r) => r.status === 200,
+    'response time OK':  (r) => r.timings.duration < 500,
+    'body has users':    (r) => r.json().length > 0,
+  });
+
+  // Simulate user think time
+  sleep(Math.random() * 3 + 1); // 1-4 seconds
+}
+
+// Run: k6 run loadtest.js
+// Output includes p50, p90, p95, p99, error rate, throughput
+```
+</TabItem>
+<TabItem label="Python">
+```python
+# Locust load test
+from locust import HttpUser, task, between
+
+class WebsiteUser(HttpUser):
+    # Wait 1-3 seconds between tasks
+    wait_time = between(1, 3)
+
+    @task(3)  # Weight: 3x more likely than other tasks
+    def get_users(self):
+        with self.client.get(
+            "/api/users",
+            catch_response=True
+        ) as response:
+            if response.status_code == 200:
+                if len(response.json()) == 0:
+                    response.failure("Empty user list")
+            else:
+                response.failure(
+                    f"Status {response.status_code}"
+                )
+
+    @task(1)
+    def get_user_detail(self):
+        user_id = 42
+        self.client.get(f"/api/users/{user_id}")
+
+    def on_start(self):
+        """Called when a simulated user starts."""
+        self.client.post("/api/login", json={
+            "username": "testuser",
+            "password": "testpass"
+        })
+
+# Run: locust -f locustfile.py --host=https://api.example.com
+# Open http://localhost:8089 for the web UI
+```
+</TabItem>
+</Tabs>
+
+### Load Testing Patterns
+
+```
+1. Smoke Test:        Low load to verify system works
+   Users: 1-5         Duration: 1-2 min
+
+2. Load Test:         Normal expected traffic
+   Users: typical     Duration: 5-30 min
+
+3. Stress Test:       Beyond normal capacity
+   Users: 2-5x normal Duration: 5-15 min
+
+4. Spike Test:        Sudden burst of traffic
+   Users: ──────╱╲──────
+                 ↑ Spike
+
+5. Soak Test:         Sustained load over hours
+   Users: normal      Duration: 4-24 hours
+   (Finds memory leaks, connection pool exhaustion)
+
+6. Breakpoint Test:   Increase until failure
+   Users: ramp up continuously until system breaks
+```
+
+---
+
+## Performance Budgets
+
+A performance budget is a set of limits on metrics that affect user experience. If a change causes a metric to exceed its budget, the build or deployment fails.
+
+### Defining Budgets
+
+| Metric | Budget | Why It Matters |
+|--------|--------|---------------|
+| **Largest Contentful Paint** (LCP) | less than 2.5 seconds | Core Web Vital: perceived load time |
+| **First Input Delay** (FID) | less than 100ms | Core Web Vital: interactivity |
+| **Cumulative Layout Shift** (CLS) | less than 0.1 | Core Web Vital: visual stability |
+| **Total JS bundle size** | less than 200 KB (gzipped) | Affects parse and execution time |
+| **API response time (p95)** | less than 500ms | Backend SLO |
+| **Time to First Byte** (TTFB) | less than 200ms | Server processing time |
+
+### Enforcing Budgets in CI/CD
+
+```
+CI/CD Pipeline with Performance Budget:
+
+┌──────────┐    ┌──────────┐    ┌───────────────┐    ┌──────────┐
+│  Build   │───►│  Test    │───►│  Performance  │───►│  Deploy  │
+│          │    │          │    │  Budget Check │    │          │
+└──────────┘    └──────────┘    └───────┬───────┘    └──────────┘
+                                        │
+                                   PASS / FAIL
+                                        │
+                                   ┌────┴────┐
+                                   │ Bundle  │
+                                   │ > 200KB?│──► FAIL build
+                                   │ p95     │
+                                   │ > 500ms?│──► FAIL build
+                                   └─────────┘
+```
+
+<Tabs>
+<TabItem label="JavaScript">
+```javascript
+// webpack.config.js -- bundle size budget
+module.exports = {
+  performance: {
+    maxAssetSize: 200 * 1024,       // 200 KB per asset
+    maxEntrypointSize: 400 * 1024,  // 400 KB per entry
+    hints: 'error',                 // Fail the build
+  },
+};
+
+// Lighthouse CI budget (lighthouserc.json)
+const config = {
+  ci: {
+    assert: {
+      assertions: {
+        'largest-contentful-paint': ['error', { maxNumericValue: 2500 }],
+        'first-input-delay':       ['error', { maxNumericValue: 100 }],
+        'cumulative-layout-shift': ['error', { maxNumericValue: 0.1 }],
+        'total-byte-weight':       ['warning', { maxNumericValue: 500000 }],
+      },
+    },
+  },
+};
+```
+</TabItem>
+<TabItem label="Python">
+```python
+# Performance budget check script for CI/CD
+import requests
+import sys
+
+BUDGETS = {
+    'p50_ms': 100,
+    'p95_ms': 500,
+    'p99_ms': 1000,
+    'error_rate': 0.01,  # 1%
+}
+
+def check_performance_budget(results: dict) -> bool:
+    """Check if performance results meet budget."""
+    passed = True
+
+    for metric, limit in BUDGETS.items():
+        actual = results.get(metric, float('inf'))
+        status = "PASS" if actual <= limit else "FAIL"
+
+        if status == "FAIL":
+            passed = False
+
+        print(f"  {metric}: {actual} (limit: {limit}) [{status}]")
+
+    return passed
+
+# Example results from a load test
+results = {
+    'p50_ms': 45,
+    'p95_ms': 320,
+    'p99_ms': 890,
+    'error_rate': 0.002,
+}
+
+print("Performance Budget Check:")
+if not check_performance_budget(results):
+    print("\nBudget exceeded! Blocking deployment.")
+    sys.exit(1)
+else:
+    print("\nAll budgets met. Proceeding with deployment.")
+```
+</TabItem>
+</Tabs>
+
+---
+
+## Profiling Workflow
+
+:::note[The Performance Optimization Cycle]
+1. **Establish a baseline** -- Measure current performance with benchmarks and profiling.
+2. **Set a target** -- Define what "fast enough" means (performance budget).
+3. **Profile** -- Identify the bottleneck using CPU, memory, or I/O profiling.
+4. **Hypothesize** -- Form a theory about why the bottleneck exists.
+5. **Optimize** -- Make a targeted change to address the bottleneck.
+6. **Measure again** -- Verify the change improved performance and did not introduce regressions.
+7. **Repeat** -- Go back to step 3 until the target is met.
+:::
+
+---
+
+## Summary
+
+| Concept | Key Takeaway |
+|---------|-------------|
+| **Sampling profiler** | Low overhead, safe for production; take periodic stack snapshots |
+| **Instrumentation profiler** | High accuracy, high overhead; development only |
+| **Flame graph** | Width shows time; look for wide bars at the top of the stack |
+| **Memory profiling** | Find leaks by comparing heap snapshots over time |
+| **Benchmark methodology** | Warm up, run many iterations, report percentiles, isolate variables |
+| **Load testing** | Simulate real traffic with tools like k6, Locust, or wrk |
+| **Performance budgets** | Set limits on metrics and enforce them in CI/CD |
+
+<LinkCard
+  title="Next: Connection Pooling & Load Balancing"
+  description="Learn about database connection pools, HTTP keep-alive, pool sizing, and load balancing algorithms."
+  href="/software-engineering/caching-performance/connection-pooling/"
+/>

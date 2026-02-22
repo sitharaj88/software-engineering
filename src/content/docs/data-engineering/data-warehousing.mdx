@@ -1,0 +1,450 @@
+---
+title: "Data Warehousing"
+description: "Understand star schema, snowflake schema, dimensional modeling, OLAP vs OLTP, data lakes, and the modern lakehouse paradigm"
+difficulty: "intermediate"
+prerequisites: ["Data Engineering overview", "ETL Pipelines", "SQL fundamentals"]
+timeToRead: "25 min"
+topics: ["data warehousing", "star schema", "snowflake schema", "dimensional modeling", "OLAP", "OLTP", "data lake", "lakehouse"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+A **data warehouse** is a centralized repository designed specifically for analytical queries and reporting. Unlike transactional databases that are optimized for fast reads and writes of individual records, data warehouses are optimized for scanning and aggregating **large volumes** of historical data. They are the backbone of business intelligence and data-driven decision making.
+
+---
+
+## OLTP vs OLAP
+
+The distinction between **OLTP** (Online Transaction Processing) and **OLAP** (Online Analytical Processing) is fundamental to understanding why data warehouses exist.
+
+| Characteristic | OLTP | OLAP |
+|---------------|------|------|
+| **Purpose** | Run the business | Analyze the business |
+| **Users** | Application users, customers | Analysts, data scientists, executives |
+| **Query pattern** | Read/write single rows | Scan and aggregate millions of rows |
+| **Data freshness** | Real-time | Periodic (hourly, daily) |
+| **Schema design** | Normalized (3NF) | Denormalized (star/snowflake) |
+| **Data volume** | Gigabytes to terabytes | Terabytes to petabytes |
+| **Query complexity** | Simple, short-running | Complex, long-running |
+| **Concurrency** | Thousands of users | Tens to hundreds of users |
+| **Example** | Process a payment | Quarterly revenue by region |
+
+```
+OLTP (Transactional):
+┌──────────┐     SELECT * FROM orders WHERE id = 12345
+│ App/User │────▶ INSERT INTO orders VALUES (...)
+│          │     UPDATE orders SET status = 'shipped' WHERE id = 12345
+└──────────┘     (Fast, single-row operations)
+
+OLAP (Analytical):
+┌──────────┐     SELECT region, SUM(revenue), COUNT(DISTINCT customer_id)
+│ Analyst  │────▶ FROM fact_orders JOIN dim_customers JOIN dim_products
+│          │     WHERE order_date BETWEEN '2024-01-01' AND '2024-12-31'
+└──────────┘     GROUP BY region ORDER BY revenue DESC
+                 (Slow, scan millions of rows)
+```
+
+:::caution[Do Not Run Analytics on Production OLTP]
+Running complex analytical queries on your transactional database will degrade performance for your application users. A separate data warehouse isolates analytical workloads from transactional ones.
+:::
+
+---
+
+## Dimensional Modeling
+
+**Dimensional modeling** is the design methodology used to structure data in a warehouse for optimal query performance and usability. Developed by Ralph Kimball, it organizes data into two types of tables: **facts** and **dimensions**.
+
+### Fact Tables
+
+Fact tables store the **measurable events** of your business — transactions, clicks, shipments, payments. Each row represents a single event.
+
+**Characteristics**:
+- Contain numeric measures (revenue, quantity, duration)
+- Contain foreign keys to dimension tables
+- Typically the largest tables in the warehouse
+- Append-only (new events are added, not updated)
+
+### Dimension Tables
+
+Dimension tables store the **descriptive context** for facts — who, what, where, when, why. They provide the labels and attributes used to filter, group, and aggregate facts.
+
+**Characteristics**:
+- Contain descriptive attributes (name, category, address)
+- Relatively small compared to fact tables
+- Change slowly over time (see SCD patterns)
+- Provide the "GROUP BY" and "WHERE" columns for queries
+
+```
+┌──────────────────────────────────────────────────────────┐
+│                   Dimensional Model                       │
+│                                                          │
+│   dim_customer         fact_orders         dim_product   │
+│  ┌─────────────┐    ┌───────────────┐   ┌────────────┐  │
+│  │customer_id  │◄───│customer_id(FK)│──▶│product_id  │  │
+│  │name         │    │product_id(FK) │   │name        │  │
+│  │email        │    │date_id(FK)    │   │category    │  │
+│  │segment      │    │store_id(FK)   │   │brand       │  │
+│  │city         │    │───────────────│   │price       │  │
+│  │state        │    │quantity       │   └────────────┘  │
+│  │country      │    │revenue        │                    │
+│  └─────────────┘    │discount       │   dim_date        │
+│                     │cost           │  ┌────────────┐   │
+│   dim_store         └───────────────┘  │date_id     │   │
+│  ┌─────────────┐          │            │date        │   │
+│  │store_id     │◄─────────┘            │year        │   │
+│  │store_name   │                       │quarter     │   │
+│  │city         │           ┌──────────▶│month       │   │
+│  │region       │           │           │day_of_week │   │
+│  └─────────────┘           │           │is_holiday  │   │
+│                            └───────────└────────────┘   │
+└──────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Star Schema
+
+The **star schema** is the simplest and most common dimensional model. A central fact table is surrounded by denormalized dimension tables, forming a star shape.
+
+### Example: E-Commerce Star Schema
+
+<Tabs>
+  <TabItem label="SQL DDL">
+```sql
+-- Dimension: Customers
+CREATE TABLE dim_customers (
+    customer_id     INTEGER PRIMARY KEY,
+    customer_name   VARCHAR(200),
+    email           VARCHAR(200),
+    segment         VARCHAR(50),    -- 'Consumer', 'Corporate', 'Enterprise'
+    city            VARCHAR(100),
+    state           VARCHAR(100),
+    country         VARCHAR(100),
+    signup_date     DATE
+);
+
+-- Dimension: Products
+CREATE TABLE dim_products (
+    product_id      INTEGER PRIMARY KEY,
+    product_name    VARCHAR(300),
+    category        VARCHAR(100),
+    subcategory     VARCHAR(100),
+    brand           VARCHAR(100),
+    unit_price      DECIMAL(10,2)
+);
+
+-- Dimension: Date (pre-populated calendar table)
+CREATE TABLE dim_date (
+    date_id         INTEGER PRIMARY KEY,
+    full_date       DATE,
+    year            INTEGER,
+    quarter         INTEGER,
+    month           INTEGER,
+    month_name      VARCHAR(20),
+    week            INTEGER,
+    day_of_week     INTEGER,
+    day_name        VARCHAR(20),
+    is_weekend      BOOLEAN,
+    is_holiday      BOOLEAN,
+    fiscal_year     INTEGER,
+    fiscal_quarter  INTEGER
+);
+
+-- Fact: Orders
+CREATE TABLE fact_orders (
+    order_id        INTEGER PRIMARY KEY,
+    customer_id     INTEGER REFERENCES dim_customers(customer_id),
+    product_id      INTEGER REFERENCES dim_products(product_id),
+    order_date_id   INTEGER REFERENCES dim_date(date_id),
+    ship_date_id    INTEGER REFERENCES dim_date(date_id),
+    quantity        INTEGER,
+    unit_price      DECIMAL(10,2),
+    discount        DECIMAL(5,2),
+    revenue         DECIMAL(12,2),
+    cost            DECIMAL(12,2),
+    profit          DECIMAL(12,2)
+);
+```
+  </TabItem>
+  <TabItem label="Query Example (SQL)">
+```sql
+-- Revenue by product category and customer segment for Q4 2024
+SELECT
+    p.category,
+    c.segment,
+    d.quarter,
+    COUNT(DISTINCT f.order_id) AS total_orders,
+    COUNT(DISTINCT f.customer_id) AS unique_customers,
+    SUM(f.revenue) AS total_revenue,
+    SUM(f.profit) AS total_profit,
+    ROUND(SUM(f.profit) / NULLIF(SUM(f.revenue), 0) * 100, 1)
+        AS profit_margin_pct
+FROM fact_orders f
+JOIN dim_products p ON f.product_id = p.product_id
+JOIN dim_customers c ON f.customer_id = c.customer_id
+JOIN dim_date d ON f.order_date_id = d.date_id
+WHERE d.year = 2024
+  AND d.quarter = 4
+GROUP BY p.category, c.segment, d.quarter
+ORDER BY total_revenue DESC;
+```
+  </TabItem>
+</Tabs>
+
+### Advantages of Star Schema
+
+| Advantage | Why It Matters |
+|-----------|---------------|
+| **Simple joins** | Only one join between fact and each dimension |
+| **Fast queries** | Denormalized dimensions avoid multi-table joins |
+| **Intuitive** | Business users can understand the model easily |
+| **Tool-friendly** | BI tools (Tableau, Looker) work natively with star schemas |
+
+---
+
+## Snowflake Schema
+
+The **snowflake schema** normalizes dimension tables into sub-dimensions, reducing redundancy at the cost of more joins.
+
+```
+Star Schema:                          Snowflake Schema:
+
+dim_product ──▶ fact_orders           dim_category ──▶ dim_product ──▶ fact_orders
+(category is   ◀── dim_customer       dim_brand ──┘     ◀── dim_customer
+ a column)                                                   │
+                                                        dim_city ──▶ dim_state ──▶ dim_country
+```
+
+### Star vs Snowflake Comparison
+
+| Aspect | Star Schema | Snowflake Schema |
+|--------|-------------|------------------|
+| **Dimension structure** | Denormalized (flat) | Normalized (hierarchical) |
+| **Number of joins** | Fewer | More |
+| **Query performance** | Faster (fewer joins) | Slower (more joins) |
+| **Storage efficiency** | More redundancy | Less redundancy |
+| **Ease of understanding** | Simpler | More complex |
+| **ETL complexity** | Simpler loads | More complex loads |
+| **Maintenance** | Easier | Harder |
+
+:::tip[When to Use Which]
+**Star schema** is the default choice for most data warehouses. Use **snowflake schema** only when storage savings are significant or when dimension tables are extremely large and the normalization meaningfully reduces redundancy. Modern columnar warehouses handle denormalized data efficiently, making the star schema the preferred approach.
+:::
+
+---
+
+## Data Lakes
+
+A **data lake** is a centralized storage repository that holds vast amounts of data in its **raw, native format** — structured, semi-structured, and unstructured.
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                         Data Lake                             │
+│                                                              │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
+│  │  Raw Zone    │  │  Cleaned     │  │  Curated     │      │
+│  │              │  │  Zone        │  │  Zone        │      │
+│  │ - JSON logs  │  │              │  │              │      │
+│  │ - CSV dumps  │  │ - Validated  │  │ - Star schema│      │
+│  │ - Avro events│  │ - Deduped    │  │ - Aggregates │      │
+│  │ - Images     │  │ - Typed      │  │ - ML features│      │
+│  │ - Documents  │  │ - Parquet    │  │ - Parquet    │      │
+│  └──────────────┘  └──────────────┘  └──────────────┘      │
+│                                                              │
+│  Storage: S3, GCS, ADLS    Format: Parquet, Delta, Iceberg  │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### Data Lake vs Data Warehouse
+
+| Aspect | Data Lake | Data Warehouse |
+|--------|-----------|---------------|
+| **Data format** | Raw, any format | Structured, modeled |
+| **Schema** | Schema-on-read | Schema-on-write |
+| **Users** | Data engineers, data scientists | Analysts, business users |
+| **Query engine** | Spark, Presto, Athena | Built-in SQL engine |
+| **Data types** | Structured + semi-structured + unstructured | Structured only |
+| **Cost** | Cheap storage (object storage) | Expensive compute + storage |
+| **Governance** | Challenging | Built-in |
+
+:::caution[The Data Swamp]
+A data lake without governance, documentation, and quality controls quickly becomes a **data swamp** — a dumping ground of files that nobody can find, trust, or use. Always implement metadata cataloging, access controls, and data quality checks.
+:::
+
+---
+
+## The Lakehouse
+
+The **lakehouse** architecture combines the best of both data lakes and data warehouses — cheap, scalable storage of a lake with the ACID transactions, schema enforcement, and query performance of a warehouse.
+
+```
+┌───────────────────────────────────────────────────────────┐
+│                    Lakehouse Architecture                   │
+│                                                            │
+│  ┌──────────────────────────────────────────────────┐     │
+│  │              Query / BI / ML Layer                 │     │
+│  │       (SQL queries, dashboards, notebooks)        │     │
+│  └────────────────────┬─────────────────────────────┘     │
+│                       │                                    │
+│  ┌────────────────────▼─────────────────────────────┐     │
+│  │         Table Format / Metadata Layer              │     │
+│  │     (Delta Lake, Apache Iceberg, Apache Hudi)     │     │
+│  │                                                    │     │
+│  │  Features:                                         │     │
+│  │  - ACID transactions                               │     │
+│  │  - Schema enforcement and evolution                │     │
+│  │  - Time travel (query historical versions)         │     │
+│  │  - Partition management                            │     │
+│  │  - Merge / upsert / delete support                 │     │
+│  └────────────────────┬─────────────────────────────┘     │
+│                       │                                    │
+│  ┌────────────────────▼─────────────────────────────┐     │
+│  │            Object Storage Layer                    │     │
+│  │          (S3, GCS, ADLS — Parquet files)          │     │
+│  └──────────────────────────────────────────────────┘     │
+└───────────────────────────────────────────────────────────┘
+```
+
+### Table Formats Compared
+
+| Feature | Delta Lake | Apache Iceberg | Apache Hudi |
+|---------|-----------|----------------|-------------|
+| **Creator** | Databricks | Netflix | Uber |
+| **ACID transactions** | Yes | Yes | Yes |
+| **Time travel** | Yes | Yes | Yes |
+| **Schema evolution** | Yes | Yes | Yes |
+| **Partition evolution** | Limited | Yes (hidden partitions) | Yes |
+| **Engine support** | Spark, Flink | Spark, Flink, Trino, Presto | Spark, Flink |
+| **Ecosystem** | Databricks-centric | Engine-agnostic | Spark-centric |
+
+### Lakehouse Example with Delta Lake
+
+<Tabs>
+  <TabItem label="Python (PySpark)">
+```python
+from pyspark.sql import SparkSession
+from delta import DeltaTable
+
+spark = SparkSession.builder \
+    .appName("LakehouseExample") \
+    .config("spark.sql.extensions",
+            "io.delta.sql.DeltaSparkSessionExtension") \
+    .getOrCreate()
+
+# Write data as a Delta table (ACID transaction)
+orders_df = spark.read.parquet("s3://raw/orders/2024/")
+orders_df.write \
+    .format("delta") \
+    .mode("overwrite") \
+    .partitionBy("order_date") \
+    .save("s3://lakehouse/fact_orders/")
+
+# Upsert (merge) new data into existing Delta table
+new_orders = spark.read.parquet("s3://staging/new_orders/")
+delta_table = DeltaTable.forPath(spark, "s3://lakehouse/fact_orders/")
+
+delta_table.alias("target").merge(
+    new_orders.alias("source"),
+    "target.order_id = source.order_id"
+).whenMatchedUpdateAll() \
+ .whenNotMatchedInsertAll() \
+ .execute()
+
+# Time travel — query a previous version
+historical = spark.read \
+    .format("delta") \
+    .option("versionAsOf", 5) \
+    .load("s3://lakehouse/fact_orders/")
+
+# Or query as of a specific timestamp
+yesterday = spark.read \
+    .format("delta") \
+    .option("timestampAsOf", "2024-06-15T00:00:00Z") \
+    .load("s3://lakehouse/fact_orders/")
+```
+  </TabItem>
+  <TabItem label="SQL (Delta Lake)">
+```sql
+-- Create a Delta table in a lakehouse
+CREATE TABLE fact_orders (
+    order_id    BIGINT,
+    customer_id BIGINT,
+    product_id  BIGINT,
+    order_date  DATE,
+    quantity    INT,
+    revenue     DECIMAL(12,2)
+)
+USING DELTA
+PARTITIONED BY (order_date)
+LOCATION 's3://lakehouse/fact_orders/';
+
+-- Merge (upsert) new data
+MERGE INTO fact_orders AS target
+USING staging_orders AS source
+ON target.order_id = source.order_id
+WHEN MATCHED THEN UPDATE SET *
+WHEN NOT MATCHED THEN INSERT *;
+
+-- Time travel: query yesterday's version
+SELECT * FROM fact_orders
+TIMESTAMP AS OF '2024-06-15T00:00:00Z'
+WHERE order_date = '2024-06-14';
+
+-- View table history
+DESCRIBE HISTORY fact_orders;
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## Cloud Data Warehouses
+
+| Warehouse | Cloud | Pricing Model | Key Strength |
+|-----------|-------|--------------|-------------|
+| **Snowflake** | Multi-cloud | Separate storage + compute | Elastic scaling, data sharing |
+| **BigQuery** | GCP | Serverless, per-query | Zero infrastructure management |
+| **Redshift** | AWS | Provisioned or serverless | Deep AWS integration |
+| **Databricks SQL** | Multi-cloud | Compute-based | Unified lakehouse platform |
+| **Azure Synapse** | Azure | Provisioned or serverless | Microsoft ecosystem integration |
+
+### Choosing a Warehouse
+
+| Factor | Recommendation |
+|--------|---------------|
+| **Cloud provider lock-in** | Choose Snowflake or Databricks for multi-cloud portability |
+| **Existing cloud** | Choose the native warehouse for deepest integration |
+| **Budget** | BigQuery serverless is cost-effective for unpredictable workloads |
+| **Data science integration** | Databricks excels at combining SQL analytics with ML |
+| **Simplicity** | BigQuery requires the least infrastructure management |
+
+---
+
+## Quick Reference: Modeling Checklist
+
+| Step | Question |
+|------|----------|
+| **Identify the business process** | What events are you measuring? (orders, clicks, shipments) |
+| **Declare the grain** | What does one row in the fact table represent? |
+| **Choose dimensions** | What context do users need for filtering and grouping? |
+| **Define measures** | What numeric values will be aggregated? (SUM, COUNT, AVG) |
+| **Design the date dimension** | Does it include fiscal periods, holidays, and day-of-week attributes? |
+| **Handle slowly changing dims** | Which SCD type fits each dimension attribute? |
+| **Partition the fact table** | By date? By region? What is the query pattern? |
+
+---
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="Stream Processing"
+    href="/software-engineering/data-engineering/stream-processing/"
+    description="Learn about real-time data processing with Spark Streaming, Flink, windowing strategies, and exactly-once semantics"
+  />
+  <LinkCard
+    title="Data Quality"
+    href="/software-engineering/data-engineering/data-quality/"
+    description="Implement data validation, contracts, lineage, governance, and observability for reliable data"
+  />
+</CardGrid>

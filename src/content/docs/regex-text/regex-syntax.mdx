@@ -1,0 +1,687 @@
+---
+title: "Regex Syntax & Patterns"
+description: "Master regex character classes, quantifiers, anchors, groups, captures, lookaround, flags, and common real-world patterns"
+difficulty: "intermediate"
+prerequisites: ["Regex overview"]
+timeToRead: "30 min"
+topics: ["regex-syntax", "character-classes", "quantifiers", "groups", "lookahead", "lookbehind", "backreferences"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+import RegexTester from '../../../components/interactive/RegexTester';
+
+## Interactive Regex Tester
+
+Test regular expressions in real time with live match highlighting, group capture display, and pattern explanation.
+
+<RegexTester client:load />
+
+This page is a comprehensive reference for regular expression syntax. We cover every major construct with clear examples and practical patterns you will use daily.
+
+---
+
+## Character Classes
+
+Character classes match a **single character** from a defined set.
+
+### Predefined Classes
+
+| Pattern | Matches | Equivalent |
+|---------|---------|-----------|
+| `.` | Any character except newline | `[^\n]` (with `s` flag: any char) |
+| `\d` | Any digit | `[0-9]` |
+| `\D` | Any non-digit | `[^0-9]` |
+| `\w` | Word character | `[a-zA-Z0-9_]` |
+| `\W` | Non-word character | `[^a-zA-Z0-9_]` |
+| `\s` | Whitespace | `[ \t\n\r\f\v]` |
+| `\S` | Non-whitespace | `[^ \t\n\r\f\v]` |
+
+### Custom Character Classes
+
+```
+[abc]       Match a, b, or c
+[a-z]       Match any lowercase letter
+[A-Z]       Match any uppercase letter
+[0-9]       Match any digit
+[a-zA-Z]    Match any letter
+[a-zA-Z0-9] Match any alphanumeric character
+
+[^abc]      Match anything EXCEPT a, b, or c  (negation)
+[^0-9]      Match any non-digit
+
+Special characters inside classes:
+[.]         Literal dot (most special chars are literal inside [])
+[\-]        Literal hyphen (or put it first/last: [-abc] or [abc-])
+[\]]        Literal closing bracket (must be escaped)
+[\\]        Literal backslash
+```
+
+<Tabs>
+  <TabItem label="Python">
+```python
+import re
+
+# Match hex color codes
+hex_pattern = r'#[0-9a-fA-F]{6}\b'
+text = "Colors: #FF5733, #00cc99, #invalid, #abc"
+matches = re.findall(hex_pattern, text)
+# ['#FF5733', '#00cc99']
+
+# Match vowels only
+vowels = re.findall(r'[aeiouAEIOU]', "Hello World")
+# ['e', 'o', 'o']
+
+# Match non-ASCII characters
+non_ascii = re.findall(r'[^\x00-\x7F]+', "Hello café résumé")
+# ['é', 'é']
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// Match hex color codes
+const hexPattern = /#[0-9a-fA-F]{6}\b/g;
+const text = "Colors: #FF5733, #00cc99, #invalid, #abc";
+const matches = text.match(hexPattern);
+// ['#FF5733', '#00cc99']
+
+// Unicode property escapes (ES2018+)
+const letters = "Hello Ñoño 你好".match(/\p{Letter}+/gu);
+// ['Hello', 'Ñoño', '你好']
+
+const emojis = "Hello 😀 World 🌍".match(/\p{Emoji_Presentation}/gu);
+// ['😀', '🌍']
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+import java.util.regex.*;
+
+// Match hex color codes
+Pattern hex = Pattern.compile("#[0-9a-fA-F]{6}\\b");
+Matcher m = hex.matcher("Colors: #FF5733, #00cc99, #invalid");
+while (m.find()) {
+    System.out.println(m.group());
+}
+// #FF5733
+// #00cc99
+
+// Unicode categories
+Pattern letters = Pattern.compile("\\p{L}+");
+// \p{L} matches any Unicode letter
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## Quantifiers
+
+Quantifiers specify **how many times** a pattern should repeat.
+
+| Quantifier | Meaning | Example | Matches |
+|-----------|---------|---------|---------|
+| `*` | 0 or more | `a*` | `""`, `"a"`, `"aaa"` |
+| `+` | 1 or more | `a+` | `"a"`, `"aaa"` (not `""`) |
+| `?` | 0 or 1 | `colou?r` | `"color"`, `"colour"` |
+| `{n}` | Exactly n | `\d{4}` | `"2025"` |
+| `{n,}` | n or more | `\d{2,}` | `"42"`, `"123"`, `"9999"` |
+| `{n,m}` | Between n and m | `\d{2,4}` | `"42"`, `"123"`, `"9999"` |
+
+### Greedy vs Lazy Quantifiers
+
+By default, quantifiers are **greedy** — they match as much as possible. Adding `?` makes them **lazy** — they match as little as possible.
+
+```
+Text: <div>hello</div><div>world</div>
+
+Greedy:  <.*>    matches "<div>hello</div><div>world</div>"  (entire string)
+Lazy:    <.*?>   matches "<div>"  (first tag only)
+```
+
+| Greedy | Lazy | Meaning |
+|--------|------|---------|
+| `*` | `*?` | 0 or more (as few as possible) |
+| `+` | `+?` | 1 or more (as few as possible) |
+| `?` | `??` | 0 or 1 (prefer 0) |
+| `{n,m}` | `{n,m}?` | Between n and m (as few as possible) |
+
+<Tabs>
+  <TabItem label="Python">
+```python
+import re
+
+html = '<b>bold</b> and <i>italic</i>'
+
+# Greedy: matches from first < to LAST >
+greedy = re.findall(r'<.+>', html)
+# ['<b>bold</b> and <i>italic</i>']
+
+# Lazy: matches from each < to NEXT >
+lazy = re.findall(r'<.+?>', html)
+# ['<b>', '</b>', '<i>', '</i>']
+
+# Even better: use negated class (no backtracking needed)
+negated = re.findall(r'<[^>]+>', html)
+# ['<b>', '</b>', '<i>', '</i>']
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+const html = '<b>bold</b> and <i>italic</i>';
+
+// Greedy
+html.match(/<.+>/g);
+// ['<b>bold</b> and <i>italic</i>']
+
+// Lazy
+html.match(/<.+?>/g);
+// ['<b>', '</b>', '<i>', '</i>']
+
+// Negated class (preferred — no backtracking)
+html.match(/<[^>]+>/g);
+// ['<b>', '</b>', '<i>', '</i>']
+```
+  </TabItem>
+</Tabs>
+
+:::tip[Prefer Negated Classes Over Lazy Quantifiers]
+Instead of `<.*?>`, use `<[^>]*>`. The negated character class avoids backtracking entirely, making it faster and more predictable. This is a general principle: whenever you know the terminating character, use a negated class.
+:::
+
+---
+
+## Anchors
+
+Anchors match **positions** in the string, not characters.
+
+| Anchor | Matches |
+|--------|---------|
+| `^` | Start of string (or start of line with `m` flag) |
+| `$` | End of string (or end of line with `m` flag) |
+| `\b` | Word boundary (between `\w` and `\W`) |
+| `\B` | Non-word boundary |
+
+```
+Text: "cat concatenate education"
+
+\bcat\b      → "cat"                    (whole word only)
+\bcat        → "cat", "concatenate"     (word starts with "cat")
+cat\b        → "cat"                    (word ends with "cat")
+cat          → "cat", "cat", "cat"      (substring anywhere — 3 matches)
+```
+
+<Tabs>
+  <TabItem label="Python">
+```python
+import re
+
+text = "cat concatenate education"
+
+# Word boundary - exact word
+re.findall(r'\bcat\b', text)
+# ['cat']
+
+# Starts with "cat"
+re.findall(r'\bcat\w*', text)
+# ['cat', 'concatenate']
+
+# Multiline anchors
+multiline = "first line\nsecond line\nthird line"
+re.findall(r'^\w+', multiline, re.MULTILINE)
+# ['first', 'second', 'third']
+
+re.findall(r'\w+$', multiline, re.MULTILINE)
+# ['line', 'line', 'line']
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+const text = "cat concatenate education";
+
+// Word boundary
+text.match(/\bcat\b/g);       // ['cat']
+text.match(/\bcat\w*/g);      // ['cat', 'concatenate']
+
+// Multiline anchors
+const multiline = "first line\nsecond line\nthird line";
+multiline.match(/^\w+/gm);    // ['first', 'second', 'third']
+multiline.match(/\w+$/gm);    // ['line', 'line', 'line']
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## Groups and Captures
+
+Parentheses create groups that can capture matched text for later use.
+
+### Capturing Groups
+
+```
+Pattern: (\d{4})-(\d{2})-(\d{2})
+Text:    2025-01-15
+
+Group 0 (full match): "2025-01-15"
+Group 1:              "2025"
+Group 2:              "01"
+Group 3:              "15"
+```
+
+### Non-Capturing Groups
+
+Use `(?:...)` when you need grouping for alternation or quantification but do not need to capture:
+
+```
+Capturing:      (https?|ftp)://     → group 1 = "https" or "http" or "ftp"
+Non-capturing:  (?:https?|ftp)://   → no capture, just grouping
+```
+
+### Named Groups
+
+Named groups make patterns more readable and maintainable:
+
+<Tabs>
+  <TabItem label="Python">
+```python
+import re
+
+log_line = '2025-01-15 14:30:45 ERROR Database connection failed'
+
+# Named groups
+pattern = r'(?P<date>\d{4}-\d{2}-\d{2})\s+(?P<time>\d{2}:\d{2}:\d{2})\s+(?P<level>\w+)\s+(?P<message>.+)'
+match = re.match(pattern, log_line)
+
+if match:
+    print(match.group('date'))     # 2025-01-15
+    print(match.group('level'))    # ERROR
+    print(match.group('message'))  # Database connection failed
+    print(match.groupdict())
+    # {'date': '2025-01-15', 'time': '14:30:45',
+    #  'level': 'ERROR', 'message': 'Database connection failed'}
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+const logLine = '2025-01-15 14:30:45 ERROR Database connection failed';
+
+const pattern = /(?<date>\d{4}-\d{2}-\d{2})\s+(?<time>\d{2}:\d{2}:\d{2})\s+(?<level>\w+)\s+(?<message>.+)/;
+const match = logLine.match(pattern);
+
+if (match) {
+  console.log(match.groups.date);    // 2025-01-15
+  console.log(match.groups.level);   // ERROR
+  console.log(match.groups.message); // Database connection failed
+}
+
+// Named groups in replace
+const iso = '15/01/2025';
+const converted = iso.replace(
+  /(?<day>\d{2})\/(?<month>\d{2})\/(?<year>\d{4})/,
+  '$<year>-$<month>-$<day>'
+);
+// '2025-01-15'
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+import java.util.regex.*;
+
+String logLine = "2025-01-15 14:30:45 ERROR Database connection failed";
+
+Pattern pattern = Pattern.compile(
+    "(?<date>\\d{4}-\\d{2}-\\d{2})\\s+" +
+    "(?<time>\\d{2}:\\d{2}:\\d{2})\\s+" +
+    "(?<level>\\w+)\\s+" +
+    "(?<message>.+)"
+);
+
+Matcher matcher = pattern.matcher(logLine);
+if (matcher.matches()) {
+    System.out.println(matcher.group("date"));    // 2025-01-15
+    System.out.println(matcher.group("level"));   // ERROR
+    System.out.println(matcher.group("message")); // Database connection failed
+}
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## Alternation
+
+The pipe `|` acts as an OR operator:
+
+```
+cat|dog               → "cat" or "dog"
+(cat|dog) food        → "cat food" or "dog food"
+(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)day → any weekday name
+
+# Alternation is greedy-left: tries alternatives left to right
+# The FIRST match wins (important in NFA engines)
+```
+
+:::caution[Order Matters in Alternation]
+In NFA engines, `cat|catch` matching against "catch" will return "cat" because the first alternative succeeds. Use `catch|cat` or `\bcatch?\b` to match the longer form first.
+:::
+
+---
+
+## Backreferences
+
+Backreferences match the **same text** that a previous capturing group matched:
+
+```
+Pattern: (\w+)\s+\1
+Text:    "the the quick brown fox fox"
+
+Matches: "the the" and "fox fox"  (duplicate words)
+
+\1 refers to whatever group 1 captured
+```
+
+<Tabs>
+  <TabItem label="Python">
+```python
+import re
+
+# Find duplicate words
+text = "the the quick brown fox fox jumped"
+dupes = re.findall(r'\b(\w+)\s+\1\b', text)
+# ['the', 'fox']
+
+# Remove duplicate words
+cleaned = re.sub(r'\b(\w+)(\s+\1\b)+', r'\1', text)
+# 'the quick brown fox jumped'
+
+# Match repeated HTML tags
+html = '<div>content</div>'
+match = re.match(r'<(\w+)>.*?</\1>', html)
+# Matches because opening and closing tags match
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// Find duplicate words
+const text = "the the quick brown fox fox jumped";
+const dupes = text.match(/\b(\w+)\s+\1\b/g);
+// ['the the', 'fox fox']
+
+// Remove duplicate words
+const cleaned = text.replace(/\b(\w+)(\s+\1\b)+/g, '$1');
+// 'the quick brown fox jumped'
+
+// Named backreference
+const html = '<div>content</div>';
+const match = html.match(/<(?<tag>\w+)>.*?<\/\k<tag>>/);
+// \k<tag> references the named group "tag"
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## Lookahead and Lookbehind
+
+Lookaround assertions check what comes before or after the current position **without consuming characters**.
+
+### Lookahead
+
+| Syntax | Name | Matches |
+|--------|------|---------|
+| `(?=...)` | Positive lookahead | Position followed by pattern |
+| `(?!...)` | Negative lookahead | Position NOT followed by pattern |
+
+### Lookbehind
+
+| Syntax | Name | Matches |
+|--------|------|---------|
+| `(?<=...)` | Positive lookbehind | Position preceded by pattern |
+| `(?<!...)` | Negative lookbehind | Position NOT preceded by pattern |
+
+```
+Text: "$100 €200 £300"
+
+\d+(?=\s*€)        → "200"      (digits followed by €)
+(?<=\$)\d+          → "100"      (digits preceded by $)
+\d+(?!.*€)          → "300"      (digits NOT followed by €)
+(?<!\$)\d+          → "200"      (digits NOT preceded by $)
+                                  Note: "300" also matches
+```
+
+### Practical Lookaround Examples
+
+<Tabs>
+  <TabItem label="Python">
+```python
+import re
+
+# Password validation using lookahead
+# Must have: 8+ chars, uppercase, lowercase, digit, special char
+password_pattern = r'^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[!@#$%^&*]).{8,}$'
+
+passwords = ['Str0ng!Pass', 'weak', '12345678', 'NoSpecial1']
+for pw in passwords:
+    valid = bool(re.match(password_pattern, pw))
+    print(f'{pw}: {"valid" if valid else "invalid"}')
+# Str0ng!Pass: valid
+# weak: invalid
+# 12345678: invalid
+# NoSpecial1: invalid
+
+# Add commas to numbers: 1234567 → 1,234,567
+def add_commas(n):
+    return re.sub(r'(?<=\d)(?=(\d{3})+(?!\d))', ',', str(n))
+
+print(add_commas(1234567))     # 1,234,567
+print(add_commas(1000000000))  # 1,000,000,000
+
+# Extract domain from URL (lookbehind)
+urls = ['https://example.com/path', 'http://api.test.org/v1']
+for url in urls:
+    domain = re.search(r'(?<=://)[^/]+', url)
+    print(domain.group())
+# example.com
+# api.test.org
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// Password validation
+const passwordPattern = /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[!@#$%^&*]).{8,}$/;
+console.log(passwordPattern.test('Str0ng!Pass')); // true
+console.log(passwordPattern.test('weak'));          // false
+
+// Add commas to numbers
+function addCommas(n) {
+  return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+console.log(addCommas(1234567));     // 1,234,567
+
+// Negative lookbehind: match "cat" not preceded by "bob"
+const text = "bobcat wildcat housecat";
+const matches = text.match(/(?<!bob)cat/g);
+// ['cat', 'cat'] — matches "wildcat" and "housecat" but not "bobcat"
+
+// Split camelCase into words using lookaround
+const camel = "getElementById";
+const words = camel.replace(/(?<=[a-z])(?=[A-Z])/g, ' ');
+// "get Element By Id"
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## Flags (Modifiers)
+
+| Flag | Name | Effect |
+|------|------|--------|
+| `g` | Global | Match all occurrences (not just first) |
+| `i` | Case-insensitive | `A` matches `a` |
+| `m` | Multiline | `^` and `$` match line boundaries |
+| `s` | DotAll (Single-line) | `.` matches newline characters |
+| `u` | Unicode | Enable full Unicode matching |
+| `x` | Verbose/Extended | Allow comments and whitespace (Python, Ruby) |
+| `d` | hasIndices | Provide match index information (JS) |
+| `y` | Sticky | Match only from lastIndex position (JS) |
+
+<Tabs>
+  <TabItem label="Python">
+```python
+import re
+
+# Verbose mode — allows comments and whitespace
+phone_pattern = re.compile(r"""
+    ^                   # Start of string
+    (?:\+1[-.\s]?)?     # Optional country code
+    \(?                 # Optional opening paren
+    (\d{3})             # Area code (captured)
+    \)?                 # Optional closing paren
+    [-.\s]?             # Optional separator
+    (\d{3})             # Exchange (captured)
+    [-.\s]?             # Optional separator
+    (\d{4})             # Subscriber number (captured)
+    $                   # End of string
+""", re.VERBOSE)
+
+numbers = ["+1 (555) 123-4567", "555.123.4567", "5551234567"]
+for num in numbers:
+    match = phone_pattern.match(num)
+    if match:
+        print(f"Area: {match.group(1)}, Exchange: {match.group(2)}, "
+              f"Number: {match.group(3)}")
+
+# Combine flags
+pattern = re.compile(r'hello', re.IGNORECASE | re.MULTILINE)
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// Global and case-insensitive
+"Hello hello HELLO".match(/hello/gi);
+// ['Hello', 'hello', 'HELLO']
+
+// Multiline: ^ and $ match line boundaries
+const multiline = "first\nsecond\nthird";
+multiline.match(/^\w+/g);    // ['first'] — without m, ^ = start of string
+multiline.match(/^\w+/gm);   // ['first', 'second', 'third']
+
+// DotAll: . matches newline
+const html = "<p>\nHello\n</p>";
+html.match(/<p>.*<\/p>/);     // null (. does not match \n)
+html.match(/<p>.*<\/p>/s);    // ['<p>\nHello\n</p>']
+
+// Unicode
+"café".match(/\w+/);      // ['caf'] — \w does not match é
+"café".match(/\w+/u);     // ['caf'] — still no (depends on engine)
+"café".match(/[\p{L}]+/u); // ['café'] — Unicode property escape
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## Common Patterns
+
+Here are battle-tested regex patterns for common validation and extraction tasks:
+
+### Email (Simplified)
+
+```
+[\w.+-]+@[\w-]+\.[\w.]+
+```
+
+:::note[Email Validation]
+A truly RFC-compliant email regex is enormously complex. For most purposes, a simple pattern plus actually sending a confirmation email is the best approach. The pattern above covers the vast majority of real-world email addresses.
+:::
+
+### URL
+
+```python
+# Python
+url_pattern = r'https?://(?:[\w-]+\.)+[\w]{2,}(?:/\S*)?'
+```
+
+### IP Address (IPv4)
+
+```python
+# Strict IPv4 validation
+ipv4 = r'^(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)$'
+```
+
+### Date Formats
+
+```python
+import re
+
+# ISO 8601: YYYY-MM-DD
+iso_date = r'\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])'
+
+# US format: MM/DD/YYYY
+us_date = r'(?:0[1-9]|1[0-2])/(?:0[1-9]|[12]\d|3[01])/\d{4}'
+
+# European: DD.MM.YYYY
+eu_date = r'(?:0[1-9]|[12]\d|3[01])\.(?:0[1-9]|1[0-2])\.\d{4}'
+```
+
+### Phone Numbers
+
+```python
+# US phone numbers (various formats)
+phone = r'(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}'
+```
+
+### HTML Tag
+
+```python
+# Match opening/closing tags (not for parsing HTML!)
+tag = r'</?(\w+)(?:\s+[\w-]+(?:=(?:"[^"]*"|\'[^\']*\'|[\w-]+))?)*\s*/?>'
+```
+
+### Log Entry
+
+```python
+# Apache log format
+apache_log = r'(\S+) \S+ \S+ \[([^\]]+)\] "(\S+) (\S+) (\S+)" (\d{3}) (\d+|-)'
+```
+
+---
+
+## Pattern Testing and Debugging
+
+When building complex patterns, use these strategies:
+
+1. **Start simple** — Build your regex incrementally, testing each part
+2. **Use a regex tester** — Tools like regex101.com explain each component
+3. **Test edge cases** — Empty strings, special characters, very long input
+4. **Check for catastrophic backtracking** — Nested quantifiers can cause exponential time
+5. **Add comments** — Use verbose mode (`x` flag) for complex patterns
+
+```python
+# Incremental development example:
+# Goal: Parse "2025-01-15T14:30:00Z"
+
+# Step 1: Match digits
+r'\d+'
+
+# Step 2: Match date
+r'\d{4}-\d{2}-\d{2}'
+
+# Step 3: Add time
+r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}'
+
+# Step 4: Add timezone
+r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[Z+-]\d{0,4}'
+
+# Step 5: Add captures
+r'(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})([Z+-][\d:]*)'
+```
+
+---
+
+<LinkCard
+  title="Next: Advanced Regex"
+  description="Named groups, atomic groups, recursive patterns, and performance optimization"
+  href="/software-engineering/regex-text/advanced-regex/"
+/>

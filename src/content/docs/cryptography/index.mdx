@@ -1,0 +1,331 @@
+---
+title: "Cryptography"
+description: "Understand why encryption matters, core cryptographic concepts, types of cryptography, and the properties that make cryptographic systems secure"
+difficulty: "intermediate"
+prerequisites: ["Basic programming knowledge", "Security fundamentals"]
+timeToRead: "20 min"
+topics: ["cryptography", "encryption", "plaintext", "ciphertext", "symmetric", "asymmetric", "hashing", "key management"]
+---
+
+import { Card, CardGrid, LinkCard, Tabs, TabItem } from '@astrojs/starlight/components';
+
+**Cryptography** is the science of securing communication and data so that only intended parties can access it. It is the mathematical foundation upon which virtually all digital security is built — from the HTTPS lock icon in your browser to the encrypted messages on your phone, from password storage to blockchain consensus. Without cryptography, the modern internet would be impossible.
+
+:::note
+Cryptography is not the same as security. Cryptography is a **tool** used within security systems. A system can use strong cryptography and still be insecure if keys are mismanaged, protocols are flawed, or implementation has bugs. Understanding cryptography is necessary but not sufficient for building secure systems.
+:::
+
+---
+
+## Why Encryption Matters
+
+Every day, billions of sensitive transactions cross networks that are fundamentally untrusted. Without cryptography:
+
+- **Passwords** would travel over the internet in plain text
+- **Credit card numbers** could be intercepted by anyone between you and the merchant
+- **Medical records** would be readable by any network administrator along the path
+- **Private messages** would be as public as a postcard
+- **Software updates** could be replaced with malware in transit
+
+### Real-World Consequences of Weak Cryptography
+
+| Incident | What Went Wrong | Impact |
+|----------|----------------|--------|
+| **Adobe (2013)** | Passwords encrypted with weak, reversible encryption (3DES-ECB) instead of hashing | 153 million credentials exposed |
+| **Heartbleed (2014)** | OpenSSL bug leaked private keys from server memory | Millions of servers exposed |
+| **WPA2 KRACK (2017)** | Protocol flaw in Wi-Fi encryption allowed key reinstallation | All Wi-Fi devices vulnerable |
+| **SolarWinds (2020)** | Compromised code signing allowed malicious updates to appear legitimate | 18,000+ organizations affected |
+
+---
+
+## Key Concepts
+
+Before diving into specific algorithms, you need to understand the fundamental vocabulary of cryptography.
+
+### Plaintext, Ciphertext, and Keys
+
+```
+┌──────────────┐                      ┌──────────────┐
+│  Plaintext   │     Encryption       │  Ciphertext   │
+│              │────────────────────▶ │              │
+│ "Hello World"│     (using a key)    │ "7g$kL9!xmP" │
+│              │                      │              │
+└──────────────┘                      └──────────────┘
+        ▲                                    │
+        │           Decryption               │
+        └────────────────────────────────────┘
+                    (using a key)
+```
+
+| Term | Definition |
+|------|-----------|
+| **Plaintext** | The original, readable data before encryption |
+| **Ciphertext** | The encrypted, unreadable output after encryption |
+| **Key** | A secret value used by the encryption algorithm to transform plaintext into ciphertext (and back) |
+| **Encryption** | The process of converting plaintext to ciphertext using a key |
+| **Decryption** | The process of converting ciphertext back to plaintext using a key |
+| **Cipher** | The algorithm that performs encryption and decryption |
+
+### Kerckhoffs's Principle
+
+:::tip[Kerckhoffs's Principle]
+A cryptographic system should be secure even if everything about the system, except the key, is public knowledge. Security must depend **only on the secrecy of the key**, never on the secrecy of the algorithm. This is why modern cryptographic algorithms (AES, RSA, SHA-256) are publicly documented and peer-reviewed.
+:::
+
+---
+
+## Types of Cryptography
+
+Cryptography falls into three main categories, each serving a different purpose.
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                    Types of Cryptography                      │
+│                                                              │
+│  ┌──────────────────┐  ┌──────────────────┐                │
+│  │    Symmetric      │  │   Asymmetric      │                │
+│  │   Encryption      │  │   Encryption      │                │
+│  │                  │  │                  │                │
+│  │  Same key for    │  │  Public key to    │                │
+│  │  encrypt and     │  │  encrypt, private │                │
+│  │  decrypt         │  │  key to decrypt   │                │
+│  │                  │  │                  │                │
+│  │  AES, ChaCha20   │  │  RSA, ECDSA,     │                │
+│  │                  │  │  Diffie-Hellman   │                │
+│  └──────────────────┘  └──────────────────┘                │
+│                                                              │
+│  ┌──────────────────────────────────────────┐              │
+│  │              Hashing                       │              │
+│  │                                           │              │
+│  │  One-way function: input to fixed-size    │              │
+│  │  output. Cannot be reversed.              │              │
+│  │                                           │              │
+│  │  SHA-256, bcrypt, Argon2, HMAC            │              │
+│  └──────────────────────────────────────────┘              │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### Quick Comparison
+
+| Property | Symmetric | Asymmetric | Hashing |
+|----------|----------|-----------|---------|
+| **Keys** | One shared key | Public + private key pair | No key (or key for HMAC) |
+| **Direction** | Two-way (encrypt/decrypt) | Two-way (encrypt/decrypt) | One-way (cannot reverse) |
+| **Speed** | Very fast | Slow (100-1000x slower) | Fast |
+| **Key distribution** | Hard (must share secretly) | Easy (public key is public) | N/A |
+| **Use cases** | Bulk data encryption | Key exchange, digital signatures | Password storage, integrity checks |
+| **Example** | AES-256-GCM | RSA-2048, Ed25519 | SHA-256, Argon2id |
+
+---
+
+## Cryptographic Properties
+
+Secure systems rely on four core cryptographic properties. Different primitives provide different combinations of these properties.
+
+| Property | Description | Provided By |
+|----------|-------------|-------------|
+| **Confidentiality** | Only authorized parties can read the data | Symmetric encryption, asymmetric encryption |
+| **Integrity** | Data has not been tampered with | Hashing, MACs, digital signatures |
+| **Authentication** | The sender is who they claim to be | Digital signatures, MACs, certificates |
+| **Non-repudiation** | The sender cannot deny sending the message | Digital signatures (asymmetric only) |
+
+```
+              Confidentiality        Integrity
+              "Can't read it"       "Can't change it"
+                    │                     │
+                    ▼                     ▼
+              ┌──────────┐        ┌──────────────┐
+              │Encryption│        │  Hashing /   │
+              │(AES, RSA)│        │  MAC / Sig   │
+              └──────────┘        └──────────────┘
+
+              Authentication       Non-repudiation
+              "Know who sent it"  "Can't deny sending"
+                    │                     │
+                    ▼                     ▼
+              ┌──────────────┐    ┌──────────────┐
+              │  Digital Sig │    │  Digital Sig  │
+              │  MAC, Cert   │    │  (asymmetric) │
+              └──────────────┘    └──────────────┘
+```
+
+---
+
+## A Practical Overview
+
+Here is a simple example showing the three types of cryptography in action:
+
+<Tabs>
+  <TabItem label="Python">
+```python
+from cryptography.fernet import Fernet
+from cryptography.hazmat.primitives.asymmetric import rsa, padding
+from cryptography.hazmat.primitives import hashes, serialization
+import hashlib
+
+# --- Symmetric Encryption (AES via Fernet) ---
+# Same key for encryption and decryption
+symmetric_key = Fernet.generate_key()
+cipher = Fernet(symmetric_key)
+
+plaintext = b"Sensitive data: account balance is $10,000"
+ciphertext = cipher.encrypt(plaintext)
+decrypted = cipher.decrypt(ciphertext)
+print(f"Symmetric - Encrypted: {ciphertext[:40]}...")
+print(f"Symmetric - Decrypted: {decrypted.decode()}")
+
+# --- Asymmetric Encryption (RSA) ---
+# Public key encrypts, private key decrypts
+private_key = rsa.generate_private_key(
+    public_exponent=65537,
+    key_size=2048,
+)
+public_key = private_key.public_key()
+
+ciphertext_rsa = public_key.encrypt(
+    b"Secret message",
+    padding.OAEP(
+        mgf=padding.MGF1(algorithm=hashes.SHA256()),
+        algorithm=hashes.SHA256(),
+        label=None,
+    ),
+)
+decrypted_rsa = private_key.decrypt(
+    ciphertext_rsa,
+    padding.OAEP(
+        mgf=padding.MGF1(algorithm=hashes.SHA256()),
+        algorithm=hashes.SHA256(),
+        label=None,
+    ),
+)
+print(f"Asymmetric - Decrypted: {decrypted_rsa.decode()}")
+
+# --- Hashing (SHA-256) ---
+# One-way: cannot reverse the hash to get the original
+message = b"Verify this message has not been tampered with"
+digest = hashlib.sha256(message).hexdigest()
+print(f"Hash (SHA-256): {digest}")
+
+# Verify integrity: hash the message again and compare
+is_intact = hashlib.sha256(message).hexdigest() == digest
+print(f"Integrity check: {'PASS' if is_intact else 'FAIL'}")
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+const crypto = require("crypto");
+
+// --- Symmetric Encryption (AES-256-GCM) ---
+const symmetricKey = crypto.randomBytes(32); // 256 bits
+const iv = crypto.randomBytes(12); // 96-bit IV for GCM
+
+const cipher = crypto.createCipheriv("aes-256-gcm", symmetricKey, iv);
+let encrypted = cipher.update(
+  "Sensitive data: account balance is $10,000", "utf8", "hex"
+);
+encrypted += cipher.final("hex");
+const authTag = cipher.getAuthTag();
+
+const decipher = crypto.createDecipheriv("aes-256-gcm", symmetricKey, iv);
+decipher.setAuthTag(authTag);
+let decrypted = decipher.update(encrypted, "hex", "utf8");
+decrypted += decipher.final("utf8");
+console.log("Symmetric - Decrypted:", decrypted);
+
+// --- Asymmetric Encryption (RSA) ---
+const { publicKey, privateKey } = crypto.generateKeyPairSync("rsa", {
+  modulusLength: 2048,
+});
+
+const encryptedRsa = crypto.publicEncrypt(
+  { key: publicKey, padding: crypto.constants.RSA_PKCS1_OAEP_PADDING },
+  Buffer.from("Secret message")
+);
+
+const decryptedRsa = crypto.privateDecrypt(
+  { key: privateKey, padding: crypto.constants.RSA_PKCS1_OAEP_PADDING },
+  encryptedRsa
+);
+console.log("Asymmetric - Decrypted:", decryptedRsa.toString());
+
+// --- Hashing (SHA-256) ---
+const message = "Verify this message has not been tampered with";
+const hash = crypto.createHash("sha256").update(message).digest("hex");
+console.log("Hash (SHA-256):", hash);
+
+// Verify integrity
+const verifyHash = crypto.createHash("sha256").update(message).digest("hex");
+console.log("Integrity check:", hash === verifyHash ? "PASS" : "FAIL");
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## Common Mistakes in Cryptography
+
+:::caution[Do Not Roll Your Own Crypto]
+The number one rule of applied cryptography is: **do not invent your own algorithms or protocols**. Use well-established, peer-reviewed libraries. Even expert cryptographers make mistakes — amateur implementations are virtually guaranteed to be broken.
+:::
+
+| Mistake | Why It Is Dangerous | What to Do Instead |
+|---------|--------------------|--------------------|
+| Inventing your own cipher | Guaranteed to have flaws | Use AES-256-GCM or ChaCha20-Poly1305 |
+| Using ECB mode | Identical plaintext blocks produce identical ciphertext | Use GCM or CTR mode |
+| Reusing nonces/IVs | Destroys confidentiality guarantees | Generate a unique nonce for every encryption |
+| Using MD5 or SHA-1 | Broken — collisions can be generated | Use SHA-256 or SHA-3 |
+| Storing passwords with encryption | Reversible — attacker with the key gets all passwords | Hash with bcrypt, scrypt, or Argon2id |
+| Hardcoding keys in source code | Keys exposed in version control | Use a secrets manager (Vault, AWS KMS) |
+| Not authenticating ciphertext | Allows ciphertext manipulation attacks | Use authenticated encryption (GCM, Poly1305) |
+
+---
+
+## When to Use What
+
+| Scenario | Recommended Approach |
+|----------|---------------------|
+| Encrypting data at rest (files, database columns) | AES-256-GCM with keys from a KMS |
+| Encrypting data in transit (network) | TLS 1.3 (which uses symmetric + asymmetric internally) |
+| Storing user passwords | Argon2id or bcrypt — **never** encryption |
+| Verifying file integrity | SHA-256 hash |
+| Authenticating API requests | HMAC-SHA256 |
+| Signing software releases | Ed25519 or RSA digital signatures |
+| Secure key exchange over untrusted network | Diffie-Hellman key exchange (ECDHE) |
+| Sending encrypted email | Asymmetric encryption (RSA/PGP) |
+
+---
+
+## Topics in This Section
+
+<CardGrid>
+  <Card title="Symmetric & Asymmetric Encryption" icon="seti:lock">
+    Deep dive into AES, ChaCha20 (symmetric), RSA, ECDSA, Diffie-Hellman (asymmetric), key exchange, and hybrid encryption.
+
+    [Explore Encryption](/software-engineering/cryptography/symmetric-asymmetric/)
+  </Card>
+  <Card title="Hashing & Digital Signatures" icon="approve-check">
+    Understand SHA-256, bcrypt, Argon2, HMAC, digital signatures, message authentication, and password hashing best practices.
+
+    [Explore Hashing](/software-engineering/cryptography/hashing-signatures/)
+  </Card>
+  <Card title="TLS & PKI" icon="seti:certificate">
+    Learn about TLS 1.3 handshake, certificates, Certificate Authorities, PKI, mTLS, certificate pinning, and Let's Encrypt.
+
+    [Explore TLS & PKI](/software-engineering/cryptography/tls-pki/)
+  </Card>
+</CardGrid>
+
+---
+
+## Further Reading
+
+- Serious Cryptography by Jean-Philippe Aumasson
+- Cryptography and Network Security by William Stallings
+- The Code Book by Simon Singh (accessible, historical perspective)
+- Crypto101 (free online book at crypto101.io)
+
+<LinkCard
+  title="Next: Symmetric & Asymmetric Encryption"
+  description="Learn about AES, ChaCha20, RSA, ECDSA, Diffie-Hellman key exchange, and hybrid encryption schemes."
+  href="/software-engineering/cryptography/symmetric-asymmetric/"
+/>

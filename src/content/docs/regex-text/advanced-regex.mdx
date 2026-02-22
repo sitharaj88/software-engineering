@@ -1,0 +1,531 @@
+---
+title: "Advanced Regex"
+description: "Master named groups, non-greedy matching, atomic groups, conditional patterns, recursive patterns, and regex performance optimization"
+difficulty: "advanced"
+prerequisites: ["Regex Syntax & Patterns"]
+timeToRead: "25 min"
+topics: ["advanced-regex", "atomic-groups", "recursive-patterns", "catastrophic-backtracking", "ReDoS", "optimization"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+Beyond basic matching, regular expressions offer powerful advanced features for complex text processing. However, advanced features also introduce performance risks that can bring your application to a halt. This page covers both the power and the pitfalls.
+
+---
+
+## Named Groups in Depth
+
+Named groups improve regex readability significantly, especially in complex patterns:
+
+<Tabs>
+  <TabItem label="Python">
+```python
+import re
+
+# Parsing structured log entries
+log_pattern = re.compile(r"""
+    (?P<timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z)\s+
+    (?P<level>DEBUG|INFO|WARN|ERROR|FATAL)\s+
+    \[(?P<thread>[^\]]+)\]\s+
+    (?P<logger>[\w.]+)\s+-\s+
+    (?P<message>.+)
+""", re.VERBOSE)
+
+log = "2025-01-15T14:30:45.123Z ERROR [main-thread] com.app.Service - Connection timeout"
+match = log_pattern.match(log)
+
+if match:
+    data = match.groupdict()
+    # {'timestamp': '2025-01-15T14:30:45.123Z',
+    #  'level': 'ERROR',
+    #  'thread': 'main-thread',
+    #  'logger': 'com.app.Service',
+    #  'message': 'Connection timeout'}
+
+# Named backreference
+xml_pattern = r'<(?P<tag>\w+)>(?P<content>.*?)</(?P=tag)>'
+html = '<div>Hello</div>'
+match = re.match(xml_pattern, html)
+# match.group('tag') == 'div'
+# match.group('content') == 'Hello'
+
+# Named groups in replacement
+date_text = "Date: 15/01/2025"
+converted = re.sub(
+    r'(?P<day>\d{2})/(?P<month>\d{2})/(?P<year>\d{4})',
+    r'\g<year>-\g<month>-\g<day>',
+    date_text
+)
+# 'Date: 2025-01-15'
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// Named groups with destructuring
+const logPattern = /(?<timestamp>\d{4}-\d{2}-\d{2}T[\d:.]+Z)\s+(?<level>\w+)\s+\[(?<thread>[^\]]+)\]\s+(?<logger>[\w.]+)\s+-\s+(?<message>.+)/;
+
+const log = "2025-01-15T14:30:45.123Z ERROR [main-thread] com.app.Service - Connection timeout";
+const { groups } = log.match(logPattern);
+
+console.log(groups.level);    // 'ERROR'
+console.log(groups.message);  // 'Connection timeout'
+
+// Named backreference: \k<name>
+const xmlPattern = /<(?<tag>\w+)>(?<content>.*?)<\/\k<tag>>/;
+const html = '<div>Hello</div>';
+const match = html.match(xmlPattern);
+console.log(match.groups.tag);     // 'div'
+console.log(match.groups.content); // 'Hello'
+
+// Named groups in replace
+const dateText = "Date: 15/01/2025";
+const converted = dateText.replace(
+  /(?<day>\d{2})\/(?<month>\d{2})\/(?<year>\d{4})/,
+  '$<year>-$<month>-$<day>'
+);
+// 'Date: 2025-01-15'
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## Non-Greedy (Lazy) Matching in Depth
+
+Lazy quantifiers match the **minimum** needed, expanding only when forced by the rest of the pattern:
+
+```
+Text: "She said 'hello' and he said 'goodbye'"
+
+Greedy:   '.*'    → "'hello' and he said 'goodbye'"  (first ' to last ')
+Lazy:     '.*?'   → "'hello'"  then  "'goodbye'"     (each quoted string)
+
+How lazy matching works (NFA engine):
+  Step 1:  ' matches first '
+  Step 2:  .*? tries to match ZERO characters
+  Step 3:  ' tries to match 'h' → fails
+  Step 4:  .*? expands to match 'h'
+  Step 5:  ' tries to match 'e' → fails
+  Step 6:  .*? expands to match 'e'
+  ...continues expanding until...
+  Step N:  ' matches the closing '
+  MATCH: "'hello'"
+```
+
+### When Lazy Quantifiers are Essential
+
+```python
+import re
+
+# Extracting JSON-like values
+text = '{"name": "Alice", "city": "New York"}'
+
+# Greedy: captures everything between first and last quote
+greedy = re.findall(r'"(.+)"', text)
+# ['name": "Alice", "city": "New York']
+
+# Lazy: captures each individual value
+lazy = re.findall(r'"(.+?)"', text)
+# ['name', 'Alice', 'city', 'New York']
+
+# Best: negated character class (no backtracking at all)
+negated = re.findall(r'"([^"]+)"', text)
+# ['name', 'Alice', 'city', 'New York']
+```
+
+---
+
+## Atomic Groups and Possessive Quantifiers
+
+Atomic groups prevent the regex engine from backtracking into them. Once the group matches, its match is locked in — even if a later failure would require backtracking.
+
+### Possessive Quantifiers
+
+Possessive quantifiers (`++`, `*+`, `?+`) are shorthand for atomic groups. They match as much as possible and **never give back**.
+
+:::note[Language Support]
+Possessive quantifiers and atomic groups are supported in Java, .NET, PCRE (PHP), Ruby, and RE2, but **not** in Python's `re` module or JavaScript. Python's `regex` third-party module supports them.
+:::
+
+```java
+// Java: Possessive quantifiers
+import java.util.regex.*;
+
+// Without possessive: backtracking may occur
+Pattern normal = Pattern.compile("\\w+:");
+// \w+ matches "http", then : tries to match
+// If : fails, \w+ backtracks one character at a time
+
+// With possessive: no backtracking
+Pattern possessive = Pattern.compile("\\w++:");
+// \w++ matches ALL word characters and never gives any back
+// If : cannot match the next character, the match fails immediately
+
+// Atomic group syntax (equivalent)
+Pattern atomic = Pattern.compile("(?>\\w+):");
+```
+
+### Why Atomic Groups Matter
+
+```
+Text: "aaaaaaaaaaaaaaab" (15 a's followed by b)
+Pattern: (a+)+b
+
+Without atomic: Catastrophic backtracking!
+  The engine tries every way to partition the a's between inner and outer groups.
+  Combinations: 2^15 = 32768 attempts
+
+With atomic: (?>a+)+b or a++b
+  Inner group matches all 15 a's, cannot backtrack.
+  Outer + tries once, fails (b matches 'b').
+  Total attempts: 1
+```
+
+---
+
+## Conditional Patterns
+
+Conditional patterns match different sub-patterns based on whether a group has matched. The syntax is `(?(condition)yes-pattern|no-pattern)`.
+
+```python
+import re
+
+# Match phone with optional area code in parentheses
+# If opening paren exists, require closing paren
+phone_pattern = r'(\()?(\d{3})(?(1)\)|-)\d{3}-\d{4}'
+
+# (?(1)\)|-) means:
+#   If group 1 (the opening paren) matched → require closing paren \)
+#   Otherwise → require a hyphen -
+
+tests = [
+    "(555)123-4567",   # matches (area code in parens)
+    "555-123-4567",    # matches (area code with hyphen)
+    "(555-123-4567",   # does not match (opening paren but no closing)
+    "555)123-4567",    # does not match (closing paren without opening)
+]
+
+for test in tests:
+    match = re.match(phone_pattern, test)
+    print(f"{test}: {'match' if match else 'no match'}")
+```
+
+:::note[Support]
+Conditional patterns are supported in Python, .NET, PCRE (PHP), and Perl. They are **not** supported in JavaScript or Java's standard regex.
+:::
+
+---
+
+## Recursive Patterns
+
+Recursive patterns can match nested structures like balanced parentheses — something that regular expressions technically cannot do (they exceed the power of regular languages).
+
+```python
+# Python regex module (pip install regex) supports recursion
+import regex
+
+# Match balanced parentheses
+balanced_parens = regex.compile(r'\((?:[^()]+|(?R))*\)')
+
+text = "func(a, (b + c), d)"
+match = balanced_parens.search(text)
+# Matches: "(a, (b + c), d)" — including nested parens
+
+# Named recursion
+nested_braces = regex.compile(r'''
+    (?P<braces>        # Named group for recursion
+        \{             # Opening brace
+        (?:            # Non-capturing group for contents
+            [^{}]+     # Non-brace characters
+            |          # OR
+            (?&braces) # Recurse into the named group
+        )*             # Zero or more contents
+        \}             # Closing brace
+    )
+''', regex.VERBOSE)
+
+json_like = '{"key": {"nested": {"deep": "value"}}}'
+match = nested_braces.search(json_like)
+# Matches the entire structure with balanced braces
+```
+
+```
+# PCRE (PHP) recursive pattern syntax:
+\((?:[^()]+|(?R))*\)
+
+# Explanation:
+# \(          Match opening paren
+# (?:         Non-capturing group:
+#   [^()]+      Non-paren characters
+#   |           OR
+#   (?R)        Recurse (match the entire pattern again)
+# )*          Zero or more times
+# \)          Match closing paren
+```
+
+---
+
+## Performance Pitfalls
+
+### Catastrophic Backtracking
+
+Catastrophic backtracking occurs when a regex with nested quantifiers matches a string that **almost** matches. The NFA engine explores exponentially many paths before concluding there is no match.
+
+```
+Dangerous Patterns:
+
+(a+)+           Nested quantifiers on the same characters
+(a|aa)+         Overlapping alternatives
+(a+b?)*         Optional element between repeated groups
+(\w+\s*)*$      Quantified group at end that can match empty
+
+Example:
+  Pattern: (a+)+$
+  Input:   "aaaaaaaaaaaaaac"  (14 a's + c)
+
+  The engine tries to match $ at the end, fails (c is there),
+  then backtracks through every possible grouping of the 14 a's:
+  - (aaaaaaaaaaaaa)(a)
+  - (aaaaaaaaaaaa)(aa)
+  - (aaaaaaaaaaaa)(a)(a)
+  - (aaaaaaaaaaa)(aaa)
+  - (aaaaaaaaaaa)(aa)(a)
+  - ...
+  Total combinations: 2^14 = 16,384
+
+  With 30 a's: 2^30 = 1,073,741,824 combinations
+  The regex engine hangs.
+```
+
+### ReDoS (Regular Expression Denial of Service)
+
+ReDoS exploits catastrophic backtracking to cause denial of service. An attacker sends crafted input that triggers exponential backtracking in a vulnerable regex:
+
+```
+Vulnerable patterns found in real applications:
+
+1. Email validation:  ^([a-zA-Z0-9])(([\-.]|[_]+)?([a-zA-Z0-9]+))*@
+   Attack input:      "aaaaaaaaaaaaaaaaaaaaaa!"
+
+2. URL validation:    ^(https?://)?([a-zA-Z0-9]+(\.)?)+
+   Attack input:      "aaaaaaaaaaaaaaaaaaaaaa"
+
+3. HTML attribute:    ([\w-]+)\s*=\s*("[^"]*"|'[^']*'|[\w-]+)
+   (safe pattern — no nested quantifiers)
+```
+
+<Tabs>
+  <TabItem label="Python">
+```python
+import re
+import time
+
+# VULNERABLE: nested quantifiers
+vulnerable = re.compile(r'^(a+)+$')
+
+# Measure time for increasing input sizes
+for n in [20, 22, 24, 26]:
+    input_str = 'a' * n + 'b'
+    start = time.time()
+    vulnerable.match(input_str)
+    elapsed = time.time() - start
+    print(f"n={n}: {elapsed:.3f}s")
+# n=20: 0.052s
+# n=22: 0.210s
+# n=24: 0.841s
+# n=26: 3.365s  — exponential growth!
+
+# SAFE: rewritten without nested quantifiers
+safe = re.compile(r'^a+$')
+# This will always run in linear time
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// VULNERABLE
+const vulnerable = /^(a+)+$/;
+
+// Measure time
+for (const n of [20, 22, 24, 26]) {
+  const input = 'a'.repeat(n) + 'b';
+  const start = performance.now();
+  vulnerable.test(input);
+  const elapsed = performance.now() - start;
+  console.log(`n=${n}: ${elapsed.toFixed(1)}ms`);
+}
+// n=20: 50ms
+// n=22: 200ms
+// n=24: 800ms
+// n=26: 3200ms  — doubles every 2 characters!
+
+// SAFE: atomic/possessive equivalent using negated class
+const safe = /^a+$/;
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## Optimization Techniques
+
+### 1. Avoid Nested Quantifiers
+
+```
+BAD:  (a+)+          → catastrophic backtracking possible
+GOOD: a+             → same logical match, no nesting
+
+BAD:  (\w+\s*)+$     → nested quantifiers
+GOOD: [\w\s]+$       → flat character class
+
+BAD:  (.*?,\s*)+     → repeated group with lazy quantifier
+GOOD: (?:[^,]+,\s*)* → negated class avoids backtracking
+```
+
+### 2. Use Negated Character Classes
+
+```
+BAD:  ".*?"          → lazy quantifier with backtracking
+GOOD: "[^"]*"        → negated class, no backtracking needed
+
+BAD:  <.*?>          → lazy match for HTML tag
+GOOD: <[^>]*>        → stops at first >, no backtracking
+
+BAD:  /\*.*?\*/      → lazy match for C comment
+GOOD: /\*[^*]*\*+([^/*][^*]*\*+)*/   → no backtracking
+```
+
+### 3. Anchor Your Patterns
+
+```
+BAD:  \d{4}-\d{2}-\d{2}     → engine tries at every position
+GOOD: ^\d{4}-\d{2}-\d{2}$   → anchored, fails fast at wrong positions
+
+BAD:  error                   → scans entire string
+GOOD: ^error                  → only checks start of line
+```
+
+### 4. Use Atomic Groups or Possessive Quantifiers
+
+```java
+// Java example
+// BAD: can backtrack
+Pattern bad = Pattern.compile("\\w+@\\w+\\.\\w+");
+
+// GOOD: possessive — no backtracking into \w++
+Pattern good = Pattern.compile("\\w++@\\w++\\.\\w++");
+
+// The possessive quantifiers prevent the engine from giving back
+// characters that clearly should not be reconsidered
+```
+
+### 5. Put Common Alternatives First
+
+```
+# NFA tries alternatives left to right
+# Put the most common/likely match first
+
+BAD:  (FATAL|ERROR|WARN|INFO|DEBUG)
+GOOD: (INFO|ERROR|WARN|DEBUG|FATAL)   # if INFO is most common
+
+# Or better yet, avoid alternation:
+GOOD: [A-Z]{4,5}   # if you just need to capture the level
+```
+
+### 6. Avoid Redundant Backtracking Points
+
+```
+BAD:  (.|\n)*        → creates backtracking point for every character
+GOOD: [\s\S]*        → single character class, no alternation
+
+BAD:  [a-zA-Z0-9_]   → three ranges
+GOOD: \w              → equivalent built-in class (often optimized)
+
+BAD:  (?:a|b|c|d)    → alternation
+GOOD: [abcd]          → character class (much faster)
+```
+
+---
+
+## Testing Regex Performance
+
+```python
+import re
+import time
+
+def benchmark_regex(pattern_str, test_strings, iterations=10000):
+    """Benchmark a regex pattern against test strings."""
+    pattern = re.compile(pattern_str)
+
+    for test in test_strings:
+        start = time.perf_counter()
+        for _ in range(iterations):
+            pattern.search(test)
+        elapsed = (time.perf_counter() - start) * 1000
+
+        print(f"Pattern: {pattern_str}")
+        print(f"Input:   {test[:50]}{'...' if len(test) > 50 else ''}")
+        print(f"Time:    {elapsed:.2f}ms ({iterations} iterations)")
+        print()
+
+# Compare approaches
+benchmark_regex(r'".*?"', ['"hello world" more text'])           # lazy
+benchmark_regex(r'"[^"]*"', ['"hello world" more text'])         # negated class
+
+# Test for catastrophic backtracking
+benchmark_regex(r'^(a+)+$', ['a' * 20 + 'b'], iterations=1)    # SLOW
+benchmark_regex(r'^a+$', ['a' * 20 + 'b'], iterations=1)        # FAST
+```
+
+---
+
+## Safe Regex Libraries
+
+If you accept user-provided regex patterns (search fields, routing rules, etc.), consider using a safe regex engine:
+
+| Library | Language | Protection |
+|---------|----------|-----------|
+| **RE2** | C++, Go, Python (`google-re2`) | DFA-based, guaranteed linear time |
+| **rust/regex** | Rust | Thompson NFA, no backtracking |
+| **safe-regex** | JavaScript (npm) | Static analysis for vulnerability |
+| **re2j** | Java | RE2 port to Java |
+
+```python
+# Using google-re2 (pip install google-re2)
+import re2
+
+# re2 refuses patterns that could cause catastrophic backtracking
+try:
+    re2.compile(r'(a+)+$')  # May simplify or reject dangerous patterns
+except re2.error:
+    print("Pattern rejected — potential catastrophic backtracking")
+
+# Safe alternative for user input
+def safe_search(user_pattern, text, timeout_ms=100):
+    """Safely execute a user-provided regex."""
+    try:
+        return re2.search(user_pattern, text)
+    except re2.error:
+        return None
+```
+
+---
+
+## Regex Debugging Checklist
+
+| Check | Issue | Fix |
+|-------|-------|-----|
+| Nested quantifiers like `(a+)+` | Catastrophic backtracking | Flatten to `a+` |
+| `.*` without anchors | Unbounded matching | Use negated class or anchors |
+| Alternation with overlapping options | Excessive backtracking | Reorder or use character class |
+| Missing word boundaries | Unintended partial matches | Add `\b` |
+| Greedy when lazy is needed | Over-matching | Add `?` or use negated class |
+| Forgetting to escape | `.` matches any char, not literal dot | Use `\.` |
+| Unescaped inside character class | `[` and `]` have special meaning | Use `\[` and `\]` |
+
+---
+
+<LinkCard
+  title="Next: Text Processing Tools"
+  description="Master grep, sed, awk, and practical Unix text processing"
+  href="/software-engineering/regex-text/text-tools/"
+/>

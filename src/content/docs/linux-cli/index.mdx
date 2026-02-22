@@ -1,0 +1,333 @@
+---
+title: "Linux & CLI"
+description: "Essential Linux and command-line skills for software engineers -- architecture, shell basics, distributions, and getting started with the terminal"
+difficulty: "beginner"
+prerequisites: ["Basic programming knowledge"]
+timeToRead: "18 min"
+topics: ["linux", "cli", "terminal", "shell", "unix", "command-line"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+import TerminalSimulator from '../../../components/interactive/TerminalSimulator';
+
+## Try It: Interactive Terminal
+
+Practice basic Linux commands in this sandboxed terminal simulator.
+
+<TerminalSimulator client:load />
+
+## Why Every Engineer Needs Linux
+
+Linux powers the vast majority of the computing infrastructure that software engineers interact with daily. Understanding Linux is not optional -- it is foundational.
+
+```
+    Where Linux runs:
+
+    ┌─────────────────────────────────────────────────┐
+    │  96.3% of the world's top 1 million servers     │
+    │  90%+ of all cloud infrastructure               │
+    │  100% of the world's top 500 supercomputers     │
+    │  85%+ of all smartphones (Android = Linux)      │
+    │  Most IoT devices, routers, and embedded systems│
+    │  Docker containers run Linux                    │
+    │  Kubernetes orchestrates Linux containers        │
+    └─────────────────────────────────────────────────┘
+```
+
+Even if you develop on macOS or Windows, your code almost certainly runs on Linux in production. Understanding Linux helps you:
+
+- **Debug production issues** -- read logs, check processes, analyze network traffic
+- **Deploy and manage applications** -- containers, servers, CI/CD environments
+- **Automate workflows** -- shell scripts, cron jobs, system administration
+- **Understand system behavior** -- memory, CPU, disk, network at a fundamental level
+- **Use development tools effectively** -- Git, Docker, package managers, build tools
+
+## Linux Architecture
+
+Linux is built in layers, from hardware up to user applications.
+
+```
+    ┌─────────────────────────────────────────────────────────┐
+    │                   User Applications                     │
+    │            (browsers, editors, your code)                │
+    ├─────────────────────────────────────────────────────────┤
+    │                   Shell / CLI                            │
+    │          (bash, zsh, fish -- command interpreter)        │
+    ├─────────────────────────────────────────────────────────┤
+    │              System Libraries (glibc)                    │
+    │           Standard C Library, POSIX APIs                │
+    ├─────────────────────────────────────────────────────────┤
+    │               System Call Interface                      │
+    │        (open, read, write, fork, exec, ...)             │
+    ├─────────────────────────────────────────────────────────┤
+    │                    Linux Kernel                          │
+    │  ┌──────────┐ ┌───────────┐ ┌──────────┐ ┌──────────┐ │
+    │  │ Process  │ │  Memory   │ │   File   │ │ Network  │ │
+    │  │ Manager  │ │  Manager  │ │  System  │ │  Stack   │ │
+    │  └──────────┘ └───────────┘ └──────────┘ └──────────┘ │
+    │  ┌──────────────────────────────────────────────────┐   │
+    │  │              Device Drivers                      │   │
+    │  └──────────────────────────────────────────────────┘   │
+    ├─────────────────────────────────────────────────────────┤
+    │                      Hardware                           │
+    │          (CPU, RAM, Disk, Network, GPU)                 │
+    └─────────────────────────────────────────────────────────┘
+```
+
+### Key Components
+
+| Component | Role | Examples |
+|-----------|------|---------|
+| **Kernel** | Core of the OS -- manages hardware, processes, memory, files | Linux kernel (Linus Torvalds, 1991) |
+| **Shell** | Command interpreter -- translates your commands to system calls | bash, zsh, fish, sh |
+| **System Libraries** | Provide standard functions for programs | glibc, musl |
+| **Utilities** | Core command-line tools | ls, grep, find, ps, etc. (GNU coreutils) |
+| **Package Manager** | Install, update, and remove software | apt, yum, dnf, pacman, brew |
+| **Init System** | First process, manages services | systemd, OpenRC |
+
+## Terminal vs Shell
+
+These terms are often confused, but they refer to different things.
+
+```
+    ┌─────────────────────────────────────────┐
+    │          Terminal Emulator               │
+    │  (The window / application)             │
+    │                                         │
+    │  ┌───────────────────────────────────┐  │
+    │  │            Shell                  │  │
+    │  │  (The program that interprets     │  │
+    │  │   your commands)                  │  │
+    │  │                                   │  │
+    │  │  $ ls -la                         │  │
+    │  │  $ cd /var/log                    │  │
+    │  │  $ grep "error" app.log           │  │
+    │  │  $ _                              │  │
+    │  │                                   │  │
+    │  └───────────────────────────────────┘  │
+    │                                         │
+    └─────────────────────────────────────────┘
+
+    Terminal Emulator: The GUI app that displays text
+    (iTerm2, Windows Terminal, GNOME Terminal, Alacritty)
+
+    Shell: The program running inside the terminal
+    (bash, zsh, fish, PowerShell)
+```
+
+| Term | What It Is | Examples |
+|------|-----------|---------|
+| **Terminal (emulator)** | The application that provides a text window | iTerm2, Alacritty, GNOME Terminal |
+| **Shell** | The command interpreter running inside the terminal | bash, zsh, fish |
+| **Console** | Physical terminal (historical) or virtual terminal | tty1-tty6, Ctrl+Alt+F1 |
+| **Prompt** | The text before your cursor showing context | `user@host:~$` |
+
+### Popular Shells
+
+| Shell | Description | Default On |
+|-------|-------------|------------|
+| **bash** | Bourne Again Shell -- most common, scripting standard | Most Linux distros |
+| **zsh** | Z Shell -- bash-compatible with better features | macOS (since Catalina) |
+| **fish** | Friendly Interactive Shell -- modern, user-friendly | None (install manually) |
+| **sh** | Bourne Shell -- minimal POSIX shell | Symlinked to dash on some systems |
+| **dash** | Debian Almquist Shell -- fast, POSIX-compliant | Debian/Ubuntu (as /bin/sh) |
+
+## Linux Distributions
+
+A Linux **distribution** (distro) packages the Linux kernel with a package manager, desktop environment, and default software.
+
+```
+    Distribution Family Tree (simplified):
+
+    ┌─────────┐
+    │  Debian  │──▶ Ubuntu ──▶ Linux Mint
+    │  (dpkg/  │──▶ Kali Linux
+    │   apt)   │──▶ Raspberry Pi OS
+    └─────────┘
+
+    ┌─────────┐
+    │ Red Hat  │──▶ RHEL ──▶ CentOS Stream
+    │  (rpm/   │──▶ Fedora
+    │ dnf/yum) │──▶ Rocky Linux
+    └─────────┘──▶ Amazon Linux
+
+    ┌─────────┐
+    │  Arch    │──▶ Manjaro
+    │ (pacman) │──▶ EndeavourOS
+    └─────────┘
+
+    ┌──────────┐
+    │ Alpine   │ (musl/apk) -- tiny, container-focused
+    └──────────┘
+
+    ┌─────────┐
+    │  SUSE    │──▶ openSUSE
+    │  (zypper)│──▶ SLES
+    └─────────┘
+```
+
+### Choosing a Distribution
+
+| Use Case | Recommended Distro | Why |
+|----------|-------------------|-----|
+| **Servers** | Ubuntu Server, RHEL, Debian | Stable, well-supported, large communities |
+| **Containers** | Alpine Linux | Tiny image size (5MB base), fast startup |
+| **Desktop development** | Ubuntu, Fedora | Great hardware support, modern packages |
+| **Enterprise** | RHEL, SLES | Commercial support, certifications |
+| **Learning** | Ubuntu, Fedora | Excellent documentation, large community |
+| **Cutting edge** | Arch, Fedora | Latest packages, rolling releases |
+
+## Getting Started: Essential Commands
+
+Here are the fundamental commands every software engineer should know.
+
+### Navigation and File Operations
+
+```bash
+# Where am I?
+pwd                       # Print working directory
+
+# What's here?
+ls                        # List files
+ls -la                    # List all files with details
+ls -lh                    # Human-readable file sizes
+
+# Move around
+cd /var/log               # Change directory (absolute)
+cd ../                    # Go up one directory
+cd ~                      # Go to home directory
+cd -                      # Go to previous directory
+
+# Create and remove
+mkdir -p project/src/lib  # Create nested directories
+touch newfile.txt         # Create empty file
+rm file.txt               # Remove file
+rm -r directory/          # Remove directory recursively
+cp source.txt dest.txt    # Copy file
+mv old.txt new.txt        # Move/rename file
+```
+
+### Viewing and Searching
+
+```bash
+# View file contents
+cat file.txt              # Print entire file
+less file.txt             # Paginated view (q to quit)
+head -n 20 file.txt       # First 20 lines
+tail -n 20 file.txt       # Last 20 lines
+tail -f log.txt           # Follow file (live updates)
+
+# Search in files
+grep "error" app.log      # Find lines containing "error"
+grep -r "TODO" src/       # Recursive search in directory
+grep -i "warning" log.txt # Case-insensitive search
+grep -n "error" app.log   # Show line numbers
+grep -c "error" app.log   # Count matches
+
+# Find files
+find . -name "*.py"       # Find Python files
+find /var -size +100M     # Files larger than 100MB
+find . -mtime -1          # Modified in last 24 hours
+```
+
+### System Information
+
+```bash
+# System info
+uname -a                  # Kernel version and system info
+hostname                  # Machine name
+uptime                    # How long the system has been running
+df -h                     # Disk usage (human-readable)
+free -h                   # Memory usage
+whoami                    # Current user
+
+# Process info
+ps aux                    # All running processes
+top                       # Live process monitor
+htop                      # Better process monitor (if installed)
+```
+
+:::tip
+**Tab completion** is your best friend. Type the first few characters of a command or file path, then press Tab to auto-complete. Press Tab twice to see all matching options.
+:::
+
+### Pipes and Redirection
+
+Pipes (`|`) and redirection (`>`, `>>`, `<`) are fundamental concepts that make the command line powerful.
+
+```
+    Pipes: Connect output of one command to input of another
+
+    command1 | command2 | command3
+
+    Example:
+    cat access.log | grep "404" | wc -l
+    (Read log)     (Filter 404s) (Count lines)
+
+    Redirection:
+    command > file     Write output to file (overwrite)
+    command >> file    Append output to file
+    command < file     Read input from file
+    command 2> file    Redirect errors to file
+    command &> file    Redirect both output and errors
+```
+
+```bash
+# Pipe examples
+cat server.log | grep "ERROR" | sort | uniq -c | sort -rn
+# Read log → filter errors → sort → count unique → sort by count
+
+ps aux | grep python
+# List all processes → filter Python processes
+
+# Redirection examples
+echo "Hello" > greeting.txt     # Write to file
+echo "World" >> greeting.txt    # Append to file
+python script.py > output.txt 2> errors.txt  # Separate outputs
+python script.py &> all.txt     # Combine stdout and stderr
+```
+
+## What You Will Learn in This Section
+
+<CardGrid>
+  <LinkCard
+    title="Shell Scripting"
+    description="Bash fundamentals -- variables, conditionals, loops, functions, and script patterns"
+    href="/software-engineering/linux-cli/shell-scripting/"
+  />
+  <LinkCard
+    title="File System & Permissions"
+    description="Linux filesystem hierarchy, permissions, chmod, chown, and ACLs"
+    href="/software-engineering/linux-cli/filesystem-permissions/"
+  />
+  <LinkCard
+    title="Process Management"
+    description="Process lifecycle, signals, systemd, cron jobs, and resource limits"
+    href="/software-engineering/linux-cli/process-management/"
+  />
+  <LinkCard
+    title="Networking & CLI Tools"
+    description="curl, SSH, networking diagnostics, tmux, and essential CLI tools"
+    href="/software-engineering/linux-cli/networking-tools/"
+  />
+</CardGrid>
+
+## Related Topics
+
+<CardGrid>
+  <LinkCard
+    title="DevOps"
+    description="CI/CD, containers, and Kubernetes build on Linux skills"
+    href="/software-engineering/devops/"
+  />
+  <LinkCard
+    title="Operating Systems"
+    description="Deep dive into how operating systems work"
+    href="/software-engineering/operating-systems/"
+  />
+  <LinkCard
+    title="Observability & SRE"
+    description="Monitoring and operating production Linux systems"
+    href="/software-engineering/observability-sre/"
+  />
+</CardGrid>

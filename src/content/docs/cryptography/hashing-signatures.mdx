@@ -1,0 +1,662 @@
+---
+title: "Hashing & Digital Signatures"
+description: "Understand SHA-256, bcrypt, Argon2, HMAC, digital signatures, message authentication codes, and password hashing best practices"
+difficulty: "intermediate"
+prerequisites: ["Cryptography overview", "Symmetric & Asymmetric Encryption"]
+timeToRead: "25 min"
+topics: ["hashing", "SHA-256", "bcrypt", "Argon2", "HMAC", "digital signatures", "password hashing", "message authentication"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+**Hashing** is a one-way function that takes an input of any size and produces a fixed-size output (the **hash** or **digest**). Unlike encryption, hashing **cannot be reversed** — you cannot recover the original input from the hash. This property makes hashing essential for password storage, data integrity verification, and digital signatures.
+
+---
+
+## Cryptographic Hash Functions
+
+A cryptographic hash function must satisfy several key properties:
+
+| Property | Description | What It Prevents |
+|----------|-------------|-----------------|
+| **Deterministic** | Same input always produces the same output | Nothing (required for utility) |
+| **Fixed output size** | Any input produces a hash of the same length | N/A (design property) |
+| **Preimage resistance** | Given a hash, it is infeasible to find the original input | Reversing password hashes |
+| **Second preimage resistance** | Given an input, it is infeasible to find a different input with the same hash | Forging documents |
+| **Collision resistance** | It is infeasible to find ANY two inputs with the same hash | Creating fraudulent certificates |
+| **Avalanche effect** | A tiny change in input produces a completely different hash | Detecting even single-bit changes |
+
+```
+Input: "Hello, World!"
+SHA-256: dffd6021bb2bd5b0af676290809ec3a53191dd81c7f70a4b28688a362182986f
+
+Input: "Hello, World?"   (only the last character changed)
+SHA-256: 287ecf3a9a38cf8da72e133afdb8daefe13a1f0d536b15a6e093a7ad73557fc4
+
+Completely different output from a one-character change (avalanche effect).
+```
+
+### Common Hash Functions
+
+| Algorithm | Output Size | Status | Use Case |
+|-----------|-----------|--------|----------|
+| **MD5** | 128 bits | Broken (collisions found) | Legacy checksums only |
+| **SHA-1** | 160 bits | Broken (collisions demonstrated in 2017) | Legacy, being phased out |
+| **SHA-256** | 256 bits | Secure | General purpose, certificates, blockchain |
+| **SHA-384** | 384 bits | Secure | Higher security requirements |
+| **SHA-512** | 512 bits | Secure | High-security applications |
+| **SHA-3 (Keccak)** | 224-512 bits | Secure | Alternative to SHA-2 family |
+| **BLAKE2** | 1-64 bytes | Secure | Fast hashing, file integrity |
+| **BLAKE3** | 256 bits | Secure | Extremely fast, parallelizable |
+
+:::caution[MD5 and SHA-1 Are Broken]
+**Never use MD5 or SHA-1 for security purposes.** MD5 collisions can be generated in seconds on a laptop. SHA-1 collisions were demonstrated by Google in 2017 (the SHAttered attack). Use SHA-256 or better for any security-related hashing.
+:::
+
+### Hashing in Practice
+
+<Tabs>
+  <TabItem label="Python">
+```python
+import hashlib
+
+# SHA-256 hashing
+message = b"Transfer $10,000 to account 12345"
+digest = hashlib.sha256(message).hexdigest()
+print(f"SHA-256: {digest}")
+
+# Verify integrity
+received_message = b"Transfer $10,000 to account 12345"
+is_intact = hashlib.sha256(received_message).hexdigest() == digest
+print(f"Integrity: {'VALID' if is_intact else 'TAMPERED'}")
+
+# Detect tampering
+tampered_message = b"Transfer $99,999 to account 12345"
+is_tampered = hashlib.sha256(tampered_message).hexdigest() != digest
+print(f"Tamper detected: {is_tampered}")
+
+# File hashing (for verifying downloads)
+def hash_file(filepath: str) -> str:
+    """Compute SHA-256 hash of a file in chunks."""
+    sha256 = hashlib.sha256()
+    with open(filepath, "rb") as f:
+        while chunk := f.read(8192):
+            sha256.update(chunk)
+    return sha256.hexdigest()
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+const crypto = require("crypto");
+const fs = require("fs");
+
+// SHA-256 hashing
+const message = "Transfer $10,000 to account 12345";
+const digest = crypto.createHash("sha256").update(message).digest("hex");
+console.log("SHA-256:", digest);
+
+// Verify integrity
+const received = "Transfer $10,000 to account 12345";
+const isIntact =
+  crypto.createHash("sha256").update(received).digest("hex") === digest;
+console.log("Integrity:", isIntact ? "VALID" : "TAMPERED");
+
+// Detect tampering
+const tampered = "Transfer $99,999 to account 12345";
+const isTampered =
+  crypto.createHash("sha256").update(tampered).digest("hex") !== digest;
+console.log("Tamper detected:", isTampered);
+
+// File hashing
+function hashFile(filepath) {
+  return new Promise((resolve, reject) => {
+    const hash = crypto.createHash("sha256");
+    const stream = fs.createReadStream(filepath);
+    stream.on("data", (chunk) => hash.update(chunk));
+    stream.on("end", () => resolve(hash.digest("hex")));
+    stream.on("error", reject);
+  });
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+import java.security.MessageDigest;
+import java.nio.charset.StandardCharsets;
+
+public class HashExample {
+    public static String sha256(String input) throws Exception {
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        byte[] hash = digest.digest(
+            input.getBytes(StandardCharsets.UTF_8)
+        );
+        StringBuilder hex = new StringBuilder();
+        for (byte b : hash) {
+            hex.append(String.format("%02x", b));
+        }
+        return hex.toString();
+    }
+
+    public static void main(String[] args) throws Exception {
+        String message = "Transfer $10,000 to account 12345";
+        String digest = sha256(message);
+        System.out.println("SHA-256: " + digest);
+
+        // Verify integrity
+        boolean isIntact = sha256(message).equals(digest);
+        System.out.println("Integrity: " +
+            (isIntact ? "VALID" : "TAMPERED"));
+    }
+}
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## HMAC (Hash-based Message Authentication Code)
+
+A plain hash verifies integrity (data was not changed) but **not authenticity** (data came from a trusted source). An attacker can change the message and recompute the hash. **HMAC** solves this by incorporating a **secret key** into the hash computation.
+
+```
+Plain Hash (no authentication):
+  Attacker intercepts: message + hash
+  Attacker modifies message, recomputes hash
+  Receiver cannot detect the forgery
+
+HMAC (authenticated):
+  HMAC = Hash(key || Hash(key || message))
+  Attacker cannot recompute HMAC without the secret key
+  Receiver verifies: recompute HMAC with shared key and compare
+
+┌──────────┐    ┌──────────┐
+│ Message   │───▶│          │
+│           │    │  HMAC    │───▶ Authentication Tag
+│ Secret    │───▶│ Function │     (fixed size, e.g., 256 bits)
+│ Key       │    │          │
+└──────────┘    └──────────┘
+```
+
+### HMAC Use Cases
+
+| Use Case | How HMAC Is Used |
+|----------|-----------------|
+| **API authentication** | Client signs requests with a shared secret; server verifies |
+| **JWT signing** | HS256 algorithm uses HMAC-SHA256 to sign tokens |
+| **Webhook verification** | Service sends HMAC of payload; receiver verifies authenticity |
+| **Cookie integrity** | Server HMACs cookie values to detect client-side tampering |
+| **Message authentication** | Sender attaches HMAC; receiver verifies before processing |
+
+<Tabs>
+  <TabItem label="Python">
+```python
+import hmac
+import hashlib
+
+# Shared secret between sender and receiver
+secret_key = b"super-secret-api-key-2024"
+
+# Sender: create HMAC for a message
+message = b'{"action": "transfer", "amount": 10000}'
+tag = hmac.new(secret_key, message, hashlib.sha256).hexdigest()
+print(f"HMAC tag: {tag}")
+
+# Receiver: verify the HMAC
+received_message = b'{"action": "transfer", "amount": 10000}'
+expected_tag = hmac.new(
+    secret_key, received_message, hashlib.sha256
+).hexdigest()
+
+# Use constant-time comparison to prevent timing attacks
+is_valid = hmac.compare_digest(tag, expected_tag)
+print(f"HMAC valid: {is_valid}")
+
+# Detect tampering
+tampered = b'{"action": "transfer", "amount": 99999}'
+tampered_tag = hmac.new(
+    secret_key, tampered, hashlib.sha256
+).hexdigest()
+is_tampered = not hmac.compare_digest(tag, tampered_tag)
+print(f"Tamper detected: {is_tampered}")
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+const crypto = require("crypto");
+
+const secretKey = "super-secret-api-key-2024";
+
+// Sender: create HMAC
+const message = '{"action": "transfer", "amount": 10000}';
+const tag = crypto
+  .createHmac("sha256", secretKey)
+  .update(message)
+  .digest("hex");
+console.log("HMAC tag:", tag);
+
+// Receiver: verify HMAC
+const received = '{"action": "transfer", "amount": 10000}';
+const expectedTag = crypto
+  .createHmac("sha256", secretKey)
+  .update(received)
+  .digest("hex");
+
+// Use constant-time comparison to prevent timing attacks
+const isValid = crypto.timingSafeEqual(
+  Buffer.from(tag, "hex"),
+  Buffer.from(expectedTag, "hex")
+);
+console.log("HMAC valid:", isValid);
+
+// Webhook verification example (GitHub-style)
+function verifyWebhook(payload, signature, secret) {
+  const expected = "sha256=" +
+    crypto.createHmac("sha256", secret).update(payload).digest("hex");
+  return crypto.timingSafeEqual(
+    Buffer.from(signature),
+    Buffer.from(expected)
+  );
+}
+```
+  </TabItem>
+</Tabs>
+
+:::tip[Always Use Constant-Time Comparison]
+When comparing HMAC tags (or any secret values), use constant-time comparison functions like `hmac.compare_digest()` in Python or `crypto.timingSafeEqual()` in Node.js. A regular `===` comparison leaks information through timing differences, allowing an attacker to guess the correct tag one byte at a time.
+:::
+
+---
+
+## Password Hashing
+
+Storing passwords requires a fundamentally different approach than general-purpose hashing. Password hashes must be **slow by design** to resist brute-force attacks.
+
+### Why SHA-256 Is Wrong for Passwords
+
+| Factor | SHA-256 | bcrypt/Argon2 |
+|--------|---------|---------------|
+| **Speed** | Billions of hashes/second on a GPU | Thousands of hashes/second (by design) |
+| **Salt** | Must be added manually | Built-in, automatic |
+| **Cost factor** | Fixed | Tunable (increase over time as hardware improves) |
+| **Memory usage** | Minimal | Configurable (Argon2) — resists GPU attacks |
+| **Brute-force 8-char password** | Seconds to minutes | Years to centuries |
+
+```
+Attacker with SHA-256:
+  10 billion hashes/second (modern GPU)
+  8-character password (lowercase + digits) = 36^8 = 2.8 trillion combinations
+  Time to crack: ~280 seconds (under 5 minutes)
+
+Attacker with bcrypt (cost=12):
+  ~1,000 hashes/second (same GPU, bcrypt is intentionally slow)
+  Time to crack: ~2.8 billion seconds = ~89 YEARS
+```
+
+### Password Hashing Algorithms
+
+| Algorithm | Memory-Hard | Recommended | Notes |
+|-----------|:-----------:|:-----------:|-------|
+| **Argon2id** | Yes | Best choice | Winner of the Password Hashing Competition (2015) |
+| **bcrypt** | No | Good | Widely supported, battle-tested since 1999 |
+| **scrypt** | Yes | Good | Memory-hard, but more complex to tune |
+| **PBKDF2** | No | Acceptable | NIST approved, but not memory-hard |
+| **SHA-256 (raw)** | No | Never for passwords | Far too fast |
+| **MD5** | No | Never | Broken, absurdly fast |
+
+:::tip[Use Argon2id for New Applications]
+**Argon2id** is the recommended password hashing algorithm. It combines resistance to GPU attacks (memory-hardness) with resistance to side-channel attacks. If Argon2 is not available in your framework, **bcrypt** is the second-best choice.
+:::
+
+### Password Hashing in Practice
+
+<Tabs>
+  <TabItem label="Python">
+```python
+# --- Argon2id (recommended) ---
+from argon2 import PasswordHasher
+
+ph = PasswordHasher(
+    time_cost=3,       # Number of iterations
+    memory_cost=65536,  # 64 MB of memory
+    parallelism=4,      # Number of parallel threads
+)
+
+# Hash a password (salt is generated automatically)
+password = "correct-horse-battery-staple"
+hashed = ph.hash(password)
+print(f"Argon2id hash: {hashed}")
+# Output: $argon2id$v=19$m=65536,t=3,p=4$...
+
+# Verify a password
+try:
+    ph.verify(hashed, password)
+    print("Password is correct")
+except Exception:
+    print("Password is incorrect")
+
+# Check if rehashing is needed (cost params changed)
+if ph.check_needs_rehash(hashed):
+    hashed = ph.hash(password)  # Rehash with new params
+
+
+# --- bcrypt (widely available alternative) ---
+import bcrypt
+
+password_bytes = b"correct-horse-battery-staple"
+
+# Hash with automatic salt generation
+# cost factor 12 = 2^12 = 4096 iterations
+salt = bcrypt.gensalt(rounds=12)
+hashed_bcrypt = bcrypt.hashpw(password_bytes, salt)
+print(f"bcrypt hash: {hashed_bcrypt.decode()}")
+
+# Verify
+is_valid = bcrypt.checkpw(password_bytes, hashed_bcrypt)
+print(f"Password valid: {is_valid}")
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+// --- bcrypt (most common in Node.js) ---
+const bcrypt = require("bcrypt");
+
+async function hashPassword(password) {
+  // cost factor 12 = 2^12 = 4096 iterations
+  const saltRounds = 12;
+  const hash = await bcrypt.hash(password, saltRounds);
+  return hash;
+}
+
+async function verifyPassword(password, hash) {
+  return await bcrypt.compare(password, hash);
+}
+
+// Usage
+(async () => {
+  const password = "correct-horse-battery-staple";
+
+  const hash = await hashPassword(password);
+  console.log("bcrypt hash:", hash);
+
+  const isValid = await verifyPassword(password, hash);
+  console.log("Password valid:", isValid);
+
+  const isInvalid = await verifyPassword("wrong-password", hash);
+  console.log("Wrong password:", isInvalid); // false
+})();
+
+
+// --- Argon2 (via argon2 npm package) ---
+const argon2 = require("argon2");
+
+async function hashWithArgon2(password) {
+  return await argon2.hash(password, {
+    type: argon2.argon2id,
+    memoryCost: 65536,  // 64 MB
+    timeCost: 3,
+    parallelism: 4,
+  });
+}
+
+async function verifyArgon2(hash, password) {
+  return await argon2.verify(hash, password);
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+// bcrypt via jBCrypt library
+import org.mindrot.jbcrypt.BCrypt;
+
+public class PasswordHashing {
+    // Hash a password with bcrypt
+    public static String hashPassword(String password) {
+        // Cost factor 12 = 2^12 iterations
+        return BCrypt.hashpw(password, BCrypt.gensalt(12));
+    }
+
+    // Verify a password against a hash
+    public static boolean verifyPassword(String password,
+                                          String hash) {
+        return BCrypt.checkpw(password, hash);
+    }
+
+    public static void main(String[] args) {
+        String password = "correct-horse-battery-staple";
+
+        String hash = hashPassword(password);
+        System.out.println("Hash: " + hash);
+
+        boolean valid = verifyPassword(password, hash);
+        System.out.println("Valid: " + valid);
+
+        boolean invalid = verifyPassword("wrong", hash);
+        System.out.println("Invalid: " + invalid);
+    }
+}
+```
+  </TabItem>
+</Tabs>
+
+### Password Storage Checklist
+
+| Practice | Why |
+|----------|-----|
+| **Use Argon2id or bcrypt** | Intentionally slow, resists GPU attacks |
+| **Never store plain text** | A single breach exposes every user |
+| **Never use reversible encryption** | Attacker with the key gets all passwords |
+| **Use unique salts** | Prevents rainbow table and batch attacks |
+| **Tune cost parameters** | Target 250ms-1s per hash on your hardware |
+| **Increase cost over time** | Hardware gets faster; rehash on login |
+| **Enforce strong passwords** | Check against breached password lists (e.g., HaveIBeenPwned) |
+| **Implement rate limiting** | Prevent online brute-force attacks |
+
+---
+
+## Digital Signatures
+
+A **digital signature** proves that a message was created by a specific sender (**authentication**) and has not been modified (**integrity**), and the sender cannot deny creating it (**non-repudiation**).
+
+```
+┌──────────────────────────────────────────────────────────┐
+│                   Digital Signature                        │
+│                                                          │
+│  Signing (Sender):                                       │
+│  1. Hash the message: digest = SHA-256(message)          │
+│  2. Encrypt the hash with sender's PRIVATE key:          │
+│     signature = Sign(digest, private_key)                │
+│  3. Send: message + signature                            │
+│                                                          │
+│  Verification (Receiver):                                │
+│  1. Hash the received message: digest = SHA-256(message) │
+│  2. Decrypt the signature with sender's PUBLIC key:      │
+│     original_digest = Verify(signature, public_key)      │
+│  3. Compare: digest == original_digest                   │
+│     If equal → message is authentic and unmodified       │
+│     If not   → message was tampered or sender is fake    │
+│                                                          │
+│  ┌──────────┐  Private Key  ┌───────────┐               │
+│  │ Message   │──────────────▶│ Signature │               │
+│  │ (hashed)  │    SIGN       │           │               │
+│  └──────────┘               └───────────┘               │
+│       │                          │                       │
+│       │         Public Key       │                       │
+│       └─────────VERIFY───────────┘                       │
+│             Match? → Valid signature                      │
+└──────────────────────────────────────────────────────────┘
+```
+
+### Signing vs Encryption
+
+| Property | Encryption | Digital Signature |
+|----------|-----------|-------------------|
+| **Purpose** | Confidentiality (hide content) | Authentication and integrity |
+| **Who uses the private key** | Recipient (to decrypt) | Sender (to sign) |
+| **Who uses the public key** | Sender (to encrypt) | Receiver (to verify) |
+| **Non-repudiation** | No | Yes |
+
+### Digital Signatures in Practice
+
+<Tabs>
+  <TabItem label="Python">
+```python
+from cryptography.hazmat.primitives.asymmetric import ed25519
+
+# Generate Ed25519 key pair (fast, secure, simple)
+private_key = ed25519.Ed25519PrivateKey.generate()
+public_key = private_key.public_key()
+
+# Sign a message
+message = b"Release v2.1.0 is approved for production deployment"
+signature = private_key.sign(message)
+print(f"Signature: {signature.hex()[:40]}...")
+
+# Verify the signature (anyone with the public key can verify)
+try:
+    public_key.verify(signature, message)
+    print("Signature is VALID — message is authentic")
+except Exception:
+    print("Signature is INVALID — message was tampered")
+
+# Tamper detection
+tampered = b"Release v2.1.0 is approved for STAGING deployment"
+try:
+    public_key.verify(signature, tampered)
+    print("Signature is VALID")
+except Exception:
+    print("Signature is INVALID — tampering detected!")
+
+
+# --- RSA-PSS signatures (for RSA key pairs) ---
+from cryptography.hazmat.primitives.asymmetric import rsa, padding, utils
+from cryptography.hazmat.primitives import hashes
+
+rsa_private = rsa.generate_private_key(
+    public_exponent=65537, key_size=2048
+)
+rsa_public = rsa_private.public_key()
+
+# Sign with RSA-PSS
+rsa_signature = rsa_private.sign(
+    message,
+    padding.PSS(
+        mgf=padding.MGF1(hashes.SHA256()),
+        salt_length=padding.PSS.MAX_LENGTH,
+    ),
+    hashes.SHA256(),
+)
+
+# Verify
+rsa_public.verify(
+    rsa_signature,
+    message,
+    padding.PSS(
+        mgf=padding.MGF1(hashes.SHA256()),
+        salt_length=padding.PSS.MAX_LENGTH,
+    ),
+    hashes.SHA256(),
+)
+print("RSA-PSS signature verified")
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+const crypto = require("crypto");
+
+// Generate Ed25519 key pair
+const { publicKey, privateKey } = crypto.generateKeyPairSync("ed25519");
+
+// Sign a message
+const message =
+  "Release v2.1.0 is approved for production deployment";
+const signature = crypto.sign(null, Buffer.from(message), privateKey);
+console.log("Signature:", signature.toString("hex").slice(0, 40) + "...");
+
+// Verify the signature
+const isValid = crypto.verify(
+  null, Buffer.from(message), publicKey, signature
+);
+console.log("Signature valid:", isValid);
+
+// Tamper detection
+const tampered =
+  "Release v2.1.0 is approved for STAGING deployment";
+const isTampered = !crypto.verify(
+  null, Buffer.from(tampered), publicKey, signature
+);
+console.log("Tamper detected:", isTampered);
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+import java.security.*;
+
+public class DigitalSignatureExample {
+    public static void main(String[] args) throws Exception {
+        // Generate Ed25519 key pair
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("Ed25519");
+        KeyPair keyPair = kpg.generateKeyPair();
+
+        byte[] message = "Release v2.1.0 approved".getBytes();
+
+        // Sign
+        Signature signer = Signature.getInstance("Ed25519");
+        signer.initSign(keyPair.getPrivate());
+        signer.update(message);
+        byte[] signature = signer.sign();
+
+        // Verify
+        Signature verifier = Signature.getInstance("Ed25519");
+        verifier.initVerify(keyPair.getPublic());
+        verifier.update(message);
+        boolean isValid = verifier.verify(signature);
+        System.out.println("Signature valid: " + isValid);
+    }
+}
+```
+  </TabItem>
+</Tabs>
+
+### Real-World Applications of Digital Signatures
+
+| Application | How Signatures Are Used |
+|-------------|------------------------|
+| **Code signing** | OS verifies that software came from the claimed developer |
+| **TLS certificates** | CA signs the server's certificate to prove identity |
+| **Git commits** | GPG/SSH signatures prove who authored a commit |
+| **Package managers** | npm, pip, apt verify packages are not tampered |
+| **Email (S/MIME, PGP)** | Prove the sender's identity and message integrity |
+| **JWT tokens** | RS256/ES256 signatures prevent token forgery |
+| **Blockchain** | Transaction signatures prove ownership of funds |
+| **PDF documents** | Digital signatures for legally binding documents |
+
+---
+
+## Quick Reference: Choosing the Right Primitive
+
+| Need | Primitive | Algorithm |
+|------|-----------|-----------|
+| Verify file integrity | Hash | SHA-256 |
+| Store user passwords | Password hash | Argon2id or bcrypt |
+| Authenticate API requests | HMAC | HMAC-SHA256 |
+| Prove message authenticity | Digital signature | Ed25519 |
+| Sign software releases | Digital signature | Ed25519 or RSA-PSS |
+| Verify data in transit | MAC (within TLS) | Poly1305 or GCM tag |
+| Check for accidental corruption | Hash or CRC | SHA-256 or CRC-32 |
+
+---
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="TLS & PKI"
+    href="/software-engineering/cryptography/tls-pki/"
+    description="Learn about TLS 1.3 handshake, certificates, Certificate Authorities, mTLS, and certificate pinning"
+  />
+  <LinkCard
+    title="Symmetric & Asymmetric Encryption"
+    href="/software-engineering/cryptography/symmetric-asymmetric/"
+    description="Review AES, ChaCha20, RSA, ECDSA, Diffie-Hellman key exchange, and hybrid encryption"
+  />
+</CardGrid>

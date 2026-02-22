@@ -1,0 +1,331 @@
+---
+title: "Observability & SRE"
+description: "Master observability principles, the three pillars of monitoring, and Site Reliability Engineering practices for building and operating reliable systems at scale"
+difficulty: "intermediate"
+prerequisites: ["Basic system design", "DevOps fundamentals", "Linux basics"]
+timeToRead: "20 min"
+topics: ["observability", "sre", "monitoring", "logging", "metrics", "tracing", "reliability"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+## Observability vs Monitoring
+
+**Monitoring** tells you *when* something is wrong. **Observability** tells you *why* it is wrong. While monitoring is about collecting predefined metrics and setting alerts, observability is the ability to understand the internal state of a system by examining its outputs.
+
+```
+    Monitoring:                        Observability:
+    ┌────────────────────────┐        ┌────────────────────────┐
+    │ "CPU is at 95%"        │        │ "CPU is at 95% because │
+    │ "Error rate spiked"    │        │  user X's query caused │
+    │ "Latency is high"      │        │  a full table scan on  │
+    │                        │        │  the orders table due  │
+    │ You know WHAT          │        │  to a missing index    │
+    │ is happening.          │        │  deployed 10 min ago." │
+    │                        │        │                        │
+    │ Pre-defined dashboards │        │ You understand WHY     │
+    │ and alerts.            │        │ it is happening.       │
+    │                        │        │                        │
+    │ Works for KNOWN        │        │ Works for UNKNOWN      │
+    │ failure modes.         │        │ failure modes.         │
+    └────────────────────────┘        └────────────────────────┘
+```
+
+| Aspect | Monitoring | Observability |
+|--------|-----------|--------------|
+| **Approach** | Track known metrics | Explore unknown problems |
+| **Questions** | "Is the system healthy?" | "Why is the system unhealthy?" |
+| **Data** | Predefined metrics and thresholds | Rich, high-cardinality data |
+| **Investigation** | Dashboard-driven | Query-driven, ad-hoc exploration |
+| **Failure modes** | Handles known unknowns | Handles unknown unknowns |
+
+## The Three Pillars of Observability
+
+Modern observability rests on three complementary data types, each providing a different lens into system behavior.
+
+```
+    ┌─────────────────────────────────────────────────────────┐
+    │                  Three Pillars                           │
+    │                                                         │
+    │  ┌──────────┐    ┌──────────┐    ┌──────────────────┐   │
+    │  │          │    │          │    │                  │   │
+    │  │  LOGS    │    │ METRICS  │    │    TRACES        │   │
+    │  │          │    │          │    │                  │   │
+    │  │ What     │    │ How the  │    │ How a request   │   │
+    │  │ happened │    │ system   │    │ flows through   │   │
+    │  │ (events) │    │ behaves  │    │ services        │   │
+    │  │          │    │ (numbers)│    │ (causality)     │   │
+    │  └──────────┘    └──────────┘    └──────────────────┘   │
+    │                                                         │
+    │  Detailed         Aggregated      Causal                │
+    │  per-event        over time       per-request           │
+    │  data             data            data                  │
+    └─────────────────────────────────────────────────────────┘
+```
+
+### Logs
+
+Logs are **discrete events** with timestamps and context. They record what happened in a system at a specific point in time.
+
+```json
+{
+  "timestamp": "2024-03-15T14:32:01.234Z",
+  "level": "error",
+  "service": "payment-service",
+  "trace_id": "abc123def456",
+  "user_id": "user_789",
+  "message": "Payment processing failed",
+  "error": "CardDeclinedException",
+  "amount": 99.99,
+  "currency": "USD",
+  "duration_ms": 1250
+}
+```
+
+**Best for:** Debugging specific issues, audit trails, security events, error details.
+
+### Metrics
+
+Metrics are **numerical measurements** collected over time. They show trends, patterns, and anomalies in system behavior.
+
+```
+    HTTP Request Rate (requests/second)
+    │
+    60 │                    ●●
+    50 │                   ●  ●●
+    40 │              ●●●●●     ●●
+    30 │          ●●●●           ●●●
+    20 │    ●●●●●●                 ●●●●●●
+    10 │●●●●                             ●●●●●
+     0 └──────────────────────────────────────── Time
+       08:00   09:00   10:00   11:00   12:00
+
+    Key metric types:
+    - Counter:   Total requests served (monotonically increasing)
+    - Gauge:     Current memory usage (goes up and down)
+    - Histogram: Request latency distribution (buckets)
+    - Summary:   Similar to histogram with pre-calculated quantiles
+```
+
+**Best for:** Alerting, dashboards, capacity planning, trend analysis.
+
+### Traces
+
+Traces follow a **single request** as it flows through multiple services in a distributed system. They show causality and timing.
+
+```
+    Trace ID: abc-123-def
+    ┌──────────────────────────────────────────────────────────────┐
+    │ Span: API Gateway                                            │
+    │ ██████████████████████████████████████████████████ 450ms     │
+    │  │                                                           │
+    │  ├─ Span: Auth Service                                       │
+    │  │  ████████ 80ms                                            │
+    │  │                                                           │
+    │  ├─ Span: Order Service                                      │
+    │  │  ██████████████████████████████████ 320ms                 │
+    │  │   │                                                       │
+    │  │   ├─ Span: Database Query                                 │
+    │  │   │  ██████████████████████ 200ms  ← SLOW!               │
+    │  │   │                                                       │
+    │  │   └─ Span: Cache Lookup                                   │
+    │  │      ██ 15ms                                              │
+    │  │                                                           │
+    │  └─ Span: Notification Service                               │
+    │     ████ 30ms                                                │
+    └──────────────────────────────────────────────────────────────┘
+
+    This trace reveals that the database query is the bottleneck.
+```
+
+**Best for:** Understanding request flow, finding bottlenecks, debugging latency issues in microservices.
+
+### How the Three Pillars Work Together
+
+```
+    1. Alert fires: "Error rate > 5%"         (METRICS)
+                            │
+                            ▼
+    2. Check traces: "Errors in payment-svc"   (TRACES)
+                            │
+                            ▼
+    3. Find the error: "CardDeclined for       (LOGS)
+       user_789 at 14:32:01, amount $99.99"
+```
+
+:::tip
+The most powerful observability setup **correlates all three pillars**. A metric alert leads to relevant traces, which link to specific log entries. This correlation is enabled by shared identifiers like trace IDs and request IDs.
+:::
+
+## SRE Principles
+
+**Site Reliability Engineering** (SRE) is a discipline that applies software engineering principles to operations problems. Originated at Google, SRE provides a framework for building and running reliable, scalable systems.
+
+### The Google SRE Philosophy
+
+```
+    SRE Core Tenets:
+
+    ┌───────────────────────────────────────────────────────┐
+    │  1. Embracing Risk                                    │
+    │     100% reliability is wrong target.                 │
+    │     Define acceptable risk levels.                    │
+    │                                                       │
+    │  2. Service Level Objectives (SLOs)                   │
+    │     Quantify reliability targets.                     │
+    │     Use error budgets to balance velocity and         │
+    │     reliability.                                      │
+    │                                                       │
+    │  3. Eliminating Toil                                  │
+    │     Automate repetitive operational work.             │
+    │     Engineers should spend > 50% on engineering,      │
+    │     not operations.                                   │
+    │                                                       │
+    │  4. Monitoring                                        │
+    │     Use the four golden signals:                      │
+    │     Latency, Traffic, Errors, Saturation.             │
+    │                                                       │
+    │  5. Simplicity                                        │
+    │     Simple systems are more reliable.                 │
+    │     Resist unnecessary complexity.                    │
+    │                                                       │
+    │  6. Release Engineering                               │
+    │     Make deployments boring and repeatable.           │
+    └───────────────────────────────────────────────────────┘
+```
+
+### The Four Golden Signals
+
+Every service should be monitored using these four signals at minimum.
+
+| Signal | What It Measures | Example |
+|--------|-----------------|---------|
+| **Latency** | Time to serve a request | p50 = 50ms, p99 = 200ms |
+| **Traffic** | Demand on the system | 1,000 requests/second |
+| **Errors** | Rate of failed requests | 0.5% error rate |
+| **Saturation** | How "full" the system is | CPU at 75%, disk 80% full |
+
+:::note
+The four golden signals were defined in Google's SRE book. They provide a minimal but comprehensive view of service health. If you can only monitor four things, monitor these.
+:::
+
+### Embracing Risk
+
+Pursuing 100% reliability is almost always the wrong goal. The incremental cost of each additional "nine" of reliability increases exponentially, while the user-perceived benefit diminishes.
+
+```
+    Availability    Downtime/Year    Cost to Achieve
+    ─────────────────────────────────────────────────
+    99%             3.65 days        $
+    99.9%           8.76 hours       $$
+    99.95%          4.38 hours       $$$
+    99.99%          52.6 minutes     $$$$
+    99.999%         5.26 minutes     $$$$$$$$
+
+    The cost grows exponentially, but users
+    often cannot tell the difference between
+    99.99% and 99.999%.
+```
+
+### Eliminating Toil
+
+**Toil** is manual, repetitive, automatable work that scales linearly with service growth. SRE aims to spend no more than 50% of time on toil, with the remainder spent on engineering work.
+
+| Toil | Engineering |
+|------|-------------|
+| Manually restarting crashed services | Building auto-restart and self-healing |
+| Manually scaling up for traffic spikes | Implementing auto-scaling |
+| Manually checking logs for errors | Building automated alerting |
+| Manually running database migrations | Automating migration pipelines |
+| Manually responding to the same alert repeatedly | Writing a runbook, then automating the fix |
+
+## Observability Stack
+
+A typical modern observability stack combines specialized tools for each pillar.
+
+```
+    ┌──────────────────────────────────────────────────────────┐
+    │                   Observability Stack                     │
+    │                                                          │
+    │  Logs:                                                   │
+    │  ┌──────┐  ┌────────────┐  ┌─────────────────────────┐  │
+    │  │Fluentd│─▶│Elasticsearch│─▶│ Kibana (Visualization) │  │
+    │  │Promtail│  │  or Loki   │  │ or Grafana             │  │
+    │  └──────┘  └────────────┘  └─────────────────────────┘  │
+    │                                                          │
+    │  Metrics:                                                │
+    │  ┌────────────┐  ┌────────────┐  ┌─────────────────┐    │
+    │  │ Prometheus  │─▶│ Prometheus │─▶│ Grafana         │    │
+    │  │ Exporters   │  │ Server     │  │ Dashboards      │    │
+    │  └────────────┘  └────────────┘  └─────────────────┘    │
+    │                                                          │
+    │  Traces:                                                 │
+    │  ┌────────────────┐  ┌──────────┐  ┌──────────────┐     │
+    │  │ OpenTelemetry  │─▶│  Jaeger   │─▶│ Trace UI     │     │
+    │  │ SDK            │  │  or Tempo │  │              │     │
+    │  └────────────────┘  └──────────┘  └──────────────┘     │
+    │                                                          │
+    │  Unified:                                                │
+    │  ┌──────────────────────────────────────────────────┐    │
+    │  │  Grafana (Unified dashboards, alerts, explore)   │    │
+    │  │  or Datadog / New Relic / Honeycomb              │    │
+    │  └──────────────────────────────────────────────────┘    │
+    └──────────────────────────────────────────────────────────┘
+```
+
+| Tool | Category | Description |
+|------|----------|-------------|
+| **Prometheus** | Metrics | Pull-based metrics collection and storage |
+| **Grafana** | Visualization | Dashboards for metrics, logs, and traces |
+| **Elasticsearch** | Log storage | Full-text search engine for log data |
+| **Loki** | Log storage | Lightweight log aggregation by Grafana Labs |
+| **Jaeger** | Tracing | Distributed tracing backend |
+| **Tempo** | Tracing | Scalable tracing backend by Grafana Labs |
+| **OpenTelemetry** | Instrumentation | Vendor-neutral telemetry collection framework |
+| **Datadog** | All-in-one | Commercial observability platform |
+| **Honeycomb** | Observability | Query-driven observability platform |
+
+## What You Will Learn in This Section
+
+<CardGrid>
+  <LinkCard
+    title="Logging & Metrics"
+    description="Structured logging, log aggregation, Prometheus metrics, Grafana dashboards, and alerting"
+    href="/software-engineering/observability-sre/logging-metrics/"
+  />
+  <LinkCard
+    title="Distributed Tracing"
+    description="OpenTelemetry, Jaeger, trace-span model, context propagation, and sampling strategies"
+    href="/software-engineering/observability-sre/distributed-tracing/"
+  />
+  <LinkCard
+    title="Incident Response"
+    description="On-call practices, incident management, blameless postmortems, and chaos engineering"
+    href="/software-engineering/observability-sre/incident-response/"
+  />
+  <LinkCard
+    title="SLOs & Error Budgets"
+    description="SLI/SLO/SLA definitions, error budget policies, and SLO-based alerting"
+    href="/software-engineering/observability-sre/slos-error-budgets/"
+  />
+</CardGrid>
+
+## Related Topics
+
+<CardGrid>
+  <LinkCard
+    title="DevOps"
+    description="CI/CD, containers, and infrastructure automation"
+    href="/software-engineering/devops/"
+  />
+  <LinkCard
+    title="System Design"
+    description="Designing scalable and reliable distributed systems"
+    href="/software-engineering/system-design/"
+  />
+  <LinkCard
+    title="Linux & CLI"
+    description="Essential Linux skills for debugging and operations"
+    href="/software-engineering/linux-cli/"
+  />
+</CardGrid>

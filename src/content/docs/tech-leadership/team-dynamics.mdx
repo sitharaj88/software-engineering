@@ -1,0 +1,385 @@
+---
+title: "Team Dynamics"
+description: "Master team topologies, psychological safety, effective 1:1s, feedback frameworks like SBI and radical candor, mentoring, and coaching"
+difficulty: "advanced"
+prerequisites: ["Tech Leadership overview"]
+timeToRead: "25 min"
+topics: ["team-topologies", "psychological-safety", "feedback", "mentoring", "coaching", "one-on-ones", "radical-candor"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+Great software is built by great teams, not great individuals. Understanding how teams form, interact, and communicate is essential for any technical leader. This page covers the structural and interpersonal dynamics that separate high-performing teams from struggling ones.
+
+---
+
+## Team Topologies
+
+The **Team Topologies** framework (by Matthew Skelton and Manuel Pais) provides a practical model for organizing engineering teams around the flow of change. It defines four fundamental team types and three interaction modes.
+
+### Four Fundamental Team Types
+
+```
+┌───────────────────────────────────────────────────────┐
+│                                                       │
+│   Stream-Aligned Team                                 │
+│   ┌─────────────────────────────────────────┐        │
+│   │ Aligned to a flow of work from a segment│        │
+│   │ of the business domain. Primary team     │        │
+│   │ type. Has end-to-end ownership.          │        │
+│   │ Example: Payments team, Search team      │        │
+│   └─────────────────────────────────────────┘        │
+│                                                       │
+│   Platform Team                                       │
+│   ┌─────────────────────────────────────────┐        │
+│   │ Provides internal services to reduce     │        │
+│   │ cognitive load on stream-aligned teams.  │        │
+│   │ Treats other teams as customers.         │        │
+│   │ Example: Infrastructure platform, CI/CD  │        │
+│   └─────────────────────────────────────────┘        │
+│                                                       │
+│   Enabling Team                                       │
+│   ┌─────────────────────────────────────────┐        │
+│   │ Helps other teams adopt new skills or    │        │
+│   │ technologies. Temporary collaboration,   │        │
+│   │ then steps away.                         │        │
+│   │ Example: SRE coaching, security guidance │        │
+│   └─────────────────────────────────────────┘        │
+│                                                       │
+│   Complicated-Subsystem Team                          │
+│   ┌─────────────────────────────────────────┐        │
+│   │ Owns a component requiring specialist    │        │
+│   │ knowledge most team members would not    │        │
+│   │ have. Reduces cognitive load.            │        │
+│   │ Example: ML model team, video codec team │        │
+│   └─────────────────────────────────────────┘        │
+│                                                       │
+└───────────────────────────────────────────────────────┘
+```
+
+### Three Interaction Modes
+
+| Mode | Description | When to Use |
+|------|-------------|-------------|
+| **Collaboration** | Two teams work closely together on a shared goal | Discovering new patterns, exploring new technology |
+| **X-as-a-Service** | One team provides a service, the other consumes it | Clear, well-defined interfaces between teams |
+| **Facilitating** | One team helps another become more capable | Enabling teams working with stream-aligned teams |
+
+### Team Size: Dunbar's Numbers
+
+Research suggests natural limits to team sizes:
+
+```
+Ideal team size:  5-9 people  (Amazon's "two-pizza team")
+
+Dunbar's numbers:
+  5    Close collaborators (inner circle)
+  15   Close working group
+  50   Extended team/tribe
+  150  Maximum meaningful relationships
+```
+
+:::tip[Conway's Law]
+"Organizations which design systems are constrained to produce designs which are copies of the communication structures of these organizations." — Melvin Conway (1967)
+
+This means your team structure will be reflected in your software architecture. Design your teams intentionally, and the architecture will follow.
+:::
+
+---
+
+## Psychological Safety
+
+Google's Project Aristotle found that **psychological safety** is the single most important factor in team effectiveness — more important than individual talent, team structure, or resources.
+
+### What Psychological Safety Is (and Is Not)
+
+| It IS | It Is NOT |
+|-------|-----------|
+| Feeling safe to take interpersonal risks | Being nice all the time |
+| Being able to admit mistakes without punishment | Lack of accountability |
+| Feeling comfortable asking "dumb" questions | Agreement on everything |
+| Being able to challenge ideas respectfully | Absence of conflict |
+| Knowing your team has your back | Lowered performance standards |
+
+### Building Psychological Safety
+
+**As a Tech Lead or Manager:**
+
+1. **Model vulnerability** — "I made a mistake on the architecture decision for project X. Here is what I learned."
+2. **Respond to mistakes with curiosity** — "What can we learn from this?" not "How did you let this happen?"
+3. **Explicitly invite dissent** — "What am I missing? Who has a different perspective?"
+4. **Acknowledge uncertainty** — "I am not sure about this. What do you think?"
+5. **Follow through** — When someone raises a concern, act on it visibly
+6. **Separate behavior from identity** — "The code has a bug" not "You wrote buggy code"
+
+### Measuring Psychological Safety
+
+Amy Edmondson's seven questions for measuring psychological safety:
+
+1. If you make a mistake on this team, it is often held against you (reverse scored)
+2. Members of this team are able to bring up problems and tough issues
+3. People on this team sometimes reject others for being different (reverse scored)
+4. It is safe to take a risk on this team
+5. It is difficult to ask other members of this team for help (reverse scored)
+6. No one on this team would deliberately act in a way that undermines my efforts
+7. Working with members of this team, my unique skills and talents are valued
+
+---
+
+## Effective 1:1 Meetings
+
+One-on-one meetings are the most important tool for building relationships and supporting your team. They are the direct report's meeting, not yours.
+
+### Structure
+
+```
+1:1 Meeting Template (30-60 minutes)
+────────────────────────────────────
+
+1. Check-in (5 min)
+   - How are you doing? (genuinely)
+   - Anything on your mind?
+
+2. Their Topics (15-25 min)
+   - What would you like to discuss?
+   - What is blocking you?
+   - What do you need from me?
+
+3. Feedback & Coaching (10-15 min)
+   - Recognize recent wins
+   - Share observations and feedback
+   - Discuss growth areas
+
+4. Action Items (5 min)
+   - Summarize commitments from both sides
+   - Set agenda topics for next time
+```
+
+### Questions That Open Conversations
+
+**Career Development:**
+- "What kind of work energizes you the most?"
+- "Where do you want to be in a year? What skills would help you get there?"
+- "Is there a type of project you have been wanting to work on?"
+
+**Team Dynamics:**
+- "How are things going with the team?"
+- "Is there anything that frustrates you about how we work?"
+- "Do you feel like your contributions are recognized?"
+
+**Blockers and Support:**
+- "What is the most annoying part of your workflow right now?"
+- "What could I do differently to support you better?"
+- "Is there a decision you are waiting on that I can help with?"
+
+**Feedback Seeking:**
+- "What is one thing I could improve as a leader?"
+- "Is there something I should be doing that I am not?"
+- "How can our team meetings be more useful?"
+
+:::caution[1:1 Anti-Patterns]
+- **Status update theater** — Use standups for status; 1:1s are for deeper conversation
+- **Canceling frequently** — Signals that the person is not a priority
+- **Only talking when there is a problem** — Builds anxiety around 1:1s
+- **Doing all the talking** — Aim for 70 percent listening, 30 percent talking
+- **No follow-up** — If you commit to something, do it
+:::
+
+---
+
+## Feedback Frameworks
+
+### SBI Framework (Situation-Behavior-Impact)
+
+SBI provides a structured way to deliver specific, actionable feedback:
+
+```
+Situation:  Describe the context (when and where)
+Behavior:   Describe the specific observable behavior
+Impact:     Describe the effect of the behavior
+
+Positive Example:
+────────────────
+Situation: "In yesterday's design review..."
+Behavior:  "...you presented three alternative architectures with
+            clear trade-offs for each, and facilitated a discussion
+            that included everyone's input..."
+Impact:    "...which helped us make a well-informed decision that
+            the whole team supports. It also helped two junior
+            engineers understand the reasoning behind our choices."
+
+Constructive Example:
+─────────────────────
+Situation: "In the last sprint planning session..."
+Behavior:  "...you committed to finishing the API integration by
+            Wednesday but did not communicate when it became clear
+            you would miss the deadline..."
+Impact:    "...which meant the frontend team could not start their
+            work and we missed the sprint goal. I was caught off guard
+            when the PM asked for a status update."
+```
+
+### Radical Candor
+
+Kim Scott's Radical Candor framework balances **caring personally** with **challenging directly**:
+
+```
+                        Challenge Directly
+                              │
+                    ┌─────────┼─────────┐
+                    │         │         │
+                    │ Obnoxious│ Radical │
+                    │Aggression│ Candor  │  ← GOAL
+                    │         │         │
+     Don't Care ────┼─────────┼─────────┼──── Care Personally
+                    │         │         │
+                    │Manipulat-│ Ruinous │
+                    │ive       │ Empathy │
+                    │Insincer- │         │
+                    │ity       │         │
+                    └─────────┼─────────┘
+                              │
+                     Don't Challenge
+```
+
+| Quadrant | Problem | Example |
+|----------|---------|---------|
+| **Radical Candor** (goal) | None — the right balance | "I care about your growth, and I notice your code reviews are superficial. Let me show you what thorough reviews look like." |
+| **Ruinous Empathy** | Too nice to be honest | "Everything looks great!" (when it does not) |
+| **Obnoxious Aggression** | Honest but hurtful | "This code is terrible. Did you even test it?" |
+| **Manipulative Insincerity** | Neither caring nor honest | Gossiping to others instead of addressing the issue directly |
+
+### Delivering Difficult Feedback
+
+1. **Ask permission** — "Can I share some feedback about the deployment yesterday?"
+2. **Be timely** — Deliver feedback within 48 hours while context is fresh
+3. **Be specific** — Use the SBI framework; avoid vague generalizations
+4. **Be private** — Praise publicly, critique privately
+5. **Focus on behavior, not character** — "The code had several bugs" not "You are careless"
+6. **Make it a conversation** — "What is your perspective on what happened?"
+7. **Agree on next steps** — "What would you like to do differently next time?"
+
+---
+
+## Mentoring and Coaching
+
+Mentoring and coaching are distinct but complementary approaches to developing people.
+
+### Mentoring vs Coaching
+
+| Aspect | Mentoring | Coaching |
+|--------|-----------|---------|
+| **Focus** | Sharing knowledge and experience | Drawing out the mentee's own solutions |
+| **Approach** | "Here is how I would do it" | "What do you think the options are?" |
+| **Relationship** | Experienced person guides less experienced | Coach facilitates self-discovery |
+| **Duration** | Long-term relationship | Can be short-term or ongoing |
+| **Best for** | Technical skills, career navigation, organizational knowledge | Problem-solving, leadership development, mindset shifts |
+
+### Effective Mentoring
+
+```
+The GROW Model for Mentoring Conversations:
+
+G - Goal:     What do you want to achieve?
+R - Reality:  Where are you now? What have you tried?
+O - Options:  What could you do? What are the possibilities?
+W - Will:     What will you do? When? What support do you need?
+```
+
+**Mentoring Best Practices:**
+
+- **Set clear expectations** — Agree on goals, meeting frequency, and communication style
+- **Share stories, not prescriptions** — "When I faced something similar, I..." rather than "You should..."
+- **Challenge appropriately** — Push mentees slightly beyond their comfort zone
+- **Connect to opportunities** — Introduce them to people and projects that accelerate their growth
+- **Know when to step back** — The goal is independence, not dependence
+
+### Coaching Questions
+
+Instead of giving answers, ask questions that help people think through problems themselves:
+
+```
+Opening:
+  "What would you like to focus on today?"
+  "What is the most important thing for us to discuss?"
+
+Exploring:
+  "What have you tried so far?"
+  "What is making this challenging?"
+  "What assumptions are you making?"
+  "What would success look like?"
+
+Expanding:
+  "What else could you try?"
+  "If you had no constraints, what would you do?"
+  "What would [someone you respect] do in this situation?"
+  "What is the worst that could happen?"
+
+Committing:
+  "What are you going to do next?"
+  "On a scale of 1-10, how committed are you to this plan?"
+  "What might get in the way?"
+  "How can I help?"
+```
+
+---
+
+## Team Development Stages
+
+Bruce Tuckman's model describes the stages teams go through:
+
+```
+Forming → Storming → Norming → Performing → (Adjourning)
+
+Forming:     Team assembles, polite, unclear roles
+             Leader: Provide direction, clarify goals
+
+Storming:    Conflicts emerge, competing ideas, frustration
+             Leader: Mediate, establish norms, address conflict
+
+Norming:     Roles solidify, trust builds, processes emerge
+             Leader: Step back, delegate more, reinforce norms
+
+Performing:  High autonomy, strong results, mutual accountability
+             Leader: Remove obstacles, celebrate wins, optimize
+
+Adjourning:  Project ends, team dissolves
+             Leader: Recognize contributions, capture learnings
+```
+
+:::note[Teams Cycle Through Stages]
+Teams do not progress linearly through these stages. Adding a new member, changing scope, or experiencing a significant failure can push a performing team back into storming. This is normal — recognize it and guide the team through.
+:::
+
+---
+
+## Conflict Resolution
+
+Healthy conflict around ideas drives better outcomes. Unhealthy conflict around personalities destroys teams.
+
+### Five Conflict Styles (Thomas-Kilmann)
+
+| Style | When to Use |
+|-------|-------------|
+| **Collaborating** (win-win) | Important issues where both parties' needs matter |
+| **Compromising** (split the difference) | Moderate importance, need a quick resolution |
+| **Accommodating** (yield) | Issue matters more to the other person |
+| **Competing** (assert) | Urgent decisions, safety concerns, defending core values |
+| **Avoiding** (withdraw) | Trivial issues, or when emotions need to cool down |
+
+### Resolving Technical Disagreements
+
+1. **Ensure shared understanding** — "Let me make sure I understand your position correctly..."
+2. **Identify the real disagreement** — Often it is about values or constraints, not the solution
+3. **Use data** — Benchmarks, user research, production metrics reduce opinion-based arguments
+4. **Time-box the debate** — "Let's spend 30 minutes on this. If we cannot agree, we will..."
+5. **Disagree and commit** — Once a decision is made, everyone commits fully
+6. **Set a review date** — "Let's revisit this in 3 months with real data"
+
+---
+
+<LinkCard
+  title="Next: Technical Decision-Making"
+  description="Learn about ADRs, the RFC process, evaluating trade-offs, and managing tech debt"
+  href="/software-engineering/tech-leadership/technical-decisions/"
+/>

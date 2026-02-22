@@ -1,0 +1,379 @@
+---
+title: "Data Engineering"
+description: "Master the fundamentals of data engineering — the data lifecycle, batch vs stream processing, the modern data stack, and the role of a data engineer"
+difficulty: "intermediate"
+prerequisites: ["Basic SQL knowledge", "Programming fundamentals", "Database concepts"]
+timeToRead: "20 min"
+topics: ["data engineering", "data lifecycle", "batch processing", "stream processing", "data stack", "data pipelines"]
+---
+
+import { Card, CardGrid, LinkCard, Tabs, TabItem } from '@astrojs/starlight/components';
+
+**Data engineering** is the discipline of designing, building, and maintaining the systems and infrastructure that collect, store, transform, and serve data at scale. While data scientists build models and analysts generate insights, data engineers build the **pipelines and platforms** that make all of that possible. Without reliable data infrastructure, even the most sophisticated machine learning model is useless — garbage in, garbage out.
+
+:::note
+According to industry surveys, data engineers spend roughly 70% of their time on data preparation and pipeline maintenance. Understanding data engineering fundamentals is essential for anyone working with data at scale.
+:::
+
+---
+
+## The Data Lifecycle
+
+Every piece of data moves through a lifecycle from creation to consumption. Understanding this lifecycle is the foundation of data engineering.
+
+```
+┌────────────┐    ┌────────────┐    ┌────────────┐    ┌────────────┐    ┌────────────┐
+│  Generate   │───▶│   Ingest   │───▶│   Store    │───▶│ Transform  │───▶│   Serve    │
+│             │    │            │    │            │    │            │    │            │
+│ Applications│    │ APIs, CDC, │    │ Data Lake, │    │ Clean, join│    │ Dashboards,│
+│ IoT, Logs,  │    │ Streams,   │    │ Warehouse, │    │ aggregate, │    │ ML models, │
+│ Databases   │    │ Batch loads│    │ Lakehouse  │    │ enrich     │    │ APIs, Apps │
+└────────────┘    └────────────┘    └────────────┘    └────────────┘    └────────────┘
+```
+
+### 1. Generation
+
+Data is created by applications, users, devices, and systems. Sources include:
+
+- **Transactional databases** — orders, user accounts, payments
+- **Application logs** — web server access logs, error logs, audit trails
+- **IoT sensors** — temperature readings, GPS coordinates, machine telemetry
+- **Third-party APIs** — social media feeds, weather data, financial market data
+- **User interactions** — clicks, page views, search queries
+
+### 2. Ingestion
+
+Data must be moved from its source into a storage or processing system. The two primary modes are:
+
+| Mode | Description | Latency | Use Case |
+|------|-------------|---------|----------|
+| **Batch** | Collect data over a period, then process it all at once | Minutes to hours | Daily reports, historical analysis |
+| **Streaming** | Process data continuously as it arrives | Milliseconds to seconds | Fraud detection, real-time dashboards |
+| **Micro-batch** | Small, frequent batches that approximate streaming | Seconds to minutes | Near-real-time analytics |
+
+### 3. Storage
+
+Where and how data is stored determines what kinds of processing and querying are possible.
+
+### 4. Transformation
+
+Raw data is cleaned, validated, joined, aggregated, and enriched to create datasets that are useful for analysis and decision-making.
+
+### 5. Serving
+
+Transformed data is made available to consumers — BI dashboards, machine learning models, applications, and APIs.
+
+---
+
+## Batch vs Stream Processing
+
+The choice between batch and stream processing is one of the most fundamental decisions in data engineering.
+
+### Batch Processing
+
+Batch processing operates on **bounded datasets** — finite collections of data processed as a unit.
+
+```
+┌──────────────────────────────────────────────────────┐
+│                   Batch Processing                    │
+│                                                      │
+│  Data accumulated    ──▶  Processed as    ──▶  Output│
+│  over a time window       a single job         ready │
+│                                                      │
+│  Example: Process all of yesterday's orders at 2 AM  │
+└──────────────────────────────────────────────────────┘
+```
+
+**Characteristics**:
+- High throughput — processes large volumes efficiently
+- Higher latency — results are not available until the batch completes
+- Simpler error handling — reprocess the entire batch on failure
+- Well-suited for historical analysis and periodic reporting
+
+**Common tools**: Apache Spark, Apache Hadoop MapReduce, dbt, AWS Glue
+
+### Stream Processing
+
+Stream processing operates on **unbounded datasets** — data that arrives continuously with no defined end.
+
+```
+┌──────────────────────────────────────────────────────┐
+│                  Stream Processing                    │
+│                                                      │
+│  Event 1 ──▶ Process ──▶ Output                     │
+│  Event 2 ──▶ Process ──▶ Output                     │
+│  Event 3 ──▶ Process ──▶ Output                     │
+│     ...         ...         ...                      │
+│                                                      │
+│  Example: Flag suspicious transactions in real time  │
+└──────────────────────────────────────────────────────┘
+```
+
+**Characteristics**:
+- Low latency — results available in milliseconds to seconds
+- Lower throughput per event compared to batch
+- Complex error handling — must handle late and out-of-order events
+- Well-suited for real-time monitoring, alerting, and event-driven architectures
+
+**Common tools**: Apache Kafka, Apache Flink, Apache Spark Streaming, AWS Kinesis
+
+### Lambda vs Kappa Architecture
+
+Two prominent architectural patterns address the batch-stream duality:
+
+| Architecture | Description | Pros | Cons |
+|-------------|-------------|------|------|
+| **Lambda** | Separate batch and speed layers; results are merged | Handles both use cases; batch corrects stream errors | Two codebases to maintain; complex merging logic |
+| **Kappa** | Stream-only; reprocess by replaying the event log | Single codebase; simpler architecture | Reprocessing can be slow; not ideal for all workloads |
+
+```
+Lambda Architecture:
+┌──────────┐     ┌─────────────┐
+│  Source   │────▶│ Batch Layer │──────────┐
+│          │     └─────────────┘          │    ┌──────────────┐
+│          │                               ├───▶│ Serving Layer│
+│          │     ┌─────────────┐          │    └──────────────┘
+│          │────▶│ Speed Layer │──────────┘
+└──────────┘     └─────────────┘
+
+Kappa Architecture:
+┌──────────┐     ┌──────────────┐     ┌──────────────┐
+│  Source   │────▶│ Stream Layer │────▶│ Serving Layer│
+└──────────┘     └──────────────┘     └──────────────┘
+```
+
+---
+
+## The Role of a Data Engineer
+
+A data engineer is responsible for building and maintaining the infrastructure and frameworks that enable data generation, collection, storage, and analysis. The role sits at the intersection of software engineering, database administration, and data science.
+
+### Core Responsibilities
+
+| Responsibility | Description |
+|---------------|-------------|
+| **Pipeline Development** | Design and build ETL/ELT pipelines that move data from source to destination |
+| **Data Modeling** | Design schemas and data models for warehouses and lakes |
+| **Infrastructure Management** | Set up and maintain data platforms (Spark clusters, Kafka brokers, warehouses) |
+| **Data Quality** | Implement validation, monitoring, and alerting for data pipelines |
+| **Performance Optimization** | Tune queries, partitioning strategies, and storage formats |
+| **Collaboration** | Work with analysts, data scientists, and product teams to understand data needs |
+
+### Data Engineer vs Related Roles
+
+| Aspect | Data Engineer | Data Analyst | Data Scientist | ML Engineer |
+|--------|-------------|--------------|----------------|-------------|
+| **Focus** | Infrastructure and pipelines | Insights and reporting | Models and experiments | Model deployment |
+| **Tools** | Spark, Airflow, SQL, Python | SQL, Excel, Tableau | Python, R, Jupyter | TensorFlow, MLflow |
+| **Output** | Reliable data platforms | Dashboards and reports | Predictive models | Production ML systems |
+| **Skills** | Software engineering, databases | Statistics, visualization | Math, ML algorithms | DevOps, ML frameworks |
+
+---
+
+## The Modern Data Stack
+
+The **modern data stack** refers to a collection of cloud-native tools that together form a complete data platform. Each layer handles a specific concern.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     The Modern Data Stack                     │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐   │
+│  │  Ingest   │  │  Store   │  │Transform │  │  Serve   │   │
+│  │          │  │          │  │          │  │          │   │
+│  │ Fivetran │  │Snowflake │  │   dbt    │  │ Looker   │   │
+│  │ Airbyte  │  │BigQuery  │  │ Spark    │  │ Metabase │   │
+│  │ Stitch   │  │Redshift  │  │          │  │ Superset │   │
+│  │ Debezium │  │Databricks│  │          │  │ Hex      │   │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────┘   │
+│                                                              │
+│  ┌──────────────────────┐  ┌────────────────────────────┐   │
+│  │    Orchestration      │  │    Observability            │   │
+│  │  Airflow, Dagster,   │  │  Monte Carlo, Great         │   │
+│  │  Prefect, Mage       │  │  Expectations, dbt tests    │   │
+│  └──────────────────────┘  └────────────────────────────┘   │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Key Components
+
+| Layer | Purpose | Popular Tools |
+|-------|---------|--------------|
+| **Ingestion** | Extract data from sources and load into storage | Fivetran, Airbyte, Stitch, Debezium |
+| **Storage** | Centralized data repository | Snowflake, BigQuery, Redshift, Databricks |
+| **Transformation** | Clean, model, and enrich data | dbt, Apache Spark, Dataform |
+| **Orchestration** | Schedule and coordinate pipeline tasks | Apache Airflow, Dagster, Prefect |
+| **Serving/BI** | Visualize and expose data to stakeholders | Looker, Metabase, Superset, Tableau |
+| **Observability** | Monitor data quality and pipeline health | Monte Carlo, Great Expectations, Elementary |
+| **Catalog** | Discover and document data assets | DataHub, Amundsen, Atlan |
+
+---
+
+## Data Formats and Storage
+
+Choosing the right data format significantly impacts performance, storage cost, and query speed.
+
+| Format | Type | Schema | Compression | Best For |
+|--------|------|--------|-------------|----------|
+| **CSV** | Row-based text | None | Poor | Simple data exchange |
+| **JSON** | Semi-structured text | Flexible | Moderate | APIs, nested data |
+| **Avro** | Row-based binary | Embedded | Good | Streaming, Kafka |
+| **Parquet** | Columnar binary | Embedded | Excellent | Analytics, warehouses |
+| **ORC** | Columnar binary | Embedded | Excellent | Hive ecosystem |
+| **Delta Lake** | Columnar + ACID | Embedded | Excellent | Lakehouses |
+
+:::tip[Choose Parquet for Analytics]
+If you are building an analytical pipeline and must pick one format, **Parquet** is almost always the right choice. Its columnar layout enables efficient compression and fast aggregation queries. Most modern data tools support it natively.
+:::
+
+---
+
+## A Simple Pipeline Example
+
+Here is a minimal pipeline that extracts data from an API, transforms it, and loads it into a database:
+
+<Tabs>
+  <TabItem label="Python">
+```python
+import requests
+import pandas as pd
+from sqlalchemy import create_engine
+
+def extract(api_url: str) -> list[dict]:
+    """Extract data from a REST API."""
+    response = requests.get(api_url, timeout=30)
+    response.raise_for_status()
+    return response.json()
+
+def transform(raw_data: list[dict]) -> pd.DataFrame:
+    """Clean and transform raw data."""
+    df = pd.DataFrame(raw_data)
+
+    # Remove duplicates
+    df = df.drop_duplicates(subset=["id"])
+
+    # Standardize column names
+    df.columns = [col.lower().replace(" ", "_") for col in df.columns]
+
+    # Parse dates
+    df["created_at"] = pd.to_datetime(df["created_at"])
+
+    # Filter out invalid records
+    df = df[df["amount"] > 0]
+
+    return df
+
+def load(df: pd.DataFrame, table_name: str, conn_string: str):
+    """Load transformed data into a database."""
+    engine = create_engine(conn_string)
+    df.to_sql(table_name, engine, if_exists="append", index=False)
+    print(f"Loaded {len(df)} rows into {table_name}")
+
+# Run the pipeline
+if __name__ == "__main__":
+    raw = extract("https://api.example.com/orders")
+    clean = transform(raw)
+    load(clean, "orders", "postgresql://user:pass@localhost/analytics")
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+const axios = require("axios");
+const knex = require("knex");
+
+const db = knex({
+  client: "pg",
+  connection: "postgresql://user:pass@localhost/analytics",
+});
+
+async function extract(apiUrl) {
+  /** Extract data from a REST API. */
+  const response = await axios.get(apiUrl, { timeout: 30000 });
+  return response.data;
+}
+
+function transform(rawData) {
+  /** Clean and transform raw data. */
+  // Remove duplicates by id
+  const seen = new Set();
+  const unique = rawData.filter((row) => {
+    if (seen.has(row.id)) return false;
+    seen.add(row.id);
+    return true;
+  });
+
+  // Standardize and filter
+  return unique
+    .filter((row) => row.amount > 0)
+    .map((row) => ({
+      id: row.id,
+      customer_name: row.customer_name?.toLowerCase(),
+      amount: parseFloat(row.amount),
+      created_at: new Date(row.created_at),
+    }));
+}
+
+async function load(data, tableName) {
+  /** Load transformed data into a database. */
+  await db(tableName).insert(data);
+  console.log(`Loaded ${data.length} rows into ${tableName}`);
+}
+
+// Run the pipeline
+(async () => {
+  const raw = await extract("https://api.example.com/orders");
+  const clean = transform(raw);
+  await load(clean, "orders");
+  await db.destroy();
+})();
+```
+  </TabItem>
+</Tabs>
+
+:::caution
+The example above is intentionally simple. Production pipelines require error handling, retries, idempotency, logging, monitoring, and orchestration — all topics covered in the pages that follow.
+:::
+
+---
+
+## Topics in This Section
+
+<CardGrid>
+  <Card title="ETL Pipelines" icon="rocket">
+    Learn about ETL vs ELT patterns, pipeline design, orchestration with Apache Airflow, transformations with dbt, and scheduling strategies.
+
+    [Explore ETL Pipelines](/software-engineering/data-engineering/etl-pipelines/)
+  </Card>
+  <Card title="Data Warehousing" icon="seti:db">
+    Understand star and snowflake schemas, dimensional modeling, OLAP vs OLTP, data lakes, and the lakehouse paradigm.
+
+    [Explore Data Warehousing](/software-engineering/data-engineering/data-warehousing/)
+  </Card>
+  <Card title="Stream Processing" icon="random">
+    Dive into Apache Spark Streaming, Flink, windowing strategies, exactly-once semantics, and watermarks.
+
+    [Explore Stream Processing](/software-engineering/data-engineering/stream-processing/)
+  </Card>
+  <Card title="Data Quality" icon="approve-check">
+    Master data validation, Great Expectations, data contracts, lineage, governance, and observability.
+
+    [Explore Data Quality](/software-engineering/data-engineering/data-quality/)
+  </Card>
+</CardGrid>
+
+---
+
+## Further Reading
+
+- Fundamentals of Data Engineering by Joe Reis and Matt Housley
+- Designing Data-Intensive Applications by Martin Kleppmann
+- The Data Warehouse Toolkit by Ralph Kimball
+- Data Engineering with Python by Paul Crickard
+
+<LinkCard
+  title="Next: ETL Pipelines"
+  description="Learn about ETL vs ELT patterns, pipeline design, Apache Airflow orchestration, and dbt transformations."
+  href="/software-engineering/data-engineering/etl-pipelines/"
+/>

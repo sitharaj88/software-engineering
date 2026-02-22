@@ -1,0 +1,1012 @@
+---
+title: "RAG & Embeddings"
+description: "Deep dive into Retrieval-Augmented Generation -- embeddings, vector databases, similarity search, chunking strategies, and building production RAG systems"
+difficulty: "intermediate"
+prerequisites: ["LLM & Prompt Engineering", "Database fundamentals", "Basic linear algebra"]
+timeToRead: "25 min"
+topics: ["rag", "embeddings", "vector-databases", "similarity-search", "pinecone", "pgvector", "chunking"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+## What Are Embeddings?
+
+An **embedding** is a dense numerical vector that represents the semantic meaning of text (or images, audio, etc.) in a high-dimensional space. Similar meanings are mapped to nearby points in this space.
+
+```
+    Text → Embedding Model → Vector
+
+    "king"   → [0.23, -0.45, 0.67, 0.12, ..., -0.34]  (1536 dims)
+    "queen"  → [0.21, -0.43, 0.69, 0.14, ..., -0.31]  (nearby!)
+    "car"    → [-0.56, 0.78, -0.12, 0.45, ..., 0.89]  (far away)
+
+    Semantic relationships are captured geometrically:
+    ┌──────────────────────────────────────┐
+    │                                      │
+    │    "king" ● ─ ─ ─ ─ ● "queen"       │
+    │                       │              │
+    │    "man" ● ─ ─ ─ ─ ● "woman"        │
+    │                                      │
+    │                                      │
+    │              ● "car"                 │
+    │           ● "truck"                  │
+    │                                      │
+    └──────────────────────────────────────┘
+
+    king - man + woman ≈ queen
+    (Vector arithmetic captures analogies!)
+```
+
+### Embedding Models
+
+| Model | Dimensions | Provider | Best For |
+|-------|-----------|----------|----------|
+| `text-embedding-3-small` | 1536 | OpenAI | General purpose, cost-effective |
+| `text-embedding-3-large` | 3072 | OpenAI | Higher quality, larger use cases |
+| `voyage-3` | 1024 | Voyage AI | Code and technical content |
+| `all-MiniLM-L6-v2` | 384 | Sentence-Transformers | Open-source, fast, local |
+| `nomic-embed-text-v1.5` | 768 | Nomic | Open-source, long-context |
+| Cohere `embed-v3` | 1024 | Cohere | Multilingual |
+
+<Tabs>
+  <TabItem label="Python">
+    ```python
+    import openai
+    import numpy as np
+
+    client = openai.OpenAI()
+
+    def get_embedding(text, model="text-embedding-3-small"):
+        """Generate embedding for a text string."""
+        response = client.embeddings.create(
+            input=text,
+            model=model
+        )
+        return response.data[0].embedding
+
+    # Generate embeddings
+    texts = [
+        "How to deploy a Python application",
+        "Deploying Python apps to production",
+        "Best pizza recipes in New York",
+    ]
+
+    embeddings = [get_embedding(text) for text in texts]
+
+    # Calculate similarity
+    def cosine_similarity(a, b):
+        a, b = np.array(a), np.array(b)
+        return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
+
+    # Similar texts have high similarity
+    sim_01 = cosine_similarity(embeddings[0], embeddings[1])
+    sim_02 = cosine_similarity(embeddings[0], embeddings[2])
+
+    print(f"Deploy Python ↔ Deploy apps: {sim_01:.4f}")  # ~0.89
+    print(f"Deploy Python ↔ Pizza:       {sim_02:.4f}")  # ~0.12
+    ```
+  </TabItem>
+  <TabItem label="JavaScript">
+    ```javascript
+    import OpenAI from 'openai';
+
+    const openai = new OpenAI();
+
+    async function getEmbedding(text, model = 'text-embedding-3-small') {
+      const response = await openai.embeddings.create({
+        input: text,
+        model: model
+      });
+      return response.data[0].embedding;
+    }
+
+    // Calculate cosine similarity
+    function cosineSimilarity(a, b) {
+      let dotProduct = 0;
+      let normA = 0;
+      let normB = 0;
+
+      for (let i = 0; i < a.length; i++) {
+        dotProduct += a[i] * b[i];
+        normA += a[i] * a[i];
+        normB += b[i] * b[i];
+      }
+
+      return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+    }
+
+    // Generate and compare embeddings
+    const texts = [
+      'How to deploy a Python application',
+      'Deploying Python apps to production',
+      'Best pizza recipes in New York',
+    ];
+
+    const embeddings = await Promise.all(
+      texts.map(text => getEmbedding(text))
+    );
+
+    const sim01 = cosineSimilarity(embeddings[0], embeddings[1]);
+    const sim02 = cosineSimilarity(embeddings[0], embeddings[2]);
+
+    console.log(`Deploy Python ↔ Deploy apps: ${sim01.toFixed(4)}`);
+    console.log(`Deploy Python ↔ Pizza:       ${sim02.toFixed(4)}`);
+    ```
+  </TabItem>
+</Tabs>
+
+### Similarity Metrics
+
+| Metric | Formula | Range | When to Use |
+|--------|---------|-------|-------------|
+| **Cosine Similarity** | `dot(A,B) / (norm(A) * norm(B))` | -1 to 1 | Most common for text embeddings |
+| **Euclidean Distance** | `sqrt(sum((aᵢ - bᵢ)²))` | 0 to infinity | When magnitude matters |
+| **Dot Product** | `sum(aᵢ * bᵢ)` | -infinity to infinity | When vectors are normalized |
+| **Manhattan Distance** | `sum(\|aᵢ - bᵢ\|)` | 0 to infinity | Sparse, high-dimensional data |
+
+## Vector Databases
+
+Vector databases are purpose-built to store, index, and query embedding vectors efficiently. They enable fast similarity search over millions or billions of vectors.
+
+```
+    Traditional Database              Vector Database
+    ┌──────────────────┐             ┌──────────────────────┐
+    │ SELECT * FROM    │             │ Find the 10 vectors  │
+    │ docs WHERE       │             │ most similar to      │
+    │ title = 'Python' │             │ query vector [0.23,  │
+    │                  │             │ -0.45, 0.67, ...]    │
+    │ Exact match      │             │                      │
+    │ on structured    │             │ Approximate nearest  │
+    │ data             │             │ neighbor (ANN) on    │
+    │                  │             │ unstructured data    │
+    └──────────────────┘             └──────────────────────┘
+```
+
+### Vector Database Options
+
+| Database | Type | Key Features |
+|----------|------|-------------|
+| **Pinecone** | Managed cloud | Fully managed, simple API, metadata filtering |
+| **Weaviate** | Open-source / cloud | GraphQL API, hybrid search, modules for vectorization |
+| **Qdrant** | Open-source / cloud | Rust-based, filtering, payload storage |
+| **Milvus** | Open-source | Scalable, GPU support, multiple index types |
+| **ChromaDB** | Open-source | Developer-friendly, in-memory, great for prototyping |
+| **pgvector** | PostgreSQL extension | Use existing Postgres, ACID transactions, SQL integration |
+
+### pgvector -- Vector Search in PostgreSQL
+
+<Tabs>
+  <TabItem label="Python">
+    ```python
+    import psycopg2
+    from pgvector.psycopg2 import register_vector
+
+    # Connect and enable pgvector
+    conn = psycopg2.connect("postgresql://localhost/mydb")
+    register_vector(conn)
+    cur = conn.cursor()
+
+    # Create table with vector column
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS documents (
+            id SERIAL PRIMARY KEY,
+            content TEXT NOT NULL,
+            metadata JSONB,
+            embedding vector(1536)  -- 1536-dimensional vector
+        )
+    """)
+
+    # Create an index for fast similarity search
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS documents_embedding_idx
+        ON documents
+        USING ivfflat (embedding vector_cosine_ops)
+        WITH (lists = 100)
+    """)
+
+    # Insert a document with its embedding
+    embedding = get_embedding("How to deploy Python apps")
+    cur.execute(
+        """INSERT INTO documents (content, metadata, embedding)
+           VALUES (%s, %s, %s)""",
+        (
+            "Guide to deploying Python applications...",
+            '{"category": "devops", "author": "Jane"}',
+            embedding
+        )
+    )
+
+    # Similarity search: find 5 most similar documents
+    query_embedding = get_embedding("Python deployment guide")
+    cur.execute(
+        """SELECT content, metadata,
+                  1 - (embedding <=> %s) AS similarity
+           FROM documents
+           ORDER BY embedding <=> %s
+           LIMIT 5""",
+        (query_embedding, query_embedding)
+    )
+
+    for row in cur.fetchall():
+        print(f"Similarity: {row[2]:.4f} | {row[0][:80]}...")
+
+    conn.commit()
+    ```
+  </TabItem>
+  <TabItem label="JavaScript">
+    ```javascript
+    import pg from 'pg';
+    import pgvector from 'pgvector/pg';
+
+    const pool = new pg.Pool({
+      connectionString: 'postgresql://localhost/mydb'
+    });
+
+    // Register pgvector types
+    await pgvector.registerTypes(pool);
+
+    // Create table with vector column
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS documents (
+        id SERIAL PRIMARY KEY,
+        content TEXT NOT NULL,
+        metadata JSONB,
+        embedding vector(1536)
+      )
+    `);
+
+    // Create HNSW index (faster than IVFFlat for most use cases)
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS documents_embedding_idx
+      ON documents
+      USING hnsw (embedding vector_cosine_ops)
+      WITH (m = 16, ef_construction = 200)
+    `);
+
+    // Insert document
+    const embedding = await getEmbedding('How to deploy Python apps');
+    await pool.query(
+      `INSERT INTO documents (content, metadata, embedding)
+       VALUES ($1, $2, $3)`,
+      [
+        'Guide to deploying Python applications...',
+        { category: 'devops', author: 'Jane' },
+        pgvector.toSql(embedding)
+      ]
+    );
+
+    // Similarity search
+    const queryEmbedding = await getEmbedding('deployment guide');
+    const results = await pool.query(
+      `SELECT content, metadata,
+              1 - (embedding <=> $1) AS similarity
+       FROM documents
+       ORDER BY embedding <=> $1
+       LIMIT 5`,
+      [pgvector.toSql(queryEmbedding)]
+    );
+
+    results.rows.forEach(row => {
+      console.log(`Similarity: ${row.similarity.toFixed(4)} | ` +
+                  `${row.content.substring(0, 80)}...`);
+    });
+    ```
+  </TabItem>
+</Tabs>
+
+## RAG Architecture
+
+**Retrieval-Augmented Generation** (RAG) enhances LLM responses by retrieving relevant context from a knowledge base before generating an answer. This solves key LLM limitations: hallucination, outdated knowledge, and lack of domain-specific information.
+
+```
+    RAG Architecture:
+
+    ┌─────────────────────────────────────────────────────────────┐
+    │                    Indexing Pipeline                        │
+    │  (Run once or periodically)                                │
+    │                                                             │
+    │  Documents ──▶ Chunking ──▶ Embedding ──▶ Vector DB        │
+    │                                                             │
+    │  ┌──────┐    ┌────────┐    ┌────────┐    ┌──────────┐      │
+    │  │ PDF  │    │ "Chunk │    │[0.23,  │    │          │      │
+    │  │ HTML │──▶ │  1..." │──▶ │-0.45,  │──▶ │ Pinecone │      │
+    │  │ Docs │    │ "Chunk │    │ 0.67]  │    │ pgvector │      │
+    │  │ APIs │    │  2..." │    │  ...   │    │ Weaviate │      │
+    │  └──────┘    └────────┘    └────────┘    └──────────┘      │
+    └─────────────────────────────────────────────────────────────┘
+
+    ┌─────────────────────────────────────────────────────────────┐
+    │                    Query Pipeline                           │
+    │  (Run per user query)                                      │
+    │                                                             │
+    │  User Query ──▶ Embed ──▶ Search ──▶ Build Prompt ──▶ LLM  │
+    │                                                             │
+    │  "How do I     [0.21,     Top 5       System: You    Final  │
+    │   deploy?"  ──▶-0.43,──▶ matching ──▶are a helper.──▶answer│
+    │                 0.69]    chunks       Context: ...          │
+    │                                      Question: ...         │
+    └─────────────────────────────────────────────────────────────┘
+```
+
+### Complete RAG Implementation
+
+<Tabs>
+  <TabItem label="Python">
+    ```python
+    import openai
+    from dataclasses import dataclass
+    from typing import List
+
+    client = openai.OpenAI()
+
+    @dataclass
+    class Chunk:
+        content: str
+        metadata: dict
+        embedding: list = None
+
+    class RAGPipeline:
+        def __init__(self, vector_store):
+            self.vector_store = vector_store
+
+        # --- Indexing Pipeline ---
+
+        def index_document(self, document: str, metadata: dict):
+            """Chunk, embed, and store a document."""
+            chunks = self.chunk_text(document)
+
+            for i, chunk_text in enumerate(chunks):
+                chunk = Chunk(
+                    content=chunk_text,
+                    metadata={
+                        **metadata,
+                        "chunk_index": i
+                    }
+                )
+                chunk.embedding = self._embed(chunk_text)
+                self.vector_store.upsert(chunk)
+
+        def chunk_text(
+            self, text: str,
+            chunk_size: int = 500,
+            overlap: int = 100
+        ) -> List[str]:
+            """Split text into overlapping chunks."""
+            words = text.split()
+            chunks = []
+            start = 0
+
+            while start < len(words):
+                end = start + chunk_size
+                chunk = " ".join(words[start:end])
+                chunks.append(chunk)
+                start = end - overlap  # Overlap for context
+
+            return chunks
+
+        # --- Query Pipeline ---
+
+        def query(
+            self, question: str,
+            top_k: int = 5,
+            temperature: float = 0.0
+        ) -> str:
+            """Answer a question using RAG."""
+            # Step 1: Embed the question
+            query_embedding = self._embed(question)
+
+            # Step 2: Retrieve relevant chunks
+            results = self.vector_store.search(
+                query_embedding, top_k=top_k
+            )
+
+            # Step 3: Build the prompt with context
+            context = "\n\n---\n\n".join([
+                f"Source: {r.metadata.get('source', 'unknown')}\n"
+                f"{r.content}"
+                for r in results
+            ])
+
+            # Step 4: Generate answer with LLM
+            response = client.chat.completions.create(
+                model="gpt-4",
+                temperature=temperature,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "Answer questions based on the provided "
+                            "context. If the context doesn't contain "
+                            "the answer, say 'I don't have enough "
+                            "information to answer this.' Cite your "
+                            "sources."
+                        )
+                    },
+                    {
+                        "role": "user",
+                        "content": (
+                            f"Context:\n{context}\n\n"
+                            f"Question: {question}"
+                        )
+                    }
+                ]
+            )
+
+            return response.choices[0].message.content
+
+        def _embed(self, text: str) -> list:
+            response = client.embeddings.create(
+                input=text,
+                model="text-embedding-3-small"
+            )
+            return response.data[0].embedding
+
+    # Usage
+    rag = RAGPipeline(vector_store=my_vector_db)
+
+    # Index documents
+    rag.index_document(
+        "Kubernetes pods are the smallest deployable units...",
+        metadata={"source": "k8s-docs", "topic": "pods"}
+    )
+
+    # Query
+    answer = rag.query("How do I scale pods in Kubernetes?")
+    print(answer)
+    ```
+  </TabItem>
+  <TabItem label="JavaScript">
+    ```javascript
+    import OpenAI from 'openai';
+
+    const openai = new OpenAI();
+
+    class RAGPipeline {
+      constructor(vectorStore) {
+        this.vectorStore = vectorStore;
+      }
+
+      // --- Indexing Pipeline ---
+
+      async indexDocument(document, metadata) {
+        const chunks = this.chunkText(document);
+
+        const embeddings = await Promise.all(
+          chunks.map(chunk => this.embed(chunk))
+        );
+
+        await Promise.all(
+          chunks.map((chunk, i) =>
+            this.vectorStore.upsert({
+              content: chunk,
+              metadata: { ...metadata, chunk_index: i },
+              embedding: embeddings[i]
+            })
+          )
+        );
+      }
+
+      chunkText(text, chunkSize = 500, overlap = 100) {
+        const words = text.split(/\s+/);
+        const chunks = [];
+        let start = 0;
+
+        while (start < words.length) {
+          const end = start + chunkSize;
+          chunks.push(words.slice(start, end).join(' '));
+          start = end - overlap;
+        }
+
+        return chunks;
+      }
+
+      // --- Query Pipeline ---
+
+      async query(question, topK = 5) {
+        // Step 1: Embed the question
+        const queryEmbedding = await this.embed(question);
+
+        // Step 2: Retrieve relevant chunks
+        const results = await this.vectorStore.search(
+          queryEmbedding, topK
+        );
+
+        // Step 3: Build context
+        const context = results
+          .map(r =>
+            `Source: ${r.metadata?.source ?? 'unknown'}\n` +
+            r.content
+          )
+          .join('\n\n---\n\n');
+
+        // Step 4: Generate answer
+        const response = await openai.chat.completions.create({
+          model: 'gpt-4',
+          temperature: 0,
+          messages: [
+            {
+              role: 'system',
+              content:
+                'Answer questions based on the provided context. ' +
+                "If the context doesn't contain the answer, say " +
+                "'I don't have enough information.' Cite sources."
+            },
+            {
+              role: 'user',
+              content: `Context:\n${context}\n\nQuestion: ${question}`
+            }
+          ]
+        });
+
+        return response.choices[0].message.content;
+      }
+
+      async embed(text) {
+        const response = await openai.embeddings.create({
+          input: text,
+          model: 'text-embedding-3-small'
+        });
+        return response.data[0].embedding;
+      }
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+## Chunking Strategies
+
+How you split documents into chunks significantly impacts retrieval quality. The right strategy depends on your content type and use case.
+
+```
+    Document Chunking Strategies:
+
+    Fixed-Size Chunking:
+    ┌────────────┐┌────────────┐┌────────────┐┌──────┐
+    │  500 tokens ││  500 tokens ││  500 tokens ││ rest │
+    └────────────┘└────────────┘└────────────┘└──────┘
+    Simple but may split mid-sentence.
+
+    Fixed-Size with Overlap:
+    ┌────────────────┐
+    │    500 tokens   │
+    └──────────┐─────┘
+               │ overlap
+         ┌─────┴──────────┐
+         │    500 tokens   │
+         └──────────┐─────┘
+                    │ overlap
+              ┌─────┴──────────┐
+              │    500 tokens   │
+              └────────────────┘
+    Preserves context at boundaries.
+
+    Semantic Chunking:
+    ┌──────────────────────────┐
+    │ Introduction paragraph   │  (natural break)
+    └──────────────────────────┘
+    ┌─────────────────────────────────┐
+    │ Section 1: All related content  │  (topic-based)
+    └─────────────────────────────────┘
+    ┌───────────────────┐
+    │ Section 2: ...    │
+    └───────────────────┘
+    Respects document structure.
+```
+
+### Comparison of Chunking Strategies
+
+| Strategy | Pros | Cons | Best For |
+|----------|------|------|----------|
+| **Fixed-size** | Simple, predictable | May split mid-sentence | Uniform text |
+| **Fixed-size + overlap** | Better context preservation | More chunks, more storage | General purpose |
+| **Sentence-based** | Natural boundaries | Variable chunk sizes | Articles, documentation |
+| **Paragraph-based** | Topic coherence | Can be too large or too small | Structured documents |
+| **Recursive/hierarchical** | Smart splitting by structure | More complex implementation | Code, markdown, HTML |
+| **Semantic** | Best relevance per chunk | Requires embedding model | High-quality RAG systems |
+
+<Tabs>
+  <TabItem label="Python">
+    ```python
+    from langchain.text_splitter import (
+        RecursiveCharacterTextSplitter,
+        MarkdownHeaderTextSplitter,
+    )
+
+    # Recursive chunking -- splits by hierarchy of separators
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=1000,
+        chunk_overlap=200,
+        separators=[
+            "\n\n",   # Paragraphs first
+            "\n",     # Then lines
+            ". ",     # Then sentences
+            " ",      # Then words
+            ""        # Then characters
+        ]
+    )
+
+    chunks = text_splitter.split_text(document_text)
+
+    # Markdown-aware chunking
+    headers_to_split_on = [
+        ("#", "Header 1"),
+        ("##", "Header 2"),
+        ("###", "Header 3"),
+    ]
+    md_splitter = MarkdownHeaderTextSplitter(
+        headers_to_split_on=headers_to_split_on
+    )
+    md_chunks = md_splitter.split_text(markdown_doc)
+
+    # Each chunk includes header metadata
+    for chunk in md_chunks:
+        print(f"Headers: {chunk.metadata}")
+        print(f"Content: {chunk.page_content[:100]}...")
+
+    # Custom semantic chunking
+    def semantic_chunk(text, max_tokens=500, threshold=0.75):
+        """Split text where semantic similarity drops."""
+        sentences = text.split('. ')
+        chunks = []
+        current_chunk = [sentences[0]]
+
+        for i in range(1, len(sentences)):
+            # Compare current sentence to chunk context
+            chunk_embedding = get_embedding(
+                '. '.join(current_chunk)
+            )
+            sent_embedding = get_embedding(sentences[i])
+            similarity = cosine_similarity(
+                chunk_embedding, sent_embedding
+            )
+
+            if similarity < threshold or \
+               token_count(current_chunk) > max_tokens:
+                chunks.append('. '.join(current_chunk))
+                current_chunk = [sentences[i]]
+            else:
+                current_chunk.append(sentences[i])
+
+        if current_chunk:
+            chunks.append('. '.join(current_chunk))
+
+        return chunks
+    ```
+  </TabItem>
+</Tabs>
+
+## Retrieval Quality and Optimization
+
+### Retrieval Quality Metrics
+
+| Metric | Definition | Good Value |
+|--------|-----------|------------|
+| **Precision@K** | Fraction of top-K results that are relevant | > 0.7 |
+| **Recall@K** | Fraction of all relevant docs found in top-K | > 0.8 |
+| **MRR** (Mean Reciprocal Rank) | Average of 1/rank of first relevant result | > 0.7 |
+| **NDCG** | Normalized discounted cumulative gain | > 0.75 |
+| **Hit Rate** | Fraction of queries where at least 1 relevant doc is retrieved | > 0.9 |
+
+### Improving Retrieval Quality
+
+```
+    Retrieval Optimization Techniques:
+
+    1. Query Transformation
+    ┌─────────────────┐    ┌───────────────────────────┐
+    │ Original Query   │──▶│ Rewritten / Expanded Query │
+    │ "k8s scaling"    │    │ "How to scale pods and     │
+    │                  │    │  deployments in Kubernetes" │
+    └─────────────────┘    └───────────────────────────┘
+
+    2. Hypothetical Document Embeddings (HyDE)
+    ┌────────────┐    ┌───────────────┐    ┌─────────────┐
+    │ Query      │──▶│ LLM generates │──▶│ Embed the   │
+    │            │    │ hypothetical  │    │ hypothetical│
+    │            │    │ answer        │    │ answer      │
+    └────────────┘    └───────────────┘    └──────┬──────┘
+                                                  │
+                                           Search vector DB
+                                           with this embedding
+
+    3. Re-ranking
+    ┌──────────┐    ┌────────────────┐    ┌──────────────┐
+    │ Initial  │──▶│ Cross-encoder  │──▶│ Re-ranked    │
+    │ top-20   │    │ re-ranker      │    │ top-5        │
+    │ results  │    │ (more accurate │    │ (higher      │
+    │          │    │  but slower)   │    │  quality)    │
+    └──────────┘    └────────────────┘    └──────────────┘
+```
+
+<Tabs>
+  <TabItem label="Python">
+    ```python
+    class AdvancedRAG:
+        def __init__(self, vector_store, reranker=None):
+            self.vector_store = vector_store
+            self.reranker = reranker
+
+        def query_with_hyde(self, question: str) -> str:
+            """Use HyDE for better retrieval."""
+            # Step 1: Generate hypothetical answer
+            hyde_response = client.chat.completions.create(
+                model="gpt-4",
+                temperature=0.7,
+                messages=[{
+                    "role": "user",
+                    "content": (
+                        f"Write a short paragraph that would answer "
+                        f"this question:\n{question}"
+                    )
+                }]
+            )
+            hypothetical_answer = (
+                hyde_response.choices[0].message.content
+            )
+
+            # Step 2: Embed the hypothetical answer
+            hyde_embedding = self._embed(hypothetical_answer)
+
+            # Step 3: Search with hypothetical embedding
+            results = self.vector_store.search(
+                hyde_embedding, top_k=20
+            )
+
+            # Step 4: Re-rank results
+            if self.reranker:
+                results = self.reranker.rerank(
+                    question, results, top_k=5
+                )
+            else:
+                results = results[:5]
+
+            # Step 5: Generate final answer
+            return self._generate_answer(question, results)
+
+        def query_with_expansion(self, question: str) -> str:
+            """Expand query for better recall."""
+            # Generate multiple query variations
+            expansion = client.chat.completions.create(
+                model="gpt-4",
+                temperature=0.5,
+                messages=[{
+                    "role": "user",
+                    "content": (
+                        f"Generate 3 different ways to ask this "
+                        f"question:\n{question}\n\n"
+                        f"Return as a JSON array of strings."
+                    )
+                }]
+            )
+
+            import json
+            queries = json.loads(
+                expansion.choices[0].message.content
+            )
+            queries.append(question)  # Include original
+
+            # Search with all queries and deduplicate
+            all_results = {}
+            for q in queries:
+                q_embedding = self._embed(q)
+                results = self.vector_store.search(
+                    q_embedding, top_k=5
+                )
+                for r in results:
+                    if r.id not in all_results:
+                        all_results[r.id] = r
+
+            # Take top results by score
+            final_results = sorted(
+                all_results.values(),
+                key=lambda r: r.score,
+                reverse=True
+            )[:5]
+
+            return self._generate_answer(question, final_results)
+
+        def _embed(self, text):
+            response = client.embeddings.create(
+                input=text, model="text-embedding-3-small"
+            )
+            return response.data[0].embedding
+
+        def _generate_answer(self, question, results):
+            context = "\n\n---\n\n".join(
+                [r.content for r in results]
+            )
+            response = client.chat.completions.create(
+                model="gpt-4",
+                temperature=0,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "Answer based on the provided context. "
+                            "Cite sources. If unsure, say so."
+                        )
+                    },
+                    {
+                        "role": "user",
+                        "content": (
+                            f"Context:\n{context}\n\n"
+                            f"Question: {question}"
+                        )
+                    }
+                ]
+            )
+            return response.choices[0].message.content
+    ```
+  </TabItem>
+</Tabs>
+
+## Hybrid Search
+
+Hybrid search combines **semantic search** (embeddings) with **keyword search** (BM25/full-text) for better results. Keyword search catches exact matches that semantic search might miss, while semantic search understands meaning that keywords cannot capture.
+
+```
+    Hybrid Search Architecture:
+
+    Query: "Python asyncio event loop"
+         │
+         ├──────────────────────┐
+         │                      │
+         ▼                      ▼
+    ┌──────────────┐    ┌──────────────┐
+    │  Semantic     │    │  Keyword     │
+    │  Search       │    │  Search      │
+    │  (Embeddings) │    │  (BM25/FTS)  │
+    └──────┬───────┘    └──────┬───────┘
+           │                    │
+           │  Results A         │  Results B
+           │                    │
+           ▼                    ▼
+    ┌──────────────────────────────────┐
+    │    Reciprocal Rank Fusion (RRF)  │
+    │    or weighted combination       │
+    │                                  │
+    │    score = α * semantic_score    │
+    │          + β * keyword_score     │
+    └──────────────┬───────────────────┘
+                   │
+                   ▼
+            Final ranked results
+```
+
+<Tabs>
+  <TabItem label="Python">
+    ```python
+    from rank_bm25 import BM25Okapi
+    import numpy as np
+
+    class HybridSearcher:
+        def __init__(self, documents, embeddings, alpha=0.7):
+            """
+            alpha: weight for semantic search (0-1)
+            1-alpha: weight for keyword search
+            """
+            self.documents = documents
+            self.embeddings = np.array(embeddings)
+            self.alpha = alpha
+
+            # Initialize BM25 for keyword search
+            tokenized = [doc.lower().split() for doc in documents]
+            self.bm25 = BM25Okapi(tokenized)
+
+        def search(self, query: str, top_k: int = 5):
+            # Semantic search scores
+            query_embedding = np.array(get_embedding(query))
+            semantic_scores = np.dot(
+                self.embeddings, query_embedding
+            ) / (
+                np.linalg.norm(self.embeddings, axis=1) *
+                np.linalg.norm(query_embedding)
+            )
+
+            # Keyword search scores (BM25)
+            tokenized_query = query.lower().split()
+            bm25_scores = self.bm25.get_scores(tokenized_query)
+
+            # Normalize scores to 0-1 range
+            if semantic_scores.max() > 0:
+                semantic_norm = (
+                    semantic_scores / semantic_scores.max()
+                )
+            else:
+                semantic_norm = semantic_scores
+
+            if bm25_scores.max() > 0:
+                bm25_norm = bm25_scores / bm25_scores.max()
+            else:
+                bm25_norm = bm25_scores
+
+            # Combine scores
+            hybrid_scores = (
+                self.alpha * semantic_norm +
+                (1 - self.alpha) * bm25_norm
+            )
+
+            # Return top-k results
+            top_indices = np.argsort(hybrid_scores)[::-1][:top_k]
+            return [
+                {
+                    "document": self.documents[i],
+                    "score": float(hybrid_scores[i]),
+                    "semantic_score": float(semantic_scores[i]),
+                    "keyword_score": float(bm25_scores[i])
+                }
+                for i in top_indices
+            ]
+
+    # Reciprocal Rank Fusion (alternative to weighted combination)
+    def reciprocal_rank_fusion(
+        ranked_lists, k=60
+    ):
+        """Combine multiple ranked lists using RRF."""
+        scores = {}
+        for ranked_list in ranked_lists:
+            for rank, doc_id in enumerate(ranked_list):
+                if doc_id not in scores:
+                    scores[doc_id] = 0
+                scores[doc_id] += 1.0 / (k + rank + 1)
+
+        return sorted(
+            scores.items(), key=lambda x: x[1], reverse=True
+        )
+    ```
+  </TabItem>
+</Tabs>
+
+:::tip
+**When to use hybrid search:** Always start with hybrid search in production. Pure semantic search misses exact keyword matches (product names, error codes, IDs), while pure keyword search misses semantic relationships. Hybrid search gives you the best of both worlds.
+:::
+
+## RAG Anti-Patterns and Best Practices
+
+### Common Anti-Patterns
+
+| Anti-Pattern | Problem | Solution |
+|-------------|---------|---------|
+| **Chunks too large** | Dilutes relevant content with noise | Keep chunks at 200-500 tokens |
+| **Chunks too small** | Loses context and meaning | Ensure enough context per chunk |
+| **No overlap** | Loses context at chunk boundaries | Use 10-20% overlap |
+| **Ignoring metadata** | Cannot filter by source, date, etc. | Store and use metadata for filtering |
+| **Single query** | Misses relevant results | Use query expansion or HyDE |
+| **No evaluation** | Cannot measure or improve quality | Build evaluation datasets |
+| **Stuffing all context** | Exceeds context window, adds noise | Retrieve selectively, re-rank |
+
+### Best Practices
+
+1. **Start simple** -- Fixed-size chunking with overlap works for 80% of use cases
+2. **Evaluate continuously** -- Build a test set of question-answer pairs
+3. **Use metadata filtering** -- Filter by source, date, or category before semantic search
+4. **Implement re-ranking** -- A cross-encoder re-ranker can significantly improve precision
+5. **Monitor retrieval quality** -- Track which chunks are retrieved and whether they contain the answer
+6. **Cache embeddings** -- Embedding the same text repeatedly wastes API calls and money
+7. **Handle failures gracefully** -- If retrieval returns no relevant results, have the LLM say so
+
+## Summary
+
+| Concept | Key Takeaway |
+|---------|-------------|
+| **Embeddings** | Dense vectors that capture semantic meaning |
+| **Vector Databases** | Purpose-built stores for similarity search at scale |
+| **pgvector** | Vector search inside PostgreSQL -- use your existing database |
+| **RAG** | Retrieve context from a knowledge base to ground LLM responses |
+| **Chunking** | How you split documents directly impacts retrieval quality |
+| **Hybrid Search** | Combine semantic and keyword search for best results |
+| **Re-ranking** | Cross-encoder re-ranking improves precision of initial retrieval |
+| **Evaluation** | Build test sets and track retrieval metrics continuously |
+
+<CardGrid>
+  <LinkCard
+    title="ML System Design"
+    description="Learn how to design and scale production ML systems"
+    href="/software-engineering/ai-ml/ml-system-design/"
+  />
+  <LinkCard
+    title="LLM & Prompt Engineering"
+    description="Review prompt design patterns and LLM fundamentals"
+    href="/software-engineering/ai-ml/llm-prompt-engineering/"
+  />
+</CardGrid>

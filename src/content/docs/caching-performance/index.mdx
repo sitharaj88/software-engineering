@@ -1,0 +1,483 @@
+---
+title: Caching & Performance
+description: Understand why caching matters, cache hit/miss mechanics, latency numbers every programmer should know, the memory hierarchy, and the mindset for performance optimization.
+difficulty: intermediate
+prerequisites:
+  - Basic understanding of computer architecture
+  - Operating systems concepts
+  - Web development fundamentals
+timeToRead: "22 min"
+topics:
+  - caching
+  - performance
+  - latency
+  - memory hierarchy
+  - cache hit
+  - cache miss
+  - optimization
+---
+
+import { Card, CardGrid, LinkCard, Tabs, TabItem } from '@astrojs/starlight/components';
+
+Performance is not an afterthought -- it is a feature. Users abandon pages that take more than 3 seconds to load. APIs that respond slowly cascade into system-wide bottlenecks. The single most effective technique for improving performance is **caching**: storing the results of expensive computations or data retrievals so they can be served faster on subsequent requests.
+
+---
+
+## Why Caching Matters
+
+### The Speed Gap
+
+The fundamental challenge in computing is the enormous speed difference between processing and data access:
+
+```
+Speed Hierarchy:
+                        ┌──────────────┐
+                        │   CPU        │ ~1 ns per operation
+                        │  Registers   │
+                        ├──────────────┤
+                        │   L1 Cache   │ ~1 ns
+                        ├──────────────┤
+                        │   L2 Cache   │ ~4 ns
+                        ├──────────────┤
+                        │   L3 Cache   │ ~10 ns
+                        ├──────────────┤
+                        │   Main       │ ~100 ns
+                        │   Memory     │
+                        ├──────────────┤
+                        │   SSD        │ ~16,000 ns (16 us)
+                        ├──────────────┤
+                        │   HDD        │ ~2,000,000 ns (2 ms)
+                        ├──────────────┤
+                        │  Network     │ ~500,000 ns
+                        │  (same DC)   │  (0.5 ms)
+                        ├──────────────┤
+                        │  Network     │ ~150,000,000 ns
+                        │  (cross-     │  (150 ms)
+                        │   continent) │
+                        └──────────────┘
+
+Each level is 10x-1000x slower than the one above.
+```
+
+### Latency Numbers Every Programmer Should Know
+
+These numbers, originally compiled by Jeff Dean and updated over time, should be committed to memory:
+
+```
+Operation                                    Time         Notes
+───────────────────────────────────────────────────────────────────
+L1 cache reference                           1 ns
+Branch mispredict                            3 ns
+L2 cache reference                           4 ns
+Mutex lock/unlock                           17 ns
+Main memory reference                      100 ns         (~60x L1)
+Compress 1KB with Snappy                 3,000 ns    3 us
+Send 2KB over 1 Gbps network           20,000 ns   20 us
+Read 1 MB sequentially from memory     50,000 ns   50 us
+Round trip within same datacenter     500,000 ns  0.5 ms
+SSD random read                       150,000 ns  150 us
+Read 1 MB sequentially from SSD     1,000,000 ns    1 ms
+HDD seek                            4,000,000 ns    4 ms
+Read 1 MB sequentially from HDD    20,000,000 ns   20 ms   (20x SSD)
+Send packet CA→Netherlands→CA     150,000,000 ns  150 ms
+```
+
+:::note[Intuition Builder]
+If a CPU cycle were 1 second, then:
+- L1 cache access would take 1 second
+- Main memory access would take 1.5 minutes
+- SSD read would take 2.5 minutes
+- An HDD seek would take 1 hour
+- A cross-continent round trip would take 5 years
+:::
+
+---
+
+## Cache Hit and Cache Miss
+
+```
+Cache Hit (data found in cache):
+  Client ──▶ Cache ──▶ "Found! Here is the data."
+             (fast)
+
+Cache Miss (data not in cache):
+  Client ──▶ Cache ──▶ "Not found."
+                       │
+                       ▼
+                  Origin (DB/API)
+                       │
+             ◀─────────┘ "Here is the data."
+             │
+             ▼
+           Cache stores data for next time.
+           Client receives data (slower this time).
+```
+
+### Cache Hit Ratio
+
+The **cache hit ratio** measures how effective your cache is:
+
+```
+Hit Ratio = Cache Hits / (Cache Hits + Cache Misses)
+
+Example:
+  1000 requests total
+  950 served from cache (hits)
+  50 went to the database (misses)
+
+  Hit Ratio = 950 / 1000 = 95%
+
+Impact of hit ratio on average latency:
+  Cache latency:  1 ms
+  DB latency:    50 ms
+
+  95% hit ratio: 0.95 * 1ms + 0.05 * 50ms = 3.45 ms average
+  50% hit ratio: 0.50 * 1ms + 0.50 * 50ms = 25.5 ms average
+  99% hit ratio: 0.99 * 1ms + 0.01 * 50ms = 1.49 ms average
+
+Even small improvements in hit ratio have outsized impact!
+```
+
+### Why Caching Works: Locality of Reference
+
+Caching exploits two types of locality:
+
+**Temporal locality**: Data accessed recently is likely to be accessed again soon. (The same user profile is fetched multiple times during a session.)
+
+**Spatial locality**: Data near recently accessed data is likely to be accessed soon. (Adjacent records in a table, nearby pixels in an image.)
+
+---
+
+## The Memory Hierarchy
+
+```
+        ┌─────────────┐
+        │  Registers   │  ~100 bytes     Fastest, smallest
+        ├─────────────┤
+        │   L1 Cache   │  ~64 KB         Built into CPU core
+        ├─────────────┤
+        │   L2 Cache   │  ~256 KB        Per core
+        ├─────────────┤
+        │   L3 Cache   │  ~8-64 MB       Shared across cores
+        ├─────────────┤
+        │     RAM      │  8-512 GB       Main memory
+        ├─────────────┤
+        │   SSD/NVMe   │  256 GB-4 TB    Persistent storage
+        ├─────────────┤
+        │  Network     │  Unlimited      Remote storage
+        │  Storage     │                 (S3, databases)
+        └─────────────┘
+              ▲
+              │
+         Capacity increases, speed decreases
+```
+
+### Application-Level Cache Hierarchy
+
+The same principle applies to application architecture:
+
+```
+Browser/Client Cache  →  CDN/Edge Cache  →  Application Cache  →  Database
+    (~0 ms)                (~5 ms)            (~1-5 ms)          (~10-100 ms)
+
+Each level acts as a cache for the level below it.
+```
+
+---
+
+## Performance Optimization Mindset
+
+:::tip[Performance Optimization Principles]
+1. **Measure first**: Never optimize without profiling. You will optimize the wrong thing.
+2. **Optimize the bottleneck**: Find the slowest part and fix that. Optimizing non-bottlenecks is wasted effort.
+3. **Amdahl's Law**: The speedup from optimizing one component is limited by what fraction of total time it represents.
+4. **The 80/20 rule**: 80% of the time is usually spent in 20% of the code.
+5. **Cache strategically**: The best request is the one you never make.
+6. **Reduce round trips**: Batch operations, prefetch data, and avoid the n+1 query problem.
+7. **Tradeoffs exist**: Caching trades memory for speed. Denormalization trades storage for query performance.
+:::
+
+### Amdahl's Law
+
+```
+If a component takes 90% of total time:
+  2x speedup of that component → 1.8x overall speedup
+  10x speedup of that component → 5.3x overall speedup
+  Infinite speedup → 10x overall speedup (maximum!)
+
+If a component takes 10% of total time:
+  2x speedup → 1.05x overall speedup (negligible!)
+  Infinite speedup → 1.11x overall speedup
+
+Lesson: Focus on the components that dominate total time.
+```
+
+---
+
+## Types of Caching in Software Systems
+
+| Level | What Is Cached | Tool/Technology |
+|---|---|---|
+| **CPU cache** | Memory pages, instructions | L1/L2/L3 (hardware) |
+| **OS page cache** | Disk blocks | Linux page cache |
+| **Application cache** | Computed values, DB results | Redis, Memcached, in-process |
+| **Database cache** | Query results, buffer pool | PostgreSQL shared_buffers, MySQL buffer pool |
+| **HTTP cache** | API responses | Cache-Control headers, ETags |
+| **CDN cache** | Static assets, dynamic pages | CloudFront, Cloudflare, Fastly |
+| **Browser cache** | Resources, API responses | Browser storage, Service Workers |
+| **DNS cache** | Domain-to-IP mappings | OS resolver, browser cache |
+
+---
+
+## A Simple Caching Example
+
+<Tabs>
+<TabItem label="Python">
+```python
+import time
+from functools import lru_cache
+from typing import Any
+
+# In-memory cache with TTL
+class TTLCache:
+    def __init__(self, default_ttl: int = 300):
+        self.cache = {}
+        self.default_ttl = default_ttl
+
+    def get(self, key: str) -> Any | None:
+        if key in self.cache:
+            value, expiry = self.cache[key]
+            if time.time() < expiry:
+                return value  # Cache HIT
+            else:
+                del self.cache[key]  # Expired
+        return None  # Cache MISS
+
+    def set(self, key: str, value: Any,
+            ttl: int = None):
+        ttl = ttl or self.default_ttl
+        self.cache[key] = (value, time.time() + ttl)
+
+    def delete(self, key: str):
+        self.cache.pop(key, None)
+
+    @property
+    def hit_ratio(self):
+        # In production, track hits and misses
+        pass
+
+
+# Usage with a simulated slow database
+cache = TTLCache(default_ttl=60)
+
+def get_user(user_id: str) -> dict:
+    # Check cache first
+    cached = cache.get(f"user:{user_id}")
+    if cached is not None:
+        print(f"Cache HIT for user {user_id}")
+        return cached
+
+    # Cache miss - fetch from database
+    print(f"Cache MISS for user {user_id}")
+    user = fetch_user_from_db(user_id)
+
+    # Store in cache for next time
+    cache.set(f"user:{user_id}", user, ttl=300)
+    return user
+
+def fetch_user_from_db(user_id: str) -> dict:
+    time.sleep(0.05)  # Simulate 50ms DB query
+    return {'id': user_id, 'name': 'Alice'}
+
+
+# Python's built-in memoization
+@lru_cache(maxsize=1000)
+def fibonacci(n: int) -> int:
+    if n < 2:
+        return n
+    return fibonacci(n - 1) + fibonacci(n - 2)
+
+# Without caching: O(2^n)
+# With lru_cache: O(n) -- each value computed once
+print(fibonacci(100))
+```
+</TabItem>
+<TabItem label="JavaScript">
+```javascript
+class TTLCache {
+  constructor(defaultTTL = 300) {
+    this.cache = new Map();
+    this.defaultTTL = defaultTTL; // seconds
+  }
+
+  get(key) {
+    const entry = this.cache.get(key);
+    if (!entry) return null; // MISS
+
+    if (Date.now() > entry.expiry) {
+      this.cache.delete(key); // Expired
+      return null; // MISS
+    }
+
+    return entry.value; // HIT
+  }
+
+  set(key, value, ttl = null) {
+    const ttlMs = (ttl || this.defaultTTL) * 1000;
+    this.cache.set(key, {
+      value,
+      expiry: Date.now() + ttlMs
+    });
+  }
+
+  delete(key) {
+    this.cache.delete(key);
+  }
+}
+
+const cache = new TTLCache(60);
+
+async function getUser(userId) {
+  const cacheKey = `user:${userId}`;
+  const cached = cache.get(cacheKey);
+
+  if (cached !== null) {
+    console.log(`Cache HIT for user ${userId}`);
+    return cached;
+  }
+
+  console.log(`Cache MISS for user ${userId}`);
+  const user = await fetchUserFromDB(userId);
+
+  cache.set(cacheKey, user, 300);
+  return user;
+}
+
+async function fetchUserFromDB(userId) {
+  await new Promise(r => setTimeout(r, 50)); // 50ms
+  return { id: userId, name: 'Alice' };
+}
+
+// Memoization
+function memoize(fn) {
+  const cache = new Map();
+  return function(...args) {
+    const key = JSON.stringify(args);
+    if (cache.has(key)) return cache.get(key);
+    const result = fn.apply(this, args);
+    cache.set(key, result);
+    return result;
+  };
+}
+
+const fibonacci = memoize(function fib(n) {
+  if (n < 2) return n;
+  return fibonacci(n - 1) + fibonacci(n - 2);
+});
+```
+</TabItem>
+<TabItem label="Java">
+```java
+import java.util.concurrent.*;
+import java.time.*;
+
+public class TTLCache<V> {
+    private final ConcurrentHashMap<String, CacheEntry<V>>
+        cache = new ConcurrentHashMap<>();
+    private final long defaultTTLSeconds;
+
+    record CacheEntry<V>(V value, Instant expiry) {}
+
+    public TTLCache(long defaultTTLSeconds) {
+        this.defaultTTLSeconds = defaultTTLSeconds;
+    }
+
+    public V get(String key) {
+        CacheEntry<V> entry = cache.get(key);
+        if (entry == null) return null; // MISS
+
+        if (Instant.now().isAfter(entry.expiry())) {
+            cache.remove(key); // Expired
+            return null; // MISS
+        }
+
+        return entry.value(); // HIT
+    }
+
+    public void set(String key, V value) {
+        set(key, value, defaultTTLSeconds);
+    }
+
+    public void set(String key, V value, long ttlSeconds) {
+        Instant expiry = Instant.now()
+            .plusSeconds(ttlSeconds);
+        cache.put(key, new CacheEntry<>(value, expiry));
+    }
+
+    public void delete(String key) {
+        cache.remove(key);
+    }
+
+    // Usage
+    public static void main(String[] args) {
+        var cache = new TTLCache<Map<String, String>>(300);
+
+        String userId = "user-123";
+        var cached = cache.get("user:" + userId);
+
+        if (cached != null) {
+            System.out.println("Cache HIT");
+        } else {
+            System.out.println("Cache MISS");
+            var user = Map.of(
+                "id", userId, "name", "Alice"
+            );
+            cache.set("user:" + userId, user, 300);
+        }
+    }
+}
+```
+</TabItem>
+</Tabs>
+
+---
+
+## Topics in This Section
+
+<CardGrid>
+  <Card title="Caching Strategies" icon="list-format">
+    Cache-aside, read-through, write-through, write-behind, eviction policies (LRU, LFU, FIFO), and cache invalidation patterns.
+
+    [Explore Strategies](/software-engineering/caching-performance/caching-strategies/)
+  </Card>
+  <Card title="CDN & Edge Caching" icon="rocket">
+    How CDNs work, edge locations, HTTP cache headers, cache busting, and edge computing.
+
+    [Explore CDN](/software-engineering/caching-performance/cdn-edge/)
+  </Card>
+  <Card title="Profiling & Benchmarking" icon="star">
+    CPU and memory profiling, flame graphs, benchmark methodology, load testing tools, and performance budgets.
+
+    [Explore Profiling](/software-engineering/caching-performance/profiling-benchmarking/)
+  </Card>
+  <Card title="Connection Pooling & Load" icon="puzzle">
+    Database connection pools, HTTP keep-alive, connection pool sizing, load balancing algorithms, and thread pools.
+
+    [Explore Pooling](/software-engineering/caching-performance/connection-pooling/)
+  </Card>
+</CardGrid>
+
+---
+
+## Related Topics
+
+- **[System Design](/software-engineering/system-design/)** -- Caching is a core component of system design interviews
+- **[Cloud Architecture](/software-engineering/cloud-architecture/)** -- Cloud-native caching services and CDNs
+- **[Database Engineering](/software-engineering/database-engineering/)** -- Database-level caching and query optimization
+- **[Distributed Systems](/software-engineering/distributed-systems/)** -- Distributed caching challenges and consistency
+
+<LinkCard
+  title="Next: Caching Strategies"
+  description="Deep dive into cache-aside, read-through, write-through, eviction policies, and invalidation patterns."
+  href="/software-engineering/caching-performance/caching-strategies/"
+/>

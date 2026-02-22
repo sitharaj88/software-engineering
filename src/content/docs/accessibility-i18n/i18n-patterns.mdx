@@ -1,0 +1,584 @@
+---
+title: "Internationalization Patterns"
+description: "Master Unicode encoding, locale handling, date/time/number formatting with the Intl API, pluralization, RTL support, and translation workflows"
+difficulty: "intermediate"
+prerequisites: ["Accessibility overview", "JavaScript fundamentals"]
+timeToRead: "30 min"
+topics: ["i18n", "unicode", "utf-8", "intl-api", "localization", "rtl", "pluralization", "i18next", "icu-message-format"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+Internationalization (i18n) is the process of designing software so it can be adapted to various languages and regions without engineering changes. Done well, i18n is invisible to the developer — done poorly, it results in garbled text, broken layouts, and confused users worldwide.
+
+---
+
+## Unicode and Character Encoding
+
+### The Problem
+
+Before Unicode, dozens of incompatible encoding systems existed. A file encoded in Windows-1252 (Western European) would display garbled text on a system using Shift_JIS (Japanese). Unicode solved this by assigning a unique number (code point) to every character in every writing system.
+
+### Unicode Basics
+
+```
+Unicode code points:
+  U+0041  →  A         (Latin capital letter A)
+  U+00E9  →  é         (Latin small letter e with acute)
+  U+4E16  →  世        (CJK character: world)
+  U+1F600 →  😀        (Grinning face emoji)
+  U+0627  →  ا         (Arabic letter alef)
+
+Unicode planes:
+  BMP (Basic Multilingual Plane): U+0000 to U+FFFF
+    Most common characters, including Latin, CJK, Arabic, etc.
+  Supplementary planes: U+10000 to U+10FFFF
+    Emoji, historic scripts, musical symbols, etc.
+```
+
+### UTF-8 Encoding
+
+**UTF-8** is the dominant encoding on the web (used by over 98 percent of websites). It is a variable-width encoding that uses 1-4 bytes per character:
+
+```
+Code Point Range        Bytes   Binary Format               Example
+U+0000 to U+007F       1       0xxxxxxx                    A → 41
+U+0080 to U+07FF       2       110xxxxx 10xxxxxx           é → C3 A9
+U+0800 to U+FFFF       3       1110xxxx 10xxxxxx 10xxxxxx  世 → E4 B8 96
+U+10000 to U+10FFFF    4       11110xxx 10xxxxxx 10xxxxxx  😀 → F0 9F 98 80
+                                         10xxxxxx
+```
+
+**Why UTF-8 wins:**
+- ASCII-compatible (all ASCII bytes are valid UTF-8)
+- No byte-order issues (unlike UTF-16)
+- Self-synchronizing (you can find character boundaries from any byte)
+- Space-efficient for Latin text
+
+:::caution[Always Specify Encoding]
+Always declare UTF-8 explicitly:
+- HTML: `<meta charset="UTF-8" />`
+- HTTP: `Content-Type: text/html; charset=UTF-8`
+- Database: `CREATE DATABASE mydb CHARACTER SET utf8mb4` (MySQL needs `utf8mb4` for full Unicode, not `utf8`)
+- Files: Save source code as UTF-8 without BOM
+:::
+
+### String Length Gotchas
+
+<Tabs>
+  <TabItem label="JavaScript">
+```javascript
+// JavaScript strings are UTF-16 internally
+const emoji = "😀";
+console.log(emoji.length);        // 2 (two UTF-16 code units!)
+console.log([...emoji].length);   // 1 (spread iterates code points)
+
+// Use Array.from or spread for accurate counting
+const text = "café";
+console.log(text.length);         // 4 (correct — no surrogate pairs)
+
+const mixed = "Hello 世界 😀";
+console.log(mixed.length);              // 10 (wrong — emoji = 2 units)
+console.log([...mixed].length);         // 9  (correct code points)
+console.log(new Intl.Segmenter().segment(mixed)[Symbol.iterator]);
+
+// Grapheme clusters (user-perceived characters)
+const flag = "🇺🇸";
+console.log(flag.length);              // 4  (two surrogate pairs)
+console.log([...flag].length);         // 2  (two code points)
+// Actual visual characters: 1 (one flag emoji)
+
+// Use Intl.Segmenter for accurate grapheme counting
+const segmenter = new Intl.Segmenter("en", { granularity: "grapheme" });
+const segments = [...segmenter.segment(flag)];
+console.log(segments.length); // 1 (correct!)
+```
+  </TabItem>
+  <TabItem label="Python">
+```python
+# Python 3 strings are Unicode by default
+emoji = "😀"
+print(len(emoji))       # 1 (code points — correct!)
+
+text = "café"
+print(len(text))        # 4
+
+# But byte length differs
+print(len(emoji.encode('utf-8')))  # 4 bytes
+print(len(text.encode('utf-8')))   # 5 bytes (é = 2 bytes)
+
+# Grapheme clusters require third-party library
+# pip install grapheme
+import grapheme
+flag = "🇺🇸"
+print(len(flag))                    # 2 (code points)
+print(grapheme.length(flag))        # 1 (grapheme clusters)
+
+# Normalization matters for comparison
+import unicodedata
+s1 = "café"                          # é as single code point (U+00E9)
+s2 = "cafe\u0301"                    # e + combining acute accent
+print(s1 == s2)                      # False!
+print(unicodedata.normalize('NFC', s1) ==
+      unicodedata.normalize('NFC', s2))  # True
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+// Java strings are UTF-16
+String emoji = "😀";
+System.out.println(emoji.length());          // 2 (UTF-16 code units)
+System.out.println(emoji.codePointCount(0,
+    emoji.length()));                        // 1 (code points)
+
+// Use codePoints() for iteration
+String text = "Hello 世界 😀";
+long count = text.codePoints().count();
+System.out.println(count);                   // 9 (correct)
+
+// Stream code points
+text.codePoints().forEach(cp ->
+    System.out.println(Character.toString(cp)));
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## Locale Handling
+
+### Detecting User Locale
+
+<Tabs>
+  <TabItem label="JavaScript (Browser)">
+```javascript
+// Browser locale detection
+const userLocale = navigator.language;        // "en-US"
+const allLocales = navigator.languages;       // ["en-US", "en", "fr"]
+
+// Accept-Language header (server-side)
+// Accept-Language: en-US,en;q=0.9,fr;q=0.8
+
+// URL-based locale
+// example.com/en/products
+// example.com/fr/products
+
+// Cookie-based locale
+document.cookie = "locale=fr-FR; path=/; max-age=31536000";
+```
+  </TabItem>
+  <TabItem label="Python">
+```python
+import locale
+
+# System locale
+current = locale.getlocale()
+# ('en_US', 'UTF-8')
+
+# Set locale
+locale.setlocale(locale.LC_ALL, 'fr_FR.UTF-8')
+
+# Format number with locale
+locale.setlocale(locale.LC_ALL, 'de_DE.UTF-8')
+print(locale.format_string('%.2f', 1234567.89, grouping=True))
+# 1.234.567,89
+
+# In web frameworks (Flask example)
+from flask import request
+user_locale = request.accept_languages.best_match(['en', 'fr', 'de', 'ja'])
+```
+  </TabItem>
+</Tabs>
+
+### Locale Fallback Chain
+
+```
+User requests: fr-CA (French Canadian)
+
+Lookup order:
+  1. fr-CA    → found? Use it
+  2. fr       → found? Use it (French generic)
+  3. en       → found? Use it (default fallback)
+  4. keys     → show translation keys (last resort)
+```
+
+---
+
+## Date, Time, and Number Formatting
+
+Never format dates, times, or numbers manually for i18n — always use locale-aware formatting APIs.
+
+### The JavaScript Intl API
+
+```javascript
+// Number formatting
+const num = 1234567.89;
+
+new Intl.NumberFormat('en-US').format(num);          // "1,234,567.89"
+new Intl.NumberFormat('de-DE').format(num);          // "1.234.567,89"
+new Intl.NumberFormat('ja-JP').format(num);          // "1,234,567.89"
+new Intl.NumberFormat('ar-SA').format(num);          // "١٬٢٣٤٬٥٦٧٫٨٩"
+new Intl.NumberFormat('hi-IN').format(num);          // "12,34,567.89"
+                                                     // (Indian grouping!)
+
+// Currency formatting
+new Intl.NumberFormat('en-US', {
+  style: 'currency', currency: 'USD'
+}).format(42.5);                                     // "$42.50"
+
+new Intl.NumberFormat('ja-JP', {
+  style: 'currency', currency: 'JPY'
+}).format(4250);                                     // "￥4,250"
+
+new Intl.NumberFormat('de-DE', {
+  style: 'currency', currency: 'EUR'
+}).format(42.5);                                     // "42,50 €"
+
+// Percentage
+new Intl.NumberFormat('en-US', {
+  style: 'percent', minimumFractionDigits: 1
+}).format(0.856);                                    // "85.6%"
+
+// Compact notation
+new Intl.NumberFormat('en-US', {
+  notation: 'compact'
+}).format(1500000);                                  // "1.5M"
+
+// Units
+new Intl.NumberFormat('en-US', {
+  style: 'unit', unit: 'kilometer-per-hour'
+}).format(120);                                      // "120 km/h"
+```
+
+### Date and Time Formatting
+
+```javascript
+const date = new Date('2025-06-15T14:30:00Z');
+
+// Short date
+new Intl.DateTimeFormat('en-US').format(date);       // "6/15/2025"
+new Intl.DateTimeFormat('en-GB').format(date);       // "15/06/2025"
+new Intl.DateTimeFormat('ja-JP').format(date);       // "2025/6/15"
+new Intl.DateTimeFormat('de-DE').format(date);       // "15.6.2025"
+
+// Long date
+new Intl.DateTimeFormat('en-US', {
+  dateStyle: 'long'
+}).format(date);                                     // "June 15, 2025"
+
+new Intl.DateTimeFormat('fr-FR', {
+  dateStyle: 'long'
+}).format(date);                                     // "15 juin 2025"
+
+// Custom formatting
+new Intl.DateTimeFormat('en-US', {
+  weekday: 'long',
+  year: 'numeric',
+  month: 'long',
+  day: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+  timeZoneName: 'short',
+}).format(date);
+// "Sunday, June 15, 2025 at 2:30 PM UTC"
+
+// Relative time
+const rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
+rtf.format(-1, 'day');        // "yesterday"
+rtf.format(3, 'hour');        // "in 3 hours"
+rtf.format(-2, 'week');       // "2 weeks ago"
+
+const rtfFR = new Intl.RelativeTimeFormat('fr', { numeric: 'auto' });
+rtfFR.format(-1, 'day');      // "hier"
+rtfFR.format(3, 'hour');      // "dans 3 heures"
+```
+
+### Comparison and Sorting
+
+```javascript
+// Locale-aware string sorting
+const names = ['Ångström', 'Zebra', 'apple', 'Über'];
+
+// Wrong: ASCII sorting
+names.sort();
+// ['apple', 'Zebra', 'Ångström', 'Über'] (uppercase first, then special chars)
+
+// Correct: locale-aware sorting
+names.sort(new Intl.Collator('en').compare);
+// ['Ångström', 'apple', 'Über', 'Zebra']
+
+names.sort(new Intl.Collator('sv').compare);  // Swedish
+// ['apple', 'Über', 'Zebra', 'Ångström'] (Å sorts last in Swedish!)
+
+// Case-insensitive sorting
+const collator = new Intl.Collator('en', { sensitivity: 'base' });
+collator.compare('a', 'A');   // 0 (equal)
+collator.compare('a', 'á');   // 0 (equal with sensitivity: 'base')
+```
+
+---
+
+## Pluralization Rules
+
+English has two plural forms (singular and plural), but many languages have more complex rules:
+
+```
+English:  1 item, 2 items                      (2 forms)
+French:   0 item, 1 item, 2 items              (2 forms, 0 is singular)
+Russian:  1 товар, 2 товара, 5 товаров          (3 forms)
+Arabic:   0 عناصر, 1 عنصر, 2 عنصران, 3 عناصر    (6 forms!)
+Polish:   1 plik, 2 pliki, 5 plików             (3 forms)
+Japanese: 1つのアイテム                           (1 form — no plurals)
+```
+
+### ICU MessageFormat
+
+The **ICU MessageFormat** is the industry standard for handling pluralization and gender:
+
+```
+{count, plural,
+    =0 {No items in your cart}
+    one {1 item in your cart}
+    other {{count} items in your cart}
+}
+
+{gender, select,
+    female {She liked your post}
+    male {He liked your post}
+    other {They liked your post}
+}
+
+{count, plural,
+    =0 {No messages}
+    one {You have 1 new message}
+    other {You have {count} new messages}
+}
+```
+
+<Tabs>
+  <TabItem label="JavaScript (Intl)">
+```javascript
+// Intl.PluralRules determines the plural category
+const pr = new Intl.PluralRules('en-US');
+pr.select(0);   // "other"
+pr.select(1);   // "one"
+pr.select(2);   // "other"
+
+const prRU = new Intl.PluralRules('ru');
+prRU.select(1);   // "one"
+prRU.select(2);   // "few"
+prRU.select(5);   // "many"
+prRU.select(21);  // "one"  (Russian: 21 is singular!)
+prRU.select(22);  // "few"
+
+// Using with a translation map
+function pluralize(locale, count, messages) {
+  const pr = new Intl.PluralRules(locale);
+  const rule = pr.select(count);
+  return messages[rule].replace('{count}', count);
+}
+
+const messages = {
+  one: '{count} file deleted',
+  other: '{count} files deleted'
+};
+
+pluralize('en', 1, messages);   // "1 file deleted"
+pluralize('en', 5, messages);   // "5 files deleted"
+```
+  </TabItem>
+  <TabItem label="Python">
+```python
+# Using python-i18n or babel
+from babel.numbers import format_decimal
+from babel.dates import format_date
+from babel.plural import to_python
+
+# Babel plural rules
+from babel import Locale
+locale = Locale.parse('ru_RU')
+print(locale.plural_form)
+# nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 :
+#   n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2)
+
+# Using gettext (standard Python i18n)
+import gettext
+
+# Setup
+lang = gettext.translation('messages', localedir='locales', languages=['fr'])
+lang.install()
+_ = lang.gettext
+ngettext = lang.ngettext
+
+# Usage
+print(_("Welcome"))                              # "Bienvenue"
+print(ngettext("{n} file", "{n} files", 5))      # "5 fichiers"
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## RTL (Right-to-Left) Support
+
+Languages like Arabic, Hebrew, Persian, and Urdu are written right-to-left. Supporting RTL requires changes at multiple levels.
+
+### HTML Direction
+
+```html
+<!-- Set document direction -->
+<html lang="ar" dir="rtl">
+
+<!-- Override direction for specific elements -->
+<p dir="ltr">This paragraph is left-to-right</p>
+
+<!-- Auto-detect direction based on content -->
+<p dir="auto">مرحبا</p>  <!-- Browser detects Arabic → RTL -->
+
+<!-- Bidirectional text isolation -->
+<p>The title is <bdi>مرحبا بالعالم</bdi> in Arabic.</p>
+```
+
+### CSS for RTL
+
+```css
+/* Use logical properties instead of physical */
+.card {
+  /* Instead of margin-left, use margin-inline-start */
+  margin-inline-start: 16px;
+  margin-inline-end: 8px;
+
+  /* Instead of padding-left/right */
+  padding-inline: 16px;
+
+  /* Instead of text-align: left */
+  text-align: start;
+
+  /* Instead of border-left */
+  border-inline-start: 3px solid blue;
+
+  /* Instead of float: left */
+  float: inline-start;
+}
+
+/* Flip icons and images that have directional meaning */
+[dir="rtl"] .icon-arrow {
+  transform: scaleX(-1);
+}
+
+/* Some things should NOT flip:
+   - Phone numbers
+   - Clocks/timelines
+   - Media playback controls
+   - Logos
+   - Code
+*/
+```
+
+### RTL Checklist
+
+| Category | What to Check |
+|----------|--------------|
+| **Text alignment** | Starts from the correct side |
+| **Navigation** | Menus flow right-to-left |
+| **Icons** | Directional icons are flipped (arrows, "back" buttons) |
+| **Forms** | Labels and inputs are properly aligned |
+| **Tables** | Column order is reversed |
+| **Images** | Directional images are mirrored where appropriate |
+| **Scrollbars** | Appear on the correct side |
+| **Numbers** | Western numerals or locale-specific numerals |
+
+---
+
+## Translation Workflows
+
+### i18next (JavaScript)
+
+```javascript
+import i18next from 'i18next';
+
+i18next.init({
+  lng: 'en',
+  fallbackLng: 'en',
+  resources: {
+    en: {
+      translation: {
+        greeting: 'Hello, {{name}}!',
+        items: '{{count}} item',
+        items_plural: '{{count}} items',
+        nav: {
+          home: 'Home',
+          about: 'About',
+          contact: 'Contact'
+        }
+      }
+    },
+    fr: {
+      translation: {
+        greeting: 'Bonjour, {{name}} !',
+        items: '{{count}} article',
+        items_plural: '{{count}} articles',
+        nav: {
+          home: 'Accueil',
+          about: 'À propos',
+          contact: 'Contact'
+        }
+      }
+    }
+  }
+});
+
+// Usage
+i18next.t('greeting', { name: 'Alice' });  // "Hello, Alice!"
+i18next.t('items', { count: 5 });           // "5 items"
+i18next.t('nav.home');                       // "Home"
+
+// Change language
+i18next.changeLanguage('fr');
+i18next.t('greeting', { name: 'Alice' });  // "Bonjour, Alice !"
+```
+
+### String Externalization Best Practices
+
+| Practice | Description |
+|----------|-------------|
+| **Never hardcode user-facing strings** | Always use translation keys |
+| **Use meaningful key names** | `nav.home` not `string_42` |
+| **Do not concatenate translated strings** | "Hello" + name + "!" breaks in many languages |
+| **Provide context for translators** | Comments explaining where the string appears |
+| **Avoid string reuse** | The same English word may translate differently in different contexts |
+| **Handle zero, one, many** | Use proper pluralization, not if/else |
+| **Externalize error messages** | Users should see errors in their language |
+| **Do not embed HTML in translations** | Use ICU MessageFormat or interpolation |
+
+### Translation File Organization
+
+```
+locales/
+├── en/
+│   ├── common.json      (shared strings: buttons, labels, errors)
+│   ├── home.json        (home page strings)
+│   ├── dashboard.json   (dashboard strings)
+│   └── errors.json      (error messages)
+├── fr/
+│   ├── common.json
+│   ├── home.json
+│   ├── dashboard.json
+│   └── errors.json
+├── de/
+│   └── ...
+└── ja/
+    └── ...
+```
+
+:::tip[Translation Management]
+For production applications, use a translation management system (TMS) like Crowdin, Lokalise, or Phrase. These tools provide translator-friendly interfaces, version control, machine translation suggestions, and CI/CD integration for keeping translations in sync with code changes.
+:::
+
+---
+
+<LinkCard
+  title="Next: Testing for Accessibility"
+  description="Learn manual testing, automated tools, screen reader testing, and CI/CD integration"
+  href="/software-engineering/accessibility-i18n/a11y-testing/"
+/>

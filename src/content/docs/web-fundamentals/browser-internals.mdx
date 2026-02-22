@@ -1,0 +1,743 @@
+---
+title: "Browser Internals"
+description: "Understand browser architecture, the critical rendering path, reflow vs repaint, JavaScript engines, web workers, and service workers"
+difficulty: "intermediate"
+prerequisites: ["JavaScript & the DOM", "HTML & Semantic Markup", "CSS Layout"]
+timeToRead: "30 min"
+topics: ["browser-engine", "rendering-pipeline", "critical-rendering-path", "v8", "web-workers", "service-workers", "reflow", "repaint"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+import DOMVisualizer from '../../../components/interactive/DOMVisualizer';
+
+## Interactive DOM Visualizer
+
+Explore the DOM tree, CSS box model, and event propagation interactively.
+
+<DOMVisualizer client:load />
+
+Understanding how browsers work under the hood is essential for writing performant web applications. This page explores the browser's architecture, the critical rendering path, JavaScript engine internals, and the worker APIs that enable multithreading on the web.
+
+---
+
+## Browser Architecture
+
+A modern browser is a complex multi-process application. Here is how the major components are organized:
+
+```
+┌──────────────────────────────────────────────────────────┐
+│                    BROWSER PROCESS                        │
+│  (UI, bookmarks, network coordination, storage)          │
+├──────────────────────────────────────────────────────────┤
+│                                                          │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │
+│  │  RENDERER     │  │  RENDERER     │  │  RENDERER     │  │
+│  │  PROCESS      │  │  PROCESS      │  │  PROCESS      │  │
+│  │  (Tab 1)      │  │  (Tab 2)      │  │  (Tab 3)      │  │
+│  │               │  │               │  │               │  │
+│  │  ┌─────────┐  │  │  ┌─────────┐  │  │  ┌─────────┐  │  │
+│  │  │ Blink   │  │  │  │ Blink   │  │  │  │ Blink   │  │  │
+│  │  │ (HTML/  │  │  │  │ (HTML/  │  │  │  │ (HTML/  │  │  │
+│  │  │  CSS)   │  │  │  │  CSS)   │  │  │  │  CSS)   │  │  │
+│  │  ├─────────┤  │  │  ├─────────┤  │  │  ├─────────┤  │  │
+│  │  │ V8      │  │  │  │ V8      │  │  │  │ V8      │  │  │
+│  │  │ (JS)    │  │  │  │ (JS)    │  │  │  │ (JS)    │  │  │
+│  │  └─────────┘  │  │  └─────────┘  │  │  └─────────┘  │  │
+│  └──────────────┘  └──────────────┘  └──────────────┘  │
+│                                                          │
+│  ┌──────────────┐  ┌──────────────┐                     │
+│  │  GPU PROCESS  │  │  NETWORK     │                     │
+│  │  (compositing │  │  SERVICE     │                     │
+│  │   and drawing)│  │  (HTTP, DNS, │                     │
+│  │               │  │   cache)     │                     │
+│  └──────────────┘  └──────────────┘                     │
+│                                                          │
+│  ┌──────────────┐  ┌──────────────┐                     │
+│  │  PLUGIN       │  │  STORAGE     │                     │
+│  │  PROCESS      │  │  PROCESS     │                     │
+│  └──────────────┘  └──────────────┘                     │
+└──────────────────────────────────────────────────────────┘
+```
+
+### Major Browser Engines
+
+| Browser | Rendering Engine | JS Engine |
+|---------|-----------------|-----------|
+| Chrome | Blink | V8 |
+| Firefox | Gecko | SpiderMonkey |
+| Safari | WebKit | JavaScriptCore (Nitro) |
+| Edge | Blink (since 2020) | V8 |
+
+### Process Isolation Benefits
+
+- **Security** — One tab's renderer process cannot access another tab's memory
+- **Stability** — A crashing tab does not bring down the entire browser
+- **Performance** — Each tab can utilize its own CPU core
+- **Sandboxing** — Renderer processes run with limited OS-level privileges
+
+---
+
+## The Critical Rendering Path
+
+The critical rendering path is the sequence of steps the browser takes to convert HTML, CSS, and JavaScript into pixels on the screen.
+
+```
+                     HTML Document
+                          │
+                          ▼
+              ┌───────────────────────┐
+              │    HTML Parser        │
+              │  (Tokenizer → Tree   │
+              │   Construction)       │
+              └───────────┬───────────┘
+                          │
+           ┌──────────────┼──────────────┐
+           ▼              │              ▼
+    ┌─────────────┐       │      ┌─────────────────┐
+    │    DOM       │       │      │  CSS Parser     │
+    │  (Document   │       │      │  (Tokenize →    │
+    │   Object     │       │      │   CSSOM)        │
+    │   Model)     │       │      └────────┬────────┘
+    └──────┬──────┘       │               │
+           │              │               │
+           │    ┌─────────┴─────────┐     │
+           │    │  JavaScript       │     │
+           │    │  Engine           │     │
+           │    │  (may modify      │     │
+           │    │   DOM or CSSOM)   │     │
+           │    └───────────────────┘     │
+           │                              │
+           └──────────┬───────────────────┘
+                      │
+                      ▼
+              ┌───────────────┐
+              │  Render Tree   │
+              │  (visible      │
+              │   nodes only)  │
+              └───────┬───────┘
+                      │
+                      ▼
+              ┌───────────────┐
+              │    Layout      │
+              │  (calculate    │
+              │   geometry)    │
+              └───────┬───────┘
+                      │
+                      ▼
+              ┌───────────────┐
+              │    Paint       │
+              │  (rasterize    │
+              │   pixels)      │
+              └───────┬───────┘
+                      │
+                      ▼
+              ┌───────────────┐
+              │   Composite    │
+              │  (layer        │
+              │   composition) │
+              └───────────────┘
+```
+
+### Step-by-Step Breakdown
+
+#### 1. DOM Construction
+
+The browser parses HTML bytes into tokens, then constructs the DOM tree:
+
+```
+Bytes → Characters → Tokens → Nodes → DOM
+
+<html>                      document
+  <body>            →        └── html
+    <h1>Hello</h1>               └── body
+    <p>World</p>                     ├── h1
+  </body>                            │   └── "Hello"
+</html>                              └── p
+                                         └── "World"
+```
+
+:::caution[Parser-Blocking Resources]
+When the HTML parser encounters a `<script>` tag (without `async` or `defer`), it **stops parsing** and executes the script. This is because JavaScript can modify the DOM via `document.write()`. This is why scripts should be placed at the bottom of `<body>` or loaded with `async`/`defer`.
+:::
+
+#### 2. CSSOM Construction
+
+CSS is parsed into the CSS Object Model — a tree that mirrors the DOM but contains computed style information:
+
+```
+body { font-size: 16px; }      CSSOM:
+h1 { font-weight: bold; }       └── body
+p { color: gray; }                   │  font-size: 16px
+                                     ├── h1
+                                     │   font-size: 16px (inherited)
+                                     │   font-weight: bold
+                                     └── p
+                                         font-size: 16px (inherited)
+                                         color: gray
+```
+
+CSS is **render-blocking** — the browser will not render any content until it has built the CSSOM for all stylesheets.
+
+#### 3. Render Tree
+
+The render tree combines the DOM and CSSOM, containing only **visible** elements:
+
+```
+DOM                   CSSOM                 Render Tree
+html                  html                  body
+├── head              ├── head              ├── h1 "Hello"
+│   └── style         │   └── (hidden)      │   font-weight: bold
+├── body              └── body              └── p "World"
+│   ├── h1 "Hello"        ├── h1               color: gray
+│   ├── p "World"          └── p
+│   └── span (hidden)
+│       display: none      (excluded from render tree)
+```
+
+Elements with `display: none` are excluded. Elements with `visibility: hidden` are included (they still affect layout).
+
+#### 4. Layout (Reflow)
+
+The browser calculates the exact position and size of every element in the render tree:
+
+```
+Viewport: 800px wide
+
+body:     x=0,    y=0,    width=800, height=auto
+  h1:     x=0,    y=0,    width=800, height=38
+  p:      x=0,    y=46,   width=800, height=24
+```
+
+#### 5. Paint
+
+The browser fills in pixels — colors, images, borders, text, shadows:
+
+```
+Paint operations:
+1. Background color of body
+2. Background color of h1
+3. Text "Hello" in h1
+4. Background color of p
+5. Text "World" in p (gray)
+6. Borders, shadows, etc.
+```
+
+#### 6. Composite
+
+The browser combines painted layers into the final screen image. Elements with transforms, opacity, or `will-change` get their own compositor layers.
+
+---
+
+## Reflow vs Repaint
+
+Understanding the difference between reflow and repaint is critical for performance.
+
+| | Reflow (Layout) | Repaint |
+|--|-----------------|---------|
+| **Trigger** | Geometry changes (size, position) | Appearance changes (color, shadow) |
+| **Cost** | Very expensive (recalculates layout) | Moderate (re-rasterizes affected area) |
+| **Scope** | Can cascade to parent/child elements | Only affected elements |
+| **Examples** | `width`, `height`, `margin`, `padding`, `display`, `position`, `font-size` | `color`, `background`, `box-shadow`, `border-color`, `visibility` |
+
+### What Triggers Reflow
+
+```javascript
+// Properties that trigger layout (reflow)
+element.offsetHeight;        // Reading layout properties forces reflow
+element.getBoundingClientRect();
+element.scrollTop;
+element.clientWidth;
+window.getComputedStyle(element);
+
+// Changes that trigger reflow
+element.style.width = '200px';
+element.style.margin = '10px';
+element.style.display = 'block';
+element.style.fontSize = '18px';
+element.className = 'new-class'; // if it changes layout
+element.appendChild(newChild);
+element.innerHTML = '...';
+window.resizeTo(width, height);
+```
+
+### What Triggers Only Repaint
+
+```javascript
+// Changes that trigger repaint (not reflow)
+element.style.color = 'red';
+element.style.backgroundColor = '#f0f0f0';
+element.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+element.style.borderColor = 'blue';
+element.style.visibility = 'hidden'; // still occupies space
+element.style.outline = '2px solid red';
+```
+
+### What Triggers Neither (Composite Only)
+
+```javascript
+// These only affect compositing — cheapest visual updates
+element.style.transform = 'translateX(100px)';
+element.style.opacity = 0.5;
+element.style.willChange = 'transform'; // promotes to own layer
+```
+
+### Layout Thrashing
+
+Layout thrashing occurs when you rapidly alternate between reading and writing layout properties:
+
+```javascript
+// BAD: layout thrashing (forces reflow on every read)
+const elements = document.querySelectorAll('.item');
+elements.forEach(el => {
+  const height = el.offsetHeight;        // read → forces reflow
+  el.style.height = (height * 2) + 'px'; // write → invalidates layout
+  // Next iteration: read again → forces another reflow!
+});
+
+// GOOD: batch reads, then batch writes
+const heights = [];
+elements.forEach(el => {
+  heights.push(el.offsetHeight); // batch all reads first
+});
+elements.forEach((el, i) => {
+  el.style.height = (heights[i] * 2) + 'px'; // then batch writes
+});
+
+// BEST: use requestAnimationFrame
+function updateLayout() {
+  // Reads
+  const height = element.offsetHeight;
+
+  requestAnimationFrame(() => {
+    // Writes (in the next frame)
+    element.style.height = (height * 2) + 'px';
+  });
+}
+```
+
+---
+
+## V8 Engine Basics
+
+V8 is Google's open-source JavaScript engine, powering Chrome and Node.js. Here is how it executes your code:
+
+```
+JavaScript Source Code
+        │
+        ▼
+┌──────────────────┐
+│     Parser       │
+│  (Tokenizer →    │
+│   AST)           │
+└────────┬─────────┘
+         │
+         ▼
+┌──────────────────┐
+│   Ignition       │
+│  (Interpreter)   │
+│  Generates       │
+│  bytecode        │
+└────────┬─────────┘
+         │
+         │  Hot functions detected
+         │  (execution count threshold)
+         ▼
+┌──────────────────┐
+│   TurboFan       │
+│  (Optimizing     │
+│   Compiler)      │
+│  Generates       │
+│  machine code    │
+└────────┬─────────┘
+         │
+         │  Deoptimization
+         │  (type assumptions
+         │   violated)
+         ▼
+   Back to Ignition
+```
+
+### Key Concepts
+
+**Just-In-Time (JIT) Compilation** — V8 does not simply interpret JavaScript. It compiles hot code paths to optimized machine code at runtime.
+
+**Hidden Classes** — V8 creates internal "shapes" for objects to enable fast property access, similar to how statically-typed languages work:
+
+```javascript
+// V8 can optimize this — consistent shape
+function createPoint(x, y) {
+  return { x, y }; // always same shape: { x: number, y: number }
+}
+
+// V8 cannot optimize this well — inconsistent shapes
+function createUser(name, opts) {
+  const user = { name };
+  if (opts.email) user.email = opts.email;    // sometimes present
+  if (opts.age) user.age = opts.age;          // sometimes present
+  return user; // shape varies per call
+}
+```
+
+**Inline Caches** — V8 caches the result of property lookups to avoid repeated hash map lookups:
+
+```javascript
+// Monomorphic (one shape) — fast
+function getX(point) {
+  return point.x; // always called with same-shaped objects
+}
+
+// Polymorphic (few shapes) — slower
+function getName(obj) {
+  return obj.name; // called with User, Product, Order objects
+}
+
+// Megamorphic (many shapes) — slow
+function getValue(obj) {
+  return obj.value; // called with dozens of different object shapes
+}
+```
+
+:::tip[Performance Guideline]
+Create objects with the same properties in the same order. Avoid adding properties conditionally or deleting properties. This helps V8 create and reuse efficient hidden classes.
+:::
+
+---
+
+## Web Workers
+
+Web Workers run JavaScript in a **background thread**, separate from the main thread. This prevents expensive computations from blocking the UI.
+
+```
+Main Thread (UI)                    Worker Thread
+┌─────────────────┐                 ┌─────────────────┐
+│  DOM access      │ ◀──messages──▶ │  No DOM access   │
+│  Event handling  │                │  CPU-intensive   │
+│  Rendering       │                │  computations    │
+│  User input      │                │  Data processing │
+└─────────────────┘                 └─────────────────┘
+```
+
+### Dedicated Workers
+
+<Tabs>
+  <TabItem label="Main Thread">
+```javascript
+// main.js
+const worker = new Worker('worker.js');
+
+// Send data to worker
+worker.postMessage({
+  type: 'PROCESS_DATA',
+  data: largeDataset
+});
+
+// Receive results from worker
+worker.addEventListener('message', (event) => {
+  console.log('Result:', event.data);
+  updateUI(event.data);
+});
+
+// Handle errors
+worker.addEventListener('error', (event) => {
+  console.error('Worker error:', event.message);
+});
+
+// Transfer ownership of ArrayBuffer (zero-copy)
+const buffer = new ArrayBuffer(1024 * 1024);
+worker.postMessage({ buffer }, [buffer]);
+// buffer is now empty in the main thread — ownership transferred
+
+// Terminate worker
+worker.terminate();
+```
+  </TabItem>
+  <TabItem label="Worker Thread">
+```javascript
+// worker.js
+self.addEventListener('message', (event) => {
+  const { type, data } = event.data;
+
+  switch (type) {
+    case 'PROCESS_DATA':
+      // Expensive computation (does not block UI)
+      const result = processLargeDataset(data);
+      self.postMessage({ type: 'RESULT', result });
+      break;
+  }
+});
+
+function processLargeDataset(data) {
+  // Sorting, filtering, statistical calculations, etc.
+  return data
+    .filter(item => item.score > 50)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 100);
+}
+
+// Workers can use importScripts for shared libraries
+// importScripts('utils.js', 'math-lib.js');
+```
+  </TabItem>
+</Tabs>
+
+### Shared Workers
+
+Shared Workers can be accessed by multiple pages from the same origin:
+
+```javascript
+// Any page on the same origin
+const shared = new SharedWorker('shared-worker.js');
+shared.port.start();
+shared.port.postMessage('Hello from page');
+shared.port.addEventListener('message', (e) => {
+  console.log('Response:', e.data);
+});
+
+// shared-worker.js
+const connections = [];
+self.addEventListener('connect', (e) => {
+  const port = e.ports[0];
+  connections.push(port);
+  port.addEventListener('message', (event) => {
+    // Broadcast to all connected pages
+    connections.forEach(conn => conn.postMessage(event.data));
+  });
+  port.start();
+});
+```
+
+### What Workers Can and Cannot Do
+
+| Can Access | Cannot Access |
+|-----------|--------------|
+| `fetch` / `XMLHttpRequest` | DOM (`document`, `window`) |
+| `WebSocket` | `document.querySelector` |
+| `IndexedDB` | `localStorage` / `sessionStorage` |
+| `setTimeout` / `setInterval` | `alert` / `confirm` / `prompt` |
+| `Crypto` API | Direct UI manipulation |
+| `Cache` API | Parent page's variables |
+
+---
+
+## Service Workers
+
+Service Workers are a special type of worker that acts as a **programmable network proxy** between the browser and the network. They enable offline support, background sync, and push notifications.
+
+```
+                Normal Request Flow:
+                Browser ──────────────────▶ Network ──▶ Server
+
+                With Service Worker:
+                Browser ──▶ Service Worker ──▶ Network ──▶ Server
+                                   │
+                                   ▼
+                              Cache Storage
+                           (offline support)
+```
+
+### Lifecycle
+
+```
+┌──────────┐     ┌───────────┐     ┌───────────┐     ┌──────────┐
+│ Register  │ ──▶ │ Install   │ ──▶ │ Activate  │ ──▶ │  Active  │
+│           │     │ (cache    │     │ (clean up │     │ (handles │
+│           │     │  assets)  │     │  old      │     │  fetch   │
+│           │     │           │     │  caches)  │     │  events) │
+└──────────┘     └───────────┘     └───────────┘     └──────────┘
+                      │                                     │
+                      │  waitUntil()                        │
+                      │  prevents activation                │
+                      │  until caching complete              │
+```
+
+### Implementation
+
+<Tabs>
+  <TabItem label="Registration">
+```javascript
+// main.js — register the service worker
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', async () => {
+    try {
+      const registration = await navigator.serviceWorker.register(
+        '/sw.js',
+        { scope: '/' }
+      );
+      console.log('SW registered:', registration.scope);
+
+      // Check for updates
+      registration.addEventListener('updatefound', () => {
+        const newWorker = registration.installing;
+        newWorker.addEventListener('statechange', () => {
+          if (newWorker.state === 'activated') {
+            // New version available — prompt user to refresh
+            showUpdateNotification();
+          }
+        });
+      });
+    } catch (error) {
+      console.error('SW registration failed:', error);
+    }
+  });
+}
+```
+  </TabItem>
+  <TabItem label="Service Worker">
+```javascript
+// sw.js
+const CACHE_NAME = 'my-app-v2';
+const PRECACHE_URLS = [
+  '/',
+  '/styles.css',
+  '/app.js',
+  '/offline.html',
+];
+
+// Install: cache critical assets
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches.open(CACHE_NAME)
+      .then(cache => cache.addAll(PRECACHE_URLS))
+      .then(() => self.skipWaiting()) // activate immediately
+  );
+});
+
+// Activate: clean old caches
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then(cacheNames => {
+      return Promise.all(
+        cacheNames
+          .filter(name => name !== CACHE_NAME)
+          .map(name => caches.delete(name))
+      );
+    }).then(() => self.clients.claim()) // take control immediately
+  );
+});
+
+// Fetch: network-first with cache fallback
+self.addEventListener('fetch', (event) => {
+  // Only handle GET requests
+  if (event.request.method !== 'GET') return;
+
+  event.respondWith(
+    fetch(event.request)
+      .then(response => {
+        // Clone response (can only be consumed once)
+        const clone = response.clone();
+        caches.open(CACHE_NAME)
+          .then(cache => cache.put(event.request, clone));
+        return response;
+      })
+      .catch(() => {
+        return caches.match(event.request)
+          .then(cached => cached || caches.match('/offline.html'));
+      })
+  );
+});
+```
+  </TabItem>
+</Tabs>
+
+### Caching Strategies
+
+| Strategy | Description | Use Case |
+|----------|-------------|----------|
+| **Cache First** | Check cache first, then network | Static assets (images, fonts, CSS) |
+| **Network First** | Try network first, fall back to cache | API data, HTML pages |
+| **Stale While Revalidate** | Return cache immediately, update in background | News feeds, non-critical data |
+| **Network Only** | Always use network (skip cache) | Analytics, non-cacheable requests |
+| **Cache Only** | Only use cache (no network) | Offline-only resources |
+
+```javascript
+// Stale-While-Revalidate implementation
+self.addEventListener('fetch', (event) => {
+  event.respondWith(
+    caches.open(CACHE_NAME).then(cache => {
+      return cache.match(event.request).then(cachedResponse => {
+        const fetchPromise = fetch(event.request).then(networkResponse => {
+          cache.put(event.request, networkResponse.clone());
+          return networkResponse;
+        });
+
+        // Return cached immediately, update cache in background
+        return cachedResponse || fetchPromise;
+      });
+    })
+  );
+});
+```
+
+---
+
+## Script Loading Strategies
+
+How you load JavaScript affects the critical rendering path:
+
+```
+Normal <script>:
+HTML:  ──parse──│ blocked │──parse──
+JS:              │─download─│─execute─│
+
+<script async>:
+HTML:  ──parse──────parse──│blocked│──parse──
+JS:        │─download──────│execute│
+
+<script defer>:
+HTML:  ──parse──────────────parse──────│
+JS:        │─download──────────────────│execute│
+                                    DOMContentLoaded
+```
+
+```html
+<!-- Blocks HTML parsing (avoid in <head>) -->
+<script src="app.js"></script>
+
+<!-- Downloads in parallel, executes ASAP (order not guaranteed) -->
+<script async src="analytics.js"></script>
+
+<!-- Downloads in parallel, executes after HTML parsed (order preserved) -->
+<script defer src="app.js"></script>
+<script defer src="vendor.js"></script>
+
+<!-- Module scripts are deferred by default -->
+<script type="module" src="app.mjs"></script>
+
+<!-- Preload critical resources -->
+<link rel="preload" href="critical.js" as="script" />
+<link rel="preload" href="hero.webp" as="image" />
+<link rel="preload" href="font.woff2" as="font" type="font/woff2" crossorigin />
+
+<!-- Prefetch resources for future navigation -->
+<link rel="prefetch" href="/next-page.js" />
+
+<!-- Preconnect to external origins -->
+<link rel="preconnect" href="https://api.example.com" />
+<link rel="dns-prefetch" href="https://cdn.example.com" />
+```
+
+---
+
+## Rendering Performance Checklist
+
+| Category | Optimization |
+|----------|-------------|
+| **Critical Path** | Inline critical CSS, defer non-critical CSS, use `async`/`defer` for scripts |
+| **Layout** | Avoid layout thrashing, batch DOM reads/writes, use `transform` instead of `top`/`left` |
+| **Paint** | Minimize paint areas, promote heavy animations to own layer with `will-change` |
+| **Composite** | Use `transform` and `opacity` for animations (compositor-only, off main thread) |
+| **Images** | Set explicit `width`/`height`, use `loading="lazy"`, serve modern formats (WebP/AVIF) |
+| **Fonts** | Use `font-display: swap`, preload critical fonts, use system font stack as fallback |
+| **JavaScript** | Code-split, tree-shake, defer non-critical, move work to Web Workers |
+
+:::tip[The 60fps Budget]
+To achieve smooth 60fps animations, each frame must complete within ~16.67ms. That includes JavaScript execution, style calculations, layout, paint, and compositing. Use Chrome DevTools Performance panel to measure frame times and identify bottlenecks.
+:::
+
+---
+
+<LinkCard
+  title="Next: Regex & Text Processing"
+  description="Master regular expressions, pattern matching, and Unix text processing tools"
+  href="/software-engineering/regex-text/"
+/>

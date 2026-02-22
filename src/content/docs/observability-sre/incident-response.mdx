@@ -1,0 +1,554 @@
+---
+title: "Incident Response"
+description: "Master incident management -- severity levels, on-call practices, the incident commander role, communication during outages, blameless postmortems, runbooks, and chaos engineering"
+difficulty: "intermediate"
+prerequisites: ["Observability & SRE Overview", "Logging & Metrics", "Distributed Tracing"]
+timeToRead: "22 min"
+topics: ["incident-response", "on-call", "postmortems", "chaos-engineering", "runbooks", "incident-management"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+## Incident Severity Levels
+
+Not all incidents are created equal. A well-defined severity classification ensures the right level of response for each situation.
+
+```
+    Severity Levels:
+
+    SEV-1 (Critical)  ███████████████████████████████████
+    Major service outage affecting all or most users.
+    Revenue impact. Data loss risk.
+    Response: All hands on deck. Immediate.
+    Example: Payment system completely down.
+
+    SEV-2 (High)      █████████████████████████████
+    Significant degradation affecting many users.
+    Partial functionality loss.
+    Response: On-call team escalation. Within 15 min.
+    Example: Checkout latency 10x normal, 30% failures.
+
+    SEV-3 (Medium)    ███████████████████████
+    Moderate impact on a subset of users.
+    Workarounds available.
+    Response: On-call acknowledges. Within 1 hour.
+    Example: Search results degraded for some regions.
+
+    SEV-4 (Low)       █████████████████
+    Minor issue. Limited user impact.
+    Response: Next business day.
+    Example: Admin dashboard loading slowly.
+```
+
+| Severity | User Impact | Response Time | Who's Involved | Communication |
+|----------|-------------|---------------|----------------|---------------|
+| **SEV-1** | All/most users affected | Immediate | IC + all relevant teams | Status page, exec updates |
+| **SEV-2** | Many users degraded | 15 minutes | On-call + escalation | Status page update |
+| **SEV-3** | Subset of users | 1 hour | On-call team | Internal notification |
+| **SEV-4** | Minimal | Next business day | Individual engineer | Ticket only |
+
+:::note
+Severity levels should be defined by **user impact**, not by the technical cause. A single crashed server is SEV-4 if it is behind a load balancer with healthy replicas. The same crash is SEV-1 if it was the only server.
+:::
+
+## On-Call Practices
+
+On-call is a critical part of running reliable systems. Done well, it empowers engineers to keep systems healthy. Done poorly, it leads to burnout, alert fatigue, and high turnover.
+
+### On-Call Structure
+
+```
+    On-Call Rotation:
+
+    Week 1    Week 2    Week 3    Week 4
+    ┌──────┐  ┌──────┐  ┌──────┐  ┌──────┐
+    │ Alice│  │ Bob  │  │Carol │  │ Dave │
+    │(Primary) │(Primary) │(Primary) │(Primary)
+    │ Bob  │  │Carol │  │ Dave │  │ Alice│
+    │(Secondary)│(Secondary)│(Secondary)│(Secondary)
+    └──────┘  └──────┘  └──────┘  └──────┘
+
+    Primary:   First to be paged. Expected to respond.
+    Secondary: Backup if primary doesn't respond
+               within 10 minutes.
+    Escalation: If both fail → engineering manager.
+```
+
+### On-Call Best Practices
+
+| Practice | Description |
+|----------|-------------|
+| **Compensate fairly** | Pay for on-call time, provide time off after incidents |
+| **Limit on-call duration** | No more than one week at a time, at least one week off |
+| **Maintain runbooks** | Document every alert with clear response steps |
+| **Conduct handoffs** | Brief the incoming on-call about recent issues |
+| **Track on-call load** | Monitor pages per shift, incident severity distribution |
+| **Improve the system** | Every painful on-call shift should result in improvements |
+| **Shadow shifts** | New team members shadow experienced on-call before going solo |
+
+### On-Call Handoff Template
+
+```
+    On-Call Handoff: March 11-17, 2024
+
+    ONGOING ISSUES:
+    - Database connection pool intermittently full (SEV-3)
+      Ticket: INFRA-4521
+      Status: Fix deployed, monitoring
+
+    RECENT CHANGES:
+    - March 10: Deployed payment-service v2.4.0
+    - March 9: Increased Redis cache from 4GB to 8GB
+    - March 8: Updated SSL certificates
+
+    THINGS TO WATCH:
+    - New Kafka cluster migration starting Wednesday
+    - Marketing email blast Thursday (expect 2x traffic)
+
+    ALERT UPDATES:
+    - Silenced: disk-space-warning on staging (planned)
+    - New: Added latency alert for /api/checkout (p99 > 2s)
+```
+
+## The Incident Commander Role
+
+The **Incident Commander** (IC) is the person who coordinates the response during a significant incident. They are responsible for managing the process, not necessarily fixing the problem.
+
+```
+    Incident Response Structure:
+
+    ┌───────────────────────────────────────────────────────┐
+    │                Incident Commander (IC)                │
+    │  - Coordinates overall response                      │
+    │  - Makes decisions on next steps                     │
+    │  - Manages communication                             │
+    │  - Delegates tasks                                   │
+    │  - Decides when to escalate/de-escalate              │
+    └───────────────┬───────────────────────────────────────┘
+                    │
+        ┌───────────┼───────────────┐
+        │           │               │
+        ▼           ▼               ▼
+    ┌─────────┐ ┌──────────┐ ┌──────────────┐
+    │Technical│ │ Comms    │ │ Subject      │
+    │ Lead    │ │ Lead     │ │ Matter Expert│
+    │         │ │          │ │              │
+    │Drives   │ │Updates   │ │Deep expertise│
+    │debugging│ │status    │ │in specific   │
+    │and fixes│ │page,     │ │component     │
+    │         │ │stakeholders│              │
+    └─────────┘ └──────────┘ └──────────────┘
+```
+
+### IC Responsibilities
+
+| Phase | IC Actions |
+|-------|-----------|
+| **Declaration** | Declare the incident, assign severity, open incident channel |
+| **Assessment** | Understand scope, identify affected systems, set priorities |
+| **Delegation** | Assign roles: technical lead, comms lead, SMEs |
+| **Coordination** | Regular status updates, manage parallel workstreams |
+| **Escalation** | Bring in additional teams or leadership as needed |
+| **Resolution** | Confirm the fix, verify recovery, update stakeholders |
+| **Closure** | Declare incident resolved, schedule postmortem |
+
+## Communication During Incidents
+
+Clear, structured communication prevents confusion and keeps stakeholders informed during outages.
+
+### Incident Communication Template
+
+```
+    INCIDENT UPDATE - SEV-1 - Payment Processing Down
+    Time: 2024-03-15 14:45 UTC (13 min since detection)
+
+    STATUS: Investigating
+
+    IMPACT:
+    - All credit card payments failing since 14:32 UTC
+    - Approximately 1,200 users affected
+    - Estimated revenue impact: $15K/hour
+
+    WHAT WE KNOW:
+    - Payment gateway returning 503 errors
+    - Issue started after deployment of billing-svc v3.2.1
+    - Rollback initiated at 14:40 UTC
+
+    CURRENT ACTIONS:
+    - [Alice] Rolling back billing-svc to v3.2.0
+    - [Bob] Investigating payment gateway health
+    - [Carol] Monitoring error rates during rollback
+
+    NEXT UPDATE: 15:00 UTC (or sooner if status changes)
+    INCIDENT CHANNEL: #inc-20240315-payments
+    IC: Dave (dave@example.com)
+```
+
+### Status Page Updates
+
+```
+    Status Page Communication Principles:
+
+    DO:                              DO NOT:
+    ┌──────────────────────┐        ┌──────────────────────┐
+    │ Be honest and clear  │        │ Use technical jargon │
+    │ Provide timeline     │        │ Blame individuals    │
+    │ State user impact    │        │ Speculate on cause   │
+    │ Give next update time│        │ Ignore the issue     │
+    │ Apologize sincerely  │        │ Over-promise fixes   │
+    └──────────────────────┘        └──────────────────────┘
+
+    Good: "Some users may experience failed payments.
+           We identified the issue and a fix is being
+           deployed. Next update in 15 minutes."
+
+    Bad:  "The billing microservice deployment caused
+           a null pointer exception in the payment
+           gateway adapter module."
+```
+
+## Blameless Postmortems
+
+A **postmortem** (also called a retrospective or incident review) is a structured analysis conducted after an incident to understand what happened, why it happened, and how to prevent it from happening again.
+
+### The Blameless Culture
+
+```
+    Blame Culture:                    Blameless Culture:
+    ┌─────────────────────────┐     ┌─────────────────────────┐
+    │ "Who caused this?"      │     │ "What caused this?"     │
+    │ "Bob pushed bad code"   │     │ "The system allowed a   │
+    │ "Fire Bob"              │     │  bad config to deploy"  │
+    │                         │     │                         │
+    │ Result:                 │     │ Result:                 │
+    │ - People hide mistakes  │     │ - People report issues  │
+    │ - Root causes hidden    │     │ - Root causes found     │
+    │ - Same issues recur     │     │ - Systemic fixes made   │
+    │ - Fear-based culture    │     │ - Learning culture      │
+    └─────────────────────────┘     └─────────────────────────┘
+```
+
+:::caution
+**Blameless does not mean accountability-free.** Blameless postmortems focus on the system, process, and environment that allowed the incident to happen -- not on punishing individuals. People make mistakes; systems should be designed to prevent those mistakes from reaching production.
+:::
+
+### Postmortem Template
+
+```
+    POSTMORTEM: Payment Processing Outage
+    Date: 2024-03-15
+    Duration: 43 minutes (14:32 - 15:15 UTC)
+    Severity: SEV-1
+    Author: Dave (IC), reviewed by team
+
+    ============================================
+
+    SUMMARY:
+    A deployment of billing-svc v3.2.1 introduced a
+    regression that caused all credit card payments
+    to fail for 43 minutes, affecting ~3,600 users.
+
+    IMPACT:
+    - 3,600 users could not complete purchases
+    - Estimated revenue loss: $11,200
+    - 247 support tickets filed
+
+    TIMELINE:
+    14:30 - billing-svc v3.2.1 deployed to production
+    14:32 - First payment failures detected by monitoring
+    14:35 - On-call paged (Alice)
+    14:37 - Alice acknowledges, opens incident channel
+    14:38 - SEV-1 declared, Dave takes IC role
+    14:40 - Root cause identified: new payment adapter
+            breaks when currency code is empty
+    14:42 - Decision to rollback
+    14:50 - Rollback deployed
+    14:55 - Error rate declining
+    15:15 - Confirmed resolved, incident closed
+
+    ROOT CAUSE:
+    The new payment adapter in v3.2.1 did not handle
+    the case where the currency code field was empty.
+    ~8% of legacy orders have empty currency codes.
+    The unit tests only covered orders with currency
+    codes set.
+
+    CONTRIBUTING FACTORS:
+    1. No integration test for legacy order formats
+    2. Canary deployment was only 2% of traffic
+       (not enough to catch 8% edge case)
+    3. Payment error alert had a 5-minute delay
+
+    WHAT WENT WELL:
+    - Alert fired within 3 minutes
+    - Rollback process was smooth (8 minutes)
+    - Communication was clear and timely
+    - IC assignment was immediate
+
+    WHAT WENT POORLY:
+    - Empty currency code edge case was not caught
+    - Canary percentage too low for this service
+    - Alert delay meant 3 minutes of silent failure
+
+    ACTION ITEMS:
+    [ ] Add integration tests for legacy order formats
+        Owner: Bob, Due: March 22
+    [ ] Increase canary percentage for payment services
+        to 10%  Owner: Alice, Due: March 25
+    [ ] Reduce payment error alert delay to 1 minute
+        Owner: Carol, Due: March 20
+    [ ] Add pre-deploy data validation for payment
+        schema changes  Owner: Dave, Due: April 1
+```
+
+## Runbooks
+
+A **runbook** is a documented procedure for responding to a specific alert or incident type. Good runbooks turn any on-call engineer into an effective responder, even for systems they do not own.
+
+### Runbook Structure
+
+```
+    Runbook: High Payment Error Rate
+    ═══════════════════════════════════
+
+    ALERT: payment_error_rate > 1% for 5 minutes
+    SEVERITY: SEV-2 (auto-escalates to SEV-1 if > 5%)
+    OWNER: Payments Team (#team-payments)
+
+    ──────────────────────────────────────────────
+    STEP 1: Assess the situation
+    ──────────────────────────────────────────────
+    □ Check the payment dashboard:
+      https://grafana.example/d/payments
+
+    □ Determine scope:
+      - Is it all payment types or specific ones?
+      - Is it all regions or specific regions?
+      - When did it start?
+
+    ──────────────────────────────────────────────
+    STEP 2: Check for recent changes
+    ──────────────────────────────────────────────
+    □ Check recent deployments:
+      kubectl rollout history deployment/payment-svc
+
+    □ Check recent config changes:
+      git log --oneline -10 payment-config/
+
+    □ If a recent deployment caused the issue:
+      → Run: kubectl rollout undo deployment/payment-svc
+      → Notify #team-payments
+
+    ──────────────────────────────────────────────
+    STEP 3: Check external dependencies
+    ──────────────────────────────────────────────
+    □ Check payment gateway status:
+      https://status.stripe.com
+
+    □ Check database connectivity:
+      psql -h payments-db -c "SELECT 1"
+
+    □ Check Redis cache:
+      redis-cli -h payments-cache ping
+
+    ──────────────────────────────────────────────
+    STEP 4: Escalation
+    ──────────────────────────────────────────────
+    If none of the above resolves the issue:
+    □ Page the Payments Team lead:
+      pd trigger --service payments --urgency high
+    □ Open incident channel: /incident create
+    □ Update status page if user-facing
+```
+
+:::tip
+**Test your runbooks regularly.** A runbook that has never been followed is a runbook that probably does not work. Schedule quarterly "runbook drills" where engineers follow the steps exactly as written and update anything that is outdated or unclear.
+:::
+
+## Chaos Engineering
+
+**Chaos engineering** is the practice of deliberately injecting failures into a system to discover weaknesses before they cause real outages. The goal is to build confidence that the system can withstand turbulent conditions.
+
+### Chaos Engineering Principles
+
+```
+    The Chaos Engineering Process:
+
+    1. Define steady state
+       "Normal" system behavior
+       (request rate, error rate, latency)
+              │
+              ▼
+    2. Form hypothesis
+       "If we kill one database replica,
+        the system will failover in < 30s"
+              │
+              ▼
+    3. Introduce failure
+       Kill the database replica
+       in a controlled manner
+              │
+              ▼
+    4. Observe behavior
+       Monitor metrics, logs, traces
+       during the experiment
+              │
+              ▼
+    5. Analyze results
+       Did the system behave as expected?
+       Were there unexpected side effects?
+              │
+              ▼
+    6. Fix weaknesses
+       Address any issues discovered.
+       Improve resilience.
+```
+
+### Common Chaos Experiments
+
+| Experiment | What It Tests | Tools |
+|-----------|--------------|-------|
+| **Kill a service instance** | Auto-restart, load balancing | Chaos Monkey, kill command |
+| **Network latency injection** | Timeout handling, circuit breakers | tc (traffic control), Toxiproxy |
+| **Network partition** | Split-brain handling, consensus | iptables, Chaos Mesh |
+| **Disk fill** | Disk space monitoring, graceful degradation | dd, stress-ng |
+| **CPU stress** | Autoscaling, performance under load | stress-ng, Chaos Mesh |
+| **Kill availability zone** | Multi-AZ redundancy | AWS FIS, Chaos Mesh |
+| **DNS failure** | Caching, fallback resolution | Manipulate /etc/resolv.conf |
+| **Clock skew** | Time-dependent logic, certificate validation | ntpdate, Chaos Mesh |
+
+<Tabs>
+  <TabItem label="Python">
+    ```python
+    # Simple chaos experiment framework
+    import random
+    import time
+    import requests
+    from dataclasses import dataclass
+    from typing import Callable, Optional
+
+    @dataclass
+    class ChaosExperiment:
+        name: str
+        hypothesis: str
+        steady_state_check: Callable[[], bool]
+        inject_failure: Callable[[], None]
+        rollback: Callable[[], None]
+        duration_seconds: int = 300
+
+    def run_experiment(experiment: ChaosExperiment):
+        print(f"\n{'='*60}")
+        print(f"CHAOS EXPERIMENT: {experiment.name}")
+        print(f"HYPOTHESIS: {experiment.hypothesis}")
+        print(f"{'='*60}\n")
+
+        # Step 1: Verify steady state
+        print("[1/5] Verifying steady state...")
+        if not experiment.steady_state_check():
+            print("ABORT: System not in steady state")
+            return False
+
+        # Step 2: Inject failure
+        print("[2/5] Injecting failure...")
+        try:
+            experiment.inject_failure()
+        except Exception as e:
+            print(f"ABORT: Failed to inject: {e}")
+            return False
+
+        # Step 3: Observe
+        print(f"[3/5] Observing for "
+              f"{experiment.duration_seconds}s...")
+        start = time.time()
+        observations = []
+
+        while time.time() - start < experiment.duration_seconds:
+            is_healthy = experiment.steady_state_check()
+            observations.append({
+                "time": time.time() - start,
+                "healthy": is_healthy
+            })
+            time.sleep(5)
+
+        # Step 4: Rollback
+        print("[4/5] Rolling back failure injection...")
+        experiment.rollback()
+
+        # Step 5: Analyze
+        print("[5/5] Analyzing results...")
+        healthy_pct = (
+            sum(1 for o in observations if o["healthy"])
+            / len(observations)
+        ) * 100
+
+        print(f"\nRESULTS:")
+        print(f"  Healthy observations: {healthy_pct:.1f}%")
+        print(f"  Hypothesis confirmed: "
+              f"{'YES' if healthy_pct > 95 else 'NO'}")
+
+        return healthy_pct > 95
+
+    # Example: Kill a pod experiment
+    def check_api_health():
+        try:
+            r = requests.get(
+                "http://api.example.com/health", timeout=5
+            )
+            return r.status_code == 200
+        except requests.exceptions.RequestException:
+            return False
+
+    import subprocess
+
+    experiment = ChaosExperiment(
+        name="Kill Payment Service Pod",
+        hypothesis="System recovers within 30 seconds "
+                   "when one payment pod is killed",
+        steady_state_check=check_api_health,
+        inject_failure=lambda: subprocess.run([
+            "kubectl", "delete", "pod",
+            "payment-svc-pod-1",
+            "--grace-period=0", "--force"
+        ]),
+        rollback=lambda: None,  # K8s auto-restarts
+        duration_seconds=120,
+    )
+
+    run_experiment(experiment)
+    ```
+  </TabItem>
+</Tabs>
+
+### Chaos Engineering Maturity
+
+| Level | Practices |
+|-------|-----------|
+| **1. Ad hoc** | Manual failure injection in staging |
+| **2. Structured** | Documented experiments with hypotheses, run in staging |
+| **3. Automated** | Automated experiments in CI/CD, some in production |
+| **4. Continuous** | Continuous chaos in production with automated rollback |
+
+## Summary
+
+| Concept | Key Takeaway |
+|---------|-------------|
+| **Severity Levels** | Define by user impact, not technical cause |
+| **On-Call** | Compensate fairly, maintain runbooks, limit duration |
+| **Incident Commander** | Coordinates response, manages communication, delegates tasks |
+| **Communication** | Be honest, state impact, provide next update time |
+| **Blameless Postmortems** | Focus on systems and processes, not individuals |
+| **Runbooks** | Documented procedures turn any engineer into an effective responder |
+| **Chaos Engineering** | Proactively find weaknesses before they cause real outages |
+
+<CardGrid>
+  <LinkCard
+    title="SLOs & Error Budgets"
+    description="Learn how to define SLIs, set SLOs, and manage error budgets"
+    href="/software-engineering/observability-sre/slos-error-budgets/"
+  />
+  <LinkCard
+    title="Distributed Tracing"
+    description="Review how to trace requests across services"
+    href="/software-engineering/observability-sre/distributed-tracing/"
+  />
+</CardGrid>

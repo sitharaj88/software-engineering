@@ -1,0 +1,730 @@
+---
+title: "HTML & Semantic Markup"
+description: "Master HTML5 semantic elements, document structure, forms and validation, meta tags, SEO, and accessibility benefits"
+difficulty: "beginner"
+prerequisites: ["Web Fundamentals overview"]
+timeToRead: "25 min"
+topics: ["html5", "semantic-html", "forms", "accessibility", "seo", "meta-tags"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+**HTML** (HyperText Markup Language) is the foundational language of the web. It provides the **structure** and **meaning** of web content. While CSS handles presentation and JavaScript handles behavior, HTML defines *what* the content is — and semantic HTML tells both browsers and assistive technologies *why* it matters.
+
+---
+
+## Why Semantic HTML Matters
+
+Semantic HTML uses elements that convey **meaning** about the content they contain, rather than just its appearance. Compare these two approaches:
+
+<Tabs>
+  <TabItem label="Non-Semantic (Bad)">
+```html
+<div class="header">
+  <div class="nav">
+    <div class="nav-item"><a href="/">Home</a></div>
+    <div class="nav-item"><a href="/about">About</a></div>
+  </div>
+</div>
+<div class="main-content">
+  <div class="article">
+    <div class="article-title">Understanding Semantic HTML</div>
+    <div class="article-content">
+      <div class="paragraph">Content goes here...</div>
+    </div>
+  </div>
+  <div class="sidebar">
+    <div class="widget">Related Links</div>
+  </div>
+</div>
+<div class="footer">
+  <div class="copyright">© 2025</div>
+</div>
+```
+  </TabItem>
+  <TabItem label="Semantic (Good)">
+```html
+<header>
+  <nav aria-label="Main navigation">
+    <ul>
+      <li><a href="/">Home</a></li>
+      <li><a href="/about">About</a></li>
+    </ul>
+  </nav>
+</header>
+<main>
+  <article>
+    <h1>Understanding Semantic HTML</h1>
+    <p>Content goes here...</p>
+  </article>
+  <aside>
+    <h2>Related Links</h2>
+  </aside>
+</main>
+<footer>
+  <p><small>© 2025</small></p>
+</footer>
+```
+  </TabItem>
+</Tabs>
+
+The semantic version provides three critical benefits:
+
+1. **Accessibility** — Screen readers can navigate by landmarks (header, nav, main, footer)
+2. **SEO** — Search engines better understand content structure and importance
+3. **Maintainability** — Developers instantly understand the purpose of each section
+
+---
+
+## HTML5 Semantic Elements
+
+### Document Structure Elements
+
+```
+┌─────────────────────────────────────────────┐
+│  <header>                                    │
+│  ┌─────────────────────────────────────────┐ │
+│  │  <nav>  Home | About | Blog | Contact   │ │
+│  └─────────────────────────────────────────┘ │
+├─────────────────────────────────────────────┤
+│  <main>                                      │
+│  ┌─────────────────────────┐ ┌────────────┐ │
+│  │  <article>              │ │  <aside>   │ │
+│  │  ┌───────────────────┐  │ │            │ │
+│  │  │  <section>        │  │ │  Related   │ │
+│  │  │  Introduction     │  │ │  links,    │ │
+│  │  └───────────────────┘  │ │  ads,      │ │
+│  │  ┌───────────────────┐  │ │  widgets   │ │
+│  │  │  <section>        │  │ │            │ │
+│  │  │  Main content     │  │ │            │ │
+│  │  └───────────────────┘  │ │            │ │
+│  │  ┌───────────────────┐  │ │            │ │
+│  │  │  <section>        │  │ │            │ │
+│  │  │  Conclusion       │  │ │            │ │
+│  │  └───────────────────┘  │ │            │ │
+│  └─────────────────────────┘ └────────────┘ │
+├─────────────────────────────────────────────┤
+│  <footer>                                    │
+│  Copyright, links, contact info              │
+└─────────────────────────────────────────────┘
+```
+
+### Element Reference
+
+| Element | Purpose | Typical Use |
+|---------|---------|-------------|
+| `<header>` | Introductory content or navigational aids | Site header, article header |
+| `<nav>` | Navigation links | Main menu, breadcrumbs, table of contents |
+| `<main>` | Dominant content of the document (only one per page) | Primary content area |
+| `<article>` | Self-contained, independently distributable content | Blog post, news article, comment |
+| `<section>` | Thematic grouping of content (should have a heading) | Chapter, tab panel, topic section |
+| `<aside>` | Tangentially related content | Sidebar, pull quote, glossary |
+| `<footer>` | Footer for its nearest ancestor | Copyright, related links, contact |
+| `<figure>` | Self-contained content with optional caption | Images, diagrams, code listings |
+| `<figcaption>` | Caption for a `<figure>` | Image caption, diagram label |
+| `<details>` | Expandable/collapsible disclosure widget | FAQ, advanced options |
+| `<summary>` | Summary heading for `<details>` | Clickable toggle label |
+| `<time>` | Machine-readable date/time | Published dates, event times |
+| `<mark>` | Highlighted/relevant text | Search results highlighting |
+| `<address>` | Contact information for the nearest article/body | Author contact info |
+
+### Choosing the Right Element
+
+:::tip[Decision Tree for Sections]
+Ask yourself these questions in order:
+1. Is it the main content? Use `<main>` (only one per page).
+2. Could it stand alone as a separate document (RSS feed, syndication)? Use `<article>`.
+3. Is it a thematic group with a heading? Use `<section>`.
+4. Is it tangentially related content? Use `<aside>`.
+5. Is it purely for styling/layout with no semantic meaning? Use `<div>`.
+:::
+
+---
+
+## Document Outline and Headings
+
+HTML headings (`<h1>` through `<h6>`) create an implicit document outline. Proper heading hierarchy is essential for both accessibility and SEO.
+
+```html
+<!-- CORRECT: Proper heading hierarchy -->
+<main>
+  <h1>Complete Guide to Web Development</h1>
+
+  <section>
+    <h2>Frontend Technologies</h2>
+
+    <section>
+      <h3>HTML Fundamentals</h3>
+      <p>HTML provides structure...</p>
+
+      <h4>Semantic Elements</h4>
+      <p>Semantic elements convey meaning...</p>
+    </section>
+
+    <section>
+      <h3>CSS Styling</h3>
+      <p>CSS handles presentation...</p>
+    </section>
+  </section>
+
+  <section>
+    <h2>Backend Technologies</h2>
+    <p>Server-side programming...</p>
+  </section>
+</main>
+```
+
+```html
+<!-- INCORRECT: Skipping heading levels -->
+<main>
+  <h1>Guide to Web Development</h1>
+  <h3>Frontend</h3>    <!-- ❌ Skipped h2 -->
+  <h5>HTML</h5>         <!-- ❌ Skipped h4 -->
+  <h2>Backend</h2>      <!-- ❌ Inconsistent hierarchy -->
+</main>
+```
+
+:::caution[Common Heading Mistakes]
+- Do not skip heading levels (e.g., jumping from `h1` to `h3`)
+- Do not use headings for styling purposes — use CSS instead
+- Each page should have exactly one `h1`
+- Screen reader users often navigate by headings, so a clear hierarchy is critical
+:::
+
+---
+
+## HTML Forms and Validation
+
+Forms are one of the most interactive parts of HTML. Modern HTML5 provides powerful built-in validation.
+
+### Form Structure
+
+```html
+<form action="/api/register" method="POST" novalidate>
+  <fieldset>
+    <legend>Personal Information</legend>
+
+    <div class="form-group">
+      <label for="fullname">Full Name</label>
+      <input
+        type="text"
+        id="fullname"
+        name="fullname"
+        required
+        minlength="2"
+        maxlength="100"
+        autocomplete="name"
+        placeholder="Jane Doe"
+      />
+    </div>
+
+    <div class="form-group">
+      <label for="email">Email Address</label>
+      <input
+        type="email"
+        id="email"
+        name="email"
+        required
+        autocomplete="email"
+        placeholder="jane@example.com"
+      />
+    </div>
+
+    <div class="form-group">
+      <label for="password">Password</label>
+      <input
+        type="password"
+        id="password"
+        name="password"
+        required
+        minlength="8"
+        pattern="(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{8,}"
+        autocomplete="new-password"
+        aria-describedby="password-help"
+      />
+      <small id="password-help">
+        Must be at least 8 characters with uppercase, lowercase, and a number.
+      </small>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Preferences</legend>
+
+    <div class="form-group">
+      <label for="role">Role</label>
+      <select id="role" name="role" required>
+        <option value="">Select a role</option>
+        <option value="developer">Developer</option>
+        <option value="designer">Designer</option>
+        <option value="manager">Manager</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label for="experience">Experience Level</label>
+      <input
+        type="range"
+        id="experience"
+        name="experience"
+        min="0"
+        max="10"
+        value="5"
+      />
+    </div>
+
+    <div class="form-group">
+      <label>
+        <input type="checkbox" name="newsletter" value="yes" />
+        Subscribe to newsletter
+      </label>
+    </div>
+  </fieldset>
+
+  <button type="submit">Register</button>
+</form>
+```
+
+### HTML5 Input Types
+
+| Type | Purpose | Validation |
+|------|---------|-----------|
+| `text` | General text input | `pattern`, `minlength`, `maxlength` |
+| `email` | Email address | Validates email format |
+| `password` | Hidden text input | `pattern`, `minlength` |
+| `number` | Numeric input | `min`, `max`, `step` |
+| `tel` | Phone number | `pattern` (no built-in validation) |
+| `url` | URL input | Validates URL format |
+| `date` | Date picker | `min`, `max` |
+| `datetime-local` | Date and time | `min`, `max` |
+| `color` | Color picker | Hex color value |
+| `range` | Slider control | `min`, `max`, `step` |
+| `search` | Search field | Clear button in some browsers |
+| `file` | File upload | `accept`, `multiple` |
+
+### Validation Attributes
+
+```html
+<!-- Required field -->
+<input type="text" required />
+
+<!-- Pattern matching -->
+<input type="text" pattern="[A-Za-z]{3,}" title="Three or more letters" />
+
+<!-- Length constraints -->
+<input type="text" minlength="2" maxlength="50" />
+
+<!-- Numeric constraints -->
+<input type="number" min="1" max="100" step="5" />
+
+<!-- Custom validation with JavaScript -->
+<script>
+const passwordInput = document.getElementById('password');
+const confirmInput = document.getElementById('confirm-password');
+
+confirmInput.addEventListener('input', function() {
+  if (this.value !== passwordInput.value) {
+    this.setCustomValidity('Passwords do not match');
+  } else {
+    this.setCustomValidity('');
+  }
+});
+</script>
+```
+
+### CSS Validation Pseudo-Classes
+
+```css
+/* Style valid inputs */
+input:valid {
+  border-color: green;
+}
+
+/* Style invalid inputs */
+input:invalid {
+  border-color: red;
+}
+
+/* Only show invalid state after interaction */
+input:not(:placeholder-shown):invalid {
+  border-color: red;
+  background: #fff0f0;
+}
+
+/* Style required fields */
+input:required {
+  border-left: 3px solid blue;
+}
+
+/* Style focused invalid inputs */
+input:focus:invalid {
+  outline-color: red;
+}
+```
+
+---
+
+## Meta Tags
+
+Meta tags provide metadata about the HTML document. They live in the `<head>` and are invisible to users but critical for browsers, search engines, and social media.
+
+### Essential Meta Tags
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- Character encoding (must be first) -->
+  <meta charset="UTF-8" />
+
+  <!-- Viewport for responsive design -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Page title (not a meta tag but critical metadata) -->
+  <title>Page Title — Site Name</title>
+
+  <!-- Page description (shown in search results) -->
+  <meta name="description"
+    content="A concise 150-160 character description of this page's content." />
+
+  <!-- Canonical URL (prevents duplicate content issues) -->
+  <link rel="canonical" href="https://example.com/current-page" />
+
+  <!-- Robots directives -->
+  <meta name="robots" content="index, follow" />
+
+  <!-- Open Graph (Facebook, LinkedIn) -->
+  <meta property="og:type" content="article" />
+  <meta property="og:title" content="Page Title" />
+  <meta property="og:description" content="Description for social sharing" />
+  <meta property="og:image" content="https://example.com/image.jpg" />
+  <meta property="og:url" content="https://example.com/current-page" />
+  <meta property="og:site_name" content="Site Name" />
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Page Title" />
+  <meta name="twitter:description" content="Description for Twitter" />
+  <meta name="twitter:image" content="https://example.com/image.jpg" />
+
+  <!-- Favicon -->
+  <link rel="icon" href="/favicon.ico" sizes="32x32" />
+  <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+  <!-- Preconnect to external origins -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://cdn.example.com" crossorigin />
+
+  <!-- Theme color (browser UI) -->
+  <meta name="theme-color" content="#4285f4" />
+</head>
+```
+
+### Structured Data (JSON-LD)
+
+Search engines use structured data to display rich snippets in search results:
+
+```html
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Article",
+  "headline": "Understanding Semantic HTML",
+  "author": {
+    "@type": "Person",
+    "name": "Jane Developer"
+  },
+  "datePublished": "2025-01-15",
+  "dateModified": "2025-03-20",
+  "publisher": {
+    "@type": "Organization",
+    "name": "Web Dev Academy",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "https://example.com/logo.png"
+    }
+  },
+  "description": "A comprehensive guide to semantic HTML elements",
+  "image": "https://example.com/article-image.jpg"
+}
+</script>
+```
+
+---
+
+## SEO Implications of Semantic HTML
+
+Search engine crawlers rely on HTML structure to understand content:
+
+| SEO Factor | Best Practice |
+|------------|--------------|
+| **Title tag** | Unique, descriptive, 50-60 characters, primary keyword first |
+| **Meta description** | Compelling summary, 150-160 characters, includes target keyword |
+| **Heading hierarchy** | One `h1` per page, logical `h2`-`h6` nesting |
+| **Semantic elements** | Use `article`, `section`, `nav`, `main` appropriately |
+| **Image alt text** | Descriptive, includes keywords naturally (not stuffed) |
+| **Internal linking** | Descriptive anchor text, logical site structure |
+| **URL structure** | Human-readable, hyphen-separated, keyword-rich |
+| **Canonical tags** | Prevent duplicate content across URL variations |
+| **Structured data** | JSON-LD for rich snippets (recipes, reviews, FAQs) |
+| **Mobile-friendly** | Responsive viewport meta tag, touch-friendly design |
+
+### Image Optimization for SEO
+
+```html
+<!-- Basic image with alt text -->
+<img src="hero.jpg" alt="Developer writing semantic HTML code in VS Code" />
+
+<!-- Responsive images for performance and SEO -->
+<picture>
+  <source
+    srcset="hero.avif 1x, hero@2x.avif 2x"
+    type="image/avif"
+  />
+  <source
+    srcset="hero.webp 1x, hero@2x.webp 2x"
+    type="image/webp"
+  />
+  <img
+    src="hero.jpg"
+    srcset="hero.jpg 1x, hero@2x.jpg 2x"
+    alt="Developer writing semantic HTML code"
+    width="800"
+    height="450"
+    loading="lazy"
+    decoding="async"
+  />
+</picture>
+
+<!-- Figure with caption -->
+<figure>
+  <img
+    src="architecture-diagram.svg"
+    alt="Three-tier web architecture showing client, server, and database layers"
+    width="600"
+    height="400"
+  />
+  <figcaption>
+    Figure 1: Standard three-tier web architecture
+  </figcaption>
+</figure>
+```
+
+---
+
+## Accessibility Benefits of Semantic HTML
+
+Semantic HTML is the **foundation of web accessibility**. Assistive technologies like screen readers rely on semantic structure to help users navigate.
+
+### ARIA Landmark Roles (Implicit)
+
+Semantic elements automatically provide ARIA landmark roles:
+
+| HTML Element | Implicit ARIA Role | Screen Reader Announcement |
+|-------------|-------------------|---------------------------|
+| `<header>` (top-level) | `banner` | "Banner" |
+| `<nav>` | `navigation` | "Navigation" |
+| `<main>` | `main` | "Main" |
+| `<aside>` | `complementary` | "Complementary" |
+| `<footer>` (top-level) | `contentinfo` | "Content info" |
+| `<form>` (with name) | `form` | "Form" |
+| `<section>` (with name) | `region` | "Region" |
+
+### Keyboard Navigation
+
+Semantic elements provide built-in keyboard interaction:
+
+```html
+<!-- These are natively focusable and keyboard-accessible -->
+<a href="/page">Links</a>           <!-- Tab + Enter -->
+<button>Buttons</button>            <!-- Tab + Enter/Space -->
+<input type="text" />               <!-- Tab to focus -->
+<select>                            <!-- Tab + Arrow keys -->
+  <option>Option 1</option>
+</select>
+<details>                           <!-- Tab + Enter/Space -->
+  <summary>Expandable</summary>
+  <p>Hidden content</p>
+</details>
+
+<!-- This div is NOT keyboard-accessible without extra work -->
+<div class="fake-button" onclick="doSomething()">
+  Click me  <!-- ❌ Cannot be tabbed to or activated with keyboard -->
+</div>
+
+<!-- If you must use a div, add these attributes -->
+<div
+  class="custom-button"
+  role="button"
+  tabindex="0"
+  onclick="doSomething()"
+  onkeydown="if(event.key === 'Enter' || event.key === ' ') doSomething()"
+>
+  Click me  <!-- ✅ Now keyboard-accessible, but <button> is still better -->
+</div>
+```
+
+:::note[The First Rule of ARIA]
+Do not use ARIA if you can use a native HTML element that already has the semantics and behavior you need. A `<button>` is always better than `<div role="button">`.
+:::
+
+### Skip Links
+
+Allow keyboard users to skip repetitive navigation:
+
+```html
+<body>
+  <!-- First element in the body -->
+  <a href="#main-content" class="skip-link">
+    Skip to main content
+  </a>
+
+  <header>
+    <nav><!-- Long navigation menu --></nav>
+  </header>
+
+  <main id="main-content">
+    <!-- Page content starts here -->
+  </main>
+</body>
+
+<style>
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  padding: 8px 16px;
+  background: #000;
+  color: #fff;
+  z-index: 1000;
+  transition: top 0.2s;
+}
+
+.skip-link:focus {
+  top: 0;
+}
+</style>
+```
+
+---
+
+## Complete Semantic Page Template
+
+Here is a comprehensive example bringing all concepts together:
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Blog Post Title — My Blog</title>
+  <meta name="description" content="Summary of this blog post in 150-160 characters" />
+  <link rel="canonical" href="https://myblog.com/posts/blog-post-title" />
+</head>
+<body>
+  <a href="#main" class="skip-link">Skip to main content</a>
+
+  <header>
+    <nav aria-label="Main navigation">
+      <ul>
+        <li><a href="/" aria-current="page">Home</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="/about">About</a></li>
+        <li><a href="/contact">Contact</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main id="main">
+    <article>
+      <header>
+        <h1>Understanding Semantic HTML</h1>
+        <p>
+          By <address class="inline"><a href="/author/jane">Jane Developer</a></address>
+          on <time datetime="2025-01-15">January 15, 2025</time>
+        </p>
+      </header>
+
+      <section aria-labelledby="intro-heading">
+        <h2 id="intro-heading">Introduction</h2>
+        <p>Semantic HTML provides meaning to web content...</p>
+      </section>
+
+      <section aria-labelledby="elements-heading">
+        <h2 id="elements-heading">Key Semantic Elements</h2>
+        <p>HTML5 introduced several new semantic elements...</p>
+
+        <figure>
+          <img
+            src="semantic-layout.svg"
+            alt="Diagram showing semantic HTML5 page structure"
+            width="600"
+            height="400"
+            loading="lazy"
+          />
+          <figcaption>Figure 1: Semantic HTML5 page layout</figcaption>
+        </figure>
+      </section>
+
+      <footer>
+        <p>Tags:
+          <a href="/tags/html" rel="tag">HTML</a>,
+          <a href="/tags/accessibility" rel="tag">Accessibility</a>
+        </p>
+      </footer>
+    </article>
+
+    <section aria-labelledby="comments-heading">
+      <h2 id="comments-heading">Comments</h2>
+      <!-- Comment list -->
+    </section>
+  </main>
+
+  <aside aria-label="Sidebar">
+    <section aria-labelledby="recent-heading">
+      <h2 id="recent-heading">Recent Posts</h2>
+      <ul>
+        <li><a href="/posts/css-grid">Mastering CSS Grid</a></li>
+        <li><a href="/posts/react-hooks">React Hooks Guide</a></li>
+      </ul>
+    </section>
+  </aside>
+
+  <footer>
+    <nav aria-label="Footer navigation">
+      <ul>
+        <li><a href="/privacy">Privacy Policy</a></li>
+        <li><a href="/terms">Terms of Service</a></li>
+      </ul>
+    </nav>
+    <p><small>© 2025 My Blog. All rights reserved.</small></p>
+  </footer>
+</body>
+</html>
+```
+
+---
+
+## Common Anti-Patterns to Avoid
+
+| Anti-Pattern | Problem | Solution |
+|-------------|---------|---------|
+| `<div>` for everything | No semantic meaning, poor accessibility | Use appropriate semantic elements |
+| `<br>` for spacing | Misusing line breaks for layout | Use CSS margin/padding |
+| `<table>` for layout | Tables are for tabular data only | Use CSS Grid or Flexbox |
+| `<b>` instead of `<strong>` | `<b>` is purely visual, no emphasis | Use `<strong>` for importance |
+| `<i>` instead of `<em>` | `<i>` is purely visual, no emphasis | Use `<em>` for stress emphasis |
+| Heading for font size | Breaks document outline | Use CSS for font sizing |
+| Missing `alt` on images | Images invisible to screen readers | Always provide descriptive alt text |
+| Empty links/buttons | "Click here" is meaningless out of context | Use descriptive link text |
+| Inline event handlers | `onclick="..."` mixes concerns | Use `addEventListener` in JS |
+
+---
+
+<LinkCard
+  title="Next: CSS Layout & Responsive Design"
+  description="Learn Flexbox, CSS Grid, responsive design, and modern CSS features"
+  href="/software-engineering/web-fundamentals/css-layout/"
+/>

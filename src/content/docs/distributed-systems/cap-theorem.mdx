@@ -1,0 +1,538 @@
+---
+title: CAP Theorem & Consistency Models
+description: Deep dive into the CAP theorem, PACELC theorem, and the spectrum of consistency models from strong consistency to eventual consistency with real-world database examples.
+difficulty: intermediate
+prerequisites:
+  - Distributed Systems overview
+  - Basic networking concepts
+  - Database fundamentals
+timeToRead: "28 min"
+topics:
+  - CAP theorem
+  - consistency models
+  - strong consistency
+  - eventual consistency
+  - causal consistency
+  - linearizability
+  - PACELC theorem
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+The CAP theorem is the most important impossibility result in distributed systems. It states a fundamental trade-off that every distributed data store must face. Understanding CAP -- and its limitations -- is essential for making informed architectural decisions.
+
+---
+
+## The CAP Theorem
+
+### Statement
+
+Proposed by Eric Brewer in 2000 and formally proven by Seth Gilbert and Nancy Lynch in 2002, the CAP theorem states:
+
+> A distributed data store can provide at most **two out of three** guarantees simultaneously: **Consistency**, **Availability**, and **Partition Tolerance**.
+
+```
+                    Consistency (C)
+                         ▲
+                        / \
+                       /   \
+                      / CP  \
+                     / systems\
+                    /    CA    \
+                   /   systems  \
+                  /  (only works  \
+                 /  without network \
+                /    partitions)     \
+               /─────────────────────\
+              /                       \
+             /       AP systems        \
+            ▼─────────────────────────▶▼
+     Availability (A)          Partition Tolerance (P)
+```
+
+### The Three Guarantees Defined
+
+**Consistency (C)**: Every read receives the most recent write or an error. All nodes see the same data at the same time. This is **linearizable consistency** -- the strongest form.
+
+**Availability (A)**: Every request (read or write) receives a non-error response, without guarantee that it contains the most recent write. Every non-failing node must return a response.
+
+**Partition Tolerance (P)**: The system continues to operate despite arbitrary message loss or failure of part of the network. A network partition splits nodes into groups that cannot communicate with each other.
+
+### Why You Must Choose P
+
+In any real distributed system, network partitions are inevitable. Hardware fails, cables are cut, and cloud providers have outages. Since you cannot prevent partitions, you must tolerate them. This means the real choice is between **CP** and **AP**:
+
+```
+Network Partition Occurs:
+
+┌─────────────────┐         X         ┌─────────────────┐
+│   Node A        │ ──── BROKEN ───── │   Node B        │
+│   (has latest   │    CONNECTION     │   (has stale    │
+│    write)       │                   │    data)        │
+└─────────────────┘                   └─────────────────┘
+
+CP Choice:                            AP Choice:
+Node B returns ERROR                  Node B returns STALE DATA
+(consistent but unavailable)          (available but inconsistent)
+```
+
+:::note
+The CAP theorem applies specifically during a network partition. When the network is functioning normally, a well-designed system can provide both consistency and availability. The theorem describes what must be sacrificed when things go wrong.
+:::
+
+---
+
+## CP vs AP Systems
+
+### CP Systems: Consistency over Availability
+
+When a partition occurs, CP systems will refuse to serve requests that might return stale data. They prefer to return an error rather than an inconsistent result.
+
+**Behavior during partition**:
+- Writes may be rejected if the system cannot confirm they have been replicated
+- Reads may be rejected if the node cannot confirm it has the latest data
+- The system may become completely unavailable for the partitioned segment
+
+**Real-world CP examples**:
+
+| System | How It Achieves CP |
+|---|---|
+| **Google Spanner** | Uses TrueTime (GPS + atomic clocks) for global strong consistency; may reject operations during partitions |
+| **HBase** | Single leader per region; if leader is partitioned, region becomes unavailable |
+| **MongoDB** (default) | Single primary per replica set; reads from primary are consistent; if primary is partitioned, writes halt |
+| **ZooKeeper** | Quorum-based reads and writes; minority partition cannot serve requests |
+| **etcd** | Raft consensus; requires majority quorum to operate |
+
+### AP Systems: Availability over Consistency
+
+When a partition occurs, AP systems continue to serve all requests, but some responses may return stale or conflicting data.
+
+**Behavior during partition**:
+- All nodes continue accepting reads and writes
+- Different nodes may have different views of the data
+- Conflicts are resolved after the partition heals (using techniques like vector clocks, last-write-wins, or CRDTs)
+
+**Real-world AP examples**:
+
+| System | How It Achieves AP |
+|---|---|
+| **DynamoDB** | Configurable consistency; eventual consistency by default; all nodes serve requests |
+| **Cassandra** | Tunable consistency; can operate with `ONE` consistency for maximum availability |
+| **CouchDB** | Multi-master replication with conflict detection and resolution |
+| **Riak** | Masterless design using vector clocks for conflict resolution |
+| **DNS** | Heavily cached, eventually consistent; always returns a result |
+
+### CA Systems: A Theoretical Category
+
+A CA system would provide consistency and availability but not tolerate partitions. This is only possible in a non-distributed system (a single node) or a network that never has partitions (which does not exist in practice).
+
+**Examples often cited as CA**:
+- Single-node relational databases (PostgreSQL, MySQL on one machine)
+- These are not truly distributed, so CAP does not really apply
+
+---
+
+## The PACELC Theorem
+
+The CAP theorem only describes behavior during partitions, but what about normal operation? The PACELC theorem (proposed by Daniel Abadi in 2010) extends CAP:
+
+> If there is a **P**artition, choose between **A**vailability and **C**onsistency.
+> **E**lse (normal operation), choose between **L**atency and **C**onsistency.
+
+```
+                    Is there a partition?
+                          │
+                ┌─────────┼─────────┐
+                │ YES                │ NO
+                │                    │
+         Choose: A or C?      Choose: L or C?
+                │                    │
+         ┌──────┴──────┐     ┌──────┴──────┐
+         │ PA          │ PC  │ EL          │ EC
+         │(Available)  │     │(Low Latency)│(Consistent)
+         └─────────────┘     └─────────────┘
+```
+
+### PACELC Classifications of Real Systems
+
+| System | Partition (P) | Else (E) | Classification | Notes |
+|---|---|---|---|---|
+| **DynamoDB** | PA | EL | PA/EL | Favors availability and low latency |
+| **Cassandra** | PA | EL | PA/EL | Tunable, but default behavior |
+| **Spanner** | PC | EC | PC/EC | Global strong consistency at all times |
+| **MongoDB** | PC | EC | PC/EC | Single primary model |
+| **PNUTS (Yahoo)** | PC | EL | PC/EL | Timeline consistency for low latency |
+| **Cosmos DB** | PA | EL | PA/EL | With eventual consistency setting |
+| **VoltDB** | PC | EC | PC/EC | Synchronous replication |
+
+:::tip[PACELC in Practice]
+PACELC is more useful than CAP for architecture decisions because most of the time your system is running without partitions. The latency vs consistency trade-off during normal operation affects every single request, not just those during rare partition events.
+:::
+
+---
+
+## Consistency Models Spectrum
+
+Consistency models define the contract between a distributed data store and its clients regarding what values reads can return. These models form a spectrum from strongest to weakest:
+
+```
+Strongest                                               Weakest
+    │                                                       │
+    ▼                                                       ▼
+┌──────────┬──────────┬──────────┬───────────┬─────────────┐
+│ Linear-  │ Sequen-  │ Causal   │ Read-your │  Eventual   │
+│ izable   │ tial     │          │ -writes   │             │
+└──────────┴──────────┴──────────┴───────────┴─────────────┘
+   Easier                                      Easier
+   to reason                                   to scale
+   about                                       and deploy
+```
+
+### Linearizability (Strongest)
+
+Linearizability (also called "atomic consistency" or "strong consistency") means that all operations appear to execute instantaneously at some point between their invocation and completion, and this order is consistent with the real-time ordering.
+
+**Properties**:
+- Once a write completes, all subsequent reads see it
+- Operations appear to happen in a single, total order
+- This order respects real-time: if operation A completes before operation B begins, A appears before B
+
+```
+Timeline:
+Client 1:  ──[Write x=1]──────────────────────────▶
+Client 2:       ────────[Read x]─── returns 1 ────▶
+Client 3:            ──────[Read x]── returns 1 ──▶
+
+After the write of x=1 completes, ALL reads must return 1.
+No client can ever see the old value again.
+```
+
+**Use cases**: Bank account balances, leader election, distributed locks
+
+**Systems**: Google Spanner, CockroachDB, FoundationDB
+
+### Sequential Consistency
+
+All operations appear to execute in some sequential order, and the operations of each individual process appear in the order specified by its program. However, the global ordering does not need to respect real-time.
+
+**Difference from linearizability**: Two operations on different nodes can be reordered as long as per-client order is preserved.
+
+```
+Client 1:  Write(x=1), then Write(x=2)
+Client 2:  Read(x) -> could return 1, then Read(x) -> returns 2
+
+Valid sequential order: Write(x=1), Read(x)=1, Write(x=2), Read(x)=2
+Also valid: Write(x=1), Write(x=2), Read(x)=2, Read(x)=2
+
+NOT valid: Read(x)=2, then Read(x)=1  (violates per-client order)
+```
+
+### Causal Consistency
+
+Operations that are causally related must be seen by all nodes in the same order. Operations that are not causally related (concurrent) can be seen in different orders by different nodes.
+
+**Causal relationship**: If operation A might have influenced operation B (for example, B read a value written by A), then A is causally before B.
+
+```
+Example: Social media comments
+
+Alice writes: "I love this movie!"        (Event A)
+Bob reads Alice's comment, then replies:   (Event B, causally after A)
+  "Me too!"
+
+Causal consistency guarantees:
+  Everyone sees Alice's comment BEFORE Bob's reply.
+
+But: Charlie and Dave post unrelated comments.
+  Different users may see Charlie's and Dave's comments in different orders.
+  That is fine -- they are not causally related.
+```
+
+**Systems**: MongoDB (with causal consistency sessions), CockroachDB
+
+### Read-Your-Writes Consistency
+
+A client always sees the effect of its own writes. Other clients may see stale data temporarily.
+
+```
+Client 1:  Write(x=42)
+Client 1:  Read(x) -> MUST return 42 (sees own write)
+Client 2:  Read(x) -> might return old value (has not seen the write yet)
+```
+
+**This is the minimum consistency level most applications need**. Users expect that after they update their profile, they see their own changes immediately -- even if other users see the old profile for a few seconds.
+
+**Implementation techniques**:
+- Read from the leader after writing
+- Track write timestamps and ensure reads see at least that timestamp
+- Route reads for recently-written keys to the same replica
+
+### Eventual Consistency (Weakest Practical Model)
+
+If no new writes are made, all replicas will eventually converge to the same value. There is no bound on how long "eventually" takes.
+
+```
+Time:  T0          T1          T2          T3
+       │           │           │           │
+Node A: x=1 ──────────────────────────────▶ x=5
+Node B: x=3 ──────── x=5 ────────────────▶ x=5
+Node C: x=5 ──────────────────────────────▶ x=5
+
+Convergence: At some point, all nodes agree.
+During convergence: Different nodes return different values.
+```
+
+**Conflict resolution strategies for eventual consistency**:
+
+| Strategy | Description | Pros | Cons |
+|---|---|---|---|
+| **Last-Write-Wins (LWW)** | Timestamp-based; latest write wins | Simple | Data loss; clock skew issues |
+| **Vector Clocks** | Track causal history; detect conflicts | No silent data loss | Complex; grows with number of writers |
+| **CRDTs** | Conflict-free data structures that merge automatically | No conflicts by design | Limited data types; can be space-intensive |
+| **Application-level** | Application logic resolves conflicts | Full control | Complex application code |
+
+---
+
+## Consistency in Practice
+
+### Tunable Consistency
+
+Many modern databases allow you to configure the consistency level per operation. Cassandra and DynamoDB are prime examples.
+
+**Cassandra's consistency formula**:
+
+```
+W + R > N  -->  Strong consistency
+W + R <= N -->  Eventual consistency
+
+Where:
+  N = Number of replicas
+  W = Number of replicas that must acknowledge a write
+  R = Number of replicas that must respond to a read
+
+Example with N=3:
+  W=2, R=2:  2+2=4 > 3  --> Strong (read quorum overlaps write quorum)
+  W=1, R=1:  1+1=2 < 3  --> Eventual (no guaranteed overlap)
+  W=3, R=1:  3+1=4 > 3  --> Strong (all replicas have the write)
+  W=1, R=3:  1+3=4 > 3  --> Strong (read all replicas)
+```
+
+<Tabs>
+<TabItem label="Python (Cassandra)">
+```python
+from cassandra.cluster import Cluster
+from cassandra.policies import DCAwareRoundRobinPolicy
+from cassandra import ConsistencyLevel
+
+cluster = Cluster(['node1', 'node2', 'node3'])
+session = cluster.connect('my_keyspace')
+
+# Strong consistency: QUORUM reads and writes
+# With replication factor 3, QUORUM = 2
+# W(2) + R(2) = 4 > 3 = strong consistency
+statement = session.prepare(
+    "SELECT * FROM users WHERE user_id = ?"
+)
+statement.consistency_level = ConsistencyLevel.QUORUM
+
+# Eventual consistency: ONE read
+# W(QUORUM=2) + R(ONE=1) = 3, which equals N
+# Not guaranteed strong consistency
+fast_statement = session.prepare(
+    "SELECT * FROM users WHERE user_id = ?"
+)
+fast_statement.consistency_level = ConsistencyLevel.ONE
+
+# Write with strong durability
+write_statement = session.prepare(
+    "INSERT INTO users (user_id, name) VALUES (?, ?)"
+)
+write_statement.consistency_level = ConsistencyLevel.QUORUM
+
+result = session.execute(statement, ['user-123'])
+```
+</TabItem>
+<TabItem label="JavaScript (DynamoDB)">
+```javascript
+const { DynamoDBClient, GetItemCommand, PutItemCommand }
+  = require('@aws-sdk/client-dynamodb');
+
+const client = new DynamoDBClient({ region: 'us-east-1' });
+
+// Eventually consistent read (default, lower latency)
+async function eventualRead(userId) {
+  const command = new GetItemCommand({
+    TableName: 'Users',
+    Key: { userId: { S: userId } },
+    ConsistentRead: false  // default: eventual consistency
+  });
+  return client.send(command);
+}
+
+// Strongly consistent read (higher latency, higher cost)
+async function strongRead(userId) {
+  const command = new GetItemCommand({
+    TableName: 'Users',
+    Key: { userId: { S: userId } },
+    ConsistentRead: true  // strong consistency
+  });
+  return client.send(command);
+}
+
+// Writes are always consistent in DynamoDB
+// (acknowledged by the leader before returning)
+async function writeUser(userId, name) {
+  const command = new PutItemCommand({
+    TableName: 'Users',
+    Item: {
+      userId: { S: userId },
+      name: { S: name }
+    },
+    // Conditional write for optimistic concurrency
+    ConditionExpression: 'attribute_not_exists(userId)'
+  });
+  return client.send(command);
+}
+```
+</TabItem>
+<TabItem label="Java (Cassandra)">
+```java
+import com.datastax.oss.driver.api.core.CqlSession;
+import com.datastax.oss.driver.api.core.ConsistencyLevel;
+import com.datastax.oss.driver.api.core.cql.*;
+
+public class ConsistencyExample {
+
+    private final CqlSession session;
+
+    public ConsistencyExample() {
+        this.session = CqlSession.builder()
+            .addContactPoint(
+                new InetSocketAddress("node1", 9042))
+            .withLocalDatacenter("dc1")
+            .build();
+    }
+
+    // Strong consistency read (QUORUM)
+    public Row strongRead(String userId) {
+        SimpleStatement stmt = SimpleStatement.builder(
+            "SELECT * FROM users WHERE user_id = ?")
+            .addPositionalValue(userId)
+            .setConsistencyLevel(ConsistencyLevel.QUORUM)
+            .build();
+        return session.execute(stmt).one();
+    }
+
+    // Eventual consistency read (ONE) - faster
+    public Row eventualRead(String userId) {
+        SimpleStatement stmt = SimpleStatement.builder(
+            "SELECT * FROM users WHERE user_id = ?")
+            .addPositionalValue(userId)
+            .setConsistencyLevel(ConsistencyLevel.ONE)
+            .build();
+        return session.execute(stmt).one();
+    }
+
+    // Strong consistency write (QUORUM)
+    public void strongWrite(String userId, String name) {
+        SimpleStatement stmt = SimpleStatement.builder(
+            "INSERT INTO users (user_id, name) VALUES (?, ?)")
+            .addPositionalValues(userId, name)
+            .setConsistencyLevel(ConsistencyLevel.QUORUM)
+            .build();
+        session.execute(stmt);
+    }
+}
+```
+</TabItem>
+</Tabs>
+
+---
+
+## Real-World Architecture Decisions
+
+### When to Choose Strong Consistency
+
+- **Financial transactions**: Bank transfers, payment processing
+- **Inventory management**: Preventing overselling
+- **User authentication**: Ensuring credential changes take effect immediately
+- **Leader election**: Only one leader must be active at a time
+- **Distributed locks**: Mutual exclusion must be guaranteed
+
+### When to Choose Eventual Consistency
+
+- **Social media feeds**: It is acceptable if a post takes a few seconds to appear for all followers
+- **Product reviews**: Slight delays in visibility are fine
+- **Analytics and metrics**: Exact real-time accuracy is unnecessary
+- **Shopping carts**: Merge conflicts can be resolved in favor of the customer
+- **DNS**: Propagation delays of minutes are acceptable
+
+### Hybrid Approaches
+
+Most production systems use different consistency levels for different operations within the same application:
+
+```
+┌─────────────────────────────────────────────────────┐
+│                  E-Commerce System                   │
+├──────────────────┬──────────────────────────────────┤
+│    Operation     │     Consistency Level             │
+├──────────────────┼──────────────────────────────────┤
+│ Place Order      │ Strong (CP)                       │
+│ Update Inventory │ Strong (CP)                       │
+│ Process Payment  │ Strong (CP)                       │
+│ Browse Products  │ Eventual (AP) -- cached           │
+│ Product Reviews  │ Eventual (AP)                     │
+│ Recommendations  │ Eventual (AP) -- computed async   │
+│ User Sessions    │ Read-your-writes                  │
+│ Search Index     │ Eventual (AP) -- rebuilt async    │
+└──────────────────┴──────────────────────────────────┘
+```
+
+---
+
+## Common Misconceptions
+
+:::caution[CAP Misconceptions]
+**Misconception 1**: "CAP says you can only have two of three." In reality, you only sacrifice one guarantee during a partition. When there is no partition, you can have both C and A.
+
+**Misconception 2**: "Consistency in CAP is the same as consistency in ACID." CAP consistency means linearizability. ACID consistency means the database enforces application-defined invariants (foreign keys, constraints). They are different concepts.
+
+**Misconception 3**: "You must choose CP or AP for your entire system." Different parts of your system can make different trade-offs. A single application can use CP for payments and AP for recommendations.
+
+**Misconception 4**: "Eventual consistency means inconsistency is common." In practice, replication lag is usually milliseconds. Most reads will return the latest value even under eventual consistency.
+:::
+
+---
+
+## Practice Scenarios
+
+**Scenario 1**: You are designing a system to manage airline seat reservations. Two users try to book the same seat at the same time. What consistency model do you need?
+
+**Answer**: Strong consistency (linearizability). Double-booking a seat is unacceptable. You need a CP system or a mechanism like distributed locks or compare-and-swap operations.
+
+**Scenario 2**: You are building a social media "like" counter. Millions of users are liking posts simultaneously. What consistency model is appropriate?
+
+**Answer**: Eventual consistency is fine. It is acceptable if the like count is slightly behind for a few seconds. The high write volume makes strong consistency expensive and unnecessary.
+
+**Scenario 3**: You are building a collaborative document editor (like Google Docs). Users on different continents are editing the same document simultaneously. What approach do you use?
+
+**Answer**: This requires causal consistency combined with operational transformation (OT) or CRDTs. Users must see their own edits immediately (read-your-writes), and causally related edits must appear in order, but concurrent edits from users on different continents can be merged asynchronously.
+
+---
+
+## Summary
+
+| Concept | Key Takeaway |
+|---|---|
+| **CAP Theorem** | During a partition, choose between consistency and availability |
+| **PACELC** | Extends CAP to include the latency vs consistency trade-off during normal operation |
+| **Linearizability** | Strongest model; all operations appear instant and ordered |
+| **Causal Consistency** | Causally related operations are ordered; concurrent ones are not |
+| **Eventual Consistency** | All replicas converge eventually; weakest practical guarantee |
+| **Tunable Consistency** | Many databases let you choose consistency per operation |
+
+<LinkCard
+  title="Next: Replication & Partitioning"
+  description="Learn how data is replicated across nodes for fault tolerance and partitioned across machines for scalability."
+  href="/software-engineering/distributed-systems/replication-partitioning/"
+/>

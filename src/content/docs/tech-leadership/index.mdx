@@ -1,0 +1,308 @@
+---
+title: "Tech Leadership"
+description: "Navigate the IC and management tracks, understand staff engineer roles, lead without authority, and build trust across engineering organizations"
+difficulty: "advanced"
+prerequisites: ["Software development experience", "Team collaboration"]
+timeToRead: "25 min"
+topics: ["tech-leadership", "staff-engineer", "ic-track", "management", "influence", "trust"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid, Card } from '@astrojs/starlight/components';
+
+**Tech leadership** is not about having a title — it is about making everyone around you more effective. Whether you are a senior engineer influencing technical direction, a tech lead coordinating a team's work, or a staff engineer shaping an organization's architecture, the skills covered in this section are essential for growing your impact beyond individual contributions.
+
+---
+
+## IC vs Management Track
+
+Most engineering organizations offer two career paths beyond senior engineer:
+
+```
+                    Individual Contributor (IC)         Management
+                    ─────────────────────────          ──────────────
+
+                    Distinguished Engineer              VP of Engineering
+                           │                                  │
+                    Principal Engineer                   Director of Eng
+                           │                                  │
+                    Staff Engineer                       Senior Eng Manager
+                           │                                  │
+                    Senior Engineer  ◀───────────────▶  Engineering Manager
+                           │                                  │
+                        Engineer                         Tech Lead (hybrid)
+                           │
+                    Junior Engineer
+```
+
+### IC Track Roles
+
+| Level | Scope | Key Responsibilities |
+|-------|-------|---------------------|
+| **Senior Engineer** | Feature/component | Own technical decisions for their area, mentor juniors |
+| **Staff Engineer** | Multiple teams/domain | Set technical direction, solve cross-team problems, design systems |
+| **Principal Engineer** | Organization/division | Define technical strategy, drive architectural decisions at scale |
+| **Distinguished Engineer** | Company-wide | Shape industry practices, represent the company technically |
+
+### Management Track Roles
+
+| Level | Scope | Key Responsibilities |
+|-------|-------|---------------------|
+| **Tech Lead** | Single team | Technical direction + some people management |
+| **Engineering Manager** | Single team | People management, delivery, hiring |
+| **Senior EM** | Multiple teams | Cross-team coordination, process, culture |
+| **Director** | Department | Strategy, organizational design, executive alignment |
+| **VP Engineering** | Engineering org | Business strategy, budget, executive leadership |
+
+:::note[The Tech Lead Role]
+The tech lead role is often a hybrid position that combines IC work with leadership responsibilities. Some organizations treat it as a temporary rotation, others as a permanent role. It is an excellent way to test whether you enjoy leadership before committing to the management track.
+:::
+
+---
+
+## Staff/Principal Engineer Roles
+
+Staff engineers operate at a scope that spans beyond any single team. Will Larson's taxonomy identifies four common archetypes:
+
+### The Four Archetypes
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    Staff Engineer Archetypes              │
+├──────────────┬──────────────────────────────────────────┤
+│              │                                          │
+│  Tech Lead   │  Sets technical direction for a team,    │
+│              │  coordinates execution, maintains high    │
+│              │  technical standards. Most common type.   │
+│              │                                          │
+├──────────────┼──────────────────────────────────────────┤
+│              │                                          │
+│  Architect   │  Defines technical vision across teams.  │
+│              │  Reviews designs, sets standards, ensures │
+│              │  system coherence. Hands-on, but more    │
+│              │  breadth than depth in code.             │
+│              │                                          │
+├──────────────┼──────────────────────────────────────────┤
+│              │                                          │
+│  Solver      │  Parachutes into the most critical,      │
+│              │  complex problems. Deeply technical,     │
+│              │  works independently or with small groups.│
+│              │  Common in consulting-style orgs.        │
+│              │                                          │
+├──────────────┼──────────────────────────────────────────┤
+│              │                                          │
+│  Right Hand  │  Extends a senior leader's reach.        │
+│              │  Handles special projects, fills gaps,   │
+│              │  unblocks initiatives. Most organizational│
+│              │  awareness of the four archetypes.       │
+│              │                                          │
+└──────────────┴──────────────────────────────────────────┘
+```
+
+### What Staff Engineers Actually Do
+
+A typical week for a staff engineer might include:
+
+- **Monday** — Review three technical design documents, provide feedback
+- **Tuesday** — Pair with a team on a critical migration, write prototype code
+- **Wednesday** — Lead architecture review meeting, write an ADR for a cross-team decision
+- **Thursday** — Debug a production performance issue, mentor a senior engineer
+- **Friday** — Write a technical strategy document, present at engineering all-hands
+
+The common thread: **multiplying the effectiveness of others** while maintaining deep technical credibility.
+
+---
+
+## Tech Lead Responsibilities
+
+The tech lead role encompasses three key areas:
+
+### 1. Technical Direction
+
+- Define the technical roadmap for the team
+- Make or facilitate architectural decisions
+- Ensure code quality through reviews and standards
+- Manage technical debt strategically
+- Evaluate and adopt new technologies
+
+### 2. Project Execution
+
+- Break down projects into milestones and tasks
+- Identify risks early and create mitigation plans
+- Communicate progress to stakeholders
+- Unblock team members when they are stuck
+- Balance speed with quality
+
+### 3. Team Development
+
+- Mentor engineers on technical growth
+- Create opportunities for others to take on challenges
+- Facilitate knowledge sharing within the team
+- Advocate for the team's needs with management
+- Model engineering excellence
+
+### What Tech Leads Should NOT Do
+
+:::caution[Anti-Patterns]
+- **Hero coding** — doing all the hard work yourself instead of enabling others
+- **Gatekeeping** — requiring your approval for every decision
+- **Micromanaging** — dictating implementation details instead of outcomes
+- **Avoiding conflict** — letting technical disagreements fester unresolved
+- **Neglecting management** — treating people issues as someone else's problem
+:::
+
+---
+
+## Influence Without Authority
+
+Most technical leadership is exercised without formal authority. You cannot mandate that people adopt your approach — you must earn their trust and convince them through evidence and empathy.
+
+### Strategies for Influence
+
+| Strategy | How It Works | Example |
+|----------|-------------|---------|
+| **Build credibility** | Demonstrate deep expertise through contributions | Ship high-quality code that others learn from |
+| **Write it down** | Documentation scales your influence | Write RFCs, ADRs, and technical guides |
+| **Listen first** | Understand others' constraints before proposing | "What are the biggest pain points with the current system?" |
+| **Find allies** | Build coalitions across teams | Partner with another tech lead to propose a shared standard |
+| **Show, do not tell** | Build prototypes rather than just arguing | "I built a proof of concept — here are the results" |
+| **Create shared context** | Help others see what you see | Present data, visualizations, and clear problem statements |
+| **Be consistently helpful** | Accumulate social capital over time | Review others' designs, help debug issues, share knowledge |
+
+### The Influence Pyramid
+
+```
+                    ┌─────────┐
+                    │ Mandate │  (authority — rarely available)
+                   ┌┴─────────┴┐
+                   │  Persuade  │  (logic and data)
+                  ┌┴───────────┴┐
+                  │  Collaborate │  (shared ownership)
+                 ┌┴─────────────┴┐
+                 │   Demonstrate  │  (lead by example)
+                ┌┴───────────────┴┐
+                │    Build Trust   │  (foundation of all influence)
+                └─────────────────┘
+```
+
+---
+
+## Building Trust
+
+Trust is the currency of technical leadership. Without it, even the best technical ideas will be ignored.
+
+### The Trust Equation
+
+```
+                Credibility + Reliability + Intimacy
+    Trust  =   ──────────────────────────────────────
+                        Self-Orientation
+
+    Credibility:     Do you know what you're talking about?
+    Reliability:     Do you follow through on commitments?
+    Intimacy:        Can people be vulnerable with you?
+    Self-Orientation: Are you focused on yourself or on others?
+                     (lower is better)
+```
+
+### Trust-Building Behaviors
+
+**Credibility:**
+- Share your reasoning, not just your conclusions
+- Admit when you do not know something
+- Stay current with technology through continuous learning
+- Contribute meaningful code, reviews, and designs
+
+**Reliability:**
+- Do what you say you will do, when you say you will do it
+- If you cannot deliver, communicate early
+- Be consistent in your standards and expectations
+- Show up prepared for meetings and reviews
+
+**Intimacy:**
+- Create psychological safety for honest conversation
+- Have difficult conversations privately
+- Respect confidences and private information
+- Show genuine interest in others' growth
+
+**Low Self-Orientation:**
+- Give credit to others publicly
+- Prioritize team success over individual recognition
+- Ask questions rather than immediately asserting your view
+- Be willing to change your mind when presented with better evidence
+
+---
+
+## Navigating Organizational Dynamics
+
+### Stakeholder Management
+
+```
+              High Influence
+                    │
+         ┌──────────┼──────────┐
+         │  Keep     │  Manage  │
+         │  Satisfied│  Closely │
+         │          │          │
+Low ─────┼──────────┼──────────┼───── High Interest
+Interest │          │          │
+         │  Monitor │  Keep    │
+         │          │  Informed │
+         │          │          │
+         └──────────┼──────────┘
+                    │
+              Low Influence
+```
+
+### Communication Patterns
+
+| Audience | Communication Style | Frequency |
+|----------|-------------------|-----------|
+| **Your team** | Detailed technical discussion | Daily |
+| **Peer tech leads** | Design trade-offs, shared concerns | Weekly |
+| **Engineering manager** | Risks, blockers, progress, team health | Weekly 1:1 |
+| **Director/VP** | Business impact, strategic alignment | Monthly/quarterly |
+| **Product managers** | Feasibility, estimates, trade-offs | Per project |
+| **External teams** | Integration plans, API contracts, timelines | As needed |
+
+:::tip[Communicate at the Right Altitude]
+Match your level of detail to your audience. Your team needs implementation details. Your director needs business outcomes. Learn to "zoom in and out" fluidly — it is one of the most valuable skills a tech leader can develop.
+:::
+
+---
+
+## What You Will Learn
+
+<CardGrid>
+  <LinkCard
+    title="Team Dynamics"
+    description="Team topologies, psychological safety, feedback frameworks, and mentoring"
+    href="/software-engineering/tech-leadership/team-dynamics/"
+  />
+  <LinkCard
+    title="Technical Decision-Making"
+    description="ADRs, RFC process, evaluating trade-offs, and managing tech debt"
+    href="/software-engineering/tech-leadership/technical-decisions/"
+  />
+  <LinkCard
+    title="Engineering Culture"
+    description="Code review culture, postmortems, knowledge sharing, and developer experience"
+    href="/software-engineering/tech-leadership/engineering-culture/"
+  />
+</CardGrid>
+
+---
+
+## Related Topics
+
+<CardGrid>
+  <LinkCard
+    title="Software Architecture"
+    description="The technical foundation for architectural leadership"
+    href="/software-engineering/software-architecture/"
+  />
+  <LinkCard
+    title="SDLC & Agile"
+    description="Process frameworks that shape how teams deliver software"
+    href="/software-engineering/sdlc-agile/"
+  />
+</CardGrid>

@@ -1,0 +1,350 @@
+---
+title: "Regex & Text Processing"
+description: "Understand regular expressions, when to use them, regex engine internals, and text processing across programming languages"
+difficulty: "intermediate"
+prerequisites: ["Programming fundamentals"]
+timeToRead: "20 min"
+topics: ["regex", "regular-expressions", "text-processing", "NFA", "DFA", "pattern-matching"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid, Card } from '@astrojs/starlight/components';
+
+**Regular expressions** (regex or regexp) are patterns used to match character combinations in strings. They are one of the most powerful tools in a programmer's toolkit — used for validation, search-and-replace, data extraction, log analysis, and much more. This section covers regex fundamentals through advanced patterns, plus essential Unix text processing tools.
+
+---
+
+## What Are Regular Expressions?
+
+A regular expression is a sequence of characters that defines a search pattern. At its simplest, a regex is just a literal string that matches itself. At its most complex, it can describe intricate patterns with repetition, alternation, grouping, and context-sensitive matching.
+
+```
+Pattern: /error\s+\d{3}/i
+
+Matches:
+  "Error 404 not found"         ✓  (error + space + 3 digits)
+  "error 500 internal"          ✓  (case insensitive)
+  "ERROR  503 gateway"          ✓  (multiple spaces)
+  "no errors here"              ✗  (no digits after "error")
+  "error code 42"               ✗  (only 2 digits)
+```
+
+### The Building Blocks
+
+```
+┌──────────────────────────────────────────────────────┐
+│              Regular Expression Anatomy               │
+├──────────────────────────────────────────────────────┤
+│                                                      │
+│  /^https?:\/\/[\w.-]+\.\w{2,}(\/\S*)?$/i            │
+│  │ │                                    │ │          │
+│  │ │        Pattern Body                │ │          │
+│  │ │                                    │ │          │
+│  │ └── Start anchor                     │ │          │
+│  │                                      │ │          │
+│  └──── Delimiter (in some languages)    │ │          │
+│                                         │ │          │
+│        End anchor ──────────────────────┘ │          │
+│                                           │          │
+│        Flags ─────────────────────────────┘          │
+│                                                      │
+└──────────────────────────────────────────────────────┘
+```
+
+---
+
+## When to Use Regex (and When Not To)
+
+### Good Use Cases
+
+| Use Case | Example Pattern | Notes |
+|----------|----------------|-------|
+| Input validation | `^\d{3}-\d{2}-\d{4}$` | SSN format check |
+| Search and replace | `s/colour/color/g` | Text normalization |
+| Log parsing | `\[(\d{4}-\d{2}-\d{2})\]\s+(\w+)` | Extract date and level |
+| Data extraction | `(\d+\.\d+\.\d+\.\d+)` | IP addresses from text |
+| URL routing | `^/users/(\d+)/posts$` | Web framework routing |
+| Syntax highlighting | Token patterns for keywords, strings, comments | Text editors |
+| CSV field splitting | `,(?=(?:[^"]*"[^"]*")*[^"]*$)` | Comma not inside quotes |
+
+### Bad Use Cases
+
+:::caution[When NOT to Use Regex]
+- **Parsing HTML/XML** — Use a proper DOM parser. Regex cannot handle nested structures correctly.
+- **Parsing JSON** — Use `JSON.parse()`.
+- **Complex email validation** — The RFC 5322 email regex is thousands of characters. Use a library.
+- **Parsing programming languages** — Use a lexer/parser (they use regex internally, but the grammar is not a single regex).
+- **When a simple string method works** — `string.includes()`, `string.startsWith()`, `string.split()` are more readable.
+:::
+
+---
+
+## Regex Engines: NFA vs DFA
+
+Understanding regex engine types helps you predict performance and behavior.
+
+### NFA (Nondeterministic Finite Automaton)
+
+Most programming languages (Python, JavaScript, Java, .NET, Ruby, Perl) use NFA engines:
+
+- **Backtracking** — tries one path, backtracks on failure
+- **Supports** all features: backreferences, lookahead, lookbehind, lazy quantifiers
+- **Performance** — can be exponential in pathological cases (catastrophic backtracking)
+- **Left-to-right, leftmost match** — returns the first match found
+
+### DFA (Deterministic Finite Automaton)
+
+Some tools (grep, awk, lex) use DFA or hybrid engines:
+
+- **No backtracking** — examines each character exactly once
+- **Performance** — guaranteed linear time O(n)
+- **Limited features** — no backreferences, no lookahead/lookbehind
+- **Leftmost longest match** — returns the longest possible match
+
+```
+NFA Matching of "ab|ac" against "ac":
+
+Step 1: Try "ab"
+  a → matches 'a' ✓
+  b → does not match 'c' ✗
+  BACKTRACK to position 0
+
+Step 2: Try "ac"
+  a → matches 'a' ✓
+  c → matches 'c' ✓
+  MATCH at position 0: "ac"
+
+
+DFA Matching (parallel simulation):
+
+Step 1: Read 'a'
+  Could be start of "ab" or "ac" → track both simultaneously
+
+Step 2: Read 'c'
+  "ab" path fails, "ac" path succeeds
+  MATCH: "ac"
+
+No backtracking needed.
+```
+
+### Engine Comparison
+
+| Feature | NFA | DFA |
+|---------|-----|-----|
+| Backtracking | Yes | No |
+| Backreferences | Yes | No |
+| Lookahead/Lookbehind | Yes | No |
+| Lazy quantifiers | Yes | No |
+| Worst-case time | Exponential | Linear |
+| Used by | Python, JS, Java, .NET | grep (traditional), awk, RE2 |
+
+---
+
+## Regex in Different Languages
+
+<Tabs>
+  <TabItem label="Python">
+```python
+import re
+
+text = "Contact us at support@example.com or sales@example.com"
+
+# Search for first match
+match = re.search(r'[\w.+-]+@[\w-]+\.[\w.]+', text)
+if match:
+    print(match.group())      # support@example.com
+    print(match.start())      # 14
+    print(match.end())        # 34
+
+# Find all matches
+emails = re.findall(r'[\w.+-]+@[\w-]+\.[\w.]+', text)
+# ['support@example.com', 'sales@example.com']
+
+# Find all with groups
+pattern = r'([\w.+-]+)@([\w-]+\.[\w.]+)'
+for match in re.finditer(pattern, text):
+    print(f"User: {match.group(1)}, Domain: {match.group(2)}")
+
+# Substitution
+cleaned = re.sub(r'[\w.+-]+@[\w-]+\.[\w.]+', '[REDACTED]', text)
+# "Contact us at [REDACTED] or [REDACTED]"
+
+# Compile for reuse (more efficient in loops)
+email_pattern = re.compile(r'[\w.+-]+@[\w-]+\.[\w.]+', re.IGNORECASE)
+results = email_pattern.findall(text)
+
+# Split
+parts = re.split(r'[,;]\s*', "a, b; c, d")
+# ['a', 'b', 'c', 'd']
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+const text = "Contact us at support@example.com or sales@example.com";
+
+// Literal syntax
+const pattern = /[\w.+-]+@[\w-]+\.[\w.]+/g;
+
+// Constructor syntax (for dynamic patterns)
+const dynamic = new RegExp('[\\w.+-]+@[\\w-]+\\.[\\w.]+', 'g');
+
+// Test for match (returns boolean)
+console.log(pattern.test(text)); // true
+
+// Search (returns index of first match)
+console.log(text.search(/[\w.+-]+@[\w-]+\.[\w.]+/)); // 14
+
+// Match all (returns array of matches)
+const emails = text.match(/[\w.+-]+@[\w-]+\.[\w.]+/g);
+// ['support@example.com', 'sales@example.com']
+
+// matchAll with groups (returns iterator)
+const groupPattern = /([\w.+-]+)@([\w-]+\.[\w.]+)/g;
+for (const match of text.matchAll(groupPattern)) {
+  console.log(`User: ${match[1]}, Domain: ${match[2]}`);
+}
+
+// Replace
+const cleaned = text.replace(/[\w.+-]+@[\w-]+\.[\w.]+/g, '[REDACTED]');
+
+// Replace with function
+const masked = text.replace(
+  /([\w.+-]+)(@[\w-]+\.[\w.]+)/g,
+  (match, user, domain) => user[0] + '***' + domain
+);
+// "Contact us at s***@example.com or s***@example.com"
+
+// Split
+"a, b; c, d".split(/[,;]\s*/);
+// ['a', 'b', 'c', 'd']
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+import java.util.regex.*;
+
+public class RegexExample {
+    public static void main(String[] args) {
+        String text = "Contact us at support@example.com or sales@example.com";
+
+        // Compile pattern (recommended for reuse)
+        Pattern pattern = Pattern.compile(
+            "[\\w.+-]+@[\\w-]+\\.[\\w.]+",
+            Pattern.CASE_INSENSITIVE
+        );
+
+        // Find first match
+        Matcher matcher = pattern.matcher(text);
+        if (matcher.find()) {
+            System.out.println(matcher.group());   // support@example.com
+            System.out.println(matcher.start());   // 14
+            System.out.println(matcher.end());     // 34
+        }
+
+        // Find all matches
+        matcher.reset();
+        while (matcher.find()) {
+            System.out.println(matcher.group());
+        }
+
+        // Groups
+        Pattern groupPattern = Pattern.compile(
+            "([\\w.+-]+)@([\\w-]+\\.[\\w.]+)"
+        );
+        Matcher gm = groupPattern.matcher(text);
+        while (gm.find()) {
+            System.out.printf("User: %s, Domain: %s%n",
+                gm.group(1), gm.group(2));
+        }
+
+        // Replace
+        String cleaned = pattern.matcher(text)
+            .replaceAll("[REDACTED]");
+
+        // Split
+        String[] parts = Pattern.compile("[,;]\\s*")
+            .split("a, b; c, d");
+        // ["a", "b", "c", "d"]
+
+        // Validation
+        boolean valid = Pattern.matches(
+            "^\\d{3}-\\d{2}-\\d{4}$",
+            "123-45-6789"
+        );
+    }
+}
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## Quick Reference Cheat Sheet
+
+```
+Anchors:        ^  start of line     $  end of line
+                \b word boundary     \B non-word boundary
+
+Character Classes:
+                .  any char (except newline)
+                \d digit [0-9]       \D non-digit
+                \w word char [a-zA-Z0-9_]  \W non-word
+                \s whitespace        \S non-whitespace
+
+Quantifiers:
+                *  0 or more         +  1 or more
+                ?  0 or 1            {n} exactly n
+                {n,}  n or more      {n,m}  n to m
+
+Groups:         (abc)   capture group
+                (?:abc) non-capturing group
+                (?<name>abc) named group
+
+Alternation:    a|b     a or b
+
+Lookaround:     (?=...)  positive lookahead
+                (?!...)  negative lookahead
+                (?<=...) positive lookbehind
+                (?<!...) negative lookbehind
+
+Flags:          g global    i case-insensitive
+                m multiline s dotAll (. matches \n)
+```
+
+---
+
+## What You Will Learn
+
+<CardGrid>
+  <LinkCard
+    title="Regex Syntax & Patterns"
+    description="Character classes, quantifiers, groups, lookaround, and common patterns"
+    href="/software-engineering/regex-text/regex-syntax/"
+  />
+  <LinkCard
+    title="Advanced Regex"
+    description="Named groups, atomic groups, recursive patterns, and performance optimization"
+    href="/software-engineering/regex-text/advanced-regex/"
+  />
+  <LinkCard
+    title="Text Processing Tools"
+    description="grep, sed, awk, and practical text processing with Unix tools"
+    href="/software-engineering/regex-text/text-tools/"
+  />
+</CardGrid>
+
+---
+
+## Related Topics
+
+<CardGrid>
+  <LinkCard
+    title="Linux & CLI"
+    description="Command-line fundamentals for working with text tools"
+    href="/software-engineering/linux-cli/"
+  />
+  <LinkCard
+    title="Security"
+    description="ReDoS and input validation for secure applications"
+    href="/software-engineering/security/"
+  />
+</CardGrid>

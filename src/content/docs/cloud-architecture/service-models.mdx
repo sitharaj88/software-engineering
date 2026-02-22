@@ -1,0 +1,562 @@
+---
+title: Cloud Service Models
+description: Compare IaaS, PaaS, SaaS, FaaS, and BaaS cloud service models, understand the shared responsibility model, and learn when to use each tier for your applications.
+difficulty: beginner
+prerequisites:
+  - Cloud Architecture overview
+  - Basic understanding of servers and networking
+timeToRead: "22 min"
+topics:
+  - IaaS
+  - PaaS
+  - SaaS
+  - FaaS
+  - BaaS
+  - shared responsibility model
+  - container services
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+Cloud service models define how much of the technology stack the cloud provider manages versus how much you manage yourself. Understanding these models is essential for making the right architectural choices -- choosing too low a level means unnecessary operational burden, while choosing too high a level may limit flexibility.
+
+---
+
+## The Service Model Spectrum
+
+```
+       You Manage More                    Provider Manages More
+       ◄──────────────────────────────────────────────────────►
+
+  On-Premise    IaaS        PaaS        FaaS/BaaS      SaaS
+  ──────────   ──────      ──────      ─────────      ──────
+  ┌────────┐   ┌────────┐  ┌────────┐  ┌────────┐    ┌────────┐
+  │  App   │   │  App   │  │  App   │  │  App   │    │████████│
+  ├────────┤   ├────────┤  ├────────┤  ├────────┤    │████████│
+  │Runtime │   │Runtime │  │████████│  │████████│    │████████│
+  ├────────┤   ├────────┤  │████████│  │████████│    │████████│
+  │  OS    │   │  OS    │  │████████│  │████████│    │████████│
+  ├────────┤   ├────────┤  │████████│  │████████│    │████████│
+  │  VM    │   │████████│  │████████│  │████████│    │████████│
+  ├────────┤   │████████│  │████████│  │████████│    │████████│
+  │Hardware│   │████████│  │████████│  │████████│    │████████│
+  └────────┘   └────────┘  └────────┘  └────────┘    └────────┘
+
+  ████ = Managed by provider
+  Blank = Managed by you
+```
+
+---
+
+## IaaS: Infrastructure as a Service
+
+IaaS provides the fundamental building blocks of computing: virtual machines, storage, and networking. You manage everything from the operating system upward.
+
+### What You Get
+
+- Virtual machines (CPU, memory, storage)
+- Virtual networks, subnets, firewalls
+- Block storage and object storage
+- Load balancers
+- IP addresses and DNS
+
+### What You Manage
+
+- Operating system installation, patching, and security
+- Runtime environments and middleware
+- Application deployment and scaling
+- Data backup and disaster recovery
+- Security hardening of the OS and application
+
+### IaaS Examples
+
+| Provider | Compute | Storage | Networking |
+|---|---|---|---|
+| **AWS** | EC2 | EBS, S3 | VPC, ELB |
+| **Azure** | Virtual Machines | Managed Disks, Blob | VNet, Load Balancer |
+| **GCP** | Compute Engine | Persistent Disk, Cloud Storage | VPC, Cloud Load Balancing |
+| **DigitalOcean** | Droplets | Volumes, Spaces | VPC |
+
+### When to Use IaaS
+
+- You need full control over the operating system
+- Running legacy applications that cannot be containerized
+- Compliance requirements mandate OS-level access
+- Custom networking configurations are needed
+- Running specialized software that requires specific OS settings
+
+<Tabs>
+<TabItem label="AWS EC2">
+```bash
+# Launch an EC2 instance with AWS CLI
+aws ec2 run-instances \
+  --image-id ami-0c55b159cbfafe1f0 \
+  --instance-type t3.medium \
+  --key-name my-key-pair \
+  --security-group-ids sg-0123456789abcdef0 \
+  --subnet-id subnet-0123456789abcdef0 \
+  --iam-instance-profile Name=ec2-role \
+  --user-data '#!/bin/bash
+    yum update -y
+    yum install -y docker
+    systemctl start docker
+    docker run -d -p 80:8080 myapp:latest'
+```
+</TabItem>
+<TabItem label="Terraform">
+```hcl
+resource "aws_instance" "web" {
+  ami           = "ami-0c55b159cbfafe1f0"
+  instance_type = "t3.medium"
+  key_name      = "my-key-pair"
+  subnet_id     = aws_subnet.public.id
+
+  vpc_security_group_ids = [
+    aws_security_group.web.id
+  ]
+
+  root_block_device {
+    volume_size = 30
+    volume_type = "gp3"
+    encrypted   = true
+  }
+
+  user_data = <<-EOF
+    #!/bin/bash
+    yum update -y
+    yum install -y docker
+    systemctl start docker
+    docker run -d -p 80:8080 myapp:latest
+  EOF
+
+  tags = {
+    Name        = "web-server"
+    Environment = "production"
+  }
+}
+```
+</TabItem>
+</Tabs>
+
+---
+
+## PaaS: Platform as a Service
+
+PaaS provides a managed platform for deploying applications. The provider handles the operating system, runtime, middleware, and scaling. You focus on writing code.
+
+### What You Get
+
+Everything in IaaS, plus:
+- Managed runtime environments (Node.js, Python, Java, etc.)
+- Automatic OS patching and security updates
+- Built-in scaling and load balancing
+- Managed databases and caching
+- Deployment tooling and CI/CD integration
+
+### What You Manage
+
+- Application code and configuration
+- Data and data models
+- Application-level security
+- Business logic
+
+### PaaS Examples
+
+| Provider | Service | Best For |
+|---|---|---|
+| **AWS** | Elastic Beanstalk, App Runner | Quick deployment of web apps |
+| **Azure** | App Service | .NET and Node.js applications |
+| **GCP** | App Engine, Cloud Run | Python, Java, Go, Node.js apps |
+| **Heroku** | Heroku Platform | Rapid prototyping, small apps |
+| **Render** | Render Platform | Modern web apps and APIs |
+| **Railway** | Railway Platform | Full-stack applications |
+
+### When to Use PaaS
+
+- Rapid development and deployment is the priority
+- Standard web application workloads
+- Team does not have strong infrastructure expertise
+- Reducing operational overhead is important
+- Standard language runtimes are sufficient
+
+<Tabs>
+<TabItem label="AWS App Runner">
+```bash
+# Deploy a containerized app to AWS App Runner
+aws apprunner create-service \
+  --service-name my-web-app \
+  --source-configuration '{
+    "ImageRepository": {
+      "ImageIdentifier": "123456.dkr.ecr.us-east-1.amazonaws.com/myapp:latest",
+      "ImageRepositoryType": "ECR",
+      "ImageConfiguration": {
+        "Port": "8080",
+        "RuntimeEnvironmentVariables": {
+          "NODE_ENV": "production",
+          "DATABASE_URL": "postgres://..."
+        }
+      }
+    },
+    "AutoDeploymentsEnabled": true
+  }' \
+  --instance-configuration '{
+    "Cpu": "1024",
+    "Memory": "2048"
+  }' \
+  --auto-scaling-configuration-arn "arn:aws:apprunner:..."
+```
+</TabItem>
+<TabItem label="Heroku">
+```bash
+# Deploy to Heroku
+# Create app
+heroku create my-web-app
+
+# Set environment variables
+heroku config:set NODE_ENV=production
+heroku config:set DATABASE_URL=postgres://...
+
+# Deploy via Git
+git push heroku main
+
+# Scale
+heroku ps:scale web=3
+
+# View logs
+heroku logs --tail
+```
+</TabItem>
+<TabItem label="GCP App Engine">
+```yaml
+# app.yaml for Google App Engine
+runtime: python312
+
+instance_class: F2
+
+automatic_scaling:
+  min_instances: 1
+  max_instances: 10
+  target_cpu_utilization: 0.65
+
+env_variables:
+  DATABASE_URL: "postgres://..."
+  REDIS_URL: "redis://..."
+
+handlers:
+- url: /static
+  static_dir: static/
+- url: /.*
+  script: auto
+```
+</TabItem>
+</Tabs>
+
+---
+
+## SaaS: Software as a Service
+
+SaaS delivers complete applications over the internet. Users access the software through a web browser or API -- there is nothing to install, configure, or maintain.
+
+### What You Get
+
+A fully managed application. Everything is handled by the provider.
+
+### What You Manage
+
+- Your data within the application
+- User accounts and permissions
+- Application configuration (within the app's settings)
+
+### SaaS Examples
+
+| Category | Examples |
+|---|---|
+| **Productivity** | Google Workspace, Microsoft 365, Notion |
+| **CRM** | Salesforce, HubSpot |
+| **Communication** | Slack, Zoom, Teams |
+| **DevOps** | GitHub, GitLab, Jira, PagerDuty |
+| **Monitoring** | Datadog, New Relic, Splunk |
+| **Payment** | Stripe, PayPal |
+| **Email** | SendGrid, Mailgun |
+
+### When to Use SaaS
+
+- Standard business applications (email, CRM, project management)
+- You need to be productive immediately without setup
+- The SaaS vendor's feature set matches your requirements
+- You want zero operational burden for that capability
+
+---
+
+## FaaS: Functions as a Service
+
+FaaS (also called serverless compute) lets you run individual functions in response to events, without managing any servers. The provider handles all infrastructure, scaling, and execution.
+
+### Key Characteristics
+
+- **Event-driven**: Functions trigger on events (HTTP requests, queue messages, file uploads, schedules)
+- **Ephemeral**: Functions start, execute, and terminate; no persistent state
+- **Auto-scaling**: From zero to thousands of concurrent executions automatically
+- **Pay-per-invocation**: Charged per execution and compute time (often in 1ms increments)
+
+### FaaS Examples
+
+| Provider | Service | Max Timeout | Memory Range |
+|---|---|---|---|
+| **AWS** | Lambda | 15 minutes | 128 MB - 10 GB |
+| **Azure** | Functions | 230 seconds (Consumption) | Up to 1.5 GB |
+| **GCP** | Cloud Functions | 9 minutes (1st gen), 60 min (2nd gen) | 128 MB - 32 GB |
+| **Cloudflare** | Workers | 30 seconds | 128 MB |
+
+<Tabs>
+<TabItem label="AWS Lambda (Python)">
+```python
+import json
+import boto3
+
+dynamodb = boto3.resource('dynamodb')
+table = dynamodb.Table('Users')
+
+def handler(event, context):
+    """
+    Lambda function triggered by API Gateway.
+    Handles GET and POST for user management.
+    """
+    http_method = event['httpMethod']
+
+    if http_method == 'GET':
+        user_id = event['pathParameters']['id']
+        response = table.get_item(
+            Key={'userId': user_id}
+        )
+        return {
+            'statusCode': 200,
+            'headers': {
+                'Content-Type': 'application/json'
+            },
+            'body': json.dumps(
+                response.get('Item', {})
+            )
+        }
+
+    elif http_method == 'POST':
+        body = json.loads(event['body'])
+        table.put_item(Item=body)
+        return {
+            'statusCode': 201,
+            'body': json.dumps({
+                'message': 'User created'
+            })
+        }
+
+    return {
+        'statusCode': 405,
+        'body': json.dumps({
+            'error': 'Method not allowed'
+        })
+    }
+```
+</TabItem>
+<TabItem label="Azure Functions (JavaScript)">
+```javascript
+const { app } = require('@azure/functions');
+
+app.http('userHandler', {
+  methods: ['GET', 'POST'],
+  authLevel: 'anonymous',
+  route: 'users/{id?}',
+  handler: async (request, context) => {
+    const method = request.method;
+
+    if (method === 'GET') {
+      const userId = request.params.id;
+      // Fetch from Cosmos DB
+      const user = await getUser(userId);
+
+      return {
+        status: 200,
+        jsonBody: user
+      };
+    }
+
+    if (method === 'POST') {
+      const body = await request.json();
+      await createUser(body);
+
+      return {
+        status: 201,
+        jsonBody: { message: 'User created' }
+      };
+    }
+
+    return { status: 405 };
+  }
+});
+```
+</TabItem>
+<TabItem label="GCP Cloud Function (Python)">
+```python
+import functions_framework
+from google.cloud import firestore
+import json
+
+db = firestore.Client()
+
+@functions_framework.http
+def user_handler(request):
+    """
+    Cloud Function triggered by HTTP request.
+    """
+    if request.method == 'GET':
+        user_id = request.args.get('id')
+        doc = db.collection('users').document(user_id).get()
+
+        if doc.exists:
+            return json.dumps(doc.to_dict()), 200
+        return json.dumps({'error': 'Not found'}), 404
+
+    elif request.method == 'POST':
+        data = request.get_json()
+        db.collection('users').add(data)
+        return json.dumps({'message': 'Created'}), 201
+
+    return json.dumps({'error': 'Method not allowed'}), 405
+```
+</TabItem>
+</Tabs>
+
+---
+
+## BaaS: Backend as a Service
+
+BaaS provides ready-made backend capabilities (authentication, databases, file storage, push notifications) through APIs and SDKs. Developers build frontends that connect directly to these managed backend services.
+
+### BaaS Examples
+
+| Service | Capabilities |
+|---|---|
+| **Firebase** | Auth, Firestore, Cloud Storage, Hosting, Cloud Messaging |
+| **Supabase** | Auth, PostgreSQL, Storage, Edge Functions, Realtime |
+| **AWS Amplify** | Auth (Cognito), API (AppSync/GraphQL), Storage (S3) |
+| **Appwrite** | Auth, Database, Storage, Functions, Messaging |
+
+---
+
+## Container Services
+
+Container services occupy a space between IaaS and PaaS. You package your application in containers, and the provider manages the orchestration, scaling, and infrastructure.
+
+```
+Container Service Spectrum:
+
+     More Control                           Less Control
+     ◄─────────────────────────────────────────────────►
+
+  Self-managed K8s     Managed K8s      Container PaaS
+  on IaaS              (EKS/AKS/GKE)   (App Runner/Cloud Run)
+  ─────────────────    ──────────────   ───────────────────
+  You manage:          You manage:      You manage:
+  - K8s control plane  - Worker nodes   - Container images
+  - Worker nodes       - Pod specs      - Configuration
+  - Networking         - Deployments
+  - Storage            - Services
+  - Upgrades
+```
+
+| Service | Type | Provider |
+|---|---|---|
+| **EKS** | Managed Kubernetes | AWS |
+| **AKS** | Managed Kubernetes | Azure |
+| **GKE** | Managed Kubernetes | GCP |
+| **ECS** | Proprietary container orchestration | AWS |
+| **Cloud Run** | Container PaaS (serverless containers) | GCP |
+| **App Runner** | Container PaaS | AWS |
+| **Azure Container Apps** | Container PaaS | Azure |
+
+---
+
+## The Shared Responsibility Model
+
+The shared responsibility model defines who is responsible for security at each layer. It varies by service model:
+
+```
+┌──────────────────┬───────────┬───────────┬───────────┬───────────┐
+│                  │   IaaS    │   PaaS    │   FaaS    │   SaaS    │
+├──────────────────┼───────────┼───────────┼───────────┼───────────┤
+│ Data             │ Customer  │ Customer  │ Customer  │ Customer  │
+│ Application      │ Customer  │ Customer  │ Customer  │ Provider  │
+│ Runtime          │ Customer  │ Provider  │ Provider  │ Provider  │
+│ Operating System │ Customer  │ Provider  │ Provider  │ Provider  │
+│ Virtualization   │ Provider  │ Provider  │ Provider  │ Provider  │
+│ Network          │ Provider  │ Provider  │ Provider  │ Provider  │
+│ Physical         │ Provider  │ Provider  │ Provider  │ Provider  │
+└──────────────────┴───────────┴───────────┴───────────┴───────────┘
+
+Customer = You are responsible for securing this layer
+Provider = The cloud provider handles security for this layer
+```
+
+:::caution[Security Shared Responsibility]
+The most common cloud security mistake is assuming the provider secures everything. Even with SaaS, you are responsible for your data, access controls, and user accounts. With IaaS, you must also patch your operating systems, configure firewalls, and encrypt data. The cloud provider secures the infrastructure **of** the cloud; you secure what is **in** the cloud.
+:::
+
+---
+
+## Choosing the Right Service Model
+
+### Decision Framework
+
+```
+START
+  │
+  ▼
+Need full OS control? ──YES──▶ IaaS
+  │ NO
+  ▼
+Standard web app or API? ──YES──▶ PaaS
+  │ NO
+  ▼
+Event-driven / short-lived tasks? ──YES──▶ FaaS
+  │ NO
+  ▼
+Just need a complete application? ──YES──▶ SaaS
+  │ NO
+  ▼
+Need managed backend for frontend? ──YES──▶ BaaS
+  │ NO
+  ▼
+Container-based workloads? ──YES──▶ Container Services
+```
+
+### Cost Comparison (Approximate Monthly for a Small Web App)
+
+| Model | Example | Approximate Cost | Operational Effort |
+|---|---|---|---|
+| **IaaS** | EC2 t3.medium + managed DB | $50-150/month | High |
+| **PaaS** | Heroku Standard | $25-75/month | Low |
+| **Container** | Cloud Run | $10-50/month | Medium |
+| **FaaS** | Lambda + DynamoDB | $5-30/month | Very Low |
+| **SaaS** | (use existing tool) | Per-seat pricing | None |
+
+:::tip[Start High, Drop Low]
+When starting a new project, begin with the highest abstraction level that meets your requirements (FaaS or PaaS). You can always move to lower levels (containers, IaaS) later when you need more control. The reverse migration -- from IaaS to PaaS -- is much harder.
+:::
+
+---
+
+## Summary
+
+| Model | You Manage | Provider Manages | Best For |
+|---|---|---|---|
+| **IaaS** | OS, runtime, app, data | Hardware, virtualization, networking | Full control, legacy apps |
+| **PaaS** | App, data | OS, runtime, scaling, infrastructure | Standard web apps, rapid development |
+| **FaaS** | Function code | Everything else | Event-driven, intermittent workloads |
+| **BaaS** | Frontend, data models | Backend services (auth, DB, storage) | Mobile/web frontends |
+| **SaaS** | Data, config | Everything | Business applications |
+| **Containers** | Container images, configs | Orchestration, infrastructure | Microservices, portable workloads |
+
+<LinkCard
+  title="Next: Serverless Architecture"
+  description="Deep dive into serverless computing with Lambda, Cloud Functions, cold starts, and event-driven patterns."
+  href="/software-engineering/cloud-architecture/serverless/"
+/>

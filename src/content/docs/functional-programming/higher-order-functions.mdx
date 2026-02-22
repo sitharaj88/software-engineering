@@ -1,0 +1,777 @@
+---
+title: "Higher-Order Functions"
+description: "Master map, filter, reduce, closures, currying, and partial application for expressive, composable code"
+difficulty: "intermediate"
+prerequisites:
+  - Pure Functions & Side Effects
+timeToRead: "22 min"
+topics:
+  - higher-order-functions
+  - map
+  - filter
+  - reduce
+  - closures
+  - currying
+  - partial-application
+  - function-composition
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+import FunctionalPipelineVisualizer from '../../../components/interactive/FunctionalPipelineVisualizer';
+
+## Interactive Pipeline Visualizer
+
+Watch data flow through a chain of map, filter, and reduce operations. Modify the pipeline steps to see how each transformation affects the data.
+
+<FunctionalPipelineVisualizer client:load />
+
+A **higher-order function** is a function that takes one or more functions as arguments, returns a function, or both. Higher-order functions are the backbone of functional programming -- they enable code reuse, abstraction, and composition at a level that is impossible with first-order functions alone.
+
+---
+
+## First-Class Functions
+
+Before diving into higher-order functions, we need to understand **first-class functions**. In a language with first-class functions, functions are values -- they can be:
+
+- Assigned to variables
+- Stored in data structures
+- Passed as arguments to other functions
+- Returned from other functions
+
+```
+First-class functions:
+
+  greet = function(name) => "Hello, " + name
+
+  functions = [add, subtract, multiply]     -- stored in a list
+
+  applyTwice(double, 5)                      -- passed as argument
+                                               returns 20
+
+  makeMultiplier(3)                          -- returns a function
+    => function(x) => x * 3
+```
+
+---
+
+## The Big Three: Map, Filter, Reduce
+
+These three higher-order functions replace the vast majority of explicit loops in functional code.
+
+### Map
+
+**Map** applies a function to every element of a collection and returns a new collection with the results.
+
+```
+map(f, [a, b, c]) = [f(a), f(b), f(c)]
+
+  Input:    [1,  2,  3,  4,  5]
+  Function: x => x * 2
+  Output:   [2,  4,  6,  8,  10]
+```
+
+### Filter
+
+**Filter** keeps only the elements that satisfy a predicate (a function that returns true or false).
+
+```
+filter(p, [a, b, c, d]) = elements where p(x) is true
+
+  Input:     [1,  2,  3,  4,  5,  6]
+  Predicate: x => x is even
+  Output:    [2,  4,  6]
+```
+
+### Reduce (Fold)
+
+**Reduce** combines all elements into a single value by repeatedly applying a function that takes an accumulator and the current element.
+
+```
+reduce(f, init, [a, b, c]) = f(f(f(init, a), b), c)
+
+  Input:       [1,  2,  3,  4,  5]
+  Function:    (acc, x) => acc + x
+  Initial:     0
+  Steps:       0 + 1 = 1
+               1 + 2 = 3
+               3 + 3 = 6
+               6 + 4 = 10
+               10 + 5 = 15
+  Output:      15
+```
+
+<Tabs>
+<TabItem label="Python">
+```python
+from functools import reduce
+
+numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+# MAP: double every number
+doubled = list(map(lambda x: x * 2, numbers))
+# [2, 4, 6, 8, 10, 12, 14, 16, 18, 20]
+
+# Pythonic alternative: list comprehension
+doubled = [x * 2 for x in numbers]
+
+# FILTER: keep only even numbers
+evens = list(filter(lambda x: x % 2 == 0, numbers))
+# [2, 4, 6, 8, 10]
+
+# Pythonic alternative
+evens = [x for x in numbers if x % 2 == 0]
+
+# REDUCE: sum all numbers
+total = reduce(lambda acc, x: acc + x, numbers, 0)
+# 55
+
+# CHAINING: sum of squares of even numbers
+result = reduce(
+    lambda acc, x: acc + x,
+    map(lambda x: x ** 2,
+        filter(lambda x: x % 2 == 0, numbers)),
+    0
+)
+# 220
+
+# More readable with comprehension
+result = sum(x ** 2 for x in numbers if x % 2 == 0)
+# 220
+
+
+# Real-world example: processing user records
+users = [
+    {"name": "Alice",   "age": 30, "active": True},
+    {"name": "Bob",     "age": 25, "active": False},
+    {"name": "Charlie", "age": 35, "active": True},
+    {"name": "Diana",   "age": 28, "active": True},
+]
+
+# Get names of active users over 27
+active_names = [
+    user["name"]
+    for user in users
+    if user["active"] and user["age"] > 27
+]
+# ["Alice", "Charlie", "Diana"]
+```
+</TabItem>
+<TabItem label="JavaScript">
+```javascript
+const numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+
+// MAP: double every number
+const doubled = numbers.map(x => x * 2);
+// [2, 4, 6, 8, 10, 12, 14, 16, 18, 20]
+
+// FILTER: keep only even numbers
+const evens = numbers.filter(x => x % 2 === 0);
+// [2, 4, 6, 8, 10]
+
+// REDUCE: sum all numbers
+const total = numbers.reduce((acc, x) => acc + x, 0);
+// 55
+
+// CHAINING: sum of squares of even numbers
+const result = numbers
+  .filter(x => x % 2 === 0)
+  .map(x => x ** 2)
+  .reduce((acc, x) => acc + x, 0);
+// 220
+
+
+// Real-world: processing user records
+const users = [
+  { name: 'Alice',   age: 30, active: true },
+  { name: 'Bob',     age: 25, active: false },
+  { name: 'Charlie', age: 35, active: true },
+  { name: 'Diana',   age: 28, active: true },
+];
+
+const activeNames = users
+  .filter(u => u.active && u.age > 27)
+  .map(u => u.name);
+// ['Alice', 'Charlie', 'Diana']
+
+
+// REDUCE for complex aggregations
+const stats = numbers.reduce((acc, n) => ({
+  sum:   acc.sum + n,
+  count: acc.count + 1,
+  min:   Math.min(acc.min, n),
+  max:   Math.max(acc.max, n),
+}), { sum: 0, count: 0, min: Infinity, max: -Infinity });
+// { sum: 55, count: 10, min: 1, max: 10 }
+```
+</TabItem>
+<TabItem label="Java">
+```java
+import java.util.*;
+import java.util.stream.*;
+
+List<Integer> numbers = List.of(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
+
+// MAP: double every number
+List<Integer> doubled = numbers.stream()
+    .map(x -> x * 2)
+    .toList();
+// [2, 4, 6, 8, 10, 12, 14, 16, 18, 20]
+
+// FILTER: keep only even numbers
+List<Integer> evens = numbers.stream()
+    .filter(x -> x % 2 == 0)
+    .toList();
+// [2, 4, 6, 8, 10]
+
+// REDUCE: sum all numbers
+int total = numbers.stream()
+    .reduce(0, Integer::sum);
+// 55
+
+// CHAINING: sum of squares of even numbers
+int result = numbers.stream()
+    .filter(x -> x % 2 == 0)
+    .mapToInt(x -> x * x)
+    .sum();
+// 220
+
+
+// Real-world: processing user records
+record User(String name, int age, boolean active) {}
+List<User> users = List.of(
+    new User("Alice",   30, true),
+    new User("Bob",     25, false),
+    new User("Charlie", 35, true),
+    new User("Diana",   28, true)
+);
+
+List<String> activeNames = users.stream()
+    .filter(u -> u.active() && u.age() > 27)
+    .map(User::name)
+    .toList();
+// [Alice, Charlie, Diana]
+```
+</TabItem>
+</Tabs>
+
+---
+
+## Other Useful Higher-Order Functions
+
+| Function | Description | Example |
+|----------|-------------|---------|
+| `flatMap` | Map then flatten nested collections | `[[1,2],[3,4]] -> [1,2,3,4]` |
+| `find` / `first` | Return first element matching a predicate | Find first even number |
+| `every` / `all` | True if all elements match the predicate | Are all numbers positive? |
+| `some` / `any` | True if any element matches the predicate | Is any number negative? |
+| `zip` | Combine two lists element-wise | `zip([1,2], ['a','b']) -> [(1,'a'), (2,'b')]` |
+| `groupBy` | Group elements by a key function | Group users by country |
+| `sortBy` | Sort using a key-extraction function | Sort users by age |
+| `takeWhile` | Take elements while predicate is true | Take while less than 5 |
+
+---
+
+## Closures
+
+A **closure** is a function that captures variables from its enclosing scope. The captured variables persist even after the enclosing function has returned.
+
+```
+Closure:
+
+  function makeCounter() {
+    let count = 0;               ◄── captured variable
+    return function increment() {
+      count += 1;                ◄── accesses captured variable
+      return count;
+    }
+  }
+
+  counter = makeCounter();
+  counter();  // 1   -- count persists between calls
+  counter();  // 2
+  counter();  // 3
+```
+
+<Tabs>
+<TabItem label="Python">
+```python
+# Closure: function that captures enclosing variables
+def make_multiplier(factor):
+    """Returns a function that multiplies by factor."""
+    def multiply(x):
+        return x * factor  # 'factor' is captured
+    return multiply
+
+double = make_multiplier(2)
+triple = make_multiplier(3)
+
+print(double(5))   # 10
+print(triple(5))   # 15
+
+
+# Closure for configuration
+def make_logger(prefix):
+    def log(message):
+        print(f"[{prefix}] {message}")
+    return log
+
+info = make_logger("INFO")
+error = make_logger("ERROR")
+
+info("Server started")    # [INFO] Server started
+error("Connection lost")  # [ERROR] Connection lost
+
+
+# Closure for private state (counter)
+def make_counter(initial=0):
+    count = [initial]  # List for mutability in closure
+    def increment():
+        count[0] += 1
+        return count[0]
+    def get():
+        return count[0]
+    return increment, get
+
+inc, get = make_counter()
+inc(); inc(); inc()
+print(get())  # 3
+```
+</TabItem>
+<TabItem label="JavaScript">
+```javascript
+// Closure: function captures enclosing variables
+function makeMultiplier(factor) {
+  return function multiply(x) {
+    return x * factor; // 'factor' is captured
+  };
+}
+
+const double = makeMultiplier(2);
+const triple = makeMultiplier(3);
+
+console.log(double(5));  // 10
+console.log(triple(5));  // 15
+
+
+// Closure for private state (module pattern)
+function createCounter(initial = 0) {
+  let count = initial; // Private variable
+
+  return {
+    increment() { return ++count; },
+    decrement() { return --count; },
+    getCount()  { return count; },
+  };
+}
+
+const counter = createCounter();
+counter.increment(); // 1
+counter.increment(); // 2
+counter.decrement(); // 1
+console.log(counter.getCount()); // 1
+// 'count' is not accessible from outside
+
+
+// Closure for event handlers
+function createButtonHandler(buttonId) {
+  let clickCount = 0;
+  return function handleClick() {
+    clickCount++;
+    console.log(`Button ${buttonId}: ${clickCount} clicks`);
+  };
+}
+```
+</TabItem>
+<TabItem label="Java">
+```java
+import java.util.function.*;
+
+// Java closures via lambdas (effectively final)
+public class ClosureExample {
+
+    static Function<Integer, Integer> makeMultiplier(int factor) {
+        // 'factor' is captured (must be effectively final)
+        return x -> x * factor;
+    }
+
+    public static void main(String[] args) {
+        var double_ = makeMultiplier(2);
+        var triple  = makeMultiplier(3);
+
+        System.out.println(double_.apply(5));  // 10
+        System.out.println(triple.apply(5));   // 15
+
+        // Closure over loop variable (common pitfall)
+        List<Runnable> actions = new ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            final int captured = i; // Must capture a final copy
+            actions.add(() -> System.out.println(captured));
+        }
+        actions.forEach(Runnable::run);
+        // Prints: 0 1 2 3 4
+    }
+}
+```
+</TabItem>
+</Tabs>
+
+:::caution[Closure Pitfall: Loop Variables]
+In JavaScript (with `var`) and some other languages, closures inside loops can capture the same variable reference, not the current value. Use `let` in JavaScript or create a new binding per iteration.
+```javascript
+// BUG: all closures share the same 'i'
+for (var i = 0; i < 5; i++) {
+  setTimeout(() => console.log(i), 100); // Prints 5 five times
+}
+
+// FIX: use 'let' (block-scoped)
+for (let i = 0; i < 5; i++) {
+  setTimeout(() => console.log(i), 100); // Prints 0 1 2 3 4
+}
+```
+:::
+
+---
+
+## Currying
+
+**Currying** transforms a function that takes multiple arguments into a sequence of functions, each taking a single argument.
+
+```
+Uncurried:  add(a, b)    = a + b         -- takes 2 args at once
+Curried:    add(a)(b)    = a + b         -- takes 1 arg, returns function
+
+add(2, 3)     -- uncurried call
+add(2)(3)     -- curried call
+
+  add(2) returns a function: (b) => 2 + b
+  Then (b) => 2 + b is called with 3
+  Result: 5
+```
+
+<Tabs>
+<TabItem label="Python">
+```python
+# Manual currying
+def add(a):
+    def inner(b):
+        return a + b
+    return inner
+
+add_five = add(5)
+print(add_five(3))   # 8
+print(add(2)(3))     # 5
+
+
+# Generic curry function
+from functools import wraps
+import inspect
+
+def curry(fn):
+    """Automatically curry a function."""
+    arity = len(inspect.signature(fn).parameters)
+
+    @wraps(fn)
+    def curried(*args):
+        if len(args) >= arity:
+            return fn(*args)
+        return lambda *more: curried(*args, *more)
+    return curried
+
+@curry
+def add_three(a, b, c):
+    return a + b + c
+
+print(add_three(1)(2)(3))     # 6
+print(add_three(1, 2)(3))     # 6
+print(add_three(1)(2, 3))     # 6
+print(add_three(1, 2, 3))     # 6
+
+
+# Practical use: configurable data pipeline
+@curry
+def filter_by(key, value, records):
+    return [r for r in records if r.get(key) == value]
+
+@curry
+def pluck(key, records):
+    return [r[key] for r in records]
+
+users = [
+    {"name": "Alice", "role": "admin"},
+    {"name": "Bob",   "role": "user"},
+    {"name": "Carol", "role": "admin"},
+]
+
+get_admins = filter_by("role", "admin")
+get_names = pluck("name")
+
+admin_names = get_names(get_admins(users))
+# ["Alice", "Carol"]
+```
+</TabItem>
+<TabItem label="JavaScript">
+```javascript
+// Manual currying
+const add = a => b => a + b;
+
+const addFive = add(5);
+console.log(addFive(3));   // 8
+console.log(add(2)(3));    // 5
+
+
+// Generic curry function
+function curry(fn) {
+  return function curried(...args) {
+    if (args.length >= fn.length) {
+      return fn.apply(this, args);
+    }
+    return (...moreArgs) => curried(...args, ...moreArgs);
+  };
+}
+
+const addThree = curry((a, b, c) => a + b + c);
+
+console.log(addThree(1)(2)(3));   // 6
+console.log(addThree(1, 2)(3));   // 6
+console.log(addThree(1, 2, 3));   // 6
+
+
+// Practical use: configurable predicates
+const filterBy = curry((key, value, records) =>
+  records.filter(r => r[key] === value)
+);
+
+const pluck = curry((key, records) =>
+  records.map(r => r[key])
+);
+
+const users = [
+  { name: 'Alice', role: 'admin' },
+  { name: 'Bob',   role: 'user' },
+  { name: 'Carol', role: 'admin' },
+];
+
+const getAdmins = filterBy('role', 'admin');
+const getNames  = pluck('name');
+
+const adminNames = getNames(getAdmins(users));
+// ['Alice', 'Carol']
+
+// With pipe composition
+const pipe = (...fns) => x => fns.reduce((v, f) => f(v), x);
+
+const getAdminNames = pipe(getAdmins, getNames);
+console.log(getAdminNames(users)); // ['Alice', 'Carol']
+```
+</TabItem>
+</Tabs>
+
+---
+
+## Partial Application
+
+**Partial application** fixes some arguments of a function, producing a new function with fewer parameters. Unlike currying (which always produces unary functions), partial application can fix any number of arguments at once.
+
+```
+Currying vs Partial Application:
+
+  Original:   f(a, b, c)
+
+  Curried:    f(a)(b)(c)     -- always one arg at a time
+  Partial:    f(a, b)(c)     -- fix some args, any number
+              f(a)(b, c)     -- or different combinations
+```
+
+<Tabs>
+<TabItem label="Python">
+```python
+from functools import partial
+
+def power(base, exponent):
+    return base ** exponent
+
+# Partial application: fix the exponent
+square = partial(power, exponent=2)
+cube   = partial(power, exponent=3)
+
+print(square(5))  # 25
+print(cube(3))    # 27
+
+
+# Real-world: configuring a logger
+import logging
+
+def log_message(level, category, message):
+    logging.log(level, f"[{category}] {message}")
+
+# Create specialized loggers
+log_error = partial(log_message, logging.ERROR)
+log_db_error = partial(log_message, logging.ERROR, "DATABASE")
+
+log_error("AUTH", "Invalid token")
+log_db_error("Connection timeout")
+
+
+# Partial application with map
+def multiply(a, b):
+    return a * b
+
+double_all = partial(map, partial(multiply, 2))
+print(list(double_all([1, 2, 3, 4])))  # [2, 4, 6, 8]
+```
+</TabItem>
+<TabItem label="JavaScript">
+```javascript
+// Manual partial application
+function partial(fn, ...fixedArgs) {
+  return function (...remainingArgs) {
+    return fn(...fixedArgs, ...remainingArgs);
+  };
+}
+
+function power(base, exponent) {
+  return base ** exponent;
+}
+
+const square = partial(power, undefined);  // Does not work well
+// Better: use bind
+const square2 = (x) => power(x, 2);
+const cube    = (x) => power(x, 3);
+
+console.log(square2(5)); // 25
+console.log(cube(3));    // 27
+
+
+// Function.prototype.bind for partial application
+function log(level, category, message) {
+  console.log(`[${level}] [${category}] ${message}`);
+}
+
+const logError   = log.bind(null, 'ERROR');
+const logDbError = log.bind(null, 'ERROR', 'DATABASE');
+
+logError('AUTH', 'Invalid token');
+// [ERROR] [AUTH] Invalid token
+
+logDbError('Connection timeout');
+// [ERROR] [DATABASE] Connection timeout
+```
+</TabItem>
+</Tabs>
+
+---
+
+## Writing Your Own Higher-Order Functions
+
+<Tabs>
+<TabItem label="Python">
+```python
+import time
+from functools import wraps
+
+# Retry: higher-order function that adds retry logic
+def retry(max_attempts=3, delay=1.0):
+    def decorator(fn):
+        @wraps(fn)
+        def wrapper(*args, **kwargs):
+            for attempt in range(1, max_attempts + 1):
+                try:
+                    return fn(*args, **kwargs)
+                except Exception as e:
+                    if attempt == max_attempts:
+                        raise
+                    print(f"Attempt {attempt} failed: {e}")
+                    time.sleep(delay)
+        return wrapper
+    return decorator
+
+@retry(max_attempts=3, delay=0.5)
+def fetch_data(url):
+    import requests
+    return requests.get(url).json()
+
+
+# Timing decorator
+def timed(fn):
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        start = time.perf_counter()
+        result = fn(*args, **kwargs)
+        elapsed = time.perf_counter() - start
+        print(f"{fn.__name__} took {elapsed:.4f}s")
+        return result
+    return wrapper
+
+@timed
+def slow_operation():
+    time.sleep(1)
+    return "done"
+```
+</TabItem>
+<TabItem label="JavaScript">
+```javascript
+// Retry: higher-order function
+function retry(fn, maxAttempts = 3, delay = 1000) {
+  return async function (...args) {
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        return await fn(...args);
+      } catch (err) {
+        if (attempt === maxAttempts) throw err;
+        console.log(`Attempt ${attempt} failed: ${err.message}`);
+        await new Promise(r => setTimeout(r, delay));
+      }
+    }
+  };
+}
+
+const fetchWithRetry = retry(fetch, 3, 500);
+
+// Debounce: higher-order function
+function debounce(fn, delayMs) {
+  let timer;
+  return function (...args) {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn.apply(this, args), delayMs);
+  };
+}
+
+const handleSearch = debounce((query) => {
+  console.log(`Searching for: ${query}`);
+}, 300);
+
+// Throttle: higher-order function
+function throttle(fn, intervalMs) {
+  let lastCall = 0;
+  return function (...args) {
+    const now = Date.now();
+    if (now - lastCall >= intervalMs) {
+      lastCall = now;
+      return fn.apply(this, args);
+    }
+  };
+}
+```
+</TabItem>
+</Tabs>
+
+---
+
+## Summary
+
+| Concept | Key Takeaway |
+|---------|-------------|
+| **Higher-order function** | Takes functions as arguments or returns functions |
+| **Map** | Transform every element: `[a, b, c] -> [f(a), f(b), f(c)]` |
+| **Filter** | Keep elements matching a predicate |
+| **Reduce** | Collapse a collection into a single value |
+| **Closure** | Function that captures variables from its enclosing scope |
+| **Currying** | Transform `f(a, b, c)` into `f(a)(b)(c)` |
+| **Partial application** | Fix some arguments to create a specialized function |
+| **Composition** | Combine simple functions into complex transformations |
+
+<LinkCard
+  title="Next: Monads & Functors"
+  description="Understand functors, monads (Maybe/Option, Either/Result), and functional error handling."
+  href="/software-engineering/functional-programming/monads-functors/"
+/>

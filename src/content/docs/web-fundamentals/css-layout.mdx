@@ -1,0 +1,948 @@
+---
+title: "CSS Layout & Responsive Design"
+description: "Master the CSS box model, Flexbox, CSS Grid, responsive design with media queries, and modern CSS features"
+difficulty: "beginner"
+prerequisites: ["HTML & Semantic Markup"]
+timeToRead: "30 min"
+topics: ["css", "flexbox", "css-grid", "responsive-design", "media-queries", "custom-properties"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+**CSS** (Cascading Style Sheets) controls the visual presentation of web content. Modern CSS provides powerful layout systems — Flexbox and Grid — that have replaced the float-based hacks of the past. This guide covers the essential CSS layout concepts every developer needs.
+
+---
+
+## The CSS Box Model
+
+Every HTML element is rendered as a rectangular box. Understanding the box model is fundamental to CSS layout.
+
+```
+┌───────────────────────────────────────────────────┐
+│                    MARGIN                          │
+│   ┌───────────────────────────────────────────┐   │
+│   │               BORDER                      │   │
+│   │   ┌───────────────────────────────────┐   │   │
+│   │   │           PADDING                 │   │   │
+│   │   │   ┌───────────────────────────┐   │   │   │
+│   │   │   │                           │   │   │   │
+│   │   │   │        CONTENT            │   │   │   │
+│   │   │   │     (width × height)      │   │   │   │
+│   │   │   │                           │   │   │   │
+│   │   │   └───────────────────────────┘   │   │   │
+│   │   │                                   │   │   │
+│   │   └───────────────────────────────────┘   │   │
+│   │                                           │   │
+│   └───────────────────────────────────────────┘   │
+│                                                   │
+└───────────────────────────────────────────────────┘
+```
+
+### box-sizing Property
+
+The default `content-box` model makes width calculations confusing because padding and border are added *outside* the specified width. The `border-box` model is universally preferred:
+
+```css
+/* Reset: apply border-box to everything */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* content-box (default): width = content only */
+.content-box {
+  width: 200px;
+  padding: 20px;
+  border: 5px solid black;
+  /* Total rendered width: 200 + 20*2 + 5*2 = 250px */
+}
+
+/* border-box: width = content + padding + border */
+.border-box {
+  box-sizing: border-box;
+  width: 200px;
+  padding: 20px;
+  border: 5px solid black;
+  /* Total rendered width: 200px (content shrinks to 150px) */
+}
+```
+
+### Margin Collapsing
+
+Vertical margins of adjacent block elements collapse — the larger margin wins:
+
+```css
+.element-a {
+  margin-bottom: 30px; /* Only 30px gap between A and B */
+}
+
+.element-b {
+  margin-top: 20px; /* This 20px is "swallowed" by the larger 30px */
+}
+
+/* Margins do NOT collapse when:
+   - Elements are flex/grid children
+   - An element has overflow other than visible
+   - An element is floated or absolutely positioned
+   - There is a border or padding separating them */
+```
+
+---
+
+## Display Types
+
+The `display` property determines how an element generates boxes:
+
+| Value | Behavior | Examples |
+|-------|----------|---------|
+| `block` | Full width, starts on new line | `div`, `p`, `h1`-`h6`, `section` |
+| `inline` | Flows with text, no width/height | `span`, `a`, `strong`, `em` |
+| `inline-block` | Inline flow but respects width/height | `img`, styled buttons |
+| `none` | Removed from layout entirely | Hidden elements |
+| `flex` | Flex container (children become flex items) | Layout containers |
+| `inline-flex` | Inline-level flex container | Inline layout groups |
+| `grid` | Grid container (children become grid items) | Page layouts |
+| `inline-grid` | Inline-level grid container | Inline grid groups |
+| `contents` | Element's box removed, children promoted | Wrapper elimination |
+
+---
+
+## Flexbox
+
+Flexbox is a one-dimensional layout system designed for distributing space along a single axis (row or column).
+
+```
+Flex Container (display: flex)
+┌──────────────────────────────────────────────────────┐
+│                                                      │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐          │
+│  │  Item 1  │  │  Item 2  │  │  Item 3  │          │
+│  └──────────┘  └──────────┘  └──────────┘          │
+│                                                      │
+│  ◀──────────── main axis ────────────────▶          │
+│                                                      │
+│  ▲                                                   │
+│  │ cross axis                                        │
+│  ▼                                                   │
+└──────────────────────────────────────────────────────┘
+```
+
+### Container Properties
+
+```css
+.flex-container {
+  display: flex;
+
+  /* Direction of main axis */
+  flex-direction: row;           /* default: left to right */
+  flex-direction: row-reverse;   /* right to left */
+  flex-direction: column;        /* top to bottom */
+  flex-direction: column-reverse; /* bottom to top */
+
+  /* Wrapping behavior */
+  flex-wrap: nowrap;    /* default: all items on one line */
+  flex-wrap: wrap;      /* items wrap to next line */
+  flex-wrap: wrap-reverse;
+
+  /* Shorthand for direction + wrap */
+  flex-flow: row wrap;
+
+  /* Alignment along main axis */
+  justify-content: flex-start;     /* default: pack to start */
+  justify-content: flex-end;       /* pack to end */
+  justify-content: center;         /* center items */
+  justify-content: space-between;  /* equal space between items */
+  justify-content: space-around;   /* equal space around items */
+  justify-content: space-evenly;   /* equal space between and around */
+
+  /* Alignment along cross axis */
+  align-items: stretch;     /* default: stretch to fill */
+  align-items: flex-start;  /* align to cross-start */
+  align-items: flex-end;    /* align to cross-end */
+  align-items: center;      /* center on cross axis */
+  align-items: baseline;    /* align text baselines */
+
+  /* Alignment of wrapped lines */
+  align-content: flex-start;
+  align-content: center;
+  align-content: space-between;
+
+  /* Gap between items */
+  gap: 16px;       /* row and column gap */
+  row-gap: 16px;
+  column-gap: 8px;
+}
+```
+
+### justify-content Visual Reference
+
+```
+justify-content: flex-start (default)
+┌──[A]──[B]──[C]─────────────────────┐
+
+justify-content: flex-end
+┌─────────────────────[A]──[B]──[C]──┐
+
+justify-content: center
+┌──────────[A]──[B]──[C]────────────┐
+
+justify-content: space-between
+┌──[A]──────────[B]──────────[C]──┐
+
+justify-content: space-around
+┌───[A]────────[B]────────[C]───┐
+
+justify-content: space-evenly
+┌────[A]────[B]────[C]────┐
+```
+
+### Item Properties
+
+```css
+.flex-item {
+  /* Growth factor (how much extra space to absorb) */
+  flex-grow: 0;   /* default: do not grow */
+  flex-grow: 1;   /* absorb available space equally */
+
+  /* Shrink factor (how much to shrink if space is tight) */
+  flex-shrink: 1; /* default: shrink equally */
+  flex-shrink: 0; /* never shrink */
+
+  /* Base size before growing/shrinking */
+  flex-basis: auto;  /* default: use width/height */
+  flex-basis: 200px; /* fixed base size */
+  flex-basis: 0;     /* ignore content size, distribute all space */
+
+  /* Shorthand: grow shrink basis */
+  flex: 1;          /* same as: 1 1 0 */
+  flex: 0 0 200px;  /* fixed 200px, no grow, no shrink */
+  flex: 2 1 auto;   /* grow 2x, can shrink, auto basis */
+
+  /* Override align-items for this item */
+  align-self: center;
+
+  /* Control order (default: 0) */
+  order: -1;  /* move to front */
+  order: 1;   /* move to end */
+}
+```
+
+### Common Flexbox Patterns
+
+<Tabs>
+  <TabItem label="Centering">
+```css
+/* The holy grail of CSS centering */
+.center-everything {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+}
+
+/* Center a single child */
+.parent {
+  display: flex;
+}
+.child {
+  margin: auto; /* auto margins absorb all available space */
+}
+```
+  </TabItem>
+  <TabItem label="Navigation Bar">
+```css
+/* Logo left, links right */
+.navbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 24px;
+  height: 64px;
+}
+
+.nav-links {
+  display: flex;
+  gap: 24px;
+  list-style: none;
+}
+
+/* Logo left, links center, actions right */
+.navbar-v2 {
+  display: flex;
+  align-items: center;
+}
+.navbar-v2 .logo { flex: 1; }
+.navbar-v2 .links { flex: 1; text-align: center; }
+.navbar-v2 .actions { flex: 1; text-align: right; }
+```
+  </TabItem>
+  <TabItem label="Card Layout">
+```css
+/* Equal-height cards that wrap */
+.card-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+}
+
+.card {
+  flex: 1 1 300px; /* grow, shrink, min 300px */
+  display: flex;
+  flex-direction: column;
+}
+
+/* Push footer to bottom of card */
+.card-content {
+  flex: 1; /* fills available space */
+}
+
+.card-footer {
+  margin-top: auto; /* pushed to bottom */
+}
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## CSS Grid
+
+CSS Grid is a two-dimensional layout system for creating complex layouts with rows and columns simultaneously.
+
+```
+Grid Container (display: grid)
+┌──────────┬──────────┬──────────┐
+│          │          │          │  ← Row 1
+│  Cell    │  Cell    │  Cell    │
+│  (1,1)   │  (1,2)   │  (1,3)  │
+├──────────┼──────────┼──────────┤
+│          │          │          │  ← Row 2
+│  Cell    │  Cell    │  Cell    │
+│  (2,1)   │  (2,2)   │  (2,3)  │
+├──────────┼──────────┼──────────┤
+│          │          │          │  ← Row 3
+│  Cell    │  Cell    │  Cell    │
+│  (3,1)   │  (3,2)   │  (3,3)  │
+└──────────┴──────────┴──────────┘
+ Col 1       Col 2      Col 3
+```
+
+### Grid Container Properties
+
+```css
+.grid-container {
+  display: grid;
+
+  /* Define columns */
+  grid-template-columns: 200px 1fr 200px;          /* fixed-flex-fixed */
+  grid-template-columns: repeat(3, 1fr);            /* 3 equal columns */
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); /* responsive */
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));  /* responsive, stretch */
+
+  /* Define rows */
+  grid-template-rows: auto 1fr auto;  /* header, content, footer */
+  grid-auto-rows: minmax(100px, auto); /* implicit row sizing */
+
+  /* Gap between cells */
+  gap: 16px;
+  row-gap: 16px;
+  column-gap: 24px;
+
+  /* Alignment of items within cells */
+  justify-items: start | end | center | stretch;
+  align-items: start | end | center | stretch;
+  place-items: center; /* shorthand for align-items + justify-items */
+
+  /* Alignment of the grid within the container */
+  justify-content: start | end | center | space-between | space-around;
+  align-content: start | end | center | space-between | space-around;
+}
+```
+
+### The fr Unit
+
+The `fr` (fraction) unit distributes remaining space proportionally:
+
+```css
+/* 1fr = one fraction of available space */
+.grid {
+  grid-template-columns: 1fr 2fr 1fr;
+  /* Column widths: 25% | 50% | 25% (of remaining space after fixed columns) */
+}
+
+.grid-mixed {
+  grid-template-columns: 200px 1fr 2fr;
+  /* 200px fixed | 1/3 of remaining | 2/3 of remaining */
+}
+```
+
+### Grid Areas
+
+Named grid areas create intuitive layouts:
+
+```css
+.page-layout {
+  display: grid;
+  grid-template-areas:
+    "header  header  header"
+    "sidebar content content"
+    "footer  footer  footer";
+  grid-template-columns: 250px 1fr 1fr;
+  grid-template-rows: auto 1fr auto;
+  min-height: 100vh;
+  gap: 16px;
+}
+
+.header  { grid-area: header; }
+.sidebar { grid-area: sidebar; }
+.content { grid-area: content; }
+.footer  { grid-area: footer; }
+```
+
+### Grid Item Placement
+
+```css
+.grid-item {
+  /* Place by line numbers */
+  grid-column-start: 1;
+  grid-column-end: 3;
+  grid-row-start: 1;
+  grid-row-end: 2;
+
+  /* Shorthand: start / end */
+  grid-column: 1 / 3;    /* spans columns 1-2 */
+  grid-row: 1 / 2;       /* occupies row 1 */
+
+  /* Using span */
+  grid-column: 1 / span 2; /* start at 1, span 2 columns */
+  grid-row: span 3;        /* span 3 rows from auto-placed position */
+
+  /* Full-width item */
+  grid-column: 1 / -1;   /* -1 means last line */
+
+  /* Override alignment for this item */
+  justify-self: center;
+  align-self: end;
+}
+```
+
+### auto-fill vs auto-fit
+
+```css
+/* auto-fill: creates as many tracks as fit, keeps empty ones */
+grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+
+/* auto-fit: creates as many tracks as fit, collapses empty ones */
+grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+```
+
+```
+auto-fill with 2 items in a wide container:
+┌──────────┬──────────┬──────────┬──────────┐
+│  Item 1  │  Item 2  │  (empty) │  (empty) │
+└──────────┴──────────┴──────────┴──────────┘
+
+auto-fit with 2 items in a wide container:
+┌─────────────────────┬─────────────────────┐
+│       Item 1        │       Item 2        │
+└─────────────────────┴─────────────────────┘
+```
+
+### Common Grid Patterns
+
+<Tabs>
+  <TabItem label="Holy Grail Layout">
+```css
+.holy-grail {
+  display: grid;
+  grid-template-areas:
+    "header  header  header"
+    "nav     main    aside"
+    "footer  footer  footer";
+  grid-template-columns: 200px 1fr 200px;
+  grid-template-rows: auto 1fr auto;
+  min-height: 100vh;
+}
+
+header  { grid-area: header; }
+nav     { grid-area: nav; }
+main    { grid-area: main; }
+aside   { grid-area: aside; }
+footer  { grid-area: footer; }
+
+/* Responsive: single column on mobile */
+@media (max-width: 768px) {
+  .holy-grail {
+    grid-template-areas:
+      "header"
+      "nav"
+      "main"
+      "aside"
+      "footer";
+    grid-template-columns: 1fr;
+  }
+}
+```
+  </TabItem>
+  <TabItem label="Dashboard Grid">
+```css
+.dashboard {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-auto-rows: minmax(150px, auto);
+  gap: 16px;
+  padding: 16px;
+}
+
+/* Large widget spans 2 columns */
+.widget-large {
+  grid-column: span 2;
+  grid-row: span 2;
+}
+
+/* Full-width widget */
+.widget-full {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 768px) {
+  .dashboard {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .dashboard {
+    grid-template-columns: 1fr;
+  }
+  .widget-large {
+    grid-column: span 1;
+    grid-row: span 1;
+  }
+}
+```
+  </TabItem>
+  <TabItem label="Image Gallery">
+```css
+/* Masonry-like responsive gallery */
+.gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 16px;
+}
+
+.gallery img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
+/* Featured images span more space */
+.gallery .featured {
+  grid-column: span 2;
+  grid-row: span 2;
+}
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## Flexbox vs Grid — When to Use Which
+
+| Scenario | Use Flexbox | Use Grid |
+|----------|-------------|----------|
+| One-dimensional layout (row OR column) | Yes | Overkill |
+| Two-dimensional layout (rows AND columns) | Possible but hacky | Yes |
+| Content should dictate size | Yes | Possible |
+| Layout should dictate size | Possible | Yes |
+| Navigation bars | Yes | Possible |
+| Card grids | Possible with wrap | Yes |
+| Centering a single element | Yes | Yes |
+| Complex page layouts | No | Yes |
+| Aligning items in a single row | Yes | Possible |
+| Equal-height columns | Both work | Both work |
+
+:::tip[The Simple Rule]
+**Flexbox** is for layout in one direction. **Grid** is for layout in two directions. You will often use both together — Grid for the overall page layout and Flexbox for component-level alignment.
+:::
+
+---
+
+## Responsive Design
+
+Responsive design ensures your layout works across all screen sizes — from mobile phones to ultra-wide monitors.
+
+### Mobile-First Approach
+
+Start with the mobile layout and progressively enhance for larger screens:
+
+```css
+/* Base styles: mobile-first (no media query needed) */
+.container {
+  padding: 16px;
+}
+
+.card-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+/* Tablet and up */
+@media (min-width: 768px) {
+  .container {
+    padding: 24px;
+    max-width: 768px;
+    margin: 0 auto;
+  }
+
+  .card-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 24px;
+  }
+}
+
+/* Desktop and up */
+@media (min-width: 1024px) {
+  .container {
+    max-width: 1024px;
+    padding: 32px;
+  }
+
+  .card-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* Large desktop */
+@media (min-width: 1280px) {
+  .container {
+    max-width: 1200px;
+  }
+
+  .card-grid {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 32px;
+  }
+}
+```
+
+### Common Breakpoints
+
+| Breakpoint | Target Devices |
+|-----------|---------------|
+| `480px` | Small phones |
+| `768px` | Tablets, large phones (landscape) |
+| `1024px` | Small laptops, tablets (landscape) |
+| `1280px` | Standard desktops |
+| `1536px` | Large desktops |
+
+### Modern Responsive Techniques (No Media Queries)
+
+```css
+/* Fluid typography using clamp() */
+h1 {
+  font-size: clamp(1.5rem, 4vw + 1rem, 3rem);
+  /* Minimum: 1.5rem, preferred: 4vw + 1rem, maximum: 3rem */
+}
+
+/* Responsive grid without media queries */
+.auto-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: 16px;
+}
+
+/* Container queries (modern CSS) */
+.card-container {
+  container-type: inline-size;
+  container-name: card;
+}
+
+@container card (min-width: 400px) {
+  .card {
+    display: flex;
+    flex-direction: row;
+  }
+}
+
+@container card (max-width: 399px) {
+  .card {
+    display: flex;
+    flex-direction: column;
+  }
+}
+```
+
+---
+
+## CSS Custom Properties (Variables)
+
+CSS custom properties enable reusable values and dynamic theming:
+
+```css
+/* Define variables on :root for global scope */
+:root {
+  /* Colors */
+  --color-primary: #2563eb;
+  --color-primary-dark: #1d4ed8;
+  --color-secondary: #7c3aed;
+  --color-text: #1f2937;
+  --color-text-muted: #6b7280;
+  --color-bg: #ffffff;
+  --color-bg-alt: #f9fafb;
+  --color-border: #e5e7eb;
+
+  /* Spacing scale */
+  --space-xs: 0.25rem;
+  --space-sm: 0.5rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2rem;
+  --space-2xl: 3rem;
+
+  /* Typography */
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --font-size-sm: 0.875rem;
+  --font-size-base: 1rem;
+  --font-size-lg: 1.125rem;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+
+  /* Border radius */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 1rem;
+  --radius-full: 9999px;
+}
+
+/* Dark theme by overriding variables */
+[data-theme="dark"] {
+  --color-text: #f9fafb;
+  --color-text-muted: #9ca3af;
+  --color-bg: #111827;
+  --color-bg-alt: #1f2937;
+  --color-border: #374151;
+}
+
+/* Use variables throughout */
+.button {
+  background: var(--color-primary);
+  color: white;
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-md);
+  font-family: var(--font-sans);
+  box-shadow: var(--shadow-sm);
+  transition: background 0.2s, box-shadow 0.2s;
+}
+
+.button:hover {
+  background: var(--color-primary-dark);
+  box-shadow: var(--shadow-md);
+}
+```
+
+### Dynamic Values with Custom Properties
+
+```css
+/* Custom properties can be changed per-element */
+.progress-bar {
+  --progress: 0;
+  width: calc(var(--progress) * 1%);
+  background: var(--color-primary);
+  height: 8px;
+  border-radius: var(--radius-full);
+  transition: width 0.3s ease;
+}
+```
+
+```html
+<!-- Set via inline style or JavaScript -->
+<div class="progress-bar" style="--progress: 75"></div>
+```
+
+---
+
+## Modern CSS Features
+
+### Nesting (Native)
+
+```css
+/* Native CSS nesting (no preprocessor needed) */
+.card {
+  background: var(--color-bg);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+
+  & .title {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+  }
+
+  & .description {
+    color: var(--color-text-muted);
+  }
+
+  &:hover {
+    box-shadow: var(--shadow-md);
+  }
+
+  @media (min-width: 768px) {
+    padding: var(--space-xl);
+  }
+}
+```
+
+### Logical Properties
+
+Logical properties work correctly with any writing direction (LTR or RTL):
+
+```css
+/* Physical properties (avoid for i18n) */
+.old-way {
+  margin-left: 16px;
+  padding-right: 24px;
+  border-top: 1px solid gray;
+  text-align: left;
+}
+
+/* Logical properties (works in any direction) */
+.new-way {
+  margin-inline-start: 16px;
+  padding-inline-end: 24px;
+  border-block-start: 1px solid gray;
+  text-align: start;
+}
+
+/* block = vertical axis (in horizontal writing modes)
+   inline = horizontal axis (in horizontal writing modes) */
+```
+
+### has() Selector (Parent Selector)
+
+```css
+/* Style a form group differently when its input is focused */
+.form-group:has(input:focus) {
+  border-color: var(--color-primary);
+}
+
+/* Style a card differently if it contains an image */
+.card:has(img) {
+  padding-top: 0;
+}
+
+/* Style nav when a child link is active */
+nav:has(.active) {
+  background: var(--color-bg-alt);
+}
+```
+
+### Subgrid
+
+```css
+/* Parent grid */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+
+/* Child aligns to parent's grid */
+.card {
+  display: grid;
+  grid-template-rows: subgrid; /* inherit parent's row tracks */
+  grid-row: span 3; /* card spans 3 rows */
+}
+/* Now all card titles, bodies, and footers align across columns */
+```
+
+### Scroll Snap
+
+```css
+/* Horizontal image carousel */
+.carousel {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  gap: 16px;
+  scroll-padding: 16px;
+}
+
+.carousel-item {
+  scroll-snap-align: start;
+  flex: 0 0 80%;
+  border-radius: var(--radius-lg);
+}
+```
+
+---
+
+## CSS Reset / Baseline
+
+A sensible modern CSS reset:
+
+```css
+/* Modern CSS Reset */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  -moz-text-size-adjust: none;
+  -webkit-text-size-adjust: none;
+  text-size-adjust: none;
+}
+
+body {
+  min-height: 100vh;
+  line-height: 1.6;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+img, picture, video, canvas, svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+input, button, textarea, select {
+  font: inherit;
+}
+
+p, h1, h2, h3, h4, h5, h6 {
+  overflow-wrap: break-word;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  text-wrap: balance;
+}
+
+p {
+  text-wrap: pretty;
+}
+
+a {
+  color: inherit;
+  text-decoration-skip-ink: auto;
+}
+```
+
+---
+
+<LinkCard
+  title="Next: JavaScript & the DOM"
+  description="Learn DOM manipulation, event handling, and essential Web APIs"
+  href="/software-engineering/web-fundamentals/javascript-dom/"
+/>

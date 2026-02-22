@@ -1,0 +1,616 @@
+---
+title: "Caching Strategies"
+description: "Master cache-aside, read-through, write-through, write-behind patterns, eviction policies, and cache invalidation techniques"
+difficulty: "intermediate"
+prerequisites:
+  - Caching & Performance Overview
+  - Basic understanding of databases
+timeToRead: "25 min"
+topics:
+  - cache-aside
+  - read-through
+  - write-through
+  - write-behind
+  - LRU
+  - LFU
+  - FIFO
+  - cache-invalidation
+  - Redis
+  - Memcached
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+import CacheVisualizer from '../../../components/interactive/CacheVisualizer';
+
+## Interactive Cache Visualizer
+
+Experiment with different cache eviction policies. Add items to the cache, trigger lookups, and watch how LRU, LFU, FIFO, and Random eviction behave.
+
+<CacheVisualizer client:load />
+
+Choosing the right caching strategy determines whether your cache improves performance or introduces subtle data-consistency bugs. This page covers the four major caching patterns, the most important eviction policies, cache invalidation approaches, and a comparison of Redis and Memcached.
+
+---
+
+## Caching Patterns Overview
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                     Caching Patterns                            │
+├─────────────────┬─────────────────┬──────────────┬──────────────┤
+│   Cache-Aside   │  Read-Through   │Write-Through │ Write-Behind │
+│                 │                 │              │              │
+│  App manages    │  Cache manages  │ Cache writes │ Cache writes │
+│  cache + DB     │  DB reads       │ to DB sync   │ to DB async  │
+│  independently  │  transparently  │              │              │
+└─────────────────┴─────────────────┴──────────────┴──────────────┘
+```
+
+---
+
+## Cache-Aside (Lazy Loading)
+
+The **cache-aside** pattern is the most common caching strategy. The application code is responsible for reading from and writing to both the cache and the database.
+
+### How It Works
+
+```
+READ:
+  1. App checks cache
+  2. If HIT  --> return cached data
+  3. If MISS --> read from DB, store in cache, return data
+
+WRITE:
+  1. App writes to DB
+  2. App invalidates (deletes) the cache entry
+
+┌──────┐    1. get(key)     ┌───────┐
+│      │ ──────────────────►│       │
+│      │    2. HIT/MISS     │ Cache │
+│      │ ◄──────────────────│       │
+│ App  │                    └───────┘
+│      │    3. (on MISS)    ┌───────┐
+│      │ ──────────────────►│       │
+│      │    4. data         │  DB   │
+│      │ ◄──────────────────│       │
+└──────┘    5. set(key,val) └───────┘
+            ───────────────►  Cache
+```
+
+### When to Use
+
+- General-purpose caching where the application controls both read and write paths
+- Workloads with more reads than writes
+- When stale data for a short period is acceptable
+
+<Tabs>
+<TabItem label="Python">
+```python
+import redis
+import json
+
+r = redis.Redis(host='localhost', port=6379, db=0)
+
+def get_user(user_id: str) -> dict:
+    cache_key = f"user:{user_id}"
+
+    # Step 1: Check cache
+    cached = r.get(cache_key)
+    if cached:
+        return json.loads(cached)  # Cache HIT
+
+    # Step 2: Cache MISS -- fetch from DB
+    user = db.query("SELECT * FROM users WHERE id = %s", user_id)
+
+    # Step 3: Populate cache with TTL
+    r.setex(cache_key, 300, json.dumps(user))  # 5 min TTL
+    return user
+
+def update_user(user_id: str, data: dict):
+    # Step 1: Update database
+    db.execute("UPDATE users SET name=%s WHERE id=%s",
+               data['name'], user_id)
+
+    # Step 2: Invalidate cache
+    r.delete(f"user:{user_id}")
+```
+</TabItem>
+<TabItem label="JavaScript">
+```javascript
+const Redis = require('ioredis');
+const redis = new Redis();
+
+async function getUser(userId) {
+  const cacheKey = `user:${userId}`;
+
+  // Step 1: Check cache
+  const cached = await redis.get(cacheKey);
+  if (cached) {
+    return JSON.parse(cached); // Cache HIT
+  }
+
+  // Step 2: Cache MISS -- fetch from DB
+  const user = await db.query(
+    'SELECT * FROM users WHERE id = $1', [userId]
+  );
+
+  // Step 3: Populate cache with TTL
+  await redis.setex(cacheKey, 300, JSON.stringify(user));
+  return user;
+}
+
+async function updateUser(userId, data) {
+  // Step 1: Update database
+  await db.query(
+    'UPDATE users SET name = $1 WHERE id = $2',
+    [data.name, userId]
+  );
+
+  // Step 2: Invalidate cache
+  await redis.del(`user:${userId}`);
+}
+```
+</TabItem>
+<TabItem label="Java">
+```java
+import redis.clients.jedis.Jedis;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+public class UserService {
+    private final Jedis redis = new Jedis("localhost", 6379);
+    private final ObjectMapper mapper = new ObjectMapper();
+
+    public User getUser(String userId) throws Exception {
+        String cacheKey = "user:" + userId;
+
+        // Step 1: Check cache
+        String cached = redis.get(cacheKey);
+        if (cached != null) {
+            return mapper.readValue(cached, User.class); // HIT
+        }
+
+        // Step 2: Cache MISS -- fetch from DB
+        User user = db.findUserById(userId);
+
+        // Step 3: Populate cache with TTL
+        redis.setex(cacheKey, 300,
+                     mapper.writeValueAsString(user));
+        return user;
+    }
+
+    public void updateUser(String userId, User data) {
+        // Step 1: Update database
+        db.updateUser(userId, data);
+
+        // Step 2: Invalidate cache
+        redis.del("user:" + userId);
+    }
+}
+```
+</TabItem>
+</Tabs>
+
+:::tip[Why Delete Instead of Update?]
+On a write, deleting the cache key is safer than updating it. If you update the cache and the DB write fails, the cache holds incorrect data. Deleting the key means the next read triggers a fresh load from the database, guaranteeing consistency.
+:::
+
+---
+
+## Read-Through Cache
+
+In a **read-through** cache, the cache itself is responsible for loading data from the database on a miss. The application only talks to the cache -- never directly to the database for reads.
+
+```
+READ:
+  1. App asks cache for data
+  2. Cache checks internally
+  3. If MISS --> cache loads from DB automatically
+  4. Cache returns data to app
+
+┌──────┐    1. get(key)     ┌───────────────┐    3. load     ┌──────┐
+│      │ ──────────────────►│               │ ──────────────► │      │
+│ App  │    4. data         │ Read-Through  │    data         │  DB  │
+│      │ ◄──────────────────│    Cache      │ ◄────────────── │      │
+└──────┘                    └───────────────┘                 └──────┘
+```
+
+### When to Use
+
+- When you want to simplify application code by removing explicit cache-loading logic
+- Libraries like Caffeine (Java) and cache-manager (Node.js) support this natively
+- Best combined with write-through for full cache management
+
+---
+
+## Write-Through Cache
+
+In a **write-through** cache, every write goes to the cache first, and the cache synchronously writes to the database. The write is not considered complete until both the cache and the database have been updated.
+
+```
+WRITE (synchronous):
+  1. App writes to cache
+  2. Cache writes to DB (synchronously)
+  3. Acknowledgment returned after both succeed
+
+┌──────┐  1. write   ┌───────────────┐  2. write   ┌──────┐
+│      │ ──────────► │ Write-Through │ ──────────► │      │
+│ App  │             │    Cache      │             │  DB  │
+│      │ ◄────────── │               │ ◄────────── │      │
+└──────┘  3. ack     └───────────────┘    ack      └──────┘
+```
+
+### Trade-offs
+
+| Advantage | Disadvantage |
+|-----------|-------------|
+| Cache is always consistent with DB | Higher write latency (two writes per operation) |
+| No stale data on reads | Every write pays the DB cost even if data is rarely read |
+| Simple mental model | Not suitable for write-heavy workloads |
+
+---
+
+## Write-Behind (Write-Back) Cache
+
+The **write-behind** pattern writes to the cache immediately and asynchronously flushes changes to the database in the background. This provides the lowest write latency but introduces the risk of data loss if the cache fails before flushing.
+
+```
+WRITE (asynchronous):
+  1. App writes to cache (returns immediately)
+  2. Cache queues write
+  3. Background process flushes to DB later
+
+┌──────┐  1. write   ┌───────────────┐      3. async flush      ┌──────┐
+│      │ ──────────► │  Write-Behind │ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ► │      │
+│ App  │  2. ack     │    Cache      │                           │  DB  │
+│      │ ◄────────── │   (+ queue)   │ ◄ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ │      │
+└──────┘             └───────────────┘                           └──────┘
+```
+
+:::caution[Data Loss Risk]
+If the cache crashes before flushing queued writes, those writes are lost. Mitigate this with persistent queues, write-ahead logs, or replication.
+:::
+
+---
+
+## Strategy Comparison
+
+| Pattern | Read Latency | Write Latency | Consistency | Complexity | Best For |
+|---------|-------------|---------------|-------------|------------|----------|
+| **Cache-Aside** | Low (after warm-up) | Medium | Eventual | Low | General purpose |
+| **Read-Through** | Low (after warm-up) | N/A | Eventual | Low | Read-heavy |
+| **Write-Through** | Low | High | Strong | Medium | Consistency-critical |
+| **Write-Behind** | Low | Very Low | Eventual | High | Write-heavy |
+
+---
+
+## Eviction Policies
+
+When a cache is full, it must decide which entries to remove. The eviction policy determines cache efficiency.
+
+### LRU -- Least Recently Used
+
+Evicts the entry that has not been accessed for the longest time. This works well when recent data is more likely to be accessed again.
+
+```
+Access sequence: A, B, C, D, A, E  (cache size = 3)
+
+Step 1: [A]           -- A loaded
+Step 2: [A, B]        -- B loaded
+Step 3: [A, B, C]     -- C loaded (cache full)
+Step 4: [B, C, D]     -- D loaded, A evicted (least recently used)
+Step 5: [C, D, A]     -- A loaded, B evicted
+Step 6: [D, A, E]     -- E loaded, C evicted
+```
+
+### LFU -- Least Frequently Used
+
+Evicts the entry with the lowest access count. This is better when some items are consistently popular.
+
+```
+Access counts after sequence A, A, A, B, B, C:
+  A: 3 accesses
+  B: 2 accesses
+  C: 1 access   <-- evicted first (lowest frequency)
+```
+
+### FIFO -- First In, First Out
+
+Evicts the oldest entry regardless of access pattern. Simple but often less effective than LRU or LFU.
+
+### TTL -- Time to Live
+
+Entries expire after a fixed duration. Not a true eviction policy but commonly used alongside LRU or LFU.
+
+### Comparison
+
+| Policy | Strength | Weakness | Use Case |
+|--------|----------|----------|----------|
+| **LRU** | Adapts to recency | Ignores frequency | General workloads |
+| **LFU** | Keeps popular items | Slow to adapt to changing patterns | Stable access patterns |
+| **FIFO** | Simple to implement | Ignores access patterns | When simplicity matters |
+| **TTL** | Guarantees freshness | Does not manage capacity | Time-sensitive data |
+| **Random** | No overhead | Unpredictable | Uniform access patterns |
+
+<Tabs>
+<TabItem label="Python">
+```python
+from collections import OrderedDict
+
+class LRUCache:
+    """LRU cache using OrderedDict."""
+
+    def __init__(self, capacity: int):
+        self.capacity = capacity
+        self.cache = OrderedDict()
+
+    def get(self, key: str):
+        if key not in self.cache:
+            return None
+        # Move to end (most recently used)
+        self.cache.move_to_end(key)
+        return self.cache[key]
+
+    def put(self, key: str, value):
+        if key in self.cache:
+            self.cache.move_to_end(key)
+        self.cache[key] = value
+        if len(self.cache) > self.capacity:
+            # Evict least recently used (first item)
+            self.cache.popitem(last=False)
+
+# Usage
+cache = LRUCache(capacity=3)
+cache.put("a", 1)
+cache.put("b", 2)
+cache.put("c", 3)
+cache.get("a")       # Access "a", moves it to end
+cache.put("d", 4)    # Evicts "b" (least recently used)
+```
+</TabItem>
+<TabItem label="JavaScript">
+```javascript
+class LRUCache {
+  constructor(capacity) {
+    this.capacity = capacity;
+    this.cache = new Map();
+    // Map preserves insertion order in JS
+  }
+
+  get(key) {
+    if (!this.cache.has(key)) return null;
+    // Move to end (most recently used)
+    const value = this.cache.get(key);
+    this.cache.delete(key);
+    this.cache.set(key, value);
+    return value;
+  }
+
+  put(key, value) {
+    if (this.cache.has(key)) {
+      this.cache.delete(key);
+    }
+    this.cache.set(key, value);
+    if (this.cache.size > this.capacity) {
+      // Evict least recently used (first key)
+      const firstKey = this.cache.keys().next().value;
+      this.cache.delete(firstKey);
+    }
+  }
+}
+
+const cache = new LRUCache(3);
+cache.put('a', 1);
+cache.put('b', 2);
+cache.put('c', 3);
+cache.get('a');       // Access "a", moves it to end
+cache.put('d', 4);    // Evicts "b"
+```
+</TabItem>
+<TabItem label="Java">
+```java
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+public class LRUCache<K, V> extends LinkedHashMap<K, V> {
+    private final int capacity;
+
+    public LRUCache(int capacity) {
+        // accessOrder = true enables LRU behavior
+        super(capacity, 0.75f, true);
+        this.capacity = capacity;
+    }
+
+    @Override
+    protected boolean removeEldestEntry(Map.Entry<K, V> eldest) {
+        return size() > capacity;
+    }
+
+    public static void main(String[] args) {
+        LRUCache<String, Integer> cache = new LRUCache<>(3);
+        cache.put("a", 1);
+        cache.put("b", 2);
+        cache.put("c", 3);
+        cache.get("a");       // Access "a"
+        cache.put("d", 4);    // Evicts "b"
+        System.out.println(cache); // {c=3, a=1, d=4}
+    }
+}
+```
+</TabItem>
+</Tabs>
+
+---
+
+## Cache Invalidation
+
+:::note[Phil Karlton's Famous Quote]
+"There are only two hard things in Computer Science: cache invalidation and naming things."
+:::
+
+Cache invalidation ensures that stale data does not persist in the cache after the underlying data changes.
+
+### Invalidation Strategies
+
+**1. TTL-Based Expiration**
+
+Set a time-to-live on every cache entry. After the TTL expires, the entry is removed or refreshed. Simple and effective, but the data can be stale for up to the TTL duration.
+
+**2. Event-Driven Invalidation**
+
+When the database changes, publish an event (via a message queue, database trigger, or Change Data Capture) that tells the cache to invalidate the affected keys.
+
+```
+┌──────┐  write  ┌──────┐  CDC event  ┌───────┐  invalidate  ┌───────┐
+│ App  │────────►│  DB  │────────────►│ Queue │─────────────►│ Cache │
+└──────┘         └──────┘             └───────┘              └───────┘
+```
+
+**3. Version-Based Invalidation**
+
+Append a version number or hash to the cache key. When data changes, increment the version. Old keys are never read again and naturally expire.
+
+```
+Key: user:123:v5    -- current version
+Key: user:123:v4    -- stale, will expire via TTL
+```
+
+**4. Tag-Based Invalidation**
+
+Tag cache entries with categories. Invalidating a tag removes all entries with that tag. Useful for invalidating groups of related entries (e.g., all product listings for a category).
+
+### Common Pitfalls
+
+| Pitfall | Description | Mitigation |
+|---------|------------|------------|
+| **Thundering herd** | Many requests hit the DB simultaneously when a popular key expires | Use lock/mutex so only one request loads, others wait |
+| **Cache stampede** | Similar to thundering herd, but triggered by a cold cache restart | Warm cache before accepting traffic |
+| **Stale sets** | Race condition where an old value is cached after a newer write | Use compare-and-swap or versioned keys |
+| **Over-invalidation** | Invalidating too aggressively, reducing hit ratio | Invalidate specific keys, not entire caches |
+
+---
+
+## Redis vs Memcached
+
+| Feature | Redis | Memcached |
+|---------|-------|-----------|
+| **Data structures** | Strings, hashes, lists, sets, sorted sets, streams, bitmaps | Strings only |
+| **Persistence** | RDB snapshots, AOF log | None (pure cache) |
+| **Replication** | Built-in primary/replica | Not built-in |
+| **Clustering** | Redis Cluster (auto-sharding) | Client-side sharding |
+| **Pub/Sub** | Yes | No |
+| **Lua scripting** | Yes | No |
+| **Memory efficiency** | Good (but overhead from data structures) | Excellent (slab allocator) |
+| **Max value size** | 512 MB | 1 MB (default) |
+| **Multithreading** | Single-threaded event loop (I/O threads in v6+) | Multithreaded |
+| **TTL granularity** | Millisecond | Second |
+| **Use case** | Feature-rich caching, session store, queues, leaderboards | Simple high-throughput key-value caching |
+
+:::tip[When to Choose Which]
+- **Choose Redis** when you need data structures beyond simple strings, persistence, pub/sub, or Lua scripting.
+- **Choose Memcached** when you need a simple, high-throughput, multithreaded cache with predictable memory usage and no persistence requirements.
+:::
+
+<Tabs>
+<TabItem label="Python">
+```python
+# Redis example with data structures
+import redis
+
+r = redis.Redis()
+
+# Sorted set for a leaderboard
+r.zadd("leaderboard", {"alice": 2500, "bob": 1800, "charlie": 3100})
+top_3 = r.zrevrange("leaderboard", 0, 2, withscores=True)
+# [(b'charlie', 3100.0), (b'alice', 2500.0), (b'bob', 1800.0)]
+
+# Hash for user session
+r.hset("session:abc123", mapping={
+    "user_id": "42",
+    "role": "admin",
+    "login_time": "2025-01-15T10:30:00"
+})
+r.expire("session:abc123", 3600)  # 1 hour TTL
+
+# List as a simple queue
+r.lpush("task_queue", "send_email", "resize_image")
+task = r.rpop("task_queue")  # FIFO: b'send_email'
+```
+</TabItem>
+<TabItem label="JavaScript">
+```javascript
+const Redis = require('ioredis');
+const redis = new Redis();
+
+// Sorted set for a leaderboard
+await redis.zadd('leaderboard',
+  2500, 'alice', 1800, 'bob', 3100, 'charlie'
+);
+const top3 = await redis.zrevrange(
+  'leaderboard', 0, 2, 'WITHSCORES'
+);
+// ['charlie', '3100', 'alice', '2500', 'bob', '1800']
+
+// Hash for user session
+await redis.hset('session:abc123', {
+  user_id: '42',
+  role: 'admin',
+  login_time: '2025-01-15T10:30:00'
+});
+await redis.expire('session:abc123', 3600);
+
+// List as a simple queue
+await redis.lpush('task_queue', 'send_email', 'resize_image');
+const task = await redis.rpop('task_queue'); // 'send_email'
+```
+</TabItem>
+<TabItem label="Java">
+```java
+import redis.clients.jedis.Jedis;
+import java.util.Map;
+
+Jedis redis = new Jedis("localhost", 6379);
+
+// Sorted set for a leaderboard
+redis.zadd("leaderboard", Map.of(
+    "alice",   2500.0,
+    "bob",     1800.0,
+    "charlie", 3100.0
+));
+var top3 = redis.zrevrangeWithScores("leaderboard", 0, 2);
+// charlie: 3100, alice: 2500, bob: 1800
+
+// Hash for user session
+redis.hset("session:abc123", Map.of(
+    "user_id",    "42",
+    "role",       "admin",
+    "login_time", "2025-01-15T10:30:00"
+));
+redis.expire("session:abc123", 3600);
+
+// List as a simple queue
+redis.lpush("task_queue", "send_email", "resize_image");
+String task = redis.rpop("task_queue"); // "send_email"
+```
+</TabItem>
+</Tabs>
+
+---
+
+## Summary
+
+| Concept | Key Takeaway |
+|---------|-------------|
+| **Cache-Aside** | Application manages cache reads and writes; most flexible and common |
+| **Read-Through** | Cache automatically loads from DB on miss; simplifies app code |
+| **Write-Through** | Cache writes synchronously to DB; strong consistency, higher latency |
+| **Write-Behind** | Cache writes asynchronously to DB; lowest latency, risk of data loss |
+| **LRU** | Best general-purpose eviction policy; evicts least recently accessed |
+| **Invalidation** | TTL, event-driven, version-based, or tag-based; each has trade-offs |
+| **Redis** | Rich data structures, persistence, scripting; the Swiss Army knife |
+| **Memcached** | Simple, fast, multithreaded; ideal for straightforward caching |
+
+<LinkCard
+  title="Next: CDN & Edge Caching"
+  description="Learn how CDNs work, edge locations, HTTP cache headers, cache busting, and edge computing."
+  href="/software-engineering/caching-performance/cdn-edge/"
+/>

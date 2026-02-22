@@ -1,0 +1,702 @@
+---
+title: "Symmetric & Asymmetric Encryption"
+description: "Master AES, ChaCha20 (symmetric), RSA, ECDSA, Diffie-Hellman (asymmetric), key exchange protocols, and hybrid encryption"
+difficulty: "intermediate"
+prerequisites: ["Cryptography overview", "Basic programming knowledge"]
+timeToRead: "25 min"
+topics: ["symmetric encryption", "asymmetric encryption", "AES", "ChaCha20", "RSA", "ECDSA", "Diffie-Hellman", "hybrid encryption", "key exchange"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+Encryption transforms readable data into an unreadable format that can only be reversed with the correct key. The two fundamental approaches — **symmetric** and **asymmetric** — solve different problems and are almost always used together in practice.
+
+---
+
+## Symmetric Encryption
+
+In symmetric encryption, the **same key** is used for both encryption and decryption. It is fast, efficient, and used for encrypting bulk data.
+
+```
+┌──────────┐     Key K     ┌──────────┐     Key K     ┌──────────┐
+│ Plaintext│───────────────▶│Ciphertext│───────────────▶│ Plaintext│
+│          │   Encrypt      │          │   Decrypt      │          │
+└──────────┘               └──────────┘               └──────────┘
+
+Both sides must possess the SAME secret key K.
+If an attacker obtains K, all encrypted data is compromised.
+```
+
+### The Key Distribution Problem
+
+The fundamental challenge of symmetric encryption: **how do you securely share the key?** If you send the key over the same channel as the data, an attacker can intercept both. This problem is what motivated the invention of asymmetric encryption.
+
+### AES (Advanced Encryption Standard)
+
+**AES** is the most widely used symmetric cipher in the world. Adopted by the U.S. government in 2001, it has withstood decades of cryptanalysis and remains unbroken.
+
+| Property | Value |
+|----------|-------|
+| **Block size** | 128 bits (16 bytes) |
+| **Key sizes** | 128, 192, or 256 bits |
+| **Type** | Block cipher |
+| **Status** | Current standard, no known practical attacks |
+| **Speed** | Hardware-accelerated on modern CPUs (AES-NI) |
+
+#### AES Modes of Operation
+
+Since AES operates on fixed 16-byte blocks, a **mode of operation** defines how to handle messages of arbitrary length.
+
+| Mode | Authenticated | Parallelizable | Notes |
+|------|:---:|:---:|-------|
+| **ECB** | No | Yes | **Never use.** Identical plaintext blocks produce identical ciphertext — patterns leak through |
+| **CBC** | No | Decrypt only | Legacy. Susceptible to padding oracle attacks |
+| **CTR** | No | Yes | Turns block cipher into stream cipher. Fast but no integrity |
+| **GCM** | Yes | Yes | **Recommended.** Provides both confidentiality and authenticity |
+| **CCM** | Yes | No | Used in constrained environments (IoT, Bluetooth) |
+
+:::caution[Always Use Authenticated Encryption]
+Using encryption without authentication (ECB, CBC, CTR alone) allows an attacker to **modify ciphertext** without detection. Always use an authenticated mode like **AES-GCM** or pair encryption with HMAC.
+:::
+
+```
+ECB Mode (NEVER USE):
+┌────┐ ┌────┐ ┌────┐ ┌────┐
+│ P1 │ │ P2 │ │ P1 │ │ P3 │  Plaintext blocks
+└──┬─┘ └──┬─┘ └──┬─┘ └──┬─┘
+   │      │      │      │
+   ▼      ▼      ▼      ▼    AES with key K
+┌────┐ ┌────┐ ┌────┐ ┌────┐
+│ C1 │ │ C2 │ │ C1 │ │ C3 │  Ciphertext blocks
+└────┘ └────┘ └────┘ └────┘
+                ▲
+   P1 = P1, so C1 = C1  ← Pattern leaked!
+
+GCM Mode (RECOMMENDED):
+┌────┐ ┌────┐ ┌────┐ ┌────┐
+│ P1 │ │ P2 │ │ P1 │ │ P3 │  Plaintext blocks
+└──┬─┘ └──┬─┘ └──┬─┘ └──┬─┘
+   │      │      │      │
+   ▼      ▼      ▼      ▼    AES-GCM with key K + nonce
+┌────┐ ┌────┐ ┌────┐ ┌────┐ ┌──────────────┐
+│ C1 │ │ C2 │ │ C3 │ │ C4 │ │Authentication│
+└────┘ └────┘ └────┘ └────┘ │     Tag      │
+                              └──────────────┘
+   All ciphertext blocks are unique. Tag verifies integrity.
+```
+
+#### AES-GCM in Practice
+
+<Tabs>
+  <TabItem label="Python">
+```python
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+import os
+
+def encrypt_aes_gcm(plaintext: bytes, key: bytes,
+                     associated_data: bytes = None) -> tuple:
+    """Encrypt data using AES-256-GCM.
+
+    Returns (nonce, ciphertext) tuple.
+    The nonce MUST be unique for every encryption with the same key.
+    """
+    # Generate a random 96-bit nonce (NEVER reuse with the same key)
+    nonce = os.urandom(12)
+
+    aesgcm = AESGCM(key)
+    ciphertext = aesgcm.encrypt(nonce, plaintext, associated_data)
+    return nonce, ciphertext
+
+
+def decrypt_aes_gcm(nonce: bytes, ciphertext: bytes, key: bytes,
+                     associated_data: bytes = None) -> bytes:
+    """Decrypt data encrypted with AES-256-GCM.
+
+    Raises InvalidTag if ciphertext was tampered with.
+    """
+    aesgcm = AESGCM(key)
+    return aesgcm.decrypt(nonce, ciphertext, associated_data)
+
+
+# Usage
+key = AESGCM.generate_key(bit_length=256)
+message = b"Top secret: launch codes are 12345"
+
+# Associated data is authenticated but NOT encrypted
+# (e.g., a header that must not be tampered with)
+aad = b"message-id:abc123"
+
+nonce, ciphertext = encrypt_aes_gcm(message, key, aad)
+plaintext = decrypt_aes_gcm(nonce, ciphertext, key, aad)
+print(f"Decrypted: {plaintext.decode()}")
+
+# Tamper detection: modify ciphertext and try to decrypt
+tampered = bytearray(ciphertext)
+tampered[0] ^= 0xFF  # flip a bit
+try:
+    decrypt_aes_gcm(nonce, bytes(tampered), key, aad)
+except Exception as e:
+    print(f"Tamper detected: {e}")
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+const crypto = require("crypto");
+
+function encryptAesGcm(plaintext, key) {
+  /**
+   * Encrypt using AES-256-GCM.
+   * Returns an object with iv, ciphertext, and authTag.
+   */
+  // Generate a random 96-bit IV (NEVER reuse with the same key)
+  const iv = crypto.randomBytes(12);
+
+  const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+  let encrypted = cipher.update(plaintext, "utf8", "hex");
+  encrypted += cipher.final("hex");
+  const authTag = cipher.getAuthTag();
+
+  return { iv, ciphertext: encrypted, authTag };
+}
+
+function decryptAesGcm(encrypted, key) {
+  /**
+   * Decrypt AES-256-GCM ciphertext.
+   * Throws if ciphertext has been tampered with.
+   */
+  const decipher = crypto.createDecipheriv(
+    "aes-256-gcm", key, encrypted.iv
+  );
+  decipher.setAuthTag(encrypted.authTag);
+
+  let decrypted = decipher.update(encrypted.ciphertext, "hex", "utf8");
+  decrypted += decipher.final("utf8");
+  return decrypted;
+}
+
+// Usage
+const key = crypto.randomBytes(32); // 256 bits
+const message = "Top secret: launch codes are 12345";
+
+const encrypted = encryptAesGcm(message, key);
+console.log("Ciphertext:", encrypted.ciphertext);
+
+const decrypted = decryptAesGcm(encrypted, key);
+console.log("Decrypted:", decrypted);
+
+// Tamper detection
+const tampered = { ...encrypted };
+tampered.ciphertext = "ff" + encrypted.ciphertext.slice(2);
+try {
+  decryptAesGcm(tampered, key);
+} catch (err) {
+  console.log("Tamper detected:", err.message);
+}
+```
+  </TabItem>
+  <TabItem label="Java">
+```java
+import javax.crypto.Cipher;
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.GCMParameterSpec;
+import java.security.SecureRandom;
+
+public class AesGcmExample {
+    private static final int GCM_TAG_LENGTH = 128; // bits
+    private static final int GCM_IV_LENGTH = 12;   // bytes
+
+    public static byte[][] encrypt(byte[] plaintext, SecretKey key)
+            throws Exception {
+        // Generate a random IV (NEVER reuse with the same key)
+        byte[] iv = new byte[GCM_IV_LENGTH];
+        new SecureRandom().nextBytes(iv);
+
+        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+        cipher.init(Cipher.ENCRYPT_MODE, key,
+                     new GCMParameterSpec(GCM_TAG_LENGTH, iv));
+
+        byte[] ciphertext = cipher.doFinal(plaintext);
+        return new byte[][] { iv, ciphertext };
+    }
+
+    public static byte[] decrypt(byte[] iv, byte[] ciphertext,
+                                  SecretKey key) throws Exception {
+        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+        cipher.init(Cipher.DECRYPT_MODE, key,
+                     new GCMParameterSpec(GCM_TAG_LENGTH, iv));
+        return cipher.doFinal(ciphertext);
+    }
+
+    public static void main(String[] args) throws Exception {
+        KeyGenerator keyGen = KeyGenerator.getInstance("AES");
+        keyGen.init(256);
+        SecretKey key = keyGen.generateKey();
+
+        byte[] plaintext = "Top secret message".getBytes();
+        byte[][] result = encrypt(plaintext, key);
+        byte[] decrypted = decrypt(result[0], result[1], key);
+
+        System.out.println("Decrypted: " + new String(decrypted));
+    }
+}
+```
+  </TabItem>
+</Tabs>
+
+### ChaCha20-Poly1305
+
+**ChaCha20-Poly1305** is a modern authenticated encryption cipher designed by Daniel J. Bernstein. It is the primary alternative to AES-GCM.
+
+| Property | AES-256-GCM | ChaCha20-Poly1305 |
+|----------|-------------|-------------------|
+| **Key size** | 256 bits | 256 bits |
+| **Nonce size** | 96 bits | 96 bits |
+| **Speed (with AES-NI)** | Faster | Slightly slower |
+| **Speed (without AES-NI)** | Slower | Much faster |
+| **Side-channel resistance** | Requires careful implementation | Naturally resistant |
+| **Used by** | Most systems | TLS 1.3, WireGuard, SSH |
+
+:::tip[When to Use ChaCha20-Poly1305]
+Choose ChaCha20-Poly1305 when your target platform **lacks hardware AES acceleration** (mobile devices, embedded systems, older CPUs) or when you need **constant-time execution** to resist side-channel attacks. For server-side encryption on modern hardware, AES-GCM is typically faster.
+:::
+
+---
+
+## Asymmetric Encryption
+
+In asymmetric (public-key) encryption, there are **two mathematically linked keys**: a **public key** that anyone can know and a **private key** that must be kept secret.
+
+```
+┌──────────────────────────────────────────────────────────┐
+│                 Asymmetric Encryption                     │
+│                                                          │
+│  Alice generates a key pair:                             │
+│    Public Key  (shared with everyone)                    │
+│    Private Key (kept secret by Alice)                    │
+│                                                          │
+│  Bob encrypts with Alice's PUBLIC key:                   │
+│  ┌──────────┐  Alice's Public Key  ┌──────────┐        │
+│  │ Plaintext│─────────────────────▶│Ciphertext│        │
+│  └──────────┘                      └──────────┘        │
+│                                                          │
+│  Only Alice can decrypt with her PRIVATE key:            │
+│  ┌──────────┐  Alice's Private Key ┌──────────┐        │
+│  │Ciphertext│─────────────────────▶│ Plaintext│        │
+│  └──────────┘                      └──────────┘        │
+│                                                          │
+│  Even Bob cannot decrypt what he encrypted.              │
+└──────────────────────────────────────────────────────────┘
+```
+
+### RSA
+
+**RSA** (Rivest-Shamir-Adleman) was the first practical public-key cryptosystem (1977). Its security is based on the difficulty of **factoring the product of two large prime numbers**.
+
+| Property | Recommendation |
+|----------|---------------|
+| **Minimum key size** | 2048 bits (3072+ recommended for post-2030) |
+| **Padding scheme** | OAEP for encryption, PSS for signing |
+| **Performance** | Slow — do not use for bulk data |
+| **Status** | Widely used but being replaced by elliptic curve alternatives |
+
+<Tabs>
+  <TabItem label="Python">
+```python
+from cryptography.hazmat.primitives.asymmetric import rsa, padding
+from cryptography.hazmat.primitives import hashes, serialization
+
+# Generate RSA key pair
+private_key = rsa.generate_private_key(
+    public_exponent=65537,
+    key_size=2048,
+)
+public_key = private_key.public_key()
+
+# Encrypt with public key (anyone can do this)
+message = b"Confidential: merger details inside"
+ciphertext = public_key.encrypt(
+    message,
+    padding.OAEP(
+        mgf=padding.MGF1(algorithm=hashes.SHA256()),
+        algorithm=hashes.SHA256(),
+        label=None,
+    ),
+)
+
+# Decrypt with private key (only the key holder)
+plaintext = private_key.decrypt(
+    ciphertext,
+    padding.OAEP(
+        mgf=padding.MGF1(algorithm=hashes.SHA256()),
+        algorithm=hashes.SHA256(),
+        label=None,
+    ),
+)
+print(f"Decrypted: {plaintext.decode()}")
+
+# Serialize keys for storage/transmission
+pem_private = private_key.private_bytes(
+    encoding=serialization.Encoding.PEM,
+    format=serialization.PrivateFormat.PKCS8,
+    encryption_algorithm=serialization.BestAvailableEncryption(
+        b"passphrase"
+    ),
+)
+
+pem_public = public_key.public_bytes(
+    encoding=serialization.Encoding.PEM,
+    format=serialization.PublicFormat.SubjectPublicKeyInfo,
+)
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+const crypto = require("crypto");
+
+// Generate RSA key pair
+const { publicKey, privateKey } = crypto.generateKeyPairSync("rsa", {
+  modulusLength: 2048,
+  publicKeyEncoding: { type: "spki", format: "pem" },
+  privateKeyEncoding: { type: "pkcs8", format: "pem" },
+});
+
+// Encrypt with public key
+const message = "Confidential: merger details inside";
+const ciphertext = crypto.publicEncrypt(
+  {
+    key: publicKey,
+    padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
+    oaepHash: "sha256",
+  },
+  Buffer.from(message)
+);
+
+// Decrypt with private key
+const plaintext = crypto.privateDecrypt(
+  {
+    key: privateKey,
+    padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
+    oaepHash: "sha256",
+  },
+  ciphertext
+);
+
+console.log("Decrypted:", plaintext.toString());
+```
+  </TabItem>
+</Tabs>
+
+### Elliptic Curve Cryptography (ECC)
+
+**ECC** provides the same security level as RSA with **much smaller key sizes**, making it faster and more efficient.
+
+| Security Level | RSA Key Size | ECC Key Size | Improvement |
+|---------------|-------------|-------------|-------------|
+| 80-bit | 1024 bits | 160 bits | 6x smaller |
+| 112-bit | 2048 bits | 224 bits | 9x smaller |
+| 128-bit | 3072 bits | 256 bits | 12x smaller |
+| 192-bit | 7680 bits | 384 bits | 20x smaller |
+| 256-bit | 15360 bits | 521 bits | 30x smaller |
+
+**Common ECC algorithms**:
+
+| Algorithm | Purpose | Curve |
+|-----------|---------|-------|
+| **ECDSA** | Digital signatures | P-256, P-384 |
+| **Ed25519** | Digital signatures | Curve25519 |
+| **ECDH** | Key exchange | P-256, X25519 |
+| **ECIES** | Encryption | Various |
+
+:::tip[Prefer Ed25519 for Signatures]
+**Ed25519** is faster, simpler, and more resistant to implementation errors than ECDSA. It is the recommended choice for new applications requiring digital signatures. It is used by SSH, Signal, and many modern protocols.
+:::
+
+---
+
+## Diffie-Hellman Key Exchange
+
+**Diffie-Hellman** (DH) solves the key distribution problem by allowing two parties to **derive a shared secret** over an untrusted channel without ever transmitting the key itself.
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│              Diffie-Hellman Key Exchange (ECDH)               │
+│                                                              │
+│  Alice                                              Bob     │
+│  ──────                                            ─────    │
+│  1. Generate private key: a                                  │
+│     Compute public key: A = a * G     ──── A ────▶          │
+│                                                              │
+│  2.                                    ◀── B ────           │
+│     Bob generates private key: b                             │
+│     Computes public key: B = b * G                           │
+│                                                              │
+│  3. Alice computes:                    Bob computes:         │
+│     shared = a * B                     shared = b * A        │
+│     shared = a * (b * G)               shared = b * (a * G) │
+│     shared = ab * G                    shared = ab * G       │
+│                                                              │
+│  Both arrive at the SAME shared secret: ab * G               │
+│  An eavesdropper knows A and B but cannot compute ab * G     │
+│  (this is the Elliptic Curve Discrete Logarithm Problem)     │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### ECDH in Practice
+
+<Tabs>
+  <TabItem label="Python">
+```python
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+
+# Alice generates her key pair
+alice_private = ec.generate_private_key(ec.SECP256R1())
+alice_public = alice_private.public_key()
+
+# Bob generates his key pair
+bob_private = ec.generate_private_key(ec.SECP256R1())
+bob_public = bob_private.public_key()
+
+# Alice and Bob exchange public keys (over untrusted channel)
+# Then each computes the shared secret:
+
+alice_shared = alice_private.exchange(ec.ECDH(), bob_public)
+bob_shared = bob_private.exchange(ec.ECDH(), alice_public)
+
+# Both arrive at the same shared secret
+assert alice_shared == bob_shared
+
+# Derive a usable encryption key from the shared secret
+# (raw shared secret should not be used directly as a key)
+alice_key = HKDF(
+    algorithm=hashes.SHA256(),
+    length=32,
+    salt=None,
+    info=b"encryption-key",
+).derive(alice_shared)
+
+bob_key = HKDF(
+    algorithm=hashes.SHA256(),
+    length=32,
+    salt=None,
+    info=b"encryption-key",
+).derive(bob_shared)
+
+assert alice_key == bob_key
+print("Shared key derived successfully!")
+print(f"Key: {alice_key.hex()}")
+```
+  </TabItem>
+  <TabItem label="JavaScript">
+```javascript
+const crypto = require("crypto");
+
+// Alice generates her key pair
+const alice = crypto.createECDH("prime256v1");
+alice.generateKeys();
+
+// Bob generates his key pair
+const bob = crypto.createECDH("prime256v1");
+bob.generateKeys();
+
+// Exchange public keys over untrusted channel
+const alicePublicKey = alice.getPublicKey();
+const bobPublicKey = bob.getPublicKey();
+
+// Each computes the shared secret
+const aliceShared = alice.computeSecret(bobPublicKey);
+const bobShared = bob.computeSecret(alicePublicKey);
+
+// Both arrive at the same shared secret
+console.log("Secrets match:", aliceShared.equals(bobShared));
+
+// Derive a usable encryption key using HKDF
+const sharedKey = crypto.hkdfSync(
+  "sha256",
+  aliceShared,
+  Buffer.alloc(0), // salt
+  "encryption-key", // info
+  32 // key length
+);
+
+console.log("Derived key:", Buffer.from(sharedKey).toString("hex"));
+```
+  </TabItem>
+</Tabs>
+
+### Ephemeral Diffie-Hellman (ECDHE)
+
+In practice, Diffie-Hellman keys should be **ephemeral** — generated fresh for each session. This provides **forward secrecy**: even if a long-term key is compromised in the future, past sessions remain secure.
+
+```
+Without forward secrecy:
+  Attacker records encrypted traffic today.
+  Years later, attacker steals the server's private key.
+  Attacker decrypts ALL recorded past traffic. ✗
+
+With forward secrecy (ECDHE):
+  Each session uses a unique ephemeral DH key.
+  Ephemeral keys are discarded after the session.
+  Even if the server's long-term key is stolen,
+  past session keys cannot be recovered. ✓
+```
+
+---
+
+## Hybrid Encryption
+
+Asymmetric encryption is too slow for bulk data. Symmetric encryption requires a shared key. The solution is **hybrid encryption**: use asymmetric encryption to securely exchange a symmetric key, then use that symmetric key for the actual data.
+
+```
+┌──────────────────────────────────────────────────────────┐
+│                    Hybrid Encryption                      │
+│                                                          │
+│  Step 1: Generate a random symmetric key (session key)   │
+│          K = random_bytes(32)                            │
+│                                                          │
+│  Step 2: Encrypt the session key with RSA/ECDH           │
+│          encrypted_K = RSA_encrypt(K, recipient_pubkey)  │
+│                                                          │
+│  Step 3: Encrypt the data with AES-GCM using K           │
+│          ciphertext = AES_GCM_encrypt(data, K)           │
+│                                                          │
+│  Step 4: Send both encrypted_K and ciphertext            │
+│          [encrypted_K | nonce | ciphertext | auth_tag]   │
+│                                                          │
+│  Recipient:                                              │
+│  1. Decrypt K with their private key                     │
+│  2. Decrypt ciphertext with K                            │
+└──────────────────────────────────────────────────────────┘
+```
+
+<Tabs>
+  <TabItem label="Python">
+```python
+from cryptography.hazmat.primitives.asymmetric import rsa, padding
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.hazmat.primitives import hashes
+import os
+
+def hybrid_encrypt(plaintext: bytes, recipient_public_key) -> dict:
+    """Encrypt data using hybrid RSA + AES-GCM."""
+    # 1. Generate a random AES session key
+    session_key = AESGCM.generate_key(bit_length=256)
+
+    # 2. Encrypt the session key with RSA
+    encrypted_key = recipient_public_key.encrypt(
+        session_key,
+        padding.OAEP(
+            mgf=padding.MGF1(algorithm=hashes.SHA256()),
+            algorithm=hashes.SHA256(),
+            label=None,
+        ),
+    )
+
+    # 3. Encrypt the data with AES-GCM
+    nonce = os.urandom(12)
+    aesgcm = AESGCM(session_key)
+    ciphertext = aesgcm.encrypt(nonce, plaintext, None)
+
+    return {
+        "encrypted_key": encrypted_key,
+        "nonce": nonce,
+        "ciphertext": ciphertext,
+    }
+
+
+def hybrid_decrypt(encrypted: dict, recipient_private_key) -> bytes:
+    """Decrypt data encrypted with hybrid RSA + AES-GCM."""
+    # 1. Decrypt the session key with RSA
+    session_key = recipient_private_key.decrypt(
+        encrypted["encrypted_key"],
+        padding.OAEP(
+            mgf=padding.MGF1(algorithm=hashes.SHA256()),
+            algorithm=hashes.SHA256(),
+            label=None,
+        ),
+    )
+
+    # 2. Decrypt the data with AES-GCM
+    aesgcm = AESGCM(session_key)
+    return aesgcm.decrypt(
+        encrypted["nonce"], encrypted["ciphertext"], None
+    )
+
+
+# Usage
+private_key = rsa.generate_private_key(
+    public_exponent=65537, key_size=2048
+)
+public_key = private_key.public_key()
+
+# Encrypt a large file (only the 256-bit key goes through RSA)
+large_data = b"x" * 10_000_000  # 10 MB
+encrypted = hybrid_encrypt(large_data, public_key)
+decrypted = hybrid_decrypt(encrypted, private_key)
+assert decrypted == large_data
+print("Hybrid encryption: 10 MB encrypted and decrypted successfully")
+```
+  </TabItem>
+</Tabs>
+
+:::note
+**TLS uses hybrid encryption** internally. During the TLS handshake, asymmetric cryptography (ECDHE) establishes a shared secret. That secret is used to derive symmetric keys (AES-GCM or ChaCha20-Poly1305) for encrypting the actual application data.
+:::
+
+---
+
+## Algorithm Selection Guide
+
+| Scenario | Recommended Algorithm |
+|----------|----------------------|
+| Encrypting files at rest | AES-256-GCM |
+| Encrypting in constrained environments | ChaCha20-Poly1305 |
+| Encrypting data for a specific recipient | Hybrid: RSA-OAEP + AES-GCM |
+| Key exchange for a session | ECDHE (X25519 or P-256) |
+| Digital signatures | Ed25519 (preferred) or ECDSA P-256 |
+| Legacy compatibility | RSA-2048 with OAEP padding |
+
+### What to Avoid
+
+| Algorithm | Why | Replacement |
+|-----------|-----|-------------|
+| DES, 3DES | 56-bit keys (DES), slow (3DES) | AES-256 |
+| RC4 | Multiple known attacks | AES-GCM or ChaCha20 |
+| RSA-1024 | Factorable with modern hardware | RSA-2048+ or ECC |
+| RSA with PKCS#1 v1.5 | Padding oracle attacks | RSA-OAEP |
+| Blowfish | 64-bit block size causes issues at scale | AES-256 |
+
+---
+
+## Key Management Best Practices
+
+The strongest cipher is worthless if keys are mismanaged.
+
+| Practice | Why |
+|----------|-----|
+| **Never hardcode keys** in source code | Keys will end up in version control |
+| **Use a Key Management Service** (AWS KMS, GCP KMS, HashiCorp Vault) | Centralized, audited key lifecycle |
+| **Rotate keys periodically** | Limits exposure from a single compromise |
+| **Use separate keys** for separate purposes | Encryption key differs from signing key |
+| **Generate keys with cryptographic randomness** | Use `os.urandom()`, `crypto.randomBytes()`, `SecureRandom` |
+| **Encrypt keys at rest** | Master keys protect data keys (envelope encryption) |
+| **Destroy keys securely** when no longer needed | Prevent recovery from memory or disk |
+
+---
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard
+    title="Hashing & Digital Signatures"
+    href="/software-engineering/cryptography/hashing-signatures/"
+    description="Learn about SHA-256, bcrypt, Argon2, HMAC, digital signatures, and password hashing best practices"
+  />
+  <LinkCard
+    title="TLS & PKI"
+    href="/software-engineering/cryptography/tls-pki/"
+    description="Understand TLS 1.3 handshake, certificates, Certificate Authorities, and public key infrastructure"
+  />
+</CardGrid>

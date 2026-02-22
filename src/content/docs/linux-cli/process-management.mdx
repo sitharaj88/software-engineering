@@ -1,0 +1,530 @@
+---
+title: "Process Management"
+description: "Master Linux process management -- process lifecycle, ps/top/htop, signals, background jobs, systemd service management, cron jobs, and resource limits"
+difficulty: "intermediate"
+prerequisites: ["Linux & CLI Overview", "File System & Permissions"]
+timeToRead: "23 min"
+topics: ["linux", "processes", "signals", "systemd", "cron", "resource-limits", "process-management"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+## Process Lifecycle
+
+A **process** is an instance of a running program. Every command you execute creates a process with its own memory space, file descriptors, and execution context.
+
+```
+    Process Lifecycle:
+
+    ┌──────────┐     fork()     ┌──────────┐
+    │  Parent  │───────────────▶│  Child   │
+    │  Process │                │  Process │
+    └──────────┘                └────┬─────┘
+                                     │ exec()
+                                     ▼
+                                ┌──────────┐
+                                │  Running  │
+                                └────┬─────┘
+                                     │
+                    ┌────────────────┼────────────────┐
+                    │                │                │
+                    ▼                ▼                ▼
+               ┌─────────┐    ┌──────────┐    ┌──────────┐
+               │ Sleeping │    │ Stopped  │    │  Zombie  │
+               │ (waiting │    │ (SIGSTOP)│    │ (exited, │
+               │  for I/O)│    │          │    │  parent  │
+               └─────────┘    └──────────┘    │  hasn't  │
+                    │                │         │  waited) │
+                    │                │         └──────────┘
+                    └────────────────┘
+                              │
+                              ▼
+                         ┌──────────┐
+                         │Terminated│
+                         │  (exit)  │
+                         └──────────┘
+```
+
+### Process States
+
+| State | Code | Description |
+|-------|------|-------------|
+| **Running** | R | Actively executing on CPU or ready to run |
+| **Sleeping** | S | Waiting for an event (I/O, timer, signal) |
+| **Uninterruptible Sleep** | D | Waiting for I/O that cannot be interrupted |
+| **Stopped** | T | Paused by a signal (SIGSTOP/SIGTSTP) |
+| **Zombie** | Z | Exited but parent has not called wait() |
+| **Dead** | X | Being removed from process table |
+
+## Viewing Processes
+
+### ps -- Process Snapshot
+
+```bash
+# All processes with full details
+ps aux
+# USER  PID %CPU %MEM    VSZ   RSS TTY  STAT START   TIME COMMAND
+# root    1  0.0  0.1 169692 13088 ?    Ss   Mar10   0:15 /sbin/init
+# alice 5432  2.3  1.5 450012 120540 ?   Sl   14:30   1:20 python app.py
+
+# Process tree (shows parent-child relationships)
+ps auxf
+
+# Find specific processes
+ps aux | grep python
+ps -ef | grep "[n]ginx"   # Brackets trick: avoids matching grep itself
+
+# Show only specific columns
+ps -eo pid,ppid,user,%cpu,%mem,stat,cmd --sort=-%cpu | head -20
+
+# Show threads
+ps -eLf    # All threads for all processes
+
+# Process for a specific PID
+ps -p 5432 -o pid,ppid,user,%cpu,%mem,cmd
+```
+
+### top -- Live Process Monitor
+
+```
+    top output explained:
+
+    top - 14:32:01 up 45 days,  3:21,  2 users,  load average: 0.85, 1.20, 0.95
+    Tasks: 312 total,   2 running, 308 sleeping,   0 stopped,   2 zombie
+    %Cpu(s): 12.5 us,  3.2 sy,  0.0 ni, 82.8 id,  1.0 wa,  0.0 hi,  0.5 si
+    MiB Mem :  16384.0 total,   2048.0 free,  10240.0 used,   4096.0 buff/cache
+    MiB Swap:   8192.0 total,   7680.0 free,    512.0 used.   5632.0 avail Mem
+
+      PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND
+     5432 alice     20   0  450012 120540  18200 S  12.3   7.4   1:20.45 python
+     1234 root      20   0  980112 256000  32000 S   8.1  15.6   5:43.21 java
+     ...
+
+    Load Average: 0.85, 1.20, 0.95
+    └── 1 min, 5 min, 15 min averages
+    └── Values > number of CPUs = overloaded
+
+    Key fields:
+    us = user space CPU       sy = kernel/system CPU
+    ni = nice (reprioritized) id = idle
+    wa = I/O wait             hi = hardware interrupts
+    si = software interrupts  st = steal (VM overhead)
+```
+
+```bash
+# Interactive top commands (press while top is running):
+# P  = Sort by CPU
+# M  = Sort by Memory
+# k  = Kill a process (enter PID)
+# r  = Renice a process
+# 1  = Show per-CPU stats
+# c  = Show full command line
+# q  = Quit
+
+# htop (enhanced version -- install: apt install htop)
+htop
+# Features: scrolling, mouse support, tree view,
+# search, filter, color-coded
+```
+
+### Other Monitoring Tools
+
+```bash
+# pidof -- find PID by name
+pidof nginx            # Returns: 1234 1235 1236
+
+# pgrep -- find processes by pattern
+pgrep -f "python app"  # Search full command line
+pgrep -u alice          # Processes by user
+
+# lsof -- list open files (everything is a file)
+lsof -p 5432           # Files opened by PID 5432
+lsof -i :8080          # What process is using port 8080?
+lsof -u alice          # Files opened by user alice
+
+# strace -- trace system calls (debugging)
+strace -p 5432         # Attach to running process
+strace ls /tmp         # Trace a command
+strace -e trace=open,read,write ls  # Trace specific calls
+```
+
+## Signals
+
+Signals are software interrupts sent to processes. They provide a mechanism for inter-process communication and process control.
+
+```
+    Signal Delivery:
+
+    ┌──────────┐   SIGTERM    ┌──────────┐
+    │  Sender  │─────────────▶│  Target  │
+    │ (kill)   │              │  Process │
+    └──────────┘              └────┬─────┘
+                                   │
+                              Can the process
+                              handle this signal?
+                                   │
+                            ┌──────┴──────┐
+                            │             │
+                           Yes            No
+                            │             │
+                      ┌─────▼─────┐  ┌────▼─────┐
+                      │  Custom   │  │  Default  │
+                      │  Handler  │  │  Action   │
+                      │ (cleanup) │  │(terminate)│
+                      └───────────┘  └──────────┘
+```
+
+### Common Signals
+
+| Signal | Number | Default Action | Can Be Caught? | Description |
+|--------|--------|---------------|----------------|-------------|
+| **SIGHUP** | 1 | Terminate | Yes | Terminal closed or config reload |
+| **SIGINT** | 2 | Terminate | Yes | Ctrl+C (interrupt) |
+| **SIGQUIT** | 3 | Core dump | Yes | Ctrl+\\ (quit with dump) |
+| **SIGKILL** | 9 | Terminate | **No** | Force kill (cannot be handled) |
+| **SIGTERM** | 15 | Terminate | Yes | Graceful termination (default) |
+| **SIGSTOP** | 19 | Stop | **No** | Pause process (cannot be handled) |
+| **SIGCONT** | 18 | Continue | Yes | Resume paused process |
+| **SIGUSR1** | 10 | Terminate | Yes | User-defined signal 1 |
+| **SIGUSR2** | 12 | Terminate | Yes | User-defined signal 2 |
+| **SIGCHLD** | 17 | Ignore | Yes | Child process exited |
+
+### Sending Signals
+
+```bash
+# kill -- send signal to a process
+kill 5432              # Send SIGTERM (graceful stop)
+kill -15 5432          # Same as above (explicit)
+kill -9 5432           # Send SIGKILL (force kill)
+kill -HUP 5432         # Send SIGHUP (reload config)
+
+# killall -- kill by name
+killall python         # SIGTERM all python processes
+killall -9 java        # Force kill all java processes
+
+# pkill -- kill by pattern
+pkill -f "python app"  # Kill by command pattern
+pkill -u alice         # Kill all processes by user
+
+# Signal a process group
+kill -TERM -$(pgrep -o python)  # Kill process group
+```
+
+:::caution
+**Always try SIGTERM before SIGKILL.** SIGTERM (the default) gives the process a chance to clean up -- close files, finish transactions, release locks. SIGKILL (signal 9) immediately destroys the process with no cleanup, which can cause data corruption, orphaned locks, and incomplete transactions.
+:::
+
+## Background and Foreground Jobs
+
+```bash
+# Run a command in the background
+long_running_command &
+# The shell returns immediately. The command runs in background.
+
+# Example
+python train_model.py &
+# [1] 5432      (job number 1, PID 5432)
+
+# List background jobs
+jobs
+# [1]+  Running    python train_model.py &
+# [2]-  Stopped    vim config.yaml
+
+# Bring a background job to foreground
+fg %1              # Bring job 1 to foreground
+
+# Send a foreground job to background
+# Press Ctrl+Z first (sends SIGTSTP → stops the job)
+# Then:
+bg %1              # Resume job 1 in background
+
+# Keep a process running after logout
+nohup long_command &
+# Output goes to nohup.out by default
+
+# Better: use disown
+long_command &
+disown %1          # Detach from shell
+
+# Best for long-running commands: screen or tmux
+# (covered in Networking & Tools)
+```
+
+## systemd and Service Management
+
+**systemd** is the init system and service manager used by most modern Linux distributions. It manages system services, mount points, timers, and more.
+
+```
+    systemd Architecture:
+
+    ┌──────────────────────────────────────────────────┐
+    │                    systemd                        │
+    │                    (PID 1)                        │
+    │                                                  │
+    │  ┌──────────────┐ ┌──────────────┐ ┌──────────┐ │
+    │  │   Services   │ │   Timers     │ │  Targets │ │
+    │  │  (.service)  │ │  (.timer)    │ │ (.target)│ │
+    │  │              │ │              │ │          │ │
+    │  │  nginx       │ │  backup      │ │ multi-   │ │
+    │  │  postgresql  │ │  logrotate   │ │ user     │ │
+    │  │  myapp       │ │              │ │ graphical│ │
+    │  └──────────────┘ └──────────────┘ └──────────┘ │
+    └──────────────────────────────────────────────────┘
+```
+
+### Managing Services
+
+```bash
+# Start, stop, restart a service
+sudo systemctl start nginx
+sudo systemctl stop nginx
+sudo systemctl restart nginx
+sudo systemctl reload nginx      # Reload config without restart
+
+# Check status
+systemctl status nginx
+# ● nginx.service - A high performance web server
+#    Loaded: loaded (/lib/systemd/system/nginx.service; enabled)
+#    Active: active (running) since Mon 2024-03-15 10:00:00 UTC
+#    Main PID: 1234 (nginx)
+#    Tasks: 5 (limit: 4915)
+#    Memory: 12.4M
+#    CGroup: /system.slice/nginx.service
+#            ├─1234 nginx: master process
+#            ├─1235 nginx: worker process
+#            └─1236 nginx: worker process
+
+# Enable/disable on boot
+sudo systemctl enable nginx      # Start on boot
+sudo systemctl disable nginx     # Don't start on boot
+
+# Check if enabled/active
+systemctl is-active nginx        # active
+systemctl is-enabled nginx       # enabled
+
+# List all services
+systemctl list-units --type=service
+systemctl list-units --type=service --state=running
+
+# View service logs
+journalctl -u nginx              # All logs
+journalctl -u nginx --since "1 hour ago"
+journalctl -u nginx -f           # Follow (live tail)
+journalctl -u nginx -n 50        # Last 50 lines
+```
+
+### Creating a Custom Service
+
+```ini
+# /etc/systemd/system/myapp.service
+[Unit]
+Description=My Application
+Documentation=https://docs.myapp.example
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=appuser
+Group=appgroup
+WorkingDirectory=/opt/myapp
+ExecStart=/opt/myapp/venv/bin/python app.py
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+Environment=NODE_ENV=production
+EnvironmentFile=/opt/myapp/.env
+
+# Resource limits
+LimitNOFILE=65535
+MemoryMax=512M
+CPUQuota=200%
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/myapp/data /var/log/myapp
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+# After creating/modifying a service file:
+sudo systemctl daemon-reload     # Reload systemd config
+sudo systemctl start myapp       # Start the service
+sudo systemctl enable myapp      # Enable on boot
+systemctl status myapp           # Verify
+```
+
+## Cron Jobs
+
+**cron** schedules recurring tasks (jobs) to run automatically at specified times.
+
+### Crontab Syntax
+
+```
+    Crontab Format:
+    ┌───────────── minute (0-59)
+    │ ┌───────────── hour (0-23)
+    │ │ ┌───────────── day of month (1-31)
+    │ │ │ ┌───────────── month (1-12)
+    │ │ │ │ ┌───────────── day of week (0-7, 0 and 7 = Sunday)
+    │ │ │ │ │
+    * * * * * command to execute
+
+    Examples:
+    30 2 * * *     Run at 2:30 AM every day
+    0 */4 * * *    Run every 4 hours
+    0 9 * * 1-5    Run at 9 AM, Monday-Friday
+    */15 * * * *   Run every 15 minutes
+    0 0 1 * *      Run at midnight on the 1st of each month
+    0 0 * * 0      Run at midnight every Sunday
+    @reboot        Run once at system startup
+    @daily         Run once a day (0 0 * * *)
+    @hourly        Run once an hour (0 * * * *)
+```
+
+### Managing Cron Jobs
+
+```bash
+# Edit your crontab
+crontab -e
+
+# List your cron jobs
+crontab -l
+
+# Remove all your cron jobs
+crontab -r
+
+# Edit crontab for another user (as root)
+sudo crontab -u alice -e
+
+# Example crontab entries
+# Database backup at 2:30 AM daily
+30 2 * * * /opt/scripts/db_backup.sh >> /var/log/backup.log 2>&1
+
+# Clean temp files every 6 hours
+0 */6 * * * find /tmp -type f -mtime +7 -delete
+
+# Health check every 5 minutes
+*/5 * * * * curl -sf http://localhost:8080/health || /opt/scripts/alert.sh
+
+# Log rotation at midnight
+0 0 * * * /usr/sbin/logrotate /etc/logrotate.conf
+
+# Monitoring report every Monday at 9 AM
+0 9 * * 1 /opt/scripts/weekly_report.sh | mail -s "Weekly Report" team@example.com
+```
+
+:::tip
+**Use systemd timers instead of cron** for better logging, dependency management, and resource control. Systemd timers integrate with `journalctl` and can be managed with `systemctl`.
+:::
+
+### Systemd Timer (Alternative to Cron)
+
+```ini
+# /etc/systemd/system/backup.timer
+[Unit]
+Description=Daily database backup
+
+[Timer]
+OnCalendar=*-*-* 02:30:00
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target
+```
+
+```ini
+# /etc/systemd/system/backup.service
+[Unit]
+Description=Database backup
+
+[Service]
+Type=oneshot
+ExecStart=/opt/scripts/db_backup.sh
+User=backup
+```
+
+```bash
+sudo systemctl enable --now backup.timer
+systemctl list-timers --all
+```
+
+## Resource Limits
+
+Linux provides mechanisms to limit the resources a process can consume.
+
+### ulimit -- User Resource Limits
+
+```bash
+# View all limits
+ulimit -a
+
+# Common limits
+ulimit -n          # Max open files (default: 1024)
+ulimit -u          # Max user processes
+ulimit -m          # Max memory size (KB)
+ulimit -v          # Max virtual memory (KB)
+ulimit -s          # Max stack size (KB)
+
+# Set limits for current session
+ulimit -n 65535    # Increase open file limit
+
+# Permanent limits in /etc/security/limits.conf
+# <domain> <type> <item> <value>
+# alice    soft   nofile  65535
+# alice    hard   nofile  65535
+# @devs    soft   nproc   4096
+# *        soft   core    0      (disable core dumps)
+```
+
+### cgroups -- Resource Control Groups
+
+```bash
+# View cgroup usage for a service
+systemctl show myapp --property=MemoryCurrent
+systemctl show myapp --property=CPUUsageNSec
+
+# Set resource limits in systemd unit
+# [Service]
+# MemoryMax=512M         # Hard memory limit
+# MemoryHigh=384M        # Soft memory limit (throttle)
+# CPUQuota=200%          # Max 2 CPU cores
+# IOWeight=100           # I/O priority (1-10000)
+# TasksMax=256           # Max number of tasks
+
+# Runtime adjustment
+sudo systemctl set-property myapp MemoryMax=1G
+```
+
+## Summary
+
+| Concept | Key Takeaway |
+|---------|-------------|
+| **Process Lifecycle** | Fork, exec, run, exit -- every command creates a process |
+| **ps / top / htop** | View running processes, CPU/memory usage |
+| **Signals** | SIGTERM for graceful stop, SIGKILL as last resort |
+| **Background Jobs** | Use `&`, `nohup`, or `disown` for long-running tasks |
+| **systemd** | Modern service manager -- `systemctl start/stop/enable` |
+| **Custom Services** | Create `.service` files in `/etc/systemd/system/` |
+| **Cron** | Schedule recurring tasks with crontab expressions |
+| **Resource Limits** | Use `ulimit`, cgroups, and systemd properties |
+
+<CardGrid>
+  <LinkCard
+    title="Networking & CLI Tools"
+    description="Learn essential networking tools, SSH, and power CLI utilities"
+    href="/software-engineering/linux-cli/networking-tools/"
+  />
+  <LinkCard
+    title="File System & Permissions"
+    description="Review filesystem hierarchy and permissions"
+    href="/software-engineering/linux-cli/filesystem-permissions/"
+  />
+</CardGrid>

@@ -1,0 +1,611 @@
+---
+title: "Networking & CLI Tools"
+description: "Essential networking tools and power CLI utilities -- curl, wget, SSH, netstat, dig, iptables, tmux, jq, awk, sed, and xargs for productive engineering"
+difficulty: "intermediate"
+prerequisites: ["Linux & CLI Overview", "Shell Scripting", "Computer Networks basics"]
+timeToRead: "25 min"
+topics: ["networking", "ssh", "curl", "tmux", "cli-tools", "iptables", "jq", "awk", "sed"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+## HTTP Tools: curl and wget
+
+### curl -- Transfer Data with URLs
+
+`curl` is the Swiss Army knife of HTTP tools. It supports HTTP, HTTPS, FTP, and dozens of other protocols.
+
+```bash
+# Basic GET request
+curl https://api.example.com/users
+
+# Verbose output (see headers, TLS handshake)
+curl -v https://api.example.com/users
+
+# Show response headers only
+curl -I https://api.example.com/users
+
+# Show response headers AND body
+curl -i https://api.example.com/users
+
+# POST with JSON body
+curl -X POST https://api.example.com/users \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer TOKEN" \
+  -d '{"name": "Alice", "email": "alice@example.com"}'
+
+# PUT request
+curl -X PUT https://api.example.com/users/123 \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Alice Updated"}'
+
+# DELETE request
+curl -X DELETE https://api.example.com/users/123
+
+# Upload a file
+curl -F "file=@report.pdf" https://api.example.com/upload
+
+# Follow redirects
+curl -L https://short.url/abc
+
+# Save output to file
+curl -o output.html https://example.com
+curl -O https://example.com/file.tar.gz  # Keep original name
+
+# Set timeout
+curl --connect-timeout 5 --max-time 30 https://api.example.com
+
+# Silent mode (no progress bar) + fail on HTTP errors
+curl -sf https://api.example.com/health
+
+# Send data from a file
+curl -X POST https://api.example.com/data \
+  -H "Content-Type: application/json" \
+  -d @payload.json
+
+# Basic authentication
+curl -u username:password https://api.example.com/secure
+
+# Custom headers
+curl -H "X-Request-ID: abc123" \
+     -H "Accept: application/json" \
+     https://api.example.com/data
+
+# Pipe JSON output through jq for formatting
+curl -s https://api.example.com/users | jq '.'
+```
+
+### wget -- Download Files
+
+```bash
+# Download a file
+wget https://example.com/file.tar.gz
+
+# Download to specific filename
+wget -O myfile.tar.gz https://example.com/file.tar.gz
+
+# Resume interrupted download
+wget -c https://example.com/large-file.iso
+
+# Download recursively (mirror a website)
+wget -r -l 2 --no-parent https://docs.example.com/
+
+# Download in background
+wget -b https://example.com/large-file.iso
+
+# Quiet mode
+wget -q https://example.com/file.tar.gz
+
+# Rate limit (100KB/s)
+wget --limit-rate=100k https://example.com/large-file.iso
+```
+
+## Network Diagnostics
+
+### netstat / ss -- Network Connections
+
+`ss` (socket statistics) is the modern replacement for `netstat`.
+
+```bash
+# Show all listening ports
+ss -tlnp
+# -t = TCP, -l = listening, -n = numeric, -p = process
+
+# Show all connections
+ss -tanp
+
+# Show UDP connections
+ss -uanp
+
+# Find what's using a specific port
+ss -tlnp | grep :8080
+# or
+ss -tlnp 'sport = :8080'
+
+# Show connection statistics
+ss -s
+
+# Legacy netstat (still common)
+netstat -tlnp         # Listening TCP ports
+netstat -an           # All connections
+netstat -rn           # Routing table
+```
+
+### dig / nslookup -- DNS Queries
+
+```bash
+# Look up A record (IP address)
+dig example.com
+# or
+dig example.com A
+
+# Short answer only
+dig +short example.com
+
+# Look up specific record types
+dig example.com MX      # Mail servers
+dig example.com TXT     # Text records (SPF, DKIM)
+dig example.com NS      # Name servers
+dig example.com CNAME   # Canonical name
+dig example.com AAAA    # IPv6 address
+
+# Use a specific DNS server
+dig @8.8.8.8 example.com
+
+# Reverse DNS lookup
+dig -x 93.184.216.34
+
+# Trace DNS resolution path
+dig +trace example.com
+
+# nslookup (simpler alternative)
+nslookup example.com
+nslookup -type=MX example.com
+```
+
+### traceroute -- Network Path
+
+```bash
+# Trace the route to a host
+traceroute example.com
+
+# Use TCP instead of UDP (better through firewalls)
+traceroute -T example.com
+
+# Use ICMP
+traceroute -I example.com
+
+# mtr (combines traceroute + ping -- continuous)
+mtr example.com
+# Shows packet loss and latency at each hop
+
+# ping -- test connectivity
+ping -c 5 example.com          # 5 packets
+ping -i 0.5 example.com       # 0.5s interval
+```
+
+## iptables / nftables -- Firewalling
+
+### iptables Basics
+
+```bash
+# View current rules
+sudo iptables -L -n -v
+
+# Allow incoming SSH
+sudo iptables -A INPUT -p tcp --dport 22 -j ACCEPT
+
+# Allow incoming HTTP and HTTPS
+sudo iptables -A INPUT -p tcp --dport 80 -j ACCEPT
+sudo iptables -A INPUT -p tcp --dport 443 -j ACCEPT
+
+# Allow established connections
+sudo iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+
+# Allow loopback
+sudo iptables -A INPUT -i lo -j ACCEPT
+
+# Block everything else (default deny)
+sudo iptables -P INPUT DROP
+
+# Block a specific IP
+sudo iptables -A INPUT -s 192.168.1.100 -j DROP
+
+# Rate limit SSH connections (prevent brute force)
+sudo iptables -A INPUT -p tcp --dport 22 \
+  -m recent --set --name SSH
+sudo iptables -A INPUT -p tcp --dport 22 \
+  -m recent --update --seconds 60 --hitcount 4 \
+  --name SSH -j DROP
+
+# Save rules (persist across reboots)
+sudo iptables-save > /etc/iptables/rules.v4
+
+# Delete a rule (by line number)
+sudo iptables -L --line-numbers
+sudo iptables -D INPUT 3
+
+# Flush all rules (reset)
+sudo iptables -F
+```
+
+```
+    iptables Chain Flow:
+
+    Incoming Packet
+         │
+         ▼
+    ┌─────────┐     ┌──────────┐     ┌─────────┐
+    │  INPUT   │     │ FORWARD  │     │ OUTPUT  │
+    │  chain   │     │  chain   │     │  chain  │
+    └────┬────┘     └──────────┘     └─────────┘
+         │
+    Rule 1: Allow SSH? ──── Match ──▶ ACCEPT
+         │ No match
+    Rule 2: Allow HTTP? ─── Match ──▶ ACCEPT
+         │ No match
+    Rule 3: Allow HTTPS? ── Match ──▶ ACCEPT
+         │ No match
+    Default policy ─────────────────▶ DROP
+```
+
+:::note
+**nftables** is the modern replacement for iptables and is the default on newer Linux distributions. The concepts are similar, but the syntax is cleaner and more expressive.
+:::
+
+## SSH -- Secure Shell
+
+SSH is the primary tool for remote access to Linux systems.
+
+### SSH Key Management
+
+```bash
+# Generate SSH key pair
+ssh-keygen -t ed25519 -C "alice@example.com"
+# Creates: ~/.ssh/id_ed25519 (private) and
+#          ~/.ssh/id_ed25519.pub (public)
+
+# For legacy systems that need RSA
+ssh-keygen -t rsa -b 4096 -C "alice@example.com"
+
+# Copy public key to remote server
+ssh-copy-id -i ~/.ssh/id_ed25519.pub user@server
+
+# Connect to a remote server
+ssh user@server.example.com
+ssh -p 2222 user@server.example.com  # Custom port
+```
+
+### SSH Config File
+
+```
+# ~/.ssh/config
+# Simplifies SSH connections with aliases
+
+Host prod
+    HostName 10.0.1.50
+    User deploy
+    Port 22
+    IdentityFile ~/.ssh/id_ed25519_prod
+    ForwardAgent yes
+
+Host staging
+    HostName 10.0.2.50
+    User deploy
+    IdentityFile ~/.ssh/id_ed25519_staging
+
+Host bastion
+    HostName bastion.example.com
+    User alice
+    IdentityFile ~/.ssh/id_ed25519
+
+# Connect through bastion (jump host)
+Host internal-*.example.com
+    ProxyJump bastion
+    User alice
+
+# Wildcard for all connections
+Host *
+    ServerAliveInterval 60
+    ServerAliveCountMax 3
+    AddKeysToAgent yes
+    IdentitiesOnly yes
+```
+
+```bash
+# Now you can just type:
+ssh prod          # Instead of: ssh -i ~/.ssh/id_ed25519_prod deploy@10.0.1.50
+ssh staging       # Instead of: ssh -i ~/.ssh/id_ed25519_staging deploy@10.0.2.50
+```
+
+### SSH Tunneling
+
+```bash
+# Local port forwarding
+# Access remote service through local port
+ssh -L 8080:localhost:80 user@server
+# Now http://localhost:8080 → server:80
+
+# Access database through SSH tunnel
+ssh -L 5432:db-server:5432 user@bastion
+# Now psql -h localhost -p 5432 → connects to db-server:5432
+
+# Remote port forwarding
+# Expose local service on remote server
+ssh -R 8080:localhost:3000 user@server
+# Now server:8080 → your localhost:3000
+
+# Dynamic port forwarding (SOCKS proxy)
+ssh -D 1080 user@server
+# Configure browser to use SOCKS5 proxy at localhost:1080
+
+# Run a command remotely
+ssh user@server "df -h && free -h"
+
+# SCP: copy files over SSH
+scp local_file.txt user@server:/path/to/destination/
+scp user@server:/path/to/file.txt ./local_copy.txt
+scp -r local_dir/ user@server:/path/to/destination/
+
+# rsync: efficient file sync over SSH
+rsync -avz --progress local_dir/ user@server:/path/to/dest/
+rsync -avz --delete source/ dest/  # Mirror (delete extra files)
+```
+
+## tmux -- Terminal Multiplexer
+
+**tmux** lets you create multiple terminal sessions within a single window, detach from them, and reattach later. Essential for remote server work.
+
+```
+    tmux Layout:
+
+    ┌──────────────────────────────────────────────────────────┐
+    │ Session: dev-server                                      │
+    │                                                          │
+    │ ┌─────────── Window 0: editor ──────────────────────────┐│
+    │ │                                                        ││
+    │ │  ┌── Pane 0 ──────────────┐ ┌── Pane 1 ──────────────┐││
+    │ │  │                        │ │                          │││
+    │ │  │  vim app.py            │ │  tail -f app.log         │││
+    │ │  │                        │ │                          │││
+    │ │  │                        │ │                          │││
+    │ │  │                        │ │                          │││
+    │ │  └────────────────────────┘ └──────────────────────────┘││
+    │ │                                                        ││
+    │ │  ┌── Pane 2 ──────────────────────────────────────────┐││
+    │ │  │  $ python test.py                                   │││
+    │ │  └─────────────────────────────────────────────────────┘││
+    │ └────────────────────────────────────────────────────────┘│
+    │                                                          │
+    │ [dev-server] 0:editor* 1:build 2:monitoring              │
+    └──────────────────────────────────────────────────────────┘
+
+    Hierarchy: Session → Windows → Panes
+```
+
+```bash
+# Start a new session
+tmux new -s dev-server
+
+# Detach from session (keeps it running)
+# Press: Ctrl+b, then d
+
+# List sessions
+tmux ls
+
+# Reattach to a session
+tmux attach -t dev-server
+
+# Key bindings (prefix = Ctrl+b):
+# Ctrl+b c     Create new window
+# Ctrl+b n     Next window
+# Ctrl+b p     Previous window
+# Ctrl+b 0-9   Switch to window by number
+# Ctrl+b %     Split pane vertically
+# Ctrl+b "     Split pane horizontally
+# Ctrl+b o     Switch to next pane
+# Ctrl+b x     Close current pane
+# Ctrl+b d     Detach from session
+# Ctrl+b [     Enter scroll/copy mode (q to exit)
+# Ctrl+b z     Toggle pane zoom (fullscreen)
+# Ctrl+b ,     Rename current window
+
+# Kill a session
+tmux kill-session -t dev-server
+```
+
+## Essential CLI Tools
+
+### jq -- JSON Processor
+
+```bash
+# Pretty-print JSON
+echo '{"name":"Alice","age":30}' | jq '.'
+
+# Extract a field
+curl -s https://api.example.com/user/1 | jq '.name'
+
+# Extract nested fields
+echo '{"user":{"name":"Alice","address":{"city":"NYC"}}}' \
+  | jq '.user.address.city'
+
+# Filter arrays
+echo '[{"name":"Alice","age":30},{"name":"Bob","age":25}]' \
+  | jq '.[] | select(.age > 27)'
+
+# Transform data
+echo '[{"name":"Alice","age":30},{"name":"Bob","age":25}]' \
+  | jq '[.[] | {person: .name, years: .age}]'
+
+# Get array length
+echo '[1,2,3,4,5]' | jq 'length'
+
+# Extract specific fields from API response
+curl -s https://api.github.com/repos/torvalds/linux \
+  | jq '{name: .name, stars: .stargazers_count, language: .language}'
+
+# Process JSONL (one JSON object per line)
+cat events.jsonl | jq -c 'select(.level == "error")'
+```
+
+### awk -- Text Processing
+
+```bash
+# Print specific columns
+echo "Alice 30 Engineer" | awk '{print $1, $3}'
+# Output: Alice Engineer
+
+# Process CSV-like data
+echo "Alice,30,Engineer" | awk -F',' '{print $1, $3}'
+# Output: Alice Engineer
+
+# Sum a column
+awk '{sum += $2} END {print "Total:", sum}' data.txt
+
+# Filter and process log files
+# Print URLs with 500 status
+awk '$9 == 500 {print $7}' access.log
+
+# Count requests by status code
+awk '{count[$9]++} END {for (c in count) print c, count[c]}' access.log
+
+# Average response time (assume column 10 is time)
+awk '{sum += $10; n++} END {print "Avg:", sum/n}' access.log
+
+# Print lines longer than 100 characters
+awk 'length > 100' file.txt
+
+# Replace a field
+awk -F: 'BEGIN {OFS=":"} {$7="/bin/bash"; print}' /etc/passwd
+```
+
+### sed -- Stream Editor
+
+```bash
+# Find and replace (first occurrence per line)
+sed 's/old/new/' file.txt
+
+# Find and replace (all occurrences)
+sed 's/old/new/g' file.txt
+
+# In-place editing (modify the file)
+sed -i 's/old/new/g' file.txt
+
+# In-place with backup
+sed -i.bak 's/old/new/g' file.txt
+
+# Delete lines matching a pattern
+sed '/^#/d' config.txt        # Delete comments
+sed '/^$/d' file.txt          # Delete empty lines
+
+# Print only matching lines (like grep)
+sed -n '/error/p' log.txt
+
+# Insert a line before a match
+sed '/\[database\]/i # Database configuration' config.ini
+
+# Insert a line after a match
+sed '/\[database\]/a host=localhost' config.ini
+
+# Replace in a range of lines
+sed '10,20s/foo/bar/g' file.txt  # Lines 10-20
+
+# Multiple operations
+sed -e 's/foo/bar/g' -e 's/baz/qux/g' file.txt
+```
+
+### xargs -- Build and Execute Commands
+
+```bash
+# Basic: convert stdin to arguments
+echo "file1.txt file2.txt file3.txt" | xargs rm
+
+# Process each line separately
+find . -name "*.log" | xargs rm
+
+# With placeholder
+find . -name "*.py" | xargs -I{} cp {} /backup/
+
+# Parallel execution
+find . -name "*.jpg" | xargs -P 4 -I{} convert {} -resize 50% {}
+
+# Limit number of arguments per command
+echo {1..100} | xargs -n 10 echo
+# Runs echo with 10 args at a time
+
+# Confirm before each execution
+find . -name "*.tmp" | xargs -p rm
+
+# Handle filenames with spaces
+find . -name "*.log" -print0 | xargs -0 rm
+
+# Count lines in all Python files
+find . -name "*.py" | xargs wc -l
+
+# Grep in all JavaScript files
+find . -name "*.js" | xargs grep "console.log"
+```
+
+### Other Useful Tools
+
+```bash
+# watch -- execute a command repeatedly
+watch -n 2 "df -h"           # Update every 2 seconds
+watch -d "ps aux | head"     # Highlight changes
+
+# tee -- write to stdout AND a file
+command | tee output.log     # See and save output
+command | tee -a output.log  # Append mode
+
+# sort and uniq
+sort file.txt               # Sort lines alphabetically
+sort -n file.txt             # Sort numerically
+sort -k2 file.txt            # Sort by second column
+sort file.txt | uniq         # Remove duplicates
+sort file.txt | uniq -c      # Count occurrences
+
+# cut -- extract columns
+cut -d',' -f1,3 data.csv    # Fields 1 and 3 from CSV
+cut -c1-10 file.txt          # First 10 characters
+
+# tr -- translate characters
+echo "HELLO" | tr 'A-Z' 'a-z'   # lowercase
+echo "hello world" | tr ' ' '_'  # Replace spaces
+cat file.txt | tr -d '\r'        # Remove carriage returns
+
+# wc -- word/line/char count
+wc -l file.txt               # Line count
+wc -w file.txt               # Word count
+wc -c file.txt               # Byte count
+find . -name "*.py" | wc -l  # Count Python files
+```
+
+## Summary
+
+| Tool | Purpose | Key Usage |
+|------|---------|-----------|
+| **curl** | HTTP requests | API testing, downloading, debugging |
+| **wget** | File downloads | Mirroring, batch downloads |
+| **ss/netstat** | Network connections | Find open ports, debug connectivity |
+| **dig** | DNS queries | Troubleshoot DNS issues |
+| **traceroute** | Network path | Find network bottlenecks |
+| **iptables** | Firewall rules | Secure servers, port management |
+| **SSH** | Remote access | Keys, tunneling, config, SCP/rsync |
+| **tmux** | Terminal multiplexer | Persistent sessions, split panes |
+| **jq** | JSON processing | Parse API responses, filter data |
+| **awk** | Text processing | Column extraction, aggregation |
+| **sed** | Stream editing | Find-replace, line manipulation |
+| **xargs** | Command building | Process stdin as arguments |
+
+<CardGrid>
+  <LinkCard
+    title="Linux & CLI Overview"
+    description="Return to the section overview"
+    href="/software-engineering/linux-cli/"
+  />
+  <LinkCard
+    title="Process Management"
+    description="Review process management and systemd"
+    href="/software-engineering/linux-cli/process-management/"
+  />
+</CardGrid>

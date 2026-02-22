@@ -1,0 +1,497 @@
+---
+title: "Web Fundamentals"
+description: "Understand how the web works — from the client-server model and HTTP lifecycle to web standards and performance basics"
+difficulty: "beginner"
+prerequisites: ["Computer Networks basics"]
+timeToRead: "25 min"
+topics: ["http", "client-server", "web-standards", "web-performance", "W3C", "WHATWG"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid, Card } from '@astrojs/starlight/components';
+
+The **World Wide Web** is a system of interlinked documents and resources accessed over the Internet. Understanding how the web works at a fundamental level is essential for every software engineer — whether you are building front-end interfaces, back-end APIs, or full-stack applications. This section covers the core concepts that underpin every web interaction.
+
+---
+
+## The Client-Server Model
+
+The web operates on a **client-server architecture**. A **client** (typically a web browser) sends a request to a **server**, which processes the request and returns a response.
+
+```
+┌──────────────┐                          ┌──────────────┐
+│              │   1. HTTP Request         │              │
+│   Client     │ ───────────────────────▶  │   Server     │
+│  (Browser)   │                          │ (Web Server) │
+│              │   2. HTTP Response        │              │
+│              │ ◀───────────────────────  │              │
+└──────────────┘                          └──────────────┘
+       │                                         │
+       │  Renders HTML/CSS/JS                    │  Processes logic
+       │  Executes JavaScript                    │  Queries databases
+       │  Manages user interaction               │  Returns resources
+```
+
+### Key Characteristics
+
+| Aspect | Client | Server |
+|--------|--------|--------|
+| **Role** | Initiates requests | Responds to requests |
+| **Location** | User's device | Remote data center |
+| **Examples** | Chrome, Firefox, Safari, curl | Nginx, Apache, Node.js, Django |
+| **State** | Maintains local state (cookies, localStorage) | Maintains session state, database |
+| **Scaling** | One per user | Serves many clients concurrently |
+
+:::tip[Beyond the Browser]
+The client does not have to be a browser. Mobile apps, CLI tools like `curl`, IoT devices, and other servers can all act as HTTP clients. The protocol remains the same.
+:::
+
+---
+
+## The HTTP Request Lifecycle
+
+Every time you type a URL into your browser and press Enter, a complex sequence of events unfolds. Here is the full lifecycle of an HTTP request:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    HTTP Request Lifecycle                        │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  1. URL Parsing                                                 │
+│     ├── Scheme (https://)                                       │
+│     ├── Host (www.example.com)                                  │
+│     ├── Port (:443 default for HTTPS)                           │
+│     ├── Path (/api/users)                                       │
+│     └── Query (?page=1&limit=10)                                │
+│                                                                 │
+│  2. DNS Resolution                                              │
+│     ├── Browser cache lookup                                    │
+│     ├── OS cache lookup                                         │
+│     ├── Router cache lookup                                     │
+│     ├── ISP DNS resolver                                        │
+│     └── Recursive resolution → IP address                       │
+│                                                                 │
+│  3. TCP Connection (Three-Way Handshake)                        │
+│     ├── SYN →                                                   │
+│     ├── ← SYN-ACK                                               │
+│     └── ACK →                                                   │
+│                                                                 │
+│  4. TLS Handshake (for HTTPS)                                   │
+│     ├── ClientHello (supported ciphers)                         │
+│     ├── ServerHello (chosen cipher + certificate)               │
+│     ├── Key exchange                                            │
+│     └── Encrypted session established                           │
+│                                                                 │
+│  5. HTTP Request Sent                                           │
+│     ├── Method (GET, POST, PUT, DELETE...)                      │
+│     ├── Headers (Host, Accept, Cookie, Auth...)                 │
+│     └── Body (for POST/PUT requests)                            │
+│                                                                 │
+│  6. Server Processing                                           │
+│     ├── Routing                                                 │
+│     ├── Middleware (auth, logging, CORS)                        │
+│     ├── Business logic                                          │
+│     ├── Database queries                                        │
+│     └── Response generation                                     │
+│                                                                 │
+│  7. HTTP Response Returned                                      │
+│     ├── Status code (200, 301, 404, 500...)                     │
+│     ├── Headers (Content-Type, Cache-Control, Set-Cookie...)    │
+│     └── Body (HTML, JSON, binary data...)                       │
+│                                                                 │
+│  8. Browser Rendering                                           │
+│     ├── Parse HTML → DOM                                        │
+│     ├── Parse CSS → CSSOM                                       │
+│     ├── Execute JavaScript                                      │
+│     ├── Build Render Tree                                       │
+│     ├── Layout (calculate positions)                            │
+│     └── Paint (render pixels)                                   │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### HTTP Methods
+
+The HTTP specification defines several request methods, each with specific semantics:
+
+| Method | Purpose | Idempotent | Safe | Has Body |
+|--------|---------|------------|------|----------|
+| **GET** | Retrieve a resource | Yes | Yes | No |
+| **POST** | Create a resource or submit data | No | No | Yes |
+| **PUT** | Replace a resource entirely | Yes | No | Yes |
+| **PATCH** | Partially update a resource | No | No | Yes |
+| **DELETE** | Remove a resource | Yes | No | Optional |
+| **HEAD** | Same as GET but no body | Yes | Yes | No |
+| **OPTIONS** | Describe communication options | Yes | Yes | No |
+
+### HTTP Status Codes
+
+Status codes are grouped into five classes:
+
+| Range | Category | Common Codes |
+|-------|----------|-------------|
+| **1xx** | Informational | `100 Continue`, `101 Switching Protocols` |
+| **2xx** | Success | `200 OK`, `201 Created`, `204 No Content` |
+| **3xx** | Redirection | `301 Moved Permanently`, `302 Found`, `304 Not Modified` |
+| **4xx** | Client Error | `400 Bad Request`, `401 Unauthorized`, `403 Forbidden`, `404 Not Found`, `429 Too Many Requests` |
+| **5xx** | Server Error | `500 Internal Server Error`, `502 Bad Gateway`, `503 Service Unavailable` |
+
+### HTTP Headers
+
+Headers carry metadata about the request or response. Here are the most important ones:
+
+<Tabs>
+  <TabItem label="Request Headers">
+```http
+GET /api/users HTTP/1.1
+Host: api.example.com
+Accept: application/json
+Accept-Language: en-US,en;q=0.9
+Accept-Encoding: gzip, deflate, br
+Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
+Cookie: session_id=abc123
+User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)
+Cache-Control: no-cache
+Connection: keep-alive
+```
+  </TabItem>
+  <TabItem label="Response Headers">
+```http
+HTTP/1.1 200 OK
+Content-Type: application/json; charset=utf-8
+Content-Length: 1234
+Content-Encoding: gzip
+Cache-Control: max-age=3600, public
+ETag: "abc123def456"
+Set-Cookie: session_id=xyz789; HttpOnly; Secure; SameSite=Strict
+X-RateLimit-Limit: 100
+X-RateLimit-Remaining: 97
+Access-Control-Allow-Origin: https://example.com
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## HTTP Versions
+
+The HTTP protocol has evolved significantly over time:
+
+| Version | Year | Key Features |
+|---------|------|-------------|
+| **HTTP/0.9** | 1991 | GET only, no headers, HTML only |
+| **HTTP/1.0** | 1996 | Headers, status codes, content types |
+| **HTTP/1.1** | 1997 | Keep-alive, chunked encoding, host header |
+| **HTTP/2** | 2015 | Binary framing, multiplexing, server push, header compression (HPACK) |
+| **HTTP/3** | 2022 | QUIC (UDP-based), faster handshakes, improved loss recovery |
+
+```
+HTTP/1.1 vs HTTP/2 Multiplexing:
+
+HTTP/1.1 (6 connections max):
+Connection 1: ──[Request 1]──[Response 1]──[Request 7]──[Response 7]──
+Connection 2: ──[Request 2]──[Response 2]──[Request 8]──[Response 8]──
+Connection 3: ──[Request 3]──[Response 3]──
+Connection 4: ──[Request 4]──[Response 4]──
+Connection 5: ──[Request 5]──[Response 5]──
+Connection 6: ──[Request 6]──[Response 6]──
+
+HTTP/2 (single connection, multiplexed):
+Connection:   ──[R1][R2][R3][R4][R5][R6][R7][R8]──
+              ──[Resp2][Resp5][Resp1][Resp3][Resp7]──  (responses in any order)
+```
+
+---
+
+## Web Standards Bodies
+
+The web is built on open standards maintained by several organizations:
+
+### W3C (World Wide Web Consortium)
+
+Founded by Tim Berners-Lee in 1994, the W3C develops standards for HTML, CSS, SVG, WCAG (accessibility), and many other web technologies. Their process involves:
+
+1. **Working Draft** — initial public draft
+2. **Candidate Recommendation** — implementation testing
+3. **Proposed Recommendation** — advisory committee review
+4. **W3C Recommendation** — final standard
+
+### WHATWG (Web Hypertext Application Technology Working Group)
+
+Founded in 2004 by Apple, Mozilla, and Opera (later joined by Google), WHATWG maintains the **HTML Living Standard** — a continuously updated specification rather than versioned releases. Since 2019, WHATWG is the sole publisher of the HTML and DOM standards.
+
+### Other Key Organizations
+
+| Organization | Standards |
+|-------------|-----------|
+| **IETF** (Internet Engineering Task Force) | HTTP, TLS, TCP/IP, DNS, WebSocket |
+| **Ecma International** | ECMAScript (JavaScript specification) |
+| **IANA** | MIME types, port numbers, protocol parameters |
+| **Unicode Consortium** | Unicode character encoding standard |
+
+:::note[Living Standards]
+Modern web standards like HTML are "living standards," meaning they are continuously updated rather than released in discrete versions. When people say "HTML5," they are generally referring to the set of features that were new in the 2014 W3C Recommendation. The actual specification is now simply called "HTML."
+:::
+
+---
+
+## Evolution of the Web
+
+The web has gone through distinct eras:
+
+```
+Timeline of the Web:
+
+1989 ─── Tim Berners-Lee proposes the World Wide Web
+1991 ─── First web page goes live at CERN
+1993 ─── Mosaic browser launches (first graphical browser)
+1994 ─── Netscape Navigator, W3C founded
+1995 ─── JavaScript created (in 10 days!), Java applets
+1996 ─── CSS1 specification, Flash
+1999 ─── XMLHttpRequest (foundation for AJAX)
+2004 ─── Web 2.0 era begins (Gmail, Google Maps)
+2006 ─── jQuery simplifies DOM manipulation
+2008 ─── Chrome launches, V8 engine
+2009 ─── Node.js brings JS to the server
+2010 ─── Angular, responsive design emerges
+2013 ─── React introduced by Facebook
+2014 ─── HTML5 standard finalized
+2015 ─── HTTP/2, ES6/ES2015, Progressive Web Apps
+2016 ─── Vue.js 2.0, Web Components
+2017 ─── WebAssembly MVP
+2019 ─── Edge moves to Chromium
+2020 ─── Core Web Vitals introduced
+2022 ─── HTTP/3 standardized
+2023 ─── View Transitions API, Container Queries
+```
+
+### Web 1.0 — The Static Web (1991-2004)
+
+- Static HTML pages
+- Minimal interactivity
+- Server-side rendering only
+- Content created by webmasters, consumed by users
+
+### Web 2.0 — The Interactive Web (2004-present)
+
+- Dynamic, user-generated content
+- AJAX and single-page applications
+- Social media platforms
+- Rich client-side interactivity
+- APIs and mashups
+
+### Web 3.0 — The Decentralized Web (emerging)
+
+- Blockchain and decentralized protocols
+- Semantic web and AI integration
+- User-owned data
+- Peer-to-peer architectures
+
+---
+
+## Web Performance Basics
+
+Web performance directly impacts user experience, engagement, and revenue. Studies consistently show that slow sites lose users:
+
+- A 1-second delay in page load reduces conversions by 7 percent
+- 53 percent of mobile users abandon sites that take longer than 3 seconds to load
+- Google uses page speed as a ranking factor
+
+### Core Web Vitals
+
+Google's **Core Web Vitals** are the key metrics for measuring user experience:
+
+| Metric | What It Measures | Good | Needs Improvement | Poor |
+|--------|-----------------|------|-------------------|------|
+| **LCP** (Largest Contentful Paint) | Loading performance | ≤ 2.5s | ≤ 4.0s | > 4.0s |
+| **INP** (Interaction to Next Paint) | Interactivity | ≤ 200ms | ≤ 500ms | > 500ms |
+| **CLS** (Cumulative Layout Shift) | Visual stability | ≤ 0.1 | ≤ 0.25 | > 0.25 |
+
+### Performance Optimization Strategies
+
+```
+Performance Optimization Categories:
+
+┌─────────────────────────────────────────────────────┐
+│                   Network                            │
+│  • Minimize HTTP requests                            │
+│  • Enable compression (Brotli/Gzip)                  │
+│  • Use CDN for static assets                         │
+│  • HTTP/2 multiplexing                               │
+│  • Preconnect, prefetch, preload                     │
+├─────────────────────────────────────────────────────┤
+│                   Resources                          │
+│  • Minify CSS, JS, HTML                              │
+│  • Tree-shake unused code                            │
+│  • Code-split with dynamic imports                   │
+│  • Optimize images (WebP/AVIF, responsive sizes)     │
+│  • Lazy-load offscreen images/components             │
+├─────────────────────────────────────────────────────┤
+│                   Rendering                          │
+│  • Critical CSS inline                               │
+│  • Defer non-critical JS                             │
+│  • Avoid layout thrashing                            │
+│  • Use CSS containment                               │
+│  • Minimize main-thread work                         │
+├─────────────────────────────────────────────────────┤
+│                   Caching                            │
+│  • Set proper Cache-Control headers                  │
+│  • Use ETags for validation                          │
+│  • Service Worker for offline caching                │
+│  • Browser caching for static assets                 │
+│  • CDN edge caching                                  │
+└─────────────────────────────────────────────────────┘
+```
+
+### Measuring Performance
+
+<Tabs>
+  <TabItem label="Lighthouse (CLI)">
+```bash
+# Install Lighthouse CLI
+npm install -g lighthouse
+
+# Run audit
+lighthouse https://example.com --output html --output-path report.html
+
+# Run specific categories
+lighthouse https://example.com --only-categories=performance,accessibility
+
+# Run in headless mode
+lighthouse https://example.com --chrome-flags="--headless"
+```
+  </TabItem>
+  <TabItem label="Web Vitals (JavaScript)">
+```javascript
+// Using the web-vitals library
+import { onLCP, onINP, onCLS } from 'web-vitals';
+
+function sendToAnalytics(metric) {
+  const body = JSON.stringify({
+    name: metric.name,
+    value: metric.value,
+    rating: metric.rating, // "good", "needs-improvement", "poor"
+    delta: metric.delta,
+    id: metric.id,
+  });
+
+  // Use sendBeacon for reliability
+  navigator.sendBeacon('/analytics', body);
+}
+
+onLCP(sendToAnalytics);
+onINP(sendToAnalytics);
+onCLS(sendToAnalytics);
+```
+  </TabItem>
+  <TabItem label="Performance API">
+```javascript
+// Navigation Timing API
+const perfEntry = performance.getEntriesByType('navigation')[0];
+
+console.log('DNS lookup:', perfEntry.domainLookupEnd - perfEntry.domainLookupStart, 'ms');
+console.log('TCP connect:', perfEntry.connectEnd - perfEntry.connectStart, 'ms');
+console.log('TLS handshake:', perfEntry.secureConnectionStart
+  ? perfEntry.connectEnd - perfEntry.secureConnectionStart
+  : 'N/A', 'ms');
+console.log('TTFB:', perfEntry.responseStart - perfEntry.requestStart, 'ms');
+console.log('DOM Interactive:', perfEntry.domInteractive, 'ms');
+console.log('DOM Complete:', perfEntry.domComplete, 'ms');
+
+// Resource Timing API
+const resources = performance.getEntriesByType('resource');
+resources.forEach(resource => {
+  console.log(resource.name, resource.duration.toFixed(2), 'ms');
+});
+```
+  </TabItem>
+</Tabs>
+
+---
+
+## Caching on the Web
+
+Caching is one of the most effective performance optimizations. The web uses a layered caching strategy:
+
+```
+Caching Layers:
+
+Browser ──▶ Service Worker ──▶ CDN Edge ──▶ Reverse Proxy ──▶ Origin Server
+  │              │                │              │                  │
+  │  Memory      │  Cache API     │  Edge Cache  │  Varnish/Nginx   │  App Cache
+  │  Disk Cache  │  IndexedDB     │  CloudFlare  │  Redis           │  Database
+  │              │                │  Fastly      │                  │  Query Cache
+```
+
+### Cache-Control Directives
+
+```http
+# Cache for 1 year (immutable static assets with hashed filenames)
+Cache-Control: public, max-age=31536000, immutable
+
+# Cache for 1 hour, revalidate after
+Cache-Control: public, max-age=3600, must-revalidate
+
+# Private cache only (user-specific data)
+Cache-Control: private, max-age=600
+
+# No caching at all
+Cache-Control: no-store
+
+# Cache but always revalidate
+Cache-Control: no-cache
+
+# Stale-while-revalidate (serve stale, refresh in background)
+Cache-Control: public, max-age=60, stale-while-revalidate=3600
+```
+
+---
+
+## What You Will Learn
+
+This section covers the foundational technologies of the web:
+
+<CardGrid>
+  <LinkCard
+    title="HTML & Semantic Markup"
+    description="HTML5 elements, document structure, forms, accessibility, and SEO"
+    href="/software-engineering/web-fundamentals/html-semantic/"
+  />
+  <LinkCard
+    title="CSS Layout & Responsive Design"
+    description="Box model, Flexbox, CSS Grid, media queries, and modern CSS features"
+    href="/software-engineering/web-fundamentals/css-layout/"
+  />
+  <LinkCard
+    title="JavaScript & the DOM"
+    description="DOM manipulation, events, Web APIs, and dynamic interactivity"
+    href="/software-engineering/web-fundamentals/javascript-dom/"
+  />
+  <LinkCard
+    title="Browser Internals"
+    description="Rendering pipeline, JavaScript engines, service workers, and optimization"
+    href="/software-engineering/web-fundamentals/browser-internals/"
+  />
+</CardGrid>
+
+---
+
+## Related Topics
+
+<CardGrid>
+  <LinkCard
+    title="Computer Networks"
+    description="Understand the networking layer beneath the web"
+    href="/software-engineering/computer-networks/"
+  />
+  <LinkCard
+    title="Security Fundamentals"
+    description="Protect your web applications from common vulnerabilities"
+    href="/software-engineering/security/"
+  />
+  <LinkCard
+    title="API Design"
+    description="Build robust REST and GraphQL APIs"
+    href="/software-engineering/api-design/"
+  />
+</CardGrid>

@@ -1,0 +1,572 @@
+---
+title: "Text Processing Tools"
+description: "Master grep, ripgrep, sed, awk, tr, cut, sort, uniq, and practical text processing for log parsing, CSV processing, and data extraction"
+difficulty: "intermediate"
+prerequisites: ["Regex Syntax & Patterns", "Linux CLI basics"]
+timeToRead: "30 min"
+topics: ["grep", "ripgrep", "sed", "awk", "text-processing", "log-parsing", "data-extraction"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+Unix text processing tools are some of the most powerful utilities in a developer's arsenal. Combined with regular expressions, they enable rapid data extraction, transformation, and analysis from the command line. This page covers the essential tools with practical, real-world examples.
+
+---
+
+## grep — Search for Patterns
+
+`grep` (Global Regular Expression Print) searches files for lines matching a pattern.
+
+### Basic Usage
+
+```bash
+# Search for a string in a file
+grep "error" application.log
+
+# Case-insensitive search
+grep -i "error" application.log
+
+# Search recursively in directories
+grep -r "TODO" src/
+
+# Show line numbers
+grep -n "function" script.js
+
+# Show count of matches
+grep -c "ERROR" application.log
+
+# Show filenames only
+grep -l "import" src/*.py
+
+# Invert match (lines NOT containing pattern)
+grep -v "DEBUG" application.log
+
+# Show context (lines before/after match)
+grep -B 2 -A 5 "Exception" application.log   # 2 before, 5 after
+grep -C 3 "Exception" application.log         # 3 before and after
+
+# Extended regex (ERE) — enables +, ?, |, () without escaping
+grep -E "error|warning|fatal" application.log
+
+# Perl-compatible regex (PCRE) — enables lookahead, named groups, etc.
+grep -P "(?<=level=)\w+" application.log
+
+# Match whole words only
+grep -w "error" application.log   # matches "error" but not "errors"
+
+# Fixed strings (no regex interpretation — faster)
+grep -F "192.168.1.1" access.log
+
+# Quiet mode (exit code only — useful in scripts)
+if grep -q "error" application.log; then
+    echo "Errors found!"
+fi
+```
+
+### Practical grep Examples
+
+```bash
+# Find all IP addresses in a log file
+grep -oE '\b([0-9]{1,3}\.){3}[0-9]{1,3}\b' access.log
+
+# Find all TODO/FIXME comments in source code
+grep -rn "TODO\|FIXME\|HACK\|XXX" src/
+
+# Find function definitions in Python files
+grep -rn "def \w\+" --include="*.py" src/
+
+# Find files that do NOT contain a pattern
+grep -rL "Copyright" src/   # files missing copyright header
+
+# Count occurrences per file
+grep -rc "import" src/*.py | sort -t: -k2 -rn
+
+# Find lines matching multiple patterns (AND logic)
+grep "error" application.log | grep "database" | grep -v "retry"
+
+# Extract email addresses
+grep -oE '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}' contacts.txt
+```
+
+---
+
+## ripgrep (rg) — Modern grep Alternative
+
+`ripgrep` is a faster, more user-friendly alternative to grep. It respects `.gitignore`, searches recursively by default, and uses Rust's regex engine (guaranteed linear time).
+
+```bash
+# Basic search (recursive by default, respects .gitignore)
+rg "TODO" src/
+
+# Case-insensitive
+rg -i "error" logs/
+
+# Search specific file types
+rg --type py "import os"
+rg --type js "console\.log"
+rg -t rust "unsafe"
+
+# Exclude file types
+rg -T test "database"
+
+# Show only filenames
+rg -l "deprecated" src/
+
+# Search with context
+rg -C 3 "panic" src/
+
+# Replace text (preview — does not modify files)
+rg "old_function" --replace "new_function"
+
+# Count matches
+rg -c "TODO" src/
+
+# Fixed strings (literal match)
+rg -F "array[0]" src/
+
+# Search hidden files and ignored files
+rg --hidden --no-ignore "secret"
+
+# JSON output (for scripting)
+rg --json "pattern" src/
+
+# Multiline matching
+rg -U "fn.*\{[\s\S]*?return" src/
+
+# Statistics
+rg --stats "TODO" src/
+```
+
+### ripgrep vs grep
+
+| Feature | grep | ripgrep |
+|---------|------|---------|
+| Speed | Moderate | Very fast (parallelized) |
+| Recursive | Need `-r` flag | Default |
+| .gitignore | Ignored | Respected by default |
+| Unicode | Varies | Full support |
+| Regex safety | Can hang on bad patterns | Guaranteed linear time |
+| Output | Plain | Colored, formatted |
+| File types | `--include` glob | `--type` system |
+
+---
+
+## sed — Stream Editor
+
+`sed` processes text line by line, applying transformations. It is the standard tool for find-and-replace operations.
+
+### Substitution
+
+```bash
+# Basic substitution (first occurrence per line)
+sed 's/old/new/' file.txt
+
+# Global substitution (all occurrences per line)
+sed 's/old/new/g' file.txt
+
+# Case-insensitive substitution (GNU sed)
+sed 's/error/WARNING/gi' file.txt
+
+# In-place editing (modifies the file)
+sed -i 's/old/new/g' file.txt          # GNU sed
+sed -i '' 's/old/new/g' file.txt       # macOS sed (needs empty backup suffix)
+
+# In-place with backup
+sed -i.bak 's/old/new/g' file.txt      # creates file.txt.bak
+
+# Using different delimiters (useful when pattern contains /)
+sed 's|/usr/local|/opt|g' config.txt
+sed 's#http://#https://#g' urls.txt
+
+# Substitute with capture groups
+sed 's/\(\w\+\)=\(\w\+\)/\2=\1/g' pairs.txt   # swap key=value
+sed -E 's/(\w+)=(\w+)/\2=\1/g' pairs.txt       # ERE (easier syntax)
+
+# Substitute only on matching lines
+sed '/ERROR/s/retry=true/retry=false/g' config.txt
+
+# Substitute on specific line numbers
+sed '5s/old/new/' file.txt              # line 5 only
+sed '10,20s/old/new/g' file.txt         # lines 10-20
+```
+
+### Addressing
+
+```bash
+# Print specific lines
+sed -n '5p' file.txt                    # print line 5
+sed -n '10,20p' file.txt                # print lines 10-20
+sed -n '/START/,/END/p' file.txt        # print between patterns
+
+# Delete lines
+sed '5d' file.txt                       # delete line 5
+sed '/^$/d' file.txt                    # delete empty lines
+sed '/^#/d' config.txt                  # delete comment lines
+sed '1,5d' file.txt                     # delete first 5 lines
+
+# Insert and append
+sed '3i\New line before line 3' file.txt   # insert before line 3
+sed '3a\New line after line 3' file.txt    # append after line 3
+sed '/pattern/a\Added after pattern' file.txt
+
+# Multiple commands
+sed -e 's/foo/bar/g' -e 's/baz/qux/g' file.txt
+
+# Using sed script
+sed -e '
+  s/error/ERROR/g
+  s/warning/WARNING/g
+  /^$/d
+  /^#/d
+' input.txt
+```
+
+### Practical sed Examples
+
+```bash
+# Remove trailing whitespace
+sed 's/[[:space:]]*$//' file.txt
+
+# Add line numbers
+sed = file.txt | sed 'N; s/\n/\t/'
+
+# Extract text between two markers
+sed -n '/BEGIN/,/END/p' file.txt
+
+# Remove HTML tags
+sed 's/<[^>]*>//g' page.html
+
+# Convert Windows line endings to Unix
+sed 's/\r$//' file.txt
+
+# Double-space a file
+sed 'G' file.txt
+
+# Remove duplicate consecutive lines (like uniq)
+sed '$!N; /^\(.*\)\n\1$/!P; D' file.txt
+
+# Rename variables in source code
+sed -i -E 's/\boldName\b/newName/g' src/*.js
+
+# Extract value from config file
+sed -n 's/^database_host=//p' config.ini
+```
+
+---
+
+## awk — Pattern Scanning and Processing
+
+`awk` is a full programming language for text processing. It excels at working with structured, column-oriented data.
+
+### Basic Structure
+
+```
+awk 'pattern { action }' file
+
+- pattern: when to apply the action (regex, condition, BEGIN/END)
+- action: what to do (print, calculate, transform)
+- Fields: $0 = entire line, $1 = first field, $2 = second field, etc.
+- NR = record (line) number, NF = number of fields
+```
+
+### Field Processing
+
+```bash
+# Print specific columns (default separator: whitespace)
+awk '{print $1, $3}' data.txt
+
+# Custom field separator
+awk -F',' '{print $1, $2}' data.csv
+awk -F':' '{print $1, $NF}' /etc/passwd    # $NF = last field
+
+# Print with formatting
+awk '{printf "%-20s %10s\n", $1, $2}' data.txt
+
+# Print line numbers
+awk '{print NR, $0}' file.txt
+
+# Print number of fields per line
+awk '{print NF, $0}' file.txt
+```
+
+### Pattern Matching
+
+```bash
+# Print lines matching a pattern
+awk '/error/' application.log
+
+# Print lines NOT matching a pattern
+awk '!/debug/' application.log
+
+# Print lines where a field matches
+awk '$3 > 100' data.txt                     # third field > 100
+awk '$1 == "ERROR"' application.log          # first field is ERROR
+awk '$NF ~ /\.py$/' files.txt               # last field ends in .py
+
+# Range patterns
+awk '/START/,/END/' file.txt                 # print between patterns
+
+# Multiple patterns
+awk '/error/ {errors++} /warning/ {warnings++} END {print errors, warnings}' log.txt
+```
+
+### BEGIN and END Blocks
+
+```bash
+# BEGIN runs before processing, END runs after
+awk 'BEGIN {print "Name", "Score"} {print $1, $2} END {print "---done---"}' data.txt
+
+# Sum a column
+awk '{sum += $3} END {print "Total:", sum}' sales.txt
+
+# Calculate average
+awk '{sum += $2; count++} END {print "Average:", sum/count}' scores.txt
+
+# Find maximum
+awk 'BEGIN {max=0} $3 > max {max=$3; line=$0} END {print "Max:", max, line}' data.txt
+```
+
+### Practical awk Examples
+
+```bash
+# Process CSV with header
+awk -F',' 'NR==1 {for(i=1;i<=NF;i++) header[i]=$i; next}
+           {print header[1]"="$1, header[3]"="$3}' data.csv
+
+# Log analysis: count HTTP status codes
+awk '{count[$9]++} END {for (code in count) print code, count[code]}' access.log | sort -rn -k2
+
+# Calculate disk usage by directory
+du -s */ | awk '{total += $1; print $0} END {print "Total:", total}'
+
+# Top 10 most frequent IP addresses
+awk '{print $1}' access.log | sort | uniq -c | sort -rn | head -10
+
+# Process /etc/passwd for user info
+awk -F':' '$3 >= 1000 {printf "%-15s UID:%-6s Home:%s\n", $1, $3, $6}' /etc/passwd
+
+# Multi-file processing
+awk 'FNR==1 {file++} {lines[file]++} END {for(f=1;f<=file;f++) print ARGV[f], lines[f], "lines"}' *.txt
+
+# Transpose rows and columns
+awk '{for(i=1;i<=NF;i++) a[i][NR]=$i}
+     END {for(i=1;i in a;i++) {for(j=1;j<=NR;j++) printf "%s ", a[i][j]; print ""}}' data.txt
+
+# Group by and aggregate
+awk -F',' '{sum[$1] += $3; count[$1]++}
+     END {for (key in sum) printf "%s: total=%d avg=%.2f\n", key, sum[key], sum[key]/count[key]}' sales.csv
+```
+
+### awk Variables and Functions
+
+```bash
+# Built-in variables
+awk '{
+  print "Line:", NR           # record (line) number
+  print "Fields:", NF          # number of fields
+  print "Full line:", $0       # entire line
+  print "File:", FILENAME      # current filename
+  print "Separator:", FS       # field separator
+  print "Record Sep:", RS      # record separator
+}' data.txt
+
+# String functions
+awk '{
+  print length($1)            # string length
+  print toupper($1)           # uppercase
+  print tolower($1)           # lowercase
+  print substr($1, 1, 3)      # substring (pos, len)
+  if (index($0, "error") > 0) print "Found error"
+  gsub(/old/, "new", $0)      # global substitution
+  split($3, arr, ".")         # split into array
+}' data.txt
+
+# Regular expression matching
+awk '$0 ~ /pattern/ {print}' file.txt
+awk 'match($0, /[0-9]+/) {print substr($0, RSTART, RLENGTH)}' file.txt
+```
+
+---
+
+## Other Essential Tools
+
+### tr — Translate Characters
+
+```bash
+# Convert to uppercase
+echo "hello world" | tr 'a-z' 'A-Z'
+# HELLO WORLD
+
+# Convert to lowercase
+echo "HELLO" | tr 'A-Z' 'a-z'
+
+# Delete characters
+echo "hello 123 world" | tr -d '0-9'
+# hello  world
+
+# Squeeze repeated characters
+echo "hello    world" | tr -s ' '
+# hello world
+
+# Replace newlines with spaces
+tr '\n' ' ' < file.txt
+
+# Remove non-printable characters
+tr -cd '[:print:]\n' < binary_file
+
+# ROT13 encoding
+echo "hello" | tr 'a-zA-Z' 'n-za-mN-ZA-M'
+# uryyb
+```
+
+### cut — Extract Columns
+
+```bash
+# Cut by character position
+echo "Hello World" | cut -c1-5
+# Hello
+
+# Cut by field (default delimiter: tab)
+cut -f1,3 data.tsv
+
+# Cut with custom delimiter
+cut -d',' -f1,3 data.csv
+
+# Cut from field 3 to end
+cut -d':' -f3- /etc/passwd
+
+# Combine with other tools
+grep "ERROR" log.txt | cut -d' ' -f1,2   # extract date and time from errors
+```
+
+### sort and uniq — Sort and Deduplicate
+
+```bash
+# Basic sort
+sort file.txt
+
+# Numeric sort
+sort -n numbers.txt
+
+# Reverse sort
+sort -r file.txt
+
+# Sort by specific column (field 2, numeric)
+sort -t',' -k2 -n data.csv
+
+# Sort by multiple keys
+sort -t',' -k1,1 -k2,2n data.csv   # alphabetic by col1, then numeric by col2
+
+# Remove duplicates
+sort -u file.txt
+
+# Human-readable numeric sort (1K, 2M, 3G)
+du -sh */ | sort -h
+
+# Count unique occurrences (uniq requires sorted input)
+sort file.txt | uniq -c | sort -rn
+
+# Show only duplicates
+sort file.txt | uniq -d
+
+# Show only unique lines (no duplicates)
+sort file.txt | uniq -u
+
+# Count unique values in a CSV column
+cut -d',' -f3 data.csv | sort | uniq -c | sort -rn
+```
+
+---
+
+## Practical Pipelines
+
+### Log Analysis
+
+```bash
+# Top 10 error messages
+grep "ERROR" app.log | awk '{$1=$2=$3=""; print}' | sort | uniq -c | sort -rn | head -10
+
+# Requests per hour
+awk '{print substr($4, 2, 14)}' access.log | cut -d: -f1,2 | uniq -c
+
+# Slow requests (response time > 1000ms)
+awk '$NF > 1000 {print $7, $NF"ms"}' access.log | sort -t' ' -k2 -rn | head -20
+
+# Error rate per minute
+awk '{minute=substr($4,2,17)} $9 >= 500 {errors[minute]++} {total[minute]++}
+     END {for (m in total) printf "%s: %d/%d (%.1f%%)\n", m, errors[m]+0, total[m], (errors[m]+0)/total[m]*100}' access.log
+```
+
+### CSV Processing
+
+```bash
+# Skip header and extract columns
+tail -n +2 data.csv | cut -d',' -f1,3,5
+
+# Filter rows where column 3 > 100
+awk -F',' 'NR==1 || $3 > 100' data.csv
+
+# Convert CSV to TSV
+sed 's/,/\t/g' data.csv > data.tsv
+
+# Sum a column (skip header)
+tail -n +2 sales.csv | awk -F',' '{sum += $4} END {printf "Total: $%.2f\n", sum}'
+
+# Join two CSV files on a common column
+join -t',' -1 1 -2 1 <(sort -t',' -k1 file1.csv) <(sort -t',' -k1 file2.csv)
+
+# Pivot: count occurrences of each value in column 2
+tail -n +2 data.csv | awk -F',' '{count[$2]++} END {for(k in count) print k, count[k]}' | sort -k2 -rn
+```
+
+### Data Extraction
+
+```bash
+# Extract all URLs from HTML
+grep -oE 'https?://[^ "]+' page.html
+
+# Extract all email addresses from text
+grep -oE '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}' document.txt
+
+# Extract JSON values (simple — use jq for complex JSON)
+grep -oP '"name":\s*"\K[^"]+' data.json
+
+# Extract environment variables from a .env file
+grep -v '^#' .env | grep -v '^$' | cut -d'=' -f1
+
+# Find largest files
+find . -type f -exec du -h {} + | sort -rh | head -20
+
+# Count lines of code by file type
+find . -name "*.py" | xargs wc -l | sort -rn
+find . -name "*.js" -not -path "*/node_modules/*" | xargs wc -l | sort -rn
+```
+
+---
+
+## Tool Selection Guide
+
+| Task | Best Tool | Alternative |
+|------|-----------|------------|
+| Search for pattern | `grep` / `rg` | `awk '/pattern/'` |
+| Find and replace | `sed 's/old/new/g'` | `awk '{gsub(...)}` |
+| Extract columns | `cut` or `awk` | `sed` with capture groups |
+| Count occurrences | `grep -c` or `sort | uniq -c` | `awk` with counters |
+| Transform characters | `tr` | `sed 'y/abc/xyz/'` |
+| Complex field processing | `awk` | Python/Perl one-liner |
+| Sort data | `sort` | `awk` (for custom logic) |
+| Remove duplicates | `sort -u` or `sort | uniq` | `awk '!seen[$0]++'` |
+| JSON processing | `jq` | `python -m json.tool` |
+| XML processing | `xmlstarlet` | `python xml.etree` |
+
+:::tip[When to Use Python Instead]
+If you find yourself chaining more than 3-4 tools together, or if you need error handling, complex logic, or data structures, switch to a Python script. The readability benefit outweighs the elegance of a one-liner.
+:::
+
+---
+
+<LinkCard
+  title="Next: Tech Leadership"
+  description="Explore the IC track, team dynamics, technical decisions, and engineering culture"
+  href="/software-engineering/tech-leadership/"
+/>

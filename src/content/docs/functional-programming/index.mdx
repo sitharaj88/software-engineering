@@ -1,0 +1,407 @@
+---
+title: "Functional Programming"
+description: "Understand the functional programming paradigm, its principles, how it contrasts with imperative programming, and why immutability matters"
+difficulty: "intermediate"
+prerequisites:
+  - Basic programming knowledge
+  - Familiarity with at least one programming language
+timeToRead: "18 min"
+topics:
+  - functional-programming
+  - imperative-vs-functional
+  - immutability
+  - first-class-functions
+  - declarative
+  - side-effects
+  - referential-transparency
+---
+
+import { Card, CardGrid, LinkCard, Tabs, TabItem } from '@astrojs/starlight/components';
+
+Functional programming (FP) is a programming paradigm that treats computation as the evaluation of mathematical functions and avoids changing state and mutable data. Rather than telling the computer *how* to do something step by step, FP focuses on *what* to compute by composing functions.
+
+FP concepts have become mainstream -- even traditionally object-oriented languages like Java, C#, and Python have adopted functional features such as lambdas, map/filter/reduce, and pattern matching. Understanding FP makes you a better programmer regardless of which language you use.
+
+---
+
+## Imperative vs Functional Paradigm
+
+The imperative paradigm describes computation as a sequence of statements that change program state. The functional paradigm describes computation as the evaluation of expressions that produce values without side effects.
+
+```
+Imperative (HOW):                    Functional (WHAT):
+─────────────────                    ──────────────────
+"Walk to the store.                  "I need groceries
+ Turn left on Main St.               from the nearest
+ Enter the store.                     store."
+ Pick up milk.
+ Go to checkout.
+ Pay. Walk home."
+
+Step-by-step instructions            Declare desired outcome
+Mutable state throughout              No mutable state
+```
+
+### Side-by-Side Comparison
+
+<Tabs>
+<TabItem label="Python">
+```python
+# IMPERATIVE: Sum of squares of even numbers
+numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+# Mutable state, explicit loops, step-by-step
+result = 0
+for n in numbers:
+    if n % 2 == 0:
+        result += n ** 2
+print(result)  # 220
+
+
+# FUNCTIONAL: Same computation, declarative style
+from functools import reduce
+
+result = reduce(
+    lambda acc, n: acc + n,
+    map(lambda n: n ** 2,
+        filter(lambda n: n % 2 == 0, numbers))
+)
+print(result)  # 220
+
+
+# FUNCTIONAL (Pythonic): Using comprehension
+result = sum(n ** 2 for n in numbers if n % 2 == 0)
+print(result)  # 220
+```
+</TabItem>
+<TabItem label="JavaScript">
+```javascript
+// IMPERATIVE: Sum of squares of even numbers
+const numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+
+// Mutable state, explicit loops
+let result = 0;
+for (let i = 0; i < numbers.length; i++) {
+  if (numbers[i] % 2 === 0) {
+    result += numbers[i] ** 2;
+  }
+}
+console.log(result); // 220
+
+
+// FUNCTIONAL: Same computation, declarative style
+const functionalResult = numbers
+  .filter(n => n % 2 === 0)
+  .map(n => n ** 2)
+  .reduce((acc, n) => acc + n, 0);
+
+console.log(functionalResult); // 220
+```
+</TabItem>
+<TabItem label="Java">
+```java
+import java.util.List;
+import java.util.stream.*;
+
+List<Integer> numbers = List.of(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
+
+// IMPERATIVE
+int result = 0;
+for (int n : numbers) {
+    if (n % 2 == 0) {
+        result += n * n;
+    }
+}
+System.out.println(result); // 220
+
+
+// FUNCTIONAL (Stream API)
+int functionalResult = numbers.stream()
+    .filter(n -> n % 2 == 0)
+    .mapToInt(n -> n * n)
+    .sum();
+
+System.out.println(functionalResult); // 220
+```
+</TabItem>
+</Tabs>
+
+---
+
+## Core Principles of Functional Programming
+
+### 1. First-Class and Higher-Order Functions
+
+Functions are values. They can be assigned to variables, passed as arguments, and returned from other functions. A function that takes or returns another function is called a **higher-order function**.
+
+```
+First-class functions:
+  add = (a, b) => a + b     -- function assigned to a variable
+  apply(add, 3, 4)          -- function passed as argument
+  createAdder(5)             -- function returns a function
+```
+
+### 2. Pure Functions
+
+A pure function always produces the same output for the same input and has no side effects. It does not modify external state, perform I/O, or depend on anything outside its parameters.
+
+```
+Pure:     add(2, 3) → 5     (always, no side effects)
+Impure:   getTime() → ???   (depends on external clock)
+Impure:   print("hi")       (side effect: I/O)
+```
+
+### 3. Immutability
+
+Data is never modified after creation. Instead of changing existing data, new data structures are created with the desired changes. This eliminates an entire class of bugs related to shared mutable state.
+
+```
+Mutable (imperative):
+  list = [1, 2, 3]
+  list.append(4)          -- modifies the original list
+  list is now [1, 2, 3, 4]
+
+Immutable (functional):
+  list = [1, 2, 3]
+  newList = list + [4]    -- creates a new list
+  list is still [1, 2, 3]
+  newList is [1, 2, 3, 4]
+```
+
+### 4. Declarative over Imperative
+
+FP code describes *what* should happen, not *how*. This leads to code that is more concise, easier to reason about, and less prone to off-by-one errors.
+
+### 5. Function Composition
+
+Complex operations are built by composing simple functions, similar to mathematical function composition where `(f . g)(x) = f(g(x))`.
+
+<Tabs>
+<TabItem label="Python">
+```python
+from functools import reduce
+
+def compose(*functions):
+    """Compose multiple functions: compose(f, g, h)(x) = f(g(h(x)))"""
+    def composed(x):
+        return reduce(lambda acc, fn: fn(acc),
+                      reversed(functions), x)
+    return composed
+
+def double(x):    return x * 2
+def increment(x): return x + 1
+def square(x):    return x ** 2
+
+# Compose: square(increment(double(x)))
+transform = compose(square, increment, double)
+print(transform(3))  # square(increment(double(3)))
+                      # = square(increment(6))
+                      # = square(7) = 49
+```
+</TabItem>
+<TabItem label="JavaScript">
+```javascript
+const compose = (...fns) =>
+  (x) => fns.reduceRight((acc, fn) => fn(acc), x);
+
+const pipe = (...fns) =>
+  (x) => fns.reduce((acc, fn) => fn(acc), x);
+
+const double    = x => x * 2;
+const increment = x => x + 1;
+const square    = x => x ** 2;
+
+// compose: right-to-left
+const transform = compose(square, increment, double);
+console.log(transform(3)); // 49
+
+// pipe: left-to-right (often more readable)
+const pipeline = pipe(double, increment, square);
+console.log(pipeline(3));  // 49
+```
+</TabItem>
+</Tabs>
+
+---
+
+## Benefits of Immutability
+
+Immutability is one of the most impactful FP concepts, even outside purely functional languages.
+
+| Benefit | Explanation |
+|---------|-------------|
+| **No race conditions** | If data cannot change, concurrent access is always safe |
+| **Easier debugging** | Values do not change out from under you; easier to trace bugs |
+| **Undo/redo for free** | Keep previous versions of data structures |
+| **Predictable code** | Functions cannot surprise you by modifying their inputs |
+| **Cache-friendly** | Immutable data can be freely cached and shared |
+
+### Immutable Data in Practice
+
+<Tabs>
+<TabItem label="Python">
+```python
+# Tuples are immutable (lists are not)
+point = (3, 4)
+# point[0] = 5  # TypeError!
+
+# Named tuples for immutable records
+from typing import NamedTuple
+
+class User(NamedTuple):
+    name: str
+    age: int
+    email: str
+
+alice = User("Alice", 30, "alice@example.com")
+# alice.age = 31  # AttributeError!
+
+# Create a modified copy
+older_alice = alice._replace(age=31)
+print(alice.age)        # 30 (unchanged)
+print(older_alice.age)  # 31
+
+
+# dataclasses with frozen=True
+from dataclasses import dataclass, replace
+
+@dataclass(frozen=True)
+class Point:
+    x: float
+    y: float
+
+p1 = Point(1.0, 2.0)
+# p1.x = 3.0  # FrozenInstanceError!
+p2 = replace(p1, x=3.0)  # New instance
+```
+</TabItem>
+<TabItem label="JavaScript">
+```javascript
+// Object.freeze for shallow immutability
+const user = Object.freeze({
+  name: 'Alice',
+  age: 30,
+  email: 'alice@example.com'
+});
+// user.age = 31; // Silently fails (or throws in strict mode)
+
+// Spread operator for immutable updates
+const olderAlice = { ...user, age: 31 };
+console.log(user.age);        // 30 (unchanged)
+console.log(olderAlice.age);  // 31
+
+// Immutable arrays
+const nums = [1, 2, 3];
+const withFour = [...nums, 4];       // [1, 2, 3, 4]
+const withoutFirst = nums.slice(1);  // [2, 3]
+console.log(nums);                    // [1, 2, 3] (unchanged)
+
+// Immer library for complex immutable updates
+// import produce from 'immer';
+// const nextState = produce(state, draft => {
+//   draft.user.age = 31;
+//   draft.items.push({ id: 4 });
+// });
+```
+</TabItem>
+<TabItem label="Java">
+```java
+// Java records are immutable by default (Java 16+)
+public record User(String name, int age, String email) {}
+
+User alice = new User("Alice", 30, "alice@example.com");
+// No setters exist -- records are immutable
+
+// Create a modified copy using a "with" pattern
+User olderAlice = new User(alice.name(), 31, alice.email());
+
+// Unmodifiable collections
+var list = List.of(1, 2, 3);
+// list.add(4); // UnsupportedOperationException!
+
+var map = Map.of("a", 1, "b", 2);
+// map.put("c", 3); // UnsupportedOperationException!
+
+// Collections.unmodifiableList wraps a mutable list
+var mutable = new ArrayList<>(List.of(1, 2, 3));
+var immutable = Collections.unmodifiableList(mutable);
+```
+</TabItem>
+</Tabs>
+
+---
+
+## FP vs OOP: Not a War
+
+FP and OOP are not mutually exclusive. Most modern languages support both paradigms, and the best code often combines them.
+
+| Aspect | OOP | FP |
+|--------|-----|-----|
+| **Primary abstraction** | Objects (data + behavior) | Functions (transformations) |
+| **State management** | Encapsulated mutable state | Immutable values |
+| **Polymorphism** | Subtype polymorphism (inheritance) | Parametric polymorphism (generics) |
+| **Code reuse** | Inheritance, composition | Function composition |
+| **Side effects** | Allowed, encapsulated | Minimized, isolated |
+| **Concurrency** | Locks, synchronization | Naturally safe (immutability) |
+
+:::tip[The Pragmatic Approach]
+Use FP principles within OOP code: prefer immutable data, write pure functions where possible, use higher-order functions, and isolate side effects to the boundaries of your system. You do not need a purely functional language to benefit from FP.
+:::
+
+---
+
+## Functional Languages Spectrum
+
+```
+Pure FP ◄──────────────────────────────────────────► Pure OOP
+
+Haskell    Erlang    Scala    Kotlin    Python    Java    C++
+  │        Elixir   Clojure   F#     JavaScript   C#
+  │          │        │        │         │          │
+  │          │        │        │         │          │
+Purely     Strongly  Multi-   Multi-   Multi-     OOP with
+functional  FP       paradigm paradigm paradigm    FP features
+                     (FP+OOP) (FP+OOP) (pragmatic) (added later)
+```
+
+---
+
+## Topics in This Section
+
+<CardGrid>
+  <Card title="Pure Functions" icon="approve-check">
+    Pure functions, referential transparency, side effects, and immutability patterns.
+
+    [Explore Pure Functions](/software-engineering/functional-programming/pure-functions/)
+  </Card>
+  <Card title="Higher-Order Functions" icon="list-format">
+    Map, filter, reduce, closures, currying, and partial application.
+
+    [Explore Higher-Order Functions](/software-engineering/functional-programming/higher-order-functions/)
+  </Card>
+  <Card title="Monads & Functors" icon="puzzle">
+    Functors, monads (Maybe/Option, Either/Result), and functional error handling.
+
+    [Explore Monads & Functors](/software-engineering/functional-programming/monads-functors/)
+  </Card>
+  <Card title="Pattern Matching" icon="star">
+    Pattern matching, algebraic data types, exhaustive matching, and destructuring.
+
+    [Explore Pattern Matching](/software-engineering/functional-programming/pattern-matching/)
+  </Card>
+</CardGrid>
+
+---
+
+## Related Topics
+
+- **[OOP & SOLID Principles](/software-engineering/oop-solid/)** -- Compare and contrast with the object-oriented paradigm
+- **[Concurrency](/software-engineering/concurrency/)** -- Immutability makes concurrent programming safer
+- **[Design Patterns](/software-engineering/design-patterns/)** -- Many patterns have functional equivalents
+- **[Testing](/software-engineering/testing/)** -- Pure functions are trivially testable
+
+<LinkCard
+  title="Next: Pure Functions"
+  description="Deep dive into pure functions, referential transparency, side effects, and why they matter for reliable software."
+  href="/software-engineering/functional-programming/pure-functions/"
+/>

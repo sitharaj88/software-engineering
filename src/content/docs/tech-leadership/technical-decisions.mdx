@@ -1,0 +1,456 @@
+---
+title: "Technical Decision-Making"
+description: "Master Architecture Decision Records (ADRs), the RFC process, evaluating trade-offs, build vs buy, technology radar, and managing technical debt"
+difficulty: "advanced"
+prerequisites: ["Tech Leadership overview", "Software Architecture basics"]
+timeToRead: "25 min"
+topics: ["adr", "rfc", "trade-offs", "build-vs-buy", "tech-debt", "technology-radar", "decision-making"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+Technical decisions shape the trajectory of software systems for years. The best technical leaders do not just make good decisions — they create **transparent, inclusive processes** that build organizational knowledge and consensus. This page covers the frameworks and practices that lead to better technical decision-making.
+
+---
+
+## Architecture Decision Records (ADRs)
+
+An **ADR** is a short document that captures an important architectural decision along with its context and consequences. ADRs create an institutional memory of *why* things are the way they are.
+
+### Why ADRs Matter
+
+- New team members understand the reasoning behind existing architecture
+- Teams avoid re-debating settled decisions
+- When context changes, teams can revisit decisions with full understanding of the original trade-offs
+- Decision-making quality improves because the process forces clear thinking
+
+### ADR Template
+
+```markdown
+# ADR-0042: Use PostgreSQL as Primary Database
+
+## Status
+Accepted (2025-01-15)
+
+## Context
+We need to choose a primary database for our new order management
+system. The system requires:
+- ACID transactions for financial data
+- Complex queries across related entities
+- Support for JSON documents for flexible metadata
+- High availability and proven reliability
+- Team familiarity
+
+We considered: PostgreSQL, MySQL, MongoDB, CockroachDB.
+
+## Decision
+We will use **PostgreSQL 16** as our primary database.
+
+## Rationale
+- PostgreSQL supports both relational and JSON data models,
+  eliminating the need for a separate document store
+- Our team has 3+ years of production PostgreSQL experience
+- The JSONB type provides flexible schema for order metadata
+  while maintaining query performance
+- Strong ecosystem: pgvector for future ML features,
+  PostGIS if we need geospatial
+- Proven at our scale (millions of orders/day at similar companies)
+
+## Alternatives Considered
+
+### MySQL 8
+- Pros: Familiar, widely used, good performance
+- Cons: Weaker JSON support, less capable query planner,
+  fewer advanced features (CTEs, window functions were
+  added later)
+
+### MongoDB
+- Pros: Flexible schema, good developer experience
+- Cons: Weaker transaction support across collections,
+  team would need training, harder to maintain data
+  integrity for financial records
+
+### CockroachDB
+- Pros: Distributed by default, PostgreSQL-compatible
+- Cons: Higher operational complexity, higher cost,
+  overkill for our current scale
+
+## Consequences
+- We accept the operational burden of managing PostgreSQL
+  (backups, replication, upgrades)
+- We will use Flyway for schema migrations
+- We will need read replicas if read traffic exceeds
+  capacity of a single node
+- Team members unfamiliar with PostgreSQL-specific features
+  will need training on JSONB and advanced SQL
+
+## References
+- [PostgreSQL 16 Release Notes](https://www.postgresql.org/docs/16/release-16.html)
+- ADR-0038: Data model requirements for order management
+```
+
+### ADR Best Practices
+
+| Practice | Description |
+|----------|-------------|
+| **Keep them short** | 1-2 pages maximum; nobody reads long documents |
+| **Number them sequentially** | ADR-0001, ADR-0002, etc. |
+| **Store them in the repo** | Version-controlled, close to the code they describe |
+| **Make them immutable** | Never edit an accepted ADR; create a new one that supersedes it |
+| **Include "alternatives considered"** | Shows the decision was thoughtful, not arbitrary |
+| **Record the status** | Proposed, Accepted, Deprecated, Superseded by ADR-XXXX |
+
+### ADR Status Lifecycle
+
+```
+Proposed ──▶ Accepted ──▶ Deprecated
+    │              │             │
+    ▼              ▼             ▼
+ Rejected    Superseded     (archived)
+              by ADR-XXX
+```
+
+---
+
+## The RFC Process
+
+For larger, cross-team decisions, an **RFC** (Request for Comments) process provides a structured way to propose, discuss, and decide.
+
+### RFC vs ADR
+
+| Aspect | ADR | RFC |
+|--------|-----|-----|
+| **Scope** | Single team or component | Cross-team or organization-wide |
+| **Length** | 1-2 pages | 3-10 pages with detailed design |
+| **Audience** | Team members, future developers | Broader engineering organization |
+| **Discussion** | Informal or in PR review | Formal review period with structured feedback |
+| **Timeline** | Days | 1-3 weeks |
+
+### RFC Template
+
+```markdown
+# RFC: Migrate Authentication to OAuth 2.0 / OIDC
+
+**Author:** Jane Smith
+**Reviewers:** Auth team, Platform team, Security team
+**Status:** Open for comments (closes 2025-02-01)
+**Created:** 2025-01-15
+
+## Summary
+Migrate our custom authentication system to an OAuth 2.0 / OpenID
+Connect-based architecture using Auth0 as our identity provider.
+
+## Motivation
+- Our custom auth system has 3 known CVEs that require urgent patches
+- Password reset flow has a 15% failure rate
+- No support for MFA, SSO, or social login
+- Auth code is maintained by a single engineer (bus factor = 1)
+- SOC 2 compliance requires documented auth controls
+
+## Detailed Design
+
+### Architecture
+[Detailed architecture diagrams and descriptions]
+
+### Migration Plan
+[Phase-by-phase migration strategy]
+
+### API Changes
+[Breaking changes, deprecation timeline]
+
+### Security Considerations
+[Threat model, token handling, session management]
+
+## Alternatives Considered
+1. Fix the existing system
+2. Build our own OAuth server
+3. Use Keycloak (self-hosted)
+4. Use Auth0 (managed) ← proposed
+
+## Open Questions
+1. How do we handle the 30-day token migration window?
+2. Should we support both old and new auth simultaneously?
+
+## Timeline
+- Phase 1 (Feb): Auth0 setup and internal service migration
+- Phase 2 (Mar): Customer-facing app migration
+- Phase 3 (Apr): Deprecate old auth system
+```
+
+### RFC Process Flow
+
+```
+Author writes RFC
+       │
+       ▼
+Circulate for early feedback (1-2 trusted reviewers)
+       │
+       ▼
+Publish RFC (open for comments, 1-2 week period)
+       │
+       ▼
+Collect and address feedback
+       │
+       ▼
+Decision meeting (if needed)
+       │
+       ├──▶ Accepted → Begin implementation
+       ├──▶ Rejected → Document reasons
+       └──▶ Needs revision → Update and re-circulate
+```
+
+---
+
+## Evaluating Trade-offs
+
+Every technical decision involves trade-offs. The best leaders make trade-offs explicit rather than leaving them implicit.
+
+### Common Trade-off Dimensions
+
+```
+                Speed of Development
+                       │
+         ┌─────────────┼─────────────┐
+         │             │             │
+    Consistency ───────┼─────── Flexibility
+         │             │             │
+    Simplicity ────────┼─────── Power
+         │             │             │
+    Performance ───────┼─────── Maintainability
+         │             │             │
+    Control ───────────┼─────── Convenience
+         │             │             │
+         └─────────────┼─────────────┘
+                       │
+                  Long-term Cost
+```
+
+### Decision Matrix
+
+When comparing multiple options, use a weighted decision matrix:
+
+```
+Criteria (weight)        | Option A   | Option B   | Option C
+─────────────────────────┼────────────┼────────────┼────────────
+Performance (5)          |   4 (20)   |   5 (25)   |   3 (15)
+Team familiarity (4)     |   5 (20)   |   2 (8)    |   4 (16)
+Maintainability (4)      |   4 (16)   |   3 (12)   |   5 (20)
+Cost (3)                 |   3 (9)    |   4 (12)   |   5 (15)
+Ecosystem/community (3)  |   5 (15)   |   4 (12)   |   3 (9)
+Scalability (3)          |   3 (9)    |   5 (15)   |   4 (12)
+─────────────────────────┼────────────┼────────────┼────────────
+Total                    |     89     |     84     |     87
+
+(Score: 1-5, weighted score in parentheses)
+```
+
+:::caution[Matrix Pitfalls]
+Decision matrices are useful for structuring thinking, but they can create a false sense of objectivity. The weights and scores are still subjective. Use the matrix to facilitate discussion, not to replace judgment.
+:::
+
+### Reversible vs Irreversible Decisions
+
+Jeff Bezos categorizes decisions as "one-way doors" and "two-way doors":
+
+| Type | Characteristics | Approach |
+|------|----------------|----------|
+| **One-way door** (Type 1) | Irreversible or very costly to reverse | Careful analysis, broad input, thorough documentation |
+| **Two-way door** (Type 2) | Easily reversible, low switching cost | Decide quickly, experiment, course-correct |
+
+Examples:
+- **One-way door:** Choosing a primary database, public API design, programming language for a core system
+- **Two-way door:** Internal library choice, CI/CD tool, code formatting rules, feature flag decisions
+
+:::tip[Default to Speed]
+Most decisions are two-way doors. Treat them as such. The cost of slow decisions usually exceeds the cost of occasionally wrong but quickly corrected ones.
+:::
+
+---
+
+## Build vs Buy
+
+One of the most impactful decisions in software engineering is whether to build a solution in-house or adopt an existing one.
+
+### Decision Framework
+
+```
+         Build When:                         Buy When:
+         ────────────                        ──────────
+
+         Core differentiator                 Commodity capability
+         Unique requirements                 Standard requirements
+         Need full control                   Vendor meets 80%+ of needs
+         Strong internal expertise           Faster time to market
+         Long-term cost advantage            Team should focus elsewhere
+         Regulatory/compliance needs         Operational burden too high
+```
+
+### Total Cost of Ownership Comparison
+
+```
+Build Costs:                          Buy Costs:
+──────────                            ──────────
+Initial development     $$$           License/subscription  $$
+Testing and QA          $$            Integration work      $$
+Documentation           $             Customization         $
+Ongoing maintenance     $$$/year      Training              $
+Security patches        $$/year       Vendor lock-in risk   $$
+Feature development     $$$/year      Ongoing fees          $$/year
+On-call/operations      $$/year       Migration cost (exit) $$
+Knowledge continuity    $/year
+
+Total 3-year cost:     $$$$$$         Total 3-year cost:   $$$$
+(often 3-5x more than estimated)      (more predictable)
+```
+
+### When Organizations Get It Wrong
+
+| Mistake | Consequence |
+|---------|-------------|
+| Building when you should buy | Engineering time wasted on non-differentiating work |
+| Buying when you should build | Vendor lock-in, inability to customize, hidden costs |
+| Not evaluating total cost | Hidden maintenance burden for build; hidden integration cost for buy |
+| "Not invented here" syndrome | Rejecting good external solutions due to ego |
+| Ignoring exit costs | Locked into a vendor with no migration plan |
+
+---
+
+## Technology Radar
+
+A **technology radar** (popularized by ThoughtWorks) helps organizations track and communicate their stance on technologies.
+
+```
+                    ┌──────────┐
+                    │  ADOPT   │  Use in production, recommended
+                   ┌┴──────────┴┐
+                   │   TRIAL    │  Worth exploring in non-critical projects
+                  ┌┴────────────┴┐
+                  │   ASSESS     │  Explore to understand, not for production
+                 ┌┴──────────────┴┐
+                 │    HOLD        │  Do not start new projects with this
+                 └────────────────┘
+
+Quadrants:
+  1. Languages & Frameworks
+  2. Tools
+  3. Platforms
+  4. Techniques
+```
+
+### Example Technology Radar Entries
+
+| Technology | Ring | Rationale |
+|-----------|------|-----------|
+| TypeScript | Adopt | Standard for all new frontend and Node.js projects |
+| Rust | Trial | Evaluating for performance-critical services |
+| Deno | Assess | Interesting runtime, monitoring ecosystem maturity |
+| jQuery | Hold | Legacy; migrate to modern frameworks |
+| PostgreSQL | Adopt | Primary database for OLTP workloads |
+| GraphQL | Trial | Using in new mobile API; evaluating DX and performance |
+| Microservices | Adopt | Standard architecture for new services (with caveats) |
+| Monorepo (Turborepo) | Trial | Piloting with frontend team |
+
+---
+
+## Managing Technical Debt
+
+Technical debt is the accumulated cost of shortcuts, deferred work, and evolving requirements that slow down future development.
+
+### Types of Technical Debt
+
+Martin Fowler's technical debt quadrant:
+
+```
+                     Deliberate                Inadvertent
+              ┌─────────────────────┬─────────────────────┐
+              │                     │                     │
+   Prudent    │ "We know this is    │ "Now we know how    │
+              │  a shortcut and     │  we should have     │
+              │  will pay it back"  │  done it"           │
+              │                     │                     │
+              ├─────────────────────┼─────────────────────┤
+              │                     │                     │
+   Reckless   │ "We don't have      │ "What's layered     │
+              │  time for design"   │  architecture?"     │
+              │                     │                     │
+              └─────────────────────┴─────────────────────┘
+```
+
+### Measuring Technical Debt
+
+| Metric | What It Tells You |
+|--------|-------------------|
+| **Cycle time increase** | Time to deliver features is growing |
+| **Bug rate** | Percentage of changes that introduce bugs |
+| **Code churn** | Same files modified repeatedly (indicates unclear design) |
+| **Dependency age** | How outdated are your dependencies |
+| **Test coverage gaps** | Areas with no tests are likely to have hidden debt |
+| **Developer survey** | Ask engineers: "How confident are you making changes in area X?" |
+
+### Strategies for Managing Technical Debt
+
+1. **Make it visible** — Track tech debt items in the backlog with estimated cost
+2. **Allocate time** — Reserve 15-20 percent of sprint capacity for debt reduction
+3. **Pay it incrementally** — Fix debt as you touch related code (the "Boy Scout Rule")
+4. **Prioritize by impact** — Focus on debt that slows down the most teams or the most critical paths
+5. **Prevent accumulation** — Code reviews, design reviews, and quality standards
+6. **Communicate business impact** — "This tech debt adds 2 weeks to every feature in the payments module"
+
+### The Tech Debt Conversation with Product
+
+```
+INEFFECTIVE:
+  Engineer: "We need 3 sprints to refactor the authentication module."
+  PM: "Why? It works fine."
+  Engineer: "Because the code is messy."
+  PM: "We have features to ship."
+
+EFFECTIVE:
+  Engineer: "The authentication module currently takes 2 weeks for
+  any feature change. With a 3-sprint investment, we can reduce that
+  to 3 days. Over the next year, this saves approximately 20 weeks
+  of engineering time across 10 planned auth features."
+  PM: "Let's schedule it for next quarter."
+```
+
+---
+
+## Communicating Technical Decisions
+
+### To Your Team
+
+- Share the decision and rationale in a team meeting
+- Publish the ADR in the repository
+- Be open to questions and concerns
+- Explain what changes in their day-to-day work
+
+### To Other Teams
+
+- Send a summary to affected teams
+- Highlight any breaking changes or migration needs
+- Offer support during the transition
+- Set clear timelines for deprecation
+
+### To Leadership
+
+- Focus on business outcomes, not technical details
+- Quantify the impact (cost savings, velocity improvement, risk reduction)
+- Present options, not just your recommendation
+- Be transparent about trade-offs and risks
+
+:::tip[The "One-Pager" Format]
+For executive communication, use a one-page document:
+1. **Problem** (2 sentences)
+2. **Proposed Solution** (2 sentences)
+3. **Alternatives** (bullet points)
+4. **Impact** (metrics)
+5. **Ask** (what you need from them)
+:::
+
+---
+
+<LinkCard
+  title="Next: Engineering Culture"
+  description="Build strong code review practices, blameless postmortems, and knowledge sharing"
+  href="/software-engineering/tech-leadership/engineering-culture/"
+/>

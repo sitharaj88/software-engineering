@@ -1,0 +1,564 @@
+---
+title: Distributed Systems
+description: Understand the fundamentals of distributed systems, why they matter, the fallacies of distributed computing, and the major architectural patterns used in modern infrastructure.
+difficulty: intermediate
+prerequisites:
+  - Computer Networks fundamentals
+  - Basic understanding of client-server architecture
+  - Operating systems concepts
+timeToRead: "25 min"
+topics:
+  - distributed systems
+  - fallacies of distributed computing
+  - client-server
+  - peer-to-peer
+  - microservices
+---
+
+import { Card, CardGrid, LinkCard, Tabs, TabItem } from '@astrojs/starlight/components';
+
+A **distributed system** is a collection of independent computers that appears to its users as a single coherent system. These machines communicate and coordinate their actions by passing messages over a network, working together to achieve a common goal. From web search engines serving billions of queries to financial systems processing millions of transactions per second, distributed systems power virtually every large-scale application in production today.
+
+:::note
+Martin Fowler defines a distributed system as one in which "the failure of a computer you didn't even know existed can render your own computer unusable." This captures both the power and the peril of distributed computing.
+:::
+
+---
+
+## Why Distributed Systems Matter
+
+Modern software demands capabilities that no single machine can provide:
+
+| Requirement | Single Machine Limitation | Distributed Solution |
+|---|---|---|
+| **Scalability** | Vertical scaling hits hardware ceilings | Horizontal scaling across commodity machines |
+| **Availability** | Single point of failure | Redundancy across multiple nodes |
+| **Latency** | Physically far from some users | Geo-distributed replicas near users |
+| **Data Volume** | Disk and memory limits | Partitioned data across a cluster |
+| **Fault Tolerance** | Machine failure equals service failure | Automatic failover and recovery |
+
+### The Scale of Modern Systems
+
+To appreciate why distribution is necessary, consider the scale at which modern systems operate:
+
+```
+Google Search:   ~100,000 queries/second
+Netflix:         ~400 million hours streamed/day
+WhatsApp:        ~100 billion messages/day
+AWS S3:          ~100 trillion objects stored
+Visa:            ~65,000 transactions/second peak
+```
+
+No single machine -- no matter how powerful -- can handle this volume. Distribution is not optional; it is a requirement.
+
+---
+
+## Fallacies of Distributed Computing
+
+In 1994, Peter Deutsch (with additions by James Gosling) documented eight assumptions that developers new to distributed systems commonly make. These assumptions are all false, and ignoring them leads to systems that are fragile, slow, or insecure.
+
+```
+┌─────────────────────────────────────────────────────────┐
+│            The Eight Fallacies of Distributed Computing  │
+├─────────────────────────────────────────────────────────┤
+│  1. The network is reliable                              │
+│  2. Latency is zero                                      │
+│  3. Bandwidth is infinite                                │
+│  4. The network is secure                                │
+│  5. Topology doesn't change                              │
+│  6. There is one administrator                           │
+│  7. Transport cost is zero                               │
+│  8. The network is homogeneous                           │
+└─────────────────────────────────────────────────────────┘
+```
+
+### Fallacy 1: The Network Is Reliable
+
+Networks fail -- packets are dropped, cables are severed, switches malfunction, and cloud regions go offline. Your system must assume that any network call can fail at any time.
+
+**Real-world impact**: In 2017, an S3 outage in the `us-east-1` region cascaded to bring down a significant fraction of the internet, including Slack, Trello, and the AWS status page itself.
+
+**Mitigation strategies**:
+- Implement retries with exponential backoff
+- Use circuit breakers to avoid cascading failures
+- Design for idempotency so retries are safe
+- Employ message queues for asynchronous decoupling
+
+### Fallacy 2: Latency Is Zero
+
+A function call within a single process takes nanoseconds. A network call to another machine takes milliseconds at minimum -- that is a factor of a million difference.
+
+```
+Operation                              Time
+─────────────────────────────────────────────────
+L1 cache reference                     1 ns
+L2 cache reference                     4 ns
+Main memory reference                  100 ns
+SSD random read                        16,000 ns     (16 us)
+Network round-trip (same datacenter)   500,000 ns    (0.5 ms)
+Network round-trip (cross-continent)   150,000,000 ns (150 ms)
+```
+
+**Mitigation strategies**:
+- Batch network calls to reduce round trips
+- Cache frequently accessed data locally
+- Use CDNs to bring content closer to users
+- Design APIs to return all needed data in a single call
+
+### Fallacy 3: Bandwidth Is Infinite
+
+While bandwidth has improved dramatically, it is still a bottleneck -- especially when transferring large datasets, video streams, or when many clients compete for the same link.
+
+**Mitigation strategies**:
+- Compress data before transmission
+- Use pagination for large result sets
+- Implement delta synchronization instead of full syncs
+- Choose efficient serialization formats (Protocol Buffers, MessagePack)
+
+### Fallacy 4: The Network Is Secure
+
+Every network hop is a potential attack vector. Data in transit can be intercepted, modified, or spoofed.
+
+**Mitigation strategies**:
+- Encrypt all communication with TLS
+- Authenticate and authorize every request
+- Implement network segmentation and firewalls
+- Assume zero trust -- verify even internal traffic
+
+### Fallacies 5-8 in Brief
+
+| Fallacy | Reality | Mitigation |
+|---|---|---|
+| **Topology doesn't change** | Servers are added, removed, and moved constantly | Use service discovery and DNS |
+| **There is one administrator** | Multiple teams, organizations, and policies | Define clear ownership boundaries |
+| **Transport cost is zero** | Serialization, network hardware, and cloud egress all cost money | Optimize data formats, monitor costs |
+| **Network is homogeneous** | Different hardware, protocols, and OS versions coexist | Use standard protocols and abstractions |
+
+---
+
+## Types of Distributed Systems
+
+### Client-Server Architecture
+
+The most common and intuitive distributed pattern. Clients send requests; servers process them and return responses.
+
+```
+┌──────────┐     ┌──────────┐     ┌──────────┐
+│ Client A │     │ Client B │     │ Client C │
+└────┬─────┘     └────┬─────┘     └────┬─────┘
+     │                │                │
+     └───────────┬────┘────────────────┘
+                 │
+          ┌──────▼──────┐
+          │   Server    │
+          │ (centralized│
+          │  authority) │
+          └──────┬──────┘
+                 │
+          ┌──────▼──────┐
+          │  Database   │
+          └─────────────┘
+```
+
+**Characteristics**:
+- Centralized control and coordination
+- Clients are typically lightweight; servers hold business logic
+- Easy to reason about and secure
+- The server is a potential single point of failure and bottleneck
+
+**Examples**: Web applications, REST APIs, traditional databases
+
+### Multi-Tier Client-Server
+
+Most modern applications use multiple tiers to separate concerns:
+
+```
+┌─────────┐   ┌──────────────┐   ┌──────────────┐   ┌──────────┐
+│  Client  │──▶│ Presentation │──▶│   Business   │──▶│   Data   │
+│ (Browser)│   │    Tier      │   │  Logic Tier  │   │   Tier   │
+└─────────┘   │ (Web Server) │   │ (App Server) │   │   (DB)   │
+               └──────────────┘   └──────────────┘   └──────────┘
+```
+
+### Peer-to-Peer (P2P) Architecture
+
+In P2P systems, every node acts as both client and server. There is no central authority -- nodes communicate directly with each other.
+
+```
+     ┌──────┐
+     │Peer A│──────────┐
+     └──┬───┘          │
+        │          ┌───▼──┐
+        │          │Peer D│
+        │          └───┬──┘
+     ┌──▼───┐         │
+     │Peer B│─────────┘
+     └──┬───┘
+        │
+     ┌──▼───┐
+     │Peer C│
+     └──────┘
+
+   Every peer is both client and server.
+   No central coordinator.
+```
+
+**Characteristics**:
+- No single point of failure
+- Highly resilient -- removing any node does not bring down the system
+- Difficult to coordinate and maintain consistency
+- Scales naturally as each new node adds both demand and capacity
+
+**Types of P2P**:
+
+| Type | Description | Example |
+|---|---|---|
+| **Unstructured** | No specific topology; nodes connect randomly | Early Gnutella |
+| **Structured** | Deterministic topology using DHTs (Distributed Hash Tables) | Chord, Kademlia, IPFS |
+| **Hybrid** | Some central coordination with P2P data transfer | BitTorrent (tracker + peers), Skype |
+
+### Microservices Architecture
+
+An application is decomposed into a collection of small, independently deployable services, each owning its own data and communicating over the network.
+
+```
+┌─────────┐     ┌─────────────────────────────────────┐
+│  Client  │────▶│           API Gateway               │
+└─────────┘     └──┬──────────┬──────────┬────────────┘
+                   │          │          │
+            ┌──────▼───┐ ┌───▼─────┐ ┌──▼──────┐
+            │  User    │ │ Order   │ │ Payment │
+            │ Service  │ │ Service │ │ Service │
+            └──┬───────┘ └──┬──────┘ └──┬──────┘
+               │            │           │
+            ┌──▼───┐    ┌───▼──┐    ┌───▼──┐
+            │User  │    │Order │    │Pay   │
+            │  DB  │    │  DB  │    │  DB  │
+            └──────┘    └──────┘    └──────┘
+```
+
+**Characteristics**:
+- Independent deployment and scaling of each service
+- Technology heterogeneity (each service can use different languages/databases)
+- Organizational alignment with Conway's Law
+- Operational complexity (monitoring, debugging, networking)
+
+**Comparison with monoliths**:
+
+| Aspect | Monolith | Microservices |
+|---|---|---|
+| **Deployment** | Single unit | Independent per service |
+| **Scaling** | Scale entire application | Scale individual services |
+| **Data** | Shared database | Database per service |
+| **Communication** | In-process function calls | Network calls (HTTP, gRPC, messaging) |
+| **Complexity** | Simpler operations, complex codebase | Complex operations, simpler codebases |
+| **Team Size** | Works well for small teams | Suited for large organizations |
+
+---
+
+## Key Challenges in Distributed Systems
+
+### 1. Partial Failure
+
+In a distributed system, part of the system can fail while the rest continues to operate. This is fundamentally different from a single machine, where the system either works or it does not.
+
+### 2. No Global Clock
+
+There is no single global clock that all nodes agree on. Different machines have slightly different clock speeds, and network delays vary. This makes ordering events across nodes extremely difficult.
+
+```
+Node A:  [Event 1 at T=100ms] ──── message ────▶ [Received at T=250ms]
+Node B:  [Event 2 at T=150ms]    (takes 100ms)
+
+Did Event 1 happen before Event 2?
+Node A says yes (100 < 150).
+But Node B received Event 1 at T=250ms -- after Event 2.
+```
+
+Solutions include **Lamport clocks**, **vector clocks**, and **hybrid logical clocks**.
+
+### 3. Network Partitions
+
+A network partition occurs when some nodes can communicate with each other but not with other groups. The system must decide how to behave when this happens -- this is the essence of the [CAP theorem](/software-engineering/distributed-systems/cap-theorem/).
+
+### 4. Consistency vs Availability Trade-off
+
+You cannot have both perfect consistency and perfect availability in the presence of network partitions. This fundamental trade-off shapes every design decision in distributed systems.
+
+### 5. Byzantine Failures
+
+Nodes can behave maliciously or arbitrarily. While most internal systems only need to handle crash failures, public systems (like blockchains) must handle byzantine failures where nodes actively try to deceive the system.
+
+---
+
+## Distributed System Design Principles
+
+:::tip[Design for Failure]
+In a distributed system, failure is not an exception -- it is the normal state of affairs. Design every component assuming that any other component can fail at any time.
+:::
+
+### Core Principles
+
+1. **Loose Coupling**: Services should have minimal dependencies on each other. Changes to one service should not require changes to others.
+
+2. **Idempotency**: Operations should be safe to retry. If a client sends the same request twice, the result should be the same as sending it once.
+
+3. **Eventual Consistency**: Accept that data may be temporarily inconsistent across nodes, as long as it converges to a consistent state.
+
+4. **Graceful Degradation**: When parts of the system fail, continue to provide reduced functionality rather than complete failure.
+
+5. **Observability**: Comprehensive logging, metrics, and tracing are essential for understanding what is happening across dozens or hundreds of services.
+
+---
+
+## A Simple Distributed System Example
+
+Here is a minimal example demonstrating basic distributed communication:
+
+<Tabs>
+<TabItem label="Python">
+```python
+# Simple distributed key-value store (server)
+import socket
+import json
+import threading
+
+class DistributedKVStore:
+    def __init__(self, host='localhost', port=5000):
+        self.store = {}
+        self.host = host
+        self.port = port
+        self.lock = threading.Lock()
+
+    def handle_client(self, conn, addr):
+        """Handle a single client connection."""
+        try:
+            data = conn.recv(4096).decode('utf-8')
+            request = json.loads(data)
+
+            if request['op'] == 'GET':
+                with self.lock:
+                    value = self.store.get(request['key'])
+                response = {'status': 'ok', 'value': value}
+
+            elif request['op'] == 'PUT':
+                with self.lock:
+                    self.store[request['key']] = request['value']
+                response = {'status': 'ok'}
+
+            elif request['op'] == 'DELETE':
+                with self.lock:
+                    self.store.pop(request['key'], None)
+                response = {'status': 'ok'}
+
+            else:
+                response = {'status': 'error', 'message': 'Unknown operation'}
+
+            conn.send(json.dumps(response).encode('utf-8'))
+        finally:
+            conn.close()
+
+    def start(self):
+        """Start the key-value store server."""
+        server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        server.bind((self.host, self.port))
+        server.listen(5)
+        print(f"KV Store listening on {self.host}:{self.port}")
+
+        while True:
+            conn, addr = server.accept()
+            thread = threading.Thread(
+                target=self.handle_client,
+                args=(conn, addr)
+            )
+            thread.start()
+
+if __name__ == '__main__':
+    store = DistributedKVStore()
+    store.start()
+```
+</TabItem>
+<TabItem label="JavaScript">
+```javascript
+// Simple distributed key-value store (server)
+const net = require('net');
+
+class DistributedKVStore {
+  constructor(host = 'localhost', port = 5000) {
+    this.store = new Map();
+    this.host = host;
+    this.port = port;
+  }
+
+  handleRequest(data) {
+    const request = JSON.parse(data);
+
+    switch (request.op) {
+      case 'GET':
+        return {
+          status: 'ok',
+          value: this.store.get(request.key) ?? null
+        };
+
+      case 'PUT':
+        this.store.set(request.key, request.value);
+        return { status: 'ok' };
+
+      case 'DELETE':
+        this.store.delete(request.key);
+        return { status: 'ok' };
+
+      default:
+        return { status: 'error', message: 'Unknown operation' };
+    }
+  }
+
+  start() {
+    const server = net.createServer((socket) => {
+      socket.on('data', (data) => {
+        const response = this.handleRequest(data.toString());
+        socket.write(JSON.stringify(response));
+        socket.end();
+      });
+    });
+
+    server.listen(this.port, this.host, () => {
+      console.log(
+        `KV Store listening on ${this.host}:${this.port}`
+      );
+    });
+  }
+}
+
+const store = new DistributedKVStore();
+store.start();
+```
+</TabItem>
+<TabItem label="Java">
+```java
+// Simple distributed key-value store (server)
+import java.io.*;
+import java.net.*;
+import java.util.concurrent.*;
+import com.google.gson.Gson;
+
+public class DistributedKVStore {
+    private final ConcurrentHashMap<String, String> store;
+    private final int port;
+    private final Gson gson;
+
+    public DistributedKVStore(int port) {
+        this.store = new ConcurrentHashMap<>();
+        this.port = port;
+        this.gson = new Gson();
+    }
+
+    public void start() throws IOException {
+        ServerSocket serverSocket = new ServerSocket(port);
+        ExecutorService pool = Executors.newFixedThreadPool(10);
+        System.out.println("KV Store listening on port " + port);
+
+        while (true) {
+            Socket client = serverSocket.accept();
+            pool.submit(() -> handleClient(client));
+        }
+    }
+
+    private void handleClient(Socket client) {
+        try (
+            BufferedReader in = new BufferedReader(
+                new InputStreamReader(client.getInputStream()));
+            PrintWriter out = new PrintWriter(
+                client.getOutputStream(), true)
+        ) {
+            String data = in.readLine();
+            Request request = gson.fromJson(data, Request.class);
+            Response response = processRequest(request);
+            out.println(gson.toJson(response));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private Response processRequest(Request request) {
+        switch (request.op) {
+            case "GET":
+                String value = store.get(request.key);
+                return new Response("ok", value);
+            case "PUT":
+                store.put(request.key, request.value);
+                return new Response("ok", null);
+            case "DELETE":
+                store.remove(request.key);
+                return new Response("ok", null);
+            default:
+                return new Response("error", null);
+        }
+    }
+
+    public static void main(String[] args) throws IOException {
+        new DistributedKVStore(5000).start();
+    }
+}
+```
+</TabItem>
+</Tabs>
+
+:::caution
+The example above is for educational purposes only. A production distributed key-value store needs replication, partitioning, failure detection, and consensus -- all topics covered in the subsequent pages of this section.
+:::
+
+---
+
+## Topics in This Section
+
+<CardGrid>
+  <Card title="CAP Theorem & Consistency Models" icon="warning">
+    Understand the fundamental trade-off between consistency, availability, and partition tolerance, along with the spectrum of consistency models used in practice.
+
+    [Explore CAP Theorem](/software-engineering/distributed-systems/cap-theorem/)
+  </Card>
+  <Card title="Replication & Partitioning" icon="random">
+    Learn how data is replicated for fault tolerance and partitioned for scalability, including consistent hashing and rebalancing strategies.
+
+    [Explore Replication](/software-engineering/distributed-systems/replication-partitioning/)
+  </Card>
+  <Card title="Consensus Algorithms" icon="approve-check">
+    Dive into how distributed nodes agree on a single value -- covering Raft, Paxos, and ZAB algorithms that power production systems.
+
+    [Explore Consensus](/software-engineering/distributed-systems/consensus-algorithms/)
+  </Card>
+  <Card title="Distributed Transactions" icon="forward-slash">
+    Master patterns for maintaining data integrity across services: two-phase commit, sagas, compensating transactions, and idempotency.
+
+    [Explore Transactions](/software-engineering/distributed-systems/distributed-transactions/)
+  </Card>
+</CardGrid>
+
+---
+
+## Related Topics
+
+Distributed systems intersect with many other areas of software engineering:
+
+- **[System Design](/software-engineering/system-design/)** -- Apply distributed systems concepts to real-world architecture problems
+- **[Database Engineering](/software-engineering/database-engineering/)** -- Understand the distributed nature of modern databases
+- **[DevOps](/software-engineering/devops/)** -- Deploy, monitor, and operate distributed systems in production
+- **[Computer Networks](/software-engineering/computer-networks/)** -- The networking foundations that distributed systems rely on
+- **[Security](/software-engineering/security/)** -- Securing communication and data across distributed components
+
+---
+
+## Further Reading
+
+- Designing Data-Intensive Applications by Martin Kleppmann
+- Distributed Systems by Maarten van Steen and Andrew S. Tanenbaum
+- "A Note on Distributed Computing" by Jim Waldo et al.
+- "Time, Clocks, and the Ordering of Events in a Distributed System" by Leslie Lamport
+
+<LinkCard
+  title="Next: CAP Theorem & Consistency Models"
+  description="Understand the fundamental impossibility result that shapes every distributed system design decision."
+  href="/software-engineering/distributed-systems/cap-theorem/"
+/>

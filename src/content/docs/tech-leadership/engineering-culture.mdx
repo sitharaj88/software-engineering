@@ -1,0 +1,435 @@
+---
+title: "Engineering Culture"
+description: "Build strong code review culture, blameless postmortems, documentation practices, knowledge sharing, hiring, and developer experience"
+difficulty: "advanced"
+prerequisites: ["Tech Leadership overview", "Team Dynamics"]
+timeToRead: "25 min"
+topics: ["engineering-culture", "code-review", "postmortems", "documentation", "knowledge-sharing", "developer-experience", "hiring"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+Engineering culture is the set of shared values, practices, and norms that define how an engineering organization operates. Great culture does not happen by accident — it is intentionally built and continuously maintained by technical leaders at every level. This page covers the essential cultural practices that distinguish high-performing engineering organizations.
+
+---
+
+## Code Review Culture
+
+Code reviews are one of the most impactful practices in software engineering. They catch bugs, spread knowledge, maintain standards, and build team cohesion. But their effectiveness depends entirely on culture.
+
+### The Purpose of Code Review
+
+| Purpose | Priority |
+|---------|----------|
+| **Knowledge sharing** | Highest — the primary long-term value |
+| **Catching bugs and design issues** | High — finds problems before production |
+| **Maintaining consistency** | Medium — ensures standards are followed |
+| **Mentoring** | Medium — teaches patterns and practices |
+| **Documentation** | Lower — the PR description serves as a record |
+
+### What Good Code Reviews Look Like
+
+**Reviewer behaviors:**
+- Review within 24 hours (ideally same business day)
+- Focus on the "what" and "why", not just the "how"
+- Ask questions instead of making demands: "What happens if this fails?" vs "Add error handling"
+- Distinguish between blocking issues and suggestions: "Nit:" or "Optional:" prefixes
+- Provide positive feedback on good patterns, not just criticism
+- Review the design first, then the implementation details
+
+**Author behaviors:**
+- Keep PRs small (under 400 lines of changed code)
+- Write a clear description explaining what and why
+- Self-review before requesting review
+- Respond to all comments, even if just "Done"
+- Do not take feedback personally
+
+### Code Review Anti-Patterns
+
+| Anti-Pattern | Problem | Fix |
+|-------------|---------|-----|
+| **Rubber stamping** | LGTM without reading | Require substantive comments; rotate reviewers |
+| **Nitpick wars** | Debating style preferences | Automate style with linters/formatters |
+| **Gatekeeping** | One person must approve everything | Distribute review responsibility; trust the team |
+| **PR too large** | 2000+ line PRs that nobody reads carefully | Enforce size limits; break work into smaller PRs |
+| **Slow reviews** | PRs waiting days for review | Set SLA (e.g., review within 4 business hours) |
+| **Review by seniority only** | Juniors never review | Everyone reviews; juniors learn by reviewing |
+
+### Automating the Tedious Parts
+
+```
+What HUMANS should review:        What MACHINES should check:
+──────────────────────────        ───────────────────────────
+Architecture and design           Code formatting (Prettier, Black)
+Business logic correctness        Linting (ESLint, Pylint)
+Error handling strategy           Type checking (TypeScript, mypy)
+Security implications             Test coverage thresholds
+API contract changes              Dependency vulnerabilities
+Naming and readability            Build success
+Performance implications          Performance regression tests
+```
+
+---
+
+## Blameless Postmortems
+
+When things go wrong in production, the response should be learning, not blame. Blameless postmortems are a cornerstone of high-reliability engineering organizations.
+
+### Why Blameless?
+
+- People who fear punishment will hide mistakes and avoid reporting incidents
+- The root cause is almost always systemic, not individual
+- Blame shuts down the psychological safety needed for honest analysis
+- The goal is to fix the system, not to find a scapegoat
+
+### Postmortem Template
+
+```markdown
+# Incident Postmortem: Payment Processing Outage
+
+**Date:** 2025-01-15
+**Duration:** 2 hours 15 minutes (14:30 - 16:45 UTC)
+**Severity:** SEV-1 (customer-facing, revenue impact)
+**Author:** On-call engineer + incident commander
+**Status:** Action items in progress
+
+## Summary
+Payment processing was unavailable for 2 hours 15 minutes due to
+a database connection pool exhaustion caused by a query regression
+in the latest deployment.
+
+## Impact
+- 12,500 failed payment attempts
+- Estimated revenue impact: $450,000
+- 340 customer support tickets
+- No data loss or corruption
+
+## Timeline (all times UTC)
+14:15 - Deploy v2.45.0 to production (includes order query optimization)
+14:28 - Monitoring shows database connection count increasing
+14:30 - First customer reports of payment failures
+14:35 - PagerDuty alert fires for payment error rate > 5%
+14:40 - On-call engineer acknowledges, begins investigation
+14:55 - Incident escalated to SEV-1, incident commander assigned
+15:10 - Root cause identified: new query missing index, holding
+         connections for 30s+ instead of <100ms
+15:20 - Decision to rollback deployment
+15:35 - Rollback deployed, connection pool draining
+16:00 - Connection pool recovered to normal levels
+16:30 - Payment success rate back to 99.9%
+16:45 - Incident resolved, monitoring confirmed stable
+
+## Root Cause
+The "order query optimization" in v2.45.0 changed a query that
+previously used an index on (customer_id, created_at) to use
+a full table scan. The query execution time increased from 50ms
+to 30+ seconds, causing database connections to be held longer
+than the pool could sustain.
+
+## Contributing Factors
+1. No query performance testing in CI/CD pipeline
+2. Database migration and query changes reviewed by different
+   people (context gap)
+3. Connection pool alerts set at 80% (too close to exhaustion)
+4. No query execution time monitoring for individual queries
+
+## What Went Well
+- PagerDuty alert fired within 5 minutes of impact
+- Team assembled quickly and communicated clearly
+- Rollback process worked smoothly
+- Customer communication was timely and transparent
+
+## What Went Wrong
+- 20-minute gap between deploy and first alert
+- Root cause identification took 30 minutes
+- No automated rollback trigger for error rate spikes
+
+## Action Items
+| Action | Owner | Priority | Due Date |
+|--------|-------|----------|----------|
+| Add query performance tests to CI | @alice | P0 | 2025-01-22 |
+| Lower connection pool alert to 60% | @bob | P0 | 2025-01-17 |
+| Add per-query latency monitoring | @charlie | P1 | 2025-01-31 |
+| Implement automated rollback on error spike | @dave | P1 | 2025-02-15 |
+| Require DB team review for query changes | @alice | P2 | 2025-02-01 |
+
+## Lessons Learned
+The deployment pipeline needs to catch performance regressions
+before they reach production. We are investing in query
+performance testing and tighter monitoring to prevent similar
+incidents.
+```
+
+### Running an Effective Postmortem Meeting
+
+1. **Set the tone** — "We are here to learn, not to blame. The system failed, not a person."
+2. **Build the timeline collaboratively** — Walk through events chronologically
+3. **Ask "why" five times** — Dig into root causes, not surface symptoms
+4. **Focus on systemic fixes** — "How do we prevent ANY engineer from making this mistake?"
+5. **Assign action items with owners and deadlines** — Postmortems without action items are theater
+6. **Follow up** — Track completion of action items; review in the next team meeting
+
+:::caution[Postmortem Anti-Patterns]
+- Skipping the postmortem because "we already know what happened"
+- Writing postmortems that nobody reads (publish them prominently)
+- Action items that never get completed (track them like any other work)
+- Only doing postmortems for severe incidents (minor incidents have lessons too)
+- The "five whys" leading to "human error" — keep going until you find a systemic cause
+:::
+
+---
+
+## Documentation Culture
+
+Documentation is a force multiplier. One engineer writing a document saves hundreds of hours of questions, onboarding time, and rediscovered knowledge.
+
+### Types of Documentation
+
+| Type | Audience | Lifespan | Example |
+|------|----------|----------|---------|
+| **How-to guides** | Engineers performing a task | Long | "How to set up the dev environment" |
+| **Tutorials** | New learners | Long | "Building your first feature" |
+| **Reference** | Engineers looking up details | Long | API documentation, configuration reference |
+| **Explanations** | Engineers needing context | Medium | "Why we chose event sourcing" |
+| **ADRs** | Current and future engineers | Permanent | Architecture decisions (see previous page) |
+| **Runbooks** | On-call engineers | Medium | "How to handle a database failover" |
+| **Onboarding docs** | New hires | Medium | "Week 1-4 onboarding plan" |
+
+### Documentation Best Practices
+
+- **Store docs near the code** — In the repo, not a separate wiki that rots
+- **Treat docs like code** — Review in PRs, test links, automate generation
+- **Write for your audience** — A runbook for on-call is different from an API guide
+- **Keep docs current** — Outdated docs are worse than no docs (they mislead)
+- **Make docs discoverable** — Clear naming, good search, table of contents
+- **Lower the barrier** — Templates, examples, and style guides make writing easier
+
+### The Documentation Quadrant
+
+```
+                    Studying                  Working
+              (learning-oriented)      (task-oriented)
+
+Practical     ┌─────────────────┬─────────────────┐
+              │   Tutorials     │   How-to Guides  │
+              │                 │                   │
+              │ "Follow these   │ "Steps to achieve │
+              │  steps to learn │  a specific goal"  │
+              │  this concept"  │                   │
+              ├─────────────────┼─────────────────┤
+Theoretical   │  Explanations   │   Reference      │
+              │                 │                   │
+              │ "Understanding  │ "Technical specs, │
+              │  the background │  API docs, config  │
+              │  and context"   │  options"          │
+              └─────────────────┴─────────────────┘
+
+(Based on Divio documentation framework)
+```
+
+---
+
+## Knowledge Sharing
+
+### Tech Talks and Presentations
+
+- **Lightning talks (5-10 min)** — Low barrier, encourage broad participation
+- **Lunch and learns (30-45 min)** — Deeper dives, often with food as incentive
+- **Architecture reviews (60 min)** — Team presents system design for cross-team feedback
+- **Demo days** — Teams showcase what they shipped that sprint/quarter
+
+### Guilds and Communities of Practice
+
+Guilds (or chapters, communities of practice) are cross-team groups organized around a shared interest or skill:
+
+```
+                    Frontend Guild
+                    ┌──────────┐
+        Team A  ────┤          ├──── Team B
+        (FE dev)    │ Shared   │     (FE dev)
+                    │ standards│
+        Team C  ────┤ tooling  ├──── Team D
+        (FE dev)    │ knowledge│     (FE dev)
+                    └──────────┘
+
+Examples:
+  - Frontend Guild: shared component library, CSS standards
+  - Data Engineering Guild: data pipeline standards, tooling
+  - Security Guild: security review process, threat modeling
+  - Testing Guild: testing strategies, framework selection
+```
+
+### Internal Knowledge Base Practices
+
+| Practice | Description |
+|----------|-------------|
+| **"Write it once" rule** | If you explain something twice, write a document |
+| **Show-and-tell sessions** | Monthly presentations of interesting work |
+| **Pair programming rotation** | Engineers pair across teams to spread knowledge |
+| **Reading groups** | Team reads and discusses a paper or book chapter weekly |
+| **Internal blog** | Engineers share learnings, post-project reflections |
+| **Decision logs** | Searchable archive of all ADRs and RFCs |
+
+---
+
+## Hiring and Onboarding
+
+### Hiring for Culture Fit vs Culture Add
+
+| Culture Fit | Culture Add |
+|-------------|-------------|
+| "Will this person get along with us?" | "What unique perspective does this person bring?" |
+| Risk: homogeneous teams, groupthink | Benefit: diverse thinking, innovation |
+| Check: shared values and work ethic | Check: complementary skills and viewpoints |
+
+### Effective Technical Interviews
+
+| Interview Type | What It Assesses | Duration |
+|---------------|-----------------|----------|
+| **Coding (live)** | Problem-solving, communication, code quality | 45-60 min |
+| **System design** | Architecture skills, trade-off analysis | 45-60 min |
+| **Take-home project** | Real-world coding in a realistic setting | 2-4 hours |
+| **Code review** | How they evaluate others' code, communication | 30-45 min |
+| **Behavioral** | Collaboration, conflict resolution, values | 30-45 min |
+
+:::tip[Interview Best Practices]
+- Use a structured scorecard (not "gut feeling")
+- Test real-world skills, not puzzle-solving ability
+- Provide the problem statement in advance when possible
+- Allow candidates to use their preferred language and tools
+- Train all interviewers on bias awareness
+- Make the process as welcoming and respectful as possible
+:::
+
+### Onboarding Checklist
+
+```
+Week 1: Getting Started
+  [ ] Development environment setup (automated, documented)
+  [ ] Access to all tools (source control, CI/CD, monitoring, chat)
+  [ ] Meet the team (1:1s with each team member)
+  [ ] Read team charter, ADRs, and architecture docs
+  [ ] First "good first issue" assigned
+  [ ] Buddy/mentor assigned
+
+Week 2-3: Contributing
+  [ ] First PR merged
+  [ ] Participate in code review (both giving and receiving)
+  [ ] Attend sprint ceremonies
+  [ ] Understand deployment process
+  [ ] Shadow on-call rotation
+
+Week 4-6: Owning
+  [ ] Complete a small feature independently
+  [ ] Present at team standup or demo
+  [ ] Understand at least 3 team services
+  [ ] Give feedback on onboarding process (improve it!)
+
+Month 2-3: Growing
+  [ ] Own a medium-sized project
+  [ ] Participate in design review
+  [ ] Identify one area for improvement and propose a fix
+  [ ] 30/60/90 day check-in with manager
+```
+
+---
+
+## Developer Experience (DevEx)
+
+Developer experience is the quality of the tools, processes, and environment that developers interact with daily. Great DevEx reduces friction and lets engineers focus on solving problems.
+
+### The Three Dimensions of DevEx
+
+```
+┌───────────────────────────────────────────────────┐
+│                Developer Experience                │
+├──────────────┬──────────────┬─────────────────────┤
+│              │              │                     │
+│  Feedback    │  Cognitive   │  Flow State         │
+│  Loops       │  Load        │                     │
+│              │              │                     │
+│  How fast    │  How much    │  How often can      │
+│  do I get    │  mental      │  developers get     │
+│  results?    │  effort is   │  into and stay      │
+│              │  required?   │  in flow?           │
+│              │              │                     │
+│  • CI time   │  • Docs      │  • Interruptions    │
+│  • Build time│  • Code      │  • Meeting load     │
+│  • Deploy    │    complexity│  • Context switching │
+│    time      │  • Tool      │  • Autonomy         │
+│  • Test time │    usability │  • Clear goals      │
+│              │              │                     │
+└──────────────┴──────────────┴─────────────────────┘
+```
+
+### Measuring Developer Experience
+
+| Metric | Target | How to Measure |
+|--------|--------|---------------|
+| **Build time** | Under 2 minutes (local) | CI metrics, developer surveys |
+| **CI pipeline duration** | Under 10 minutes | CI/CD dashboard |
+| **Deploy frequency** | Multiple times per day | Deployment tracking |
+| **Time to first PR** (new hire) | Under 1 week | Onboarding metrics |
+| **Developer satisfaction** | Quarterly survey score | Anonymous surveys |
+| **Toil percentage** | Under 20 percent | Time tracking, surveys |
+
+### DevEx Improvements with High ROI
+
+| Improvement | Impact |
+|-------------|--------|
+| Automate dev environment setup | Saves days per new hire |
+| Fast, reliable CI/CD | Reduces context switching from waiting |
+| Good error messages | Reduces debugging time |
+| Self-service infrastructure | Removes bottleneck on platform team |
+| Pre-configured linters and formatters | Eliminates style debates in code review |
+| Comprehensive local development docs | Reduces "it works on my machine" problems |
+| Fast, incremental builds | Tighter feedback loop during development |
+| Feature flags | Enables decoupling deploy from release |
+
+---
+
+## Measuring Engineering Productivity
+
+### DORA Metrics
+
+The four key metrics from the DORA (DevOps Research and Assessment) research:
+
+| Metric | Elite | High | Medium | Low |
+|--------|-------|------|--------|-----|
+| **Deployment Frequency** | On-demand (multiple/day) | Weekly-monthly | Monthly-biannually | Less than once per 6 months |
+| **Lead Time for Changes** | Less than 1 hour | 1 day - 1 week | 1 week - 1 month | 1 - 6 months |
+| **Mean Time to Recover** | Less than 1 hour | Less than 1 day | 1 day - 1 week | More than 6 months |
+| **Change Failure Rate** | 0 - 15 percent | 16 - 30 percent | 16 - 30 percent | 16 - 30 percent |
+
+### SPACE Framework
+
+A holistic framework for developer productivity (from Microsoft Research and GitHub):
+
+```
+S - Satisfaction and well-being
+    "How fulfilled are developers with their work?"
+
+P - Performance
+    "What are the outcomes of the development process?"
+
+A - Activity
+    "How much output are developers producing?"
+
+C - Communication and collaboration
+    "How effectively do developers communicate?"
+
+E - Efficiency and flow
+    "How smoothly can developers get work done?"
+```
+
+:::caution[Avoid Vanity Metrics]
+Lines of code, number of commits, and hours worked are poor measures of productivity. They incentivize the wrong behaviors and fail to capture the things that actually matter: quality, impact, and sustainability.
+:::
+
+---
+
+<LinkCard
+  title="Next: Accessibility & i18n"
+  description="Learn why accessibility matters, WCAG standards, internationalization, and testing"
+  href="/software-engineering/accessibility-i18n/"
+/>

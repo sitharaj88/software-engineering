@@ -1,0 +1,718 @@
+---
+title: "Logging & Metrics"
+description: "Master structured logging, log aggregation, metrics types, Prometheus, Grafana dashboards, and alerting best practices for production systems"
+difficulty: "intermediate"
+prerequisites: ["Observability & SRE Overview", "Basic Linux/CLI", "DevOps fundamentals"]
+timeToRead: "25 min"
+topics: ["logging", "structured-logging", "metrics", "prometheus", "grafana", "elk-stack", "alerting"]
+---
+
+import { Tabs, TabItem, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+## Structured Logging
+
+Traditional unstructured logs are human-readable but machine-hostile. **Structured logging** outputs logs in a parseable format (typically JSON), making them searchable, filterable, and aggregatable at scale.
+
+```
+    Unstructured Log:
+    2024-03-15 14:32:01 ERROR PaymentService - Payment failed
+    for user 789, amount $99.99, card ending 4242
+
+    Structured Log (JSON):
+    {
+      "timestamp": "2024-03-15T14:32:01.234Z",
+      "level": "error",
+      "service": "payment-service",
+      "instance": "payment-svc-pod-3",
+      "trace_id": "abc123def456",
+      "span_id": "span789",
+      "user_id": "user_789",
+      "message": "Payment processing failed",
+      "error_type": "CardDeclinedException",
+      "amount": 99.99,
+      "currency": "USD",
+      "card_last_four": "4242",
+      "duration_ms": 1250,
+      "retry_count": 2
+    }
+```
+
+### Why Structured Logging Matters
+
+| Aspect | Unstructured | Structured |
+|--------|-------------|-----------|
+| **Searchability** | Regex-based, fragile | Field-based queries |
+| **Filtering** | Manual parsing | `WHERE level = "error" AND service = "payment"` |
+| **Aggregation** | Nearly impossible | `COUNT(*) GROUP BY error_type` |
+| **Alerting** | Pattern matching on text | Precise conditions on fields |
+| **Correlation** | Copy-paste trace IDs | Join on `trace_id` across services |
+| **Dashboards** | Cannot build | Build from any field |
+
+### Log Levels
+
+Use log levels consistently across all services.
+
+| Level | When to Use | Example |
+|-------|------------|---------|
+| **TRACE** | Very detailed diagnostic info | "Entering function processPayment with args..." |
+| **DEBUG** | Diagnostic information for developers | "Cache miss for key user:789" |
+| **INFO** | Normal operational events | "Order 456 placed successfully" |
+| **WARN** | Unexpected but recoverable situations | "Retrying payment after timeout (attempt 2/3)" |
+| **ERROR** | Errors that need attention | "Payment failed: CardDeclinedException" |
+| **FATAL** | System cannot continue | "Database connection pool exhausted, shutting down" |
+
+:::caution
+**Never log sensitive data.** Personally identifiable information (PII), passwords, API keys, credit card numbers, and tokens must never appear in logs. Use redaction or masking.
+:::
+
+<Tabs>
+  <TabItem label="Python">
+    ```python
+    import logging
+    import json
+    from datetime import datetime, timezone
+
+    class JSONFormatter(logging.Formatter):
+        """Format log records as JSON for structured logging."""
+
+        def format(self, record):
+            log_entry = {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "level": record.levelname.lower(),
+                "logger": record.name,
+                "message": record.getMessage(),
+                "module": record.module,
+                "function": record.funcName,
+                "line": record.lineno,
+            }
+
+            # Add extra fields
+            if hasattr(record, "trace_id"):
+                log_entry["trace_id"] = record.trace_id
+            if hasattr(record, "user_id"):
+                log_entry["user_id"] = record.user_id
+            if hasattr(record, "duration_ms"):
+                log_entry["duration_ms"] = record.duration_ms
+
+            # Add exception info
+            if record.exc_info:
+                log_entry["exception"] = self.formatException(
+                    record.exc_info
+                )
+
+            return json.dumps(log_entry)
+
+    # Configure structured logging
+    logger = logging.getLogger("payment-service")
+    handler = logging.StreamHandler()
+    handler.setFormatter(JSONFormatter())
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+
+    # Usage with context
+    logger.info(
+        "Payment processed successfully",
+        extra={
+            "trace_id": "abc123",
+            "user_id": "user_789",
+            "duration_ms": 150
+        }
+    )
+
+    # Using structlog for more ergonomic structured logging
+    import structlog
+
+    structlog.configure(
+        processors=[
+            structlog.processors.TimeStamper(fmt="iso"),
+            structlog.processors.add_log_level,
+            structlog.processors.JSONRenderer()
+        ]
+    )
+
+    log = structlog.get_logger("payment-service")
+    log.info(
+        "payment_processed",
+        user_id="user_789",
+        amount=99.99,
+        duration_ms=150
+    )
+    ```
+  </TabItem>
+  <TabItem label="JavaScript">
+    ```javascript
+    // Using Winston for structured logging
+    const winston = require('winston');
+
+    const logger = winston.createLogger({
+      level: 'info',
+      format: winston.format.combine(
+        winston.format.timestamp({ format: 'ISO' }),
+        winston.format.json()
+      ),
+      defaultMeta: {
+        service: 'payment-service',
+        environment: process.env.NODE_ENV
+      },
+      transports: [
+        new winston.transports.Console(),
+        new winston.transports.File({
+          filename: 'logs/error.log',
+          level: 'error'
+        }),
+        new winston.transports.File({
+          filename: 'logs/combined.log'
+        })
+      ]
+    });
+
+    // Usage with context
+    logger.info('Payment processed', {
+      traceId: 'abc123',
+      userId: 'user_789',
+      amount: 99.99,
+      durationMs: 150
+    });
+
+    logger.error('Payment failed', {
+      traceId: 'abc123',
+      userId: 'user_789',
+      error: 'CardDeclinedException',
+      amount: 99.99
+    });
+
+    // Using Pino (high-performance alternative)
+    const pino = require('pino');
+
+    const pinoLogger = pino({
+      level: 'info',
+      timestamp: pino.stdTimeFunctions.isoTime,
+      base: {
+        service: 'payment-service',
+        env: process.env.NODE_ENV
+      }
+    });
+
+    pinoLogger.info(
+      { userId: 'user_789', amount: 99.99 },
+      'Payment processed'
+    );
+    ```
+  </TabItem>
+  <TabItem label="Go">
+    ```go
+    package main
+
+    import (
+        "go.uber.org/zap"
+        "go.uber.org/zap/zapcore"
+    )
+
+    func main() {
+        // Production JSON logger
+        config := zap.NewProductionConfig()
+        config.EncoderConfig.TimeKey = "timestamp"
+        config.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+
+        logger, _ := config.Build()
+        defer logger.Sync()
+
+        // Structured fields
+        logger.Info("payment_processed",
+            zap.String("trace_id", "abc123"),
+            zap.String("user_id", "user_789"),
+            zap.Float64("amount", 99.99),
+            zap.Int64("duration_ms", 150),
+        )
+
+        logger.Error("payment_failed",
+            zap.String("trace_id", "abc123"),
+            zap.String("user_id", "user_789"),
+            zap.String("error_type", "CardDeclinedException"),
+            zap.Float64("amount", 99.99),
+        )
+
+        // With context (child logger)
+        requestLogger := logger.With(
+            zap.String("trace_id", "abc123"),
+            zap.String("request_id", "req_456"),
+        )
+        requestLogger.Info("processing_order",
+            zap.String("order_id", "order_789"),
+        )
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+## Log Aggregation
+
+In distributed systems, logs are scattered across dozens or hundreds of service instances. **Log aggregation** collects, processes, and centralizes logs for unified querying.
+
+### ELK Stack (Elasticsearch, Logstash, Kibana)
+
+```
+    ELK Stack Architecture:
+
+    Services                  Collection         Storage          UI
+    ┌────────┐               ┌──────────┐      ┌────────────┐  ┌────────┐
+    │Service A│──┐            │          │      │            │  │        │
+    ├────────┤  │            │ Logstash │      │Elasticsearch│  │ Kibana │
+    │Service B│──┼──────────▶│ (Parse,  │─────▶│ (Index,    │─▶│(Search,│
+    ├────────┤  │            │  Filter, │      │  Store,    │  │ Visual)│
+    │Service C│──┘   Beats   │  Enrich) │      │  Query)    │  │        │
+    └────────┘   (Filebeat)  └──────────┘      └────────────┘  └────────┘
+```
+
+### Grafana Loki (Lightweight Alternative)
+
+```
+    Loki Stack:
+
+    Services                 Collection        Storage          UI
+    ┌────────┐              ┌──────────┐      ┌──────────┐   ┌────────┐
+    │Service A│──┐           │          │      │          │   │        │
+    ├────────┤  │           │Promtail  │      │  Loki    │   │Grafana │
+    │Service B│──┼─────────▶│(Collect, │─────▶│(Label-   │──▶│(Unified│
+    ├────────┤  │           │ Label)   │      │ based    │   │ logs + │
+    │Service C│──┘           │          │      │ index)   │   │metrics)│
+    └────────┘              └──────────┘      └──────────┘   └────────┘
+
+    Loki indexes only labels (not full text),
+    making it much cheaper to operate than Elasticsearch.
+```
+
+| Feature | ELK Stack | Grafana Loki |
+|---------|----------|-------------|
+| **Indexing** | Full-text indexing | Label-based indexing only |
+| **Storage cost** | High (indexes everything) | Low (stores compressed logs) |
+| **Query speed** | Very fast (indexed) | Slower (scans log content) |
+| **Complexity** | High (cluster management) | Lower |
+| **Best for** | Large-scale log analytics | Cost-effective log aggregation |
+
+## Metrics
+
+Metrics are numerical measurements collected at regular intervals. They provide a quantitative view of system health and behavior over time.
+
+### Metric Types
+
+```
+    Counter (Monotonically increasing):
+    │
+    │                          ●
+    │                       ●●●
+    │                    ●●●
+    │                ●●●●
+    │           ●●●●●
+    │       ●●●●
+    │   ●●●●
+    │●●●
+    └──────────────────────────── Time
+    Example: total_requests, errors_total
+    Only goes up. Reset on restart.
+
+    Gauge (Goes up and down):
+    │
+    │     ●●                ●●
+    │    ●  ●●            ●●  ●
+    │   ●     ●●        ●●    ●●
+    │  ●        ●●    ●●        ●●
+    │ ●           ●●●●            ●
+    │●                              ●
+    └──────────────────────────────── Time
+    Example: memory_usage_bytes, active_connections
+    Current value. Snapshot at a point in time.
+
+    Histogram (Distribution):
+    │
+    │         ████
+    │       ████████
+    │     ████████████
+    │   ████████████████
+    │ ████████████████████
+    └──────────────────────── Latency buckets (ms)
+     0-10 10-50 50-100 100-500 500+
+
+    Example: request_duration_seconds
+    Counts observations into configurable buckets.
+    Calculates sum and count for averages.
+```
+
+### Prometheus
+
+Prometheus is the de facto standard for metrics collection in cloud-native systems. It uses a **pull model** -- scraping metrics from application endpoints.
+
+<Tabs>
+  <TabItem label="Python">
+    ```python
+    from prometheus_client import (
+        Counter,
+        Histogram,
+        Gauge,
+        Summary,
+        start_http_server,
+        generate_latest,
+    )
+    import time
+    import random
+
+    # Define metrics
+    REQUEST_COUNT = Counter(
+        'http_requests_total',
+        'Total HTTP requests',
+        ['method', 'endpoint', 'status']
+    )
+
+    REQUEST_LATENCY = Histogram(
+        'http_request_duration_seconds',
+        'HTTP request latency',
+        ['method', 'endpoint'],
+        buckets=[0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5]
+    )
+
+    ACTIVE_CONNECTIONS = Gauge(
+        'active_connections',
+        'Number of active connections'
+    )
+
+    IN_PROGRESS = Gauge(
+        'http_requests_in_progress',
+        'Number of HTTP requests in progress'
+    )
+
+    # Use metrics in your application
+    def handle_request(method, endpoint):
+        ACTIVE_CONNECTIONS.inc()
+        IN_PROGRESS.inc()
+
+        start_time = time.time()
+        try:
+            # Process request...
+            status = "200"
+            time.sleep(random.uniform(0.01, 0.5))
+        except Exception:
+            status = "500"
+        finally:
+            duration = time.time() - start_time
+            REQUEST_COUNT.labels(
+                method=method,
+                endpoint=endpoint,
+                status=status
+            ).inc()
+            REQUEST_LATENCY.labels(
+                method=method,
+                endpoint=endpoint
+            ).observe(duration)
+            IN_PROGRESS.dec()
+            ACTIVE_CONNECTIONS.dec()
+
+    # Expose /metrics endpoint for Prometheus to scrape
+    start_http_server(8000)
+    # Prometheus scrapes http://your-app:8000/metrics
+    ```
+  </TabItem>
+  <TabItem label="Go">
+    ```go
+    package main
+
+    import (
+        "math/rand"
+        "net/http"
+        "time"
+
+        "github.com/prometheus/client_golang/prometheus"
+        "github.com/prometheus/client_golang/prometheus/promauto"
+        "github.com/prometheus/client_golang/prometheus/promhttp"
+    )
+
+    var (
+        requestCount = promauto.NewCounterVec(
+            prometheus.CounterOpts{
+                Name: "http_requests_total",
+                Help: "Total HTTP requests",
+            },
+            []string{"method", "endpoint", "status"},
+        )
+
+        requestLatency = promauto.NewHistogramVec(
+            prometheus.HistogramOpts{
+                Name: "http_request_duration_seconds",
+                Help: "HTTP request latency",
+                Buckets: []float64{
+                    0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5,
+                },
+            },
+            []string{"method", "endpoint"},
+        )
+
+        activeConnections = promauto.NewGauge(
+            prometheus.GaugeOpts{
+                Name: "active_connections",
+                Help: "Number of active connections",
+            },
+        )
+    )
+
+    func instrumentedHandler(next http.Handler) http.Handler {
+        return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+            activeConnections.Inc()
+            defer activeConnections.Dec()
+
+            start := time.Now()
+            next.ServeHTTP(w, r)
+            duration := time.Since(start).Seconds()
+
+            requestCount.WithLabelValues(
+                r.Method, r.URL.Path, "200",
+            ).Inc()
+            requestLatency.WithLabelValues(
+                r.Method, r.URL.Path,
+            ).Observe(duration)
+        })
+    }
+
+    func main() {
+        http.Handle("/metrics", promhttp.Handler())
+        http.Handle("/api/",
+            instrumentedHandler(
+                http.HandlerFunc(apiHandler),
+            ),
+        )
+        http.ListenAndServe(":8080", nil)
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+### PromQL (Prometheus Query Language)
+
+```
+    Common PromQL Queries:
+
+    # Request rate (requests per second over 5 minutes)
+    rate(http_requests_total[5m])
+
+    # Error rate percentage
+    sum(rate(http_requests_total{status=~"5.."}[5m]))
+    /
+    sum(rate(http_requests_total[5m]))
+    * 100
+
+    # 99th percentile latency
+    histogram_quantile(0.99,
+      rate(http_request_duration_seconds_bucket[5m])
+    )
+
+    # Active connections by instance
+    active_connections{job="api-server"}
+
+    # Memory usage trend
+    process_resident_memory_bytes{job="api-server"}
+
+    # Top 5 endpoints by request count
+    topk(5, sum by (endpoint) (
+      rate(http_requests_total[5m])
+    ))
+```
+
+## Grafana Dashboards
+
+Grafana visualizes metrics from Prometheus (and other data sources) as interactive dashboards. A well-designed dashboard tells a story about service health.
+
+### Dashboard Design Principles
+
+```
+    Effective Dashboard Layout:
+
+    ┌──────────────────────────────────────────────────────┐
+    │  Service Health Overview (RED Method)                │
+    │                                                      │
+    │  ┌──────────┐  ┌──────────┐  ┌──────────┐           │
+    │  │ Request  │  │  Error   │  │ Duration │           │
+    │  │  Rate    │  │  Rate    │  │  (p50/99)│           │
+    │  │ 1,234/s  │  │  0.5%   │  │ 45/210ms │           │
+    │  └──────────┘  └──────────┘  └──────────┘           │
+    │                                                      │
+    │  ┌────────────────────────────────────────────────┐  │
+    │  │     Request Rate Over Time (line chart)        │  │
+    │  └────────────────────────────────────────────────┘  │
+    │                                                      │
+    │  ┌─────────────────────┐ ┌────────────────────────┐  │
+    │  │ Latency Distribution│ │ Error Rate by Endpoint │  │
+    │  │ (heatmap)           │ │ (stacked bar)          │  │
+    │  └─────────────────────┘ └────────────────────────┘  │
+    │                                                      │
+    │  ┌────────────────────────────────────────────────┐  │
+    │  │     Resource Usage: CPU, Memory, Disk          │  │
+    │  └────────────────────────────────────────────────┘  │
+    └──────────────────────────────────────────────────────┘
+```
+
+### The RED Method (for request-driven services)
+
+| Signal | Metric | Purpose |
+|--------|--------|---------|
+| **R**ate | Requests per second | Traffic volume |
+| **E**rrors | Error percentage | Service reliability |
+| **D**uration | Latency percentiles | User experience |
+
+### The USE Method (for resources)
+
+| Signal | Metric | Purpose |
+|--------|--------|---------|
+| **U**tilization | Percentage of resource busy | Capacity planning |
+| **S**aturation | Queue depth, waiting work | Bottleneck detection |
+| **E**rrors | Error events on the resource | Hardware/software issues |
+
+## Alerting Best Practices
+
+Alerts should be actionable, timely, and not overwhelming. Bad alerting leads to **alert fatigue** -- when engineers start ignoring alerts because too many are false positives.
+
+### Alert Design Principles
+
+```
+    Good Alert:
+    ┌─────────────────────────────────────────────┐
+    │ FIRING: High Error Rate on Payment Service  │
+    │                                             │
+    │ Severity: critical                          │
+    │ Service: payment-service                    │
+    │ Error rate: 5.2% (threshold: 1%)            │
+    │ Duration: 10 minutes                        │
+    │ Dashboard: https://grafana/d/payments       │
+    │ Runbook: https://wiki/runbooks/payment-err  │
+    │ On-call: @jane-doe (primary)                │
+    │                                             │
+    │ What to do:                                 │
+    │ 1. Check the dashboard for error patterns   │
+    │ 2. Check recent deployments                 │
+    │ 3. Follow the runbook                       │
+    └─────────────────────────────────────────────┘
+
+    Bad Alert:
+    ┌─────────────────────────────────────────────┐
+    │ FIRING: CPU > 80%                           │
+    │                                             │
+    │ (No context. No runbook. Is this a problem  │
+    │  or normal during peak traffic? What should │
+    │  the on-call engineer do?)                  │
+    └─────────────────────────────────────────────┘
+```
+
+| Principle | Description |
+|-----------|-------------|
+| **Alert on symptoms, not causes** | Alert on "error rate is high" not "CPU is high" |
+| **Include context** | Dashboard links, runbook links, recent changes |
+| **Set appropriate thresholds** | Based on SLOs, not arbitrary numbers |
+| **Use multi-window alerting** | Avoid alerting on brief spikes (require sustained violations) |
+| **Severity levels** | Critical = pages on-call, Warning = next business day |
+| **Reduce noise** | Group related alerts, suppress duplicates |
+
+<Tabs>
+  <TabItem label="Python">
+    ```yaml
+    # Prometheus alerting rules (prometheus-rules.yaml)
+    groups:
+      - name: payment-service
+        rules:
+          # Alert on high error rate (symptom-based)
+          - alert: HighErrorRate
+            expr: |
+              sum(rate(http_requests_total{
+                service="payment", status=~"5.."
+              }[5m]))
+              /
+              sum(rate(http_requests_total{
+                service="payment"
+              }[5m]))
+              > 0.01
+            for: 5m  # Must persist for 5 minutes
+            labels:
+              severity: critical
+              team: payments
+            annotations:
+              summary: "High error rate on payment service"
+              description: >
+                Error rate is {{ $value | humanizePercentage }}
+                (threshold: 1%).
+              dashboard: "https://grafana.example/d/payments"
+              runbook: "https://wiki.example/runbooks/payment-errors"
+
+          # Alert on high latency
+          - alert: HighLatency
+            expr: |
+              histogram_quantile(0.99,
+                rate(http_request_duration_seconds_bucket{
+                  service="payment"
+                }[5m])
+              ) > 2.0
+            for: 10m
+            labels:
+              severity: warning
+              team: payments
+            annotations:
+              summary: "High p99 latency on payment service"
+              description: >
+                p99 latency is {{ $value | humanizeDuration }}.
+
+          # Alert on error budget burn rate
+          - alert: ErrorBudgetBurnRate
+            expr: |
+              1 - (
+                sum(rate(http_requests_total{
+                  service="payment", status!~"5.."
+                }[1h]))
+                /
+                sum(rate(http_requests_total{
+                  service="payment"
+                }[1h]))
+              ) > 14.4 * (1 - 0.999)
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Error budget burning too fast"
+    ```
+  </TabItem>
+</Tabs>
+
+:::tip
+**Multi-window, multi-burn-rate alerting** is the gold standard for SLO-based alerting. Instead of a single threshold, you check multiple time windows (5m, 1h, 6h) to distinguish between brief spikes and sustained problems. This dramatically reduces false positives while catching real issues quickly.
+:::
+
+## Logging and Metrics Anti-Patterns
+
+| Anti-Pattern | Problem | Fix |
+|-------------|---------|-----|
+| **Logging everything** | Storage costs explode, signal lost in noise | Log meaningful events, use sampling for high-volume paths |
+| **Unstructured logs** | Cannot search, filter, or aggregate | Use JSON structured logging from day one |
+| **High-cardinality labels** | Prometheus runs out of memory | Never use user IDs, request IDs, or IP addresses as metric labels |
+| **Alerting on causes** | "CPU high" is not actionable | Alert on user-facing symptoms: error rate, latency |
+| **No runbooks** | On-call has no idea what to do | Every alert must link to a runbook |
+| **Alert fatigue** | Engineers ignore all alerts | Reduce noise, fix flapping alerts, tune thresholds |
+
+## Summary
+
+| Concept | Key Takeaway |
+|---------|-------------|
+| **Structured Logging** | JSON logs are searchable, filterable, and machine-parseable |
+| **Log Levels** | Use consistently: DEBUG, INFO, WARN, ERROR, FATAL |
+| **Log Aggregation** | Centralize logs with ELK or Loki for unified querying |
+| **Metric Types** | Counters (totals), Gauges (current), Histograms (distribution) |
+| **Prometheus** | Pull-based metrics collection with powerful query language |
+| **Grafana** | Unified visualization for metrics, logs, and traces |
+| **RED Method** | Rate, Errors, Duration -- for request-driven services |
+| **Alerting** | Alert on symptoms, include context, link to runbooks |
+
+<CardGrid>
+  <LinkCard
+    title="Distributed Tracing"
+    description="Learn how to trace requests across microservices with OpenTelemetry"
+    href="/software-engineering/observability-sre/distributed-tracing/"
+  />
+  <LinkCard
+    title="Observability & SRE Overview"
+    description="Return to the section overview"
+    href="/software-engineering/observability-sre/"
+  />
+</CardGrid>
